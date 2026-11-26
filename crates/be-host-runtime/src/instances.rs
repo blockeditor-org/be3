@@ -4,9 +4,9 @@ use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, ArtifactDescription, AudioCommand, BlockPick, ChildContent,
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus,
     EditorInstanceId, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact, OpenBlock,
-    OpenCreation, OpenPicker, OpenRename, Opening, OpeningKind, PerformanceMeasurement, ScreenId,
-    ScreenLayout, ScreenRequest, ScreenWindow, Stopped, View, ViewAnchor, ViewId, ViewPlacement,
-    ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
+    OpenCreation, OpenExport, OpenHost, OpenJoin, OpenPicker, OpenRename, Opening, OpeningKind,
+    PerformanceMeasurement, ScreenId, ScreenLayout, ScreenRequest, ScreenWindow, Stopped, View,
+    ViewAnchor, ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
 };
 use be_sdk_api::{
     DescribedAction, HostView, WindowOpen, WindowRequests,
@@ -16,8 +16,8 @@ use be_sdk_api::{
         ChildCreation, ChildMenuChoice, ClipOffer, DragStart, MenuSet, ShellMessage, ViewEnd,
     },
 };
-use be_sdk_type_guest::editor::{FromEditor, Gesture};
-use beui::native::accessibility::Embedded;
+use be_sdk_app_host::{accessibility::Graft, run::Descriptions};
+use be_sdk_type_guest::editor::{FromEditor, Gesture, ToEditor};
 use beui::{ImeArea, Pos2, Rect, Vec2, pos2, vec2};
 use std::{collections::BTreeMap, sync::Arc};
 use uuid::Uuid;
@@ -25,19 +25,17 @@ use uuid::Uuid;
 use super::{
     ChildCommit, EditorAction, EditorBlock, HostAnchored, HostChild, HostChildStatus, InstanceRole,
     MAX_LIVE_CHILDREN,
-    audio::AudioPlayer,
     calls::{self, AppCall, BlockIds, EditorAnswer, EditorCall, Outbound},
     events::InstanceEvent,
     heads::{HeadRead, Heads},
     input::{BlockDrag, DragEvent, InputForwarder, viewport_metrics},
-    pieces,
+    members::{Members, NamesRead},
     published::{Published, Watched},
     sent::Sent,
 };
 use be_host_base::{host, performance};
 
 mod cuts;
-pub(crate) mod gift;
 mod network;
 mod services;
 
@@ -62,6 +60,41 @@ fn presence_wanted(instance: EditorInstanceId) -> bool {
 /// for: the pick runs in the app's next frame, which asks in that frame's answers.
 const MENU_PICK_COMMITS: u32 = 2;
 
+/// Counts every instance that came or went, in any app: what be-host looks at to know the
+/// blocks editors show may have changed (`roles_revision`).
+static ROLES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// How many instances ever came or went.
+pub fn roles_revision() -> u64 {
+    ROLES.load(std::sync::atomic::Ordering::Acquire)
+}
+
+thread_local! {
+    /// The blocks this device hosts, and whether it keeps hosting each (`set_hosting`): the
+    /// host's, not an app's, so it outlives an app that restarts on purpose, and its editors
+    /// hear it again once reopened.
+    static HOSTING: std::cell::RefCell<HashMap<Uuid, be_sdk_api::blocks::HostingHere>> =
+        std::cell::RefCell::new(HashMap::default());
+}
+
+/// Says this device hosts `block` (guides/blocks/hosted.md, "Hosting"), keeps hosting it, or no
+/// longer hosts it (`HostingHere::No`): its editors hear it as `editor-event.hosting`.
+pub fn set_hosting(block: Uuid, hosting: be_sdk_api::blocks::HostingHere) {
+    HOSTING.with(|held| match hosting {
+        be_sdk_api::blocks::HostingHere::No => held.borrow_mut().remove(&block),
+        hosting => held.borrow_mut().insert(block, hosting),
+    });
+}
+
+fn hosting_of(block: Uuid) -> be_sdk_api::blocks::HostingHere {
+    HOSTING.with(|held| {
+        held.borrow()
+            .get(&block)
+            .copied()
+            .unwrap_or(be_sdk_api::blocks::HostingHere::No)
+    })
+}
+
 #[derive(Default)]
 pub(super) struct Instances {
     entries: HashMap<EditorInstanceId, Instance>,
@@ -69,12 +102,14 @@ pub(super) struct Instances {
     connection: Option<Connection>,
     next_screen: u64,
     announced: HashSet<ScreenId>,
-    unannounced_input: Vec<Outbound>,
     block_types: Option<Arc<crate::AppCatalog>>,
-    sent_block_types: Option<u64>,
+    /// The programs' editors, due to the app with its block types when they change.
+    program_editors: be_host_base::program_editors::Hearing,
     network: Vec<String>,
     /// Whether the app's manifest sets `block_agents`.
     block_agents: bool,
+    /// Whether the app's manifest sets `sharing`.
+    sharing: bool,
     app_id: String,
     services: services::Services,
     fetches: network::Fetches,
@@ -85,6 +120,9 @@ pub(super) struct Instances {
     mailed: Vec<Outbound>,
     published: Published,
     shell: Option<EditorInstanceId>,
+    /// Whether the shell said it lays out as on a phone (`set-phone-layout`), as a root's host
+    /// hears it of the root's shell (`Forwarded::phone_layout`).
+    phone_layout: bool,
     waiting: HashMap<EditorInstanceId, Vec<Outbound>>,
     gone: HashSet<EditorInstanceId>,
     serial: u64,
@@ -93,11 +131,15 @@ pub(super) struct Instances {
     accepted: Vec<be_sdk_api::ops::OpId>,
     relaying: HashSet<EditorInstanceId>,
     heard: beui::Heard,
+    /// Whether its editors are those a root guest embeds, whose screens the root draws and asks
+    /// of the app itself (`Forwarded`): each is served with no screen of the host's.
+    forwarded: bool,
 }
 
 struct Mail {
     desk: host::Desk<Instances>,
     head_reads: (host::Mailbox, host::Post<HeadRead>),
+    names_reads: (host::Mailbox, host::Post<NamesRead>),
     audio_changes: (host::Mailbox, host::Post<EditorInstanceId>),
     answers: (host::Mailbox, host::Post<services::Delivered>),
     fetched: (host::Mailbox, host::Post<network::Arrived>),
@@ -109,6 +151,7 @@ impl Default for Mail {
         Self {
             desk,
             head_reads: desk.mailbox(Instances::head_read),
+            names_reads: desk.mailbox(Instances::names_read),
             audio_changes: desk.mailbox(Instances::audio_changed),
             answers: desk.mailbox(Instances::service_answered),
             fetched: desk.mailbox(Instances::arrived),
@@ -124,17 +167,30 @@ struct Instance {
     role: InstanceRole,
     artifact: ArtifactState,
     dialog: DialogStatus,
-    /// The keyboard it gives to a child, and the keys held for it (`gift`).
-    gift: Option<gift::Gift>,
-    /// Blocks the host refused to make for the editor, so a gift asked for one (the ask comes
-    /// after the failed call) ends at once.
-    block_refused: Vec<Uuid>,
+    /// The highest `keyboard-ask` a child it placed carried that the host acted on: a commit
+    /// carrying a higher one moves the keyboard to that child (`set_children`).
+    keyboard_ask: u64,
+    /// The child its latest ask names, until the ask is withdrawn: when the child is no longer
+    /// placed, the compositor hears the ask stands no more.
+    asked_child: Option<ChildId>,
+    /// Blocks it made in this run, the only ones an app whose manifest does not set `sharing`
+    /// may open to anyone inside (`services::refuses_sharing`).
+    made: HashSet<Uuid>,
     screens: HashMap<ViewId, Screen>,
+    /// The statuses last reported of the children it placed in each view, for an editor a root
+    /// guest embeds (`Forwarded`), which has no screen of the host's to keep them.
+    forwarded_statuses: HashMap<ViewId, HashMap<ChildId, ChildStatus>>,
     anchored: Vec<AnchoredScreen>,
     opened: bool,
+    /// An editor opened as a Join member of its block (`opening-kind.join`), given no content,
+    /// only the block's host channel: one whose access crosses between Join and View is closed
+    /// at the app and opened again as the other kind.
+    joined: bool,
     deferred: Vec<Outbound>,
     reported_focus: Option<Focus>,
     reported_editable: Option<bool>,
+    /// Whether this device hosts its block, as last told (`editor-event.hosting`).
+    reported_hosting: Option<be_sdk_api::blocks::HostingHere>,
     /// The actions each view last described (`frame-report.actions`), kept while nothing asks
     /// the app to describe.
     actions: HashMap<ViewId, Vec<DescribedAction>>,
@@ -144,10 +200,11 @@ struct Instance {
     /// reported yet is filled with.
     backdrop: Option<be_sdk_api::accessibility::Color>,
     heads: Heads,
+    members: Members,
     revision_previews: HashMap<be_sdk_api::ops::OpId, services::RevisionPreview>,
     drag_accepted: bool,
     intrinsic: Option<Vec2>,
-    audio: Option<AudioPlayer>,
+    audio: Option<Box<dyn super::audio::AudioPlayer>>,
     reported_size: Option<Vec2>,
     picked: Option<BlockPick>,
     card: bool,
@@ -161,8 +218,6 @@ struct Instance {
     published: Watched,
     unshown_web_views: Vec<WebViewId>,
     presence_visible: Option<bool>,
-    replacements: HashMap<(Uuid, Uuid), Replacement>,
-    next_replacement: u64,
     /// Renders of copied representations asked of the instance, by request:
     /// `None` until it answers.
     renders: HashSet<u64>,
@@ -170,8 +225,9 @@ struct Instance {
     content: Option<ContentLink>,
     watched: HashMap<Uuid, ContentLink>,
     shown: be_lib_stable_hash::HashSet<(Uuid, Uuid)>,
-    replicas: HashMap<Uuid, be_sdk_api::ops::OpId>,
-    watches: HashMap<be_sdk_api::ops::OpId, blocks::Watch>,
+    /// Its block watches and replicas, which the library's dispatcher keeps
+    /// (`be_sdk_app_host::blocks`).
+    held: be_sdk_app_host::blocks::EditorBlocks,
     shows: Vec<be_sdk_api::blocks::ShowRequest>,
     /// Whether the answers to its block queries may have changed since they were offered.
     blocks_due: bool,
@@ -183,12 +239,39 @@ struct Instance {
     stale: bool,
 }
 
+impl Instance {
+    /// Whether its block's content, or a block's it watches besides its own (its view's state,
+    /// where the text app keeps where it was left), is attached and has yet to reach it.
+    fn awaits_content(&self) -> bool {
+        let own = self
+            .role
+            .block()
+            .zip(self.content.as_ref())
+            .map(|(block, link)| (block.id, link));
+        own.into_iter()
+            .chain(self.watched.iter().map(|(block, link)| (*block, link)))
+            .any(|(block, link)| {
+                link.attached.is_some() && !link.delivered && be_host_stack::may_load(block)
+            })
+    }
+}
+
 struct ContentLink {
     content_type: Uuid,
     attached: Option<bool>,
     delivered: bool,
+    /// How many times the content reached the editor after it lacked it: a `Resend` says it
+    /// lacks it again (an app that starts, an editor out of step), until the answer is relayed.
+    deliveries: u64,
     awaiting_preview: bool,
-    gesturing: bool,
+    /// Whether an earlier replica was started afresh (`BlockStore::replica_resumed`): until a
+    /// snapshot reaches it, it is relayed nothing else, which the stack may have made for the
+    /// replica that ended before it heard the resend.
+    resuming: bool,
+    /// The gestures the editor holds open in the block, undo groups and tentative ones, by id:
+    /// a link that goes commits each undo group, kept as one step, and cancels each tentative
+    /// one, whose held edits leave no trace.
+    gestures: std::collections::BTreeMap<u64, Gesture>,
     described: Option<be_block_content::Entries>,
 }
 
@@ -198,8 +281,10 @@ impl ContentLink {
             content_type,
             attached: None,
             delivered: false,
+            deliveries: 0,
             awaiting_preview: false,
-            gesturing: false,
+            resuming: false,
+            gestures: std::collections::BTreeMap::new(),
             described: None,
         }
     }
@@ -218,13 +303,21 @@ impl ContentLink {
         be_host_stack::describe_implicitly(block, derived);
     }
 
-    fn detach(&mut self, instance: EditorInstanceId, block: Uuid, shown: &[Uuid]) {
+    fn detach(&mut self, instance: EditorInstanceId, app: &str, block: Uuid, shown: &[Uuid]) {
         if self.attached.take().is_none() {
             return;
         }
         let mut goodbyes = Vec::new();
-        if self.gesturing {
-            goodbyes.push(FromEditor::Gesture(Gesture::Cancel));
+        // An undo group was written as it went, so it is kept as one step; a tentative
+        // gesture's edits were never written, and leave no trace.
+        for (id, begun) in std::mem::take(&mut self.gestures) {
+            goodbyes.push(FromEditor::Gesture {
+                id,
+                gesture: match begun {
+                    Gesture::BeginTentative => Gesture::Cancel,
+                    _ => Gesture::Commit,
+                },
+            });
         }
         for kind in shown {
             goodbyes.push(FromEditor::ShowPresence {
@@ -233,7 +326,12 @@ impl ContentLink {
             });
         }
         for goodbye in goodbyes {
-            be_host_stack::from_editor(block, instance.0, &be_sdk_type_api::encode_frame(&goodbye));
+            be_host_stack::from_editor(
+                block,
+                instance.0,
+                app,
+                &be_sdk_type_api::encode_frame(&goodbye),
+            );
         }
         be_host_stack::detach(block, instance.0);
     }
@@ -261,13 +359,11 @@ pub struct EditorView {
     pub scale: f32,
 }
 
-enum Replacement {
-    Pending(u64),
-    Answered(bool),
-}
-
 #[derive(Default)]
 struct ArtifactState {
+    exporter: String,
+    /// Why the instance could not make the artifact again, last it said.
+    failure: Option<String>,
     data: Vec<u8>,
     description: Option<ArtifactDescription>,
     draft: Option<Vec<u8>>,
@@ -275,26 +371,32 @@ struct ArtifactState {
 
 mod blocks;
 use be_sdk_api::blocks::BlockValue;
-use blocks::Subject;
+use be_sdk_app_host::blocks::Subject;
 
 impl Instance {
     fn new(role: InstanceRole) -> Self {
+        ROLES.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
         Self {
             role,
             artifact: ArtifactState::default(),
             dialog: DialogStatus::default(),
-            gift: None,
-            block_refused: Vec::new(),
+            keyboard_ask: 0,
+            asked_child: None,
+            made: HashSet::default(),
             screens: HashMap::default(),
+            forwarded_statuses: HashMap::default(),
             anchored: Vec::new(),
             opened: false,
             deferred: Vec::new(),
             reported_focus: None,
             reported_editable: None,
+            reported_hosting: None,
+            joined: false,
             actions: HashMap::default(),
             menu_picked: None,
             backdrop: None,
             heads: Heads::default(),
+            members: Members::default(),
             revision_previews: HashMap::default(),
             drag_accepted: false,
             intrinsic: None,
@@ -312,14 +414,11 @@ impl Instance {
             published: Watched::default(),
             unshown_web_views: Vec::new(),
             presence_visible: None,
-            replacements: HashMap::default(),
-            next_replacement: 0,
             renders: HashSet::default(),
             next_render: 0,
             watched: HashMap::default(),
             shown: be_lib_stable_hash::HashSet::default(),
-            replicas: HashMap::default(),
-            watches: HashMap::default(),
+            held: be_sdk_app_host::blocks::EditorBlocks::default(),
             shows: Vec::new(),
             blocks_due: true,
             searches: std::collections::BTreeMap::new(),
@@ -327,14 +426,76 @@ impl Instance {
             version_sent: None,
             stale: true,
             content: match role {
-                InstanceRole::Editor(_, block) => own_content_type(block).map(ContentLink::new),
+                // A host component is attached to its block's replica as an editor is.
+                InstanceRole::Editor(_, block) | InstanceRole::Host(_, block) => {
+                    own_content_type(block).map(ContentLink::new)
+                }
                 InstanceRole::Creation(..)
                 | InstanceRole::Artifact(..)
                 | InstanceRole::Picker(..)
-                | InstanceRole::Rename(..) => None,
+                | InstanceRole::Rename(..)
+                | InstanceRole::Export(..) => None,
             },
         }
     }
+}
+
+/// Forgets what a run of the app had of `entry` once the app no longer has it open (it
+/// restarted, or the instance was closed there to open as another kind), so it is opened
+/// again and sent its content, blocks, keyboard focus and children's statuses afresh.
+fn forget_opened(
+    app_id: &str,
+    heard: &beui::Heard,
+    instance: EditorInstanceId,
+    entry: &mut Instance,
+) {
+    entry.opened = false;
+    for request in entry.renders.drain() {
+        super::events::emit(
+            app_id,
+            instance,
+            InstanceEvent::Rendered {
+                request,
+                body: None,
+            },
+        );
+    }
+    entry.deferred.clear();
+    // The new run's editor counts its asks afresh, and an ask the old one made stands no more.
+    entry.keyboard_ask = 0;
+    entry.asked_child = None;
+    super::events::emit(app_id, instance, InstanceEvent::KeyboardAsked(None));
+    entry.reported_focus = None;
+    entry.reported_editable = None;
+    entry.reported_hosting = None;
+    entry.reported_view = None;
+    entry.reported_presenting = false;
+    entry.published.forget_reported();
+    entry.heads = Heads::default();
+    entry.members = Members::default();
+    // The old app's previews close with it: the new one numbers its ops afresh, so a
+    // preview kept here could answer to an op of the new app's.
+    for (_, preview) in entry.revision_previews.drain() {
+        if let Some(block) = preview.block() {
+            be_host_stack::revisions::release(block);
+        }
+    }
+    super::events::emit(app_id, instance, InstanceEvent::ArtifactWatch(Vec::new()));
+    entry.held.clear();
+    entry.shows.clear();
+    entry.reported_size = None;
+    entry.blocks_due = true;
+    entry.version_sent = None;
+    for link in entry.content.iter_mut().chain(entry.watched.values_mut()) {
+        link.delivered = false;
+    }
+    for screen in entry.screens.values_mut() {
+        screen.stopped = None;
+        // The new runner hears everything afresh, its views without the keyboard: a screen
+        // that had it keeps it, and hears so once it is announced again (`Instances::announce`).
+        screen.input = InputForwarder::new(heard.clone(), screen.input.focused());
+    }
+    entry.stale = true;
 }
 
 fn own_content_type(block: EditorBlock) -> Option<Uuid> {
@@ -347,6 +508,7 @@ impl Instance {
             return;
         }
         let queries: Vec<_> = self
+            .held
             .watching()
             .filter_map(|watched| match watched {
                 Subject::Blocks(query) => Some(query),
@@ -369,7 +531,8 @@ impl Instance {
                     }
                 });
             }
-            self.offer(Subject::Blocks(query), &BlockValue::Blocks(answer));
+            self.held
+                .offer(Subject::Blocks(query), &BlockValue::Blocks(answer));
         }
     }
 
@@ -404,7 +567,7 @@ impl Instance {
                 complete: found.complete,
             };
             Instances::translated(scope, false, |visit| results.visit_block_ids(visit));
-            self.offer_search(op, &results);
+            self.held.offer_search(op, &results);
         }
     }
 
@@ -417,6 +580,7 @@ impl Instance {
 
     fn wants(&self) -> Vec<be_host_stack::Query> {
         let mut wants: Vec<be_host_stack::Query> = self
+            .held
             .watching()
             .filter_map(|watched| match watched {
                 Subject::Blocks(query) => Some(be_host_stack::app_graph::query_of(query)),
@@ -439,7 +603,10 @@ impl Instance {
         match self.role {
             InstanceRole::Editor(_, block)
                 if be_host_stack::is_versioned(block.block_type)
-                    && self.watching().any(|watched| watched == Subject::Version) =>
+                    && self
+                        .held
+                        .watching()
+                        .any(|watched| watched == Subject::Version) =>
             {
                 vec![(block.id, block.block_type)]
             }
@@ -448,7 +615,11 @@ impl Instance {
     }
 
     fn offer_version(&mut self) {
-        if !self.watching().any(|watched| watched == Subject::Version) {
+        if !self
+            .held
+            .watching()
+            .any(|watched| watched == Subject::Version)
+        {
             return;
         }
         if let InstanceRole::Editor(_, block) = self.role
@@ -457,7 +628,33 @@ impl Instance {
                 be_host_stack::version_since(block.id, self.version_sent)
         {
             self.version_sent = Some(revision);
-            self.offer(Subject::Version, &BlockValue::Version(status));
+            self.held
+                .offer(Subject::Version, &BlockValue::Version(status));
+        }
+    }
+
+    fn watches_members(&self) -> bool {
+        self.held
+            .watching()
+            .any(|watched| watched == Subject::Members)
+    }
+
+    /// Asks the server to name its block's members, when it watches them and they may have
+    /// changed, and offers the watch what is known, named from the contacts as they are now.
+    fn offer_members(
+        &mut self,
+        instance: EditorInstanceId,
+        epoch: u64,
+        reads: &host::Post<NamesRead>,
+    ) {
+        if !self.watches_members() {
+            return;
+        }
+        if let InstanceRole::Editor(_, block) = self.role {
+            self.members.request(instance, epoch, block.id, reads);
+        }
+        if let Some(value) = self.members.value() {
+            self.held.offer(Subject::Members, &value);
         }
     }
 
@@ -548,17 +745,32 @@ impl Instance {
         frame: &Vec<u8>,
         send: &mut impl FnMut(be_sdk_api::ops::OpId, &Vec<u8>) -> bool,
     ) -> bool {
-        let Some(replica) = self.replicas.get(&block).copied() else {
+        let Some(replica) = self.held.replica(block) else {
             return true;
         };
-        if self.link_mut(block).is_none() {
+        let Some(link) = self.link_mut(block) else {
+            return true;
+        };
+        let message = be_host_stack::unframe(frame).and_then(|bytes| ToEditor::decode(&bytes));
+        let snapshot = matches!(message, Some(ToEditor::Snapshot(_)));
+        if link.resuming && !snapshot {
             return true;
         }
         if !send(replica, frame) {
             return false;
         }
+        // Only a snapshot gives the editor its content: operations or presence the replica sent
+        // before it heard the editor ask again reach an editor that ignores them until it has it.
+        // That the block will not open answers it as well: it waits for nothing more.
+        let failed = matches!(message, Some(ToEditor::Failed(_)));
         if let Some(link) = self.link_mut(block) {
-            link.delivered = true;
+            if snapshot {
+                link.resuming = false;
+            }
+            if snapshot && !link.delivered {
+                link.deliveries += 1;
+            }
+            link.delivered |= snapshot || failed;
         }
         true
     }
@@ -568,6 +780,7 @@ impl Instance {
             own.id == block || be_host_stack::revisions::source(own.id) == Some(block)
         }) || self.watched.contains_key(&block)
             || self
+                .held
                 .watching()
                 .any(|watched| watched == Subject::History(block))
             || self.heads.follows(block)
@@ -577,6 +790,7 @@ impl Instance {
 impl Instance {
     fn offer_histories(&mut self) {
         let blocks: Vec<Uuid> = self
+            .held
             .watching()
             .filter_map(|watched| match watched {
                 Subject::History(block) => Some(block),
@@ -585,7 +799,8 @@ impl Instance {
             .collect();
         for block in blocks {
             let history = self.history(block);
-            self.offer(Subject::History(block), &BlockValue::History(history));
+            self.held
+                .offer(Subject::History(block), &BlockValue::History(history));
         }
     }
 
@@ -616,7 +831,7 @@ pub(super) struct Described<'a> {
     pub(super) screen: ScreenId,
     pub(super) actions: &'a [DescribedAction],
     pub(super) focused: bool,
-    pub(super) tree: &'a mut Embedded,
+    pub(super) tree: &'a mut Graft,
 }
 
 struct Screen {
@@ -629,7 +844,7 @@ struct Screen {
     holding: bool,
     used: Option<Vec2>,
     report: Option<FrameReport>,
-    accessibility: Embedded,
+    accessibility: Graft,
     dragging: Option<DragKind>,
     window: WindowRequests,
     stopped: Option<Stopped>,
@@ -653,7 +868,7 @@ pub(super) enum DragKind {
 impl Screen {
     fn new(request: ScreenRequest, pass: u64, heard: &beui::Heard) -> Self {
         Self {
-            input: InputForwarder::new(heard.clone()),
+            input: InputForwarder::new(heard.clone(), false),
             placement: None,
             request,
             last_seen: pass,
@@ -662,7 +877,7 @@ impl Screen {
             holding: false,
             used: None,
             report: None,
-            accessibility: Embedded::new(beui::native::accessibility::next_document_id()),
+            accessibility: Graft::new(beui::native::accessibility::next_document_id()),
             dragging: None,
             window: WindowRequests::default(),
             stopped: None,
@@ -819,6 +1034,9 @@ impl Drop for Instances {
     /// Answers the renders still asked of instances that go with their app, and says they
     /// closed.
     fn drop(&mut self) {
+        if !self.entries.is_empty() {
+            ROLES.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        }
         for (instance, entry) in &mut self.entries {
             for request in entry.renders.drain() {
                 super::events::emit(
@@ -836,6 +1054,13 @@ impl Drop for Instances {
 }
 
 impl Instances {
+    /// Each instance with its role.
+    pub(crate) fn roles(&self) -> impl Iterator<Item = (EditorInstanceId, InstanceRole)> + '_ {
+        self.entries
+            .iter()
+            .map(|(instance, entry)| (*instance, entry.role))
+    }
+
     pub(super) fn translate(&self, message: &mut impl BlockIds, inward: bool) {
         let mut carries = false;
         message.visit_block_ids(&mut |_, _, _| carries = true);
@@ -910,14 +1135,16 @@ impl Instances {
                 }
                 continue;
             }
+            // Input for a screen the app has not been told of yet is dropped, as for an app that
+            // is not running: where the keyboard is reaches the screen once it is announced.
             match &message {
                 Outbound::App(AppCall::Input(batch))
                     if !self.announced.contains(&batch.screen)
                         && !self.is_anchored_screen(batch.screen) =>
                 {
-                    if self.is_screen(batch.screen) {
-                        self.unannounced_input.push(message);
-                    }
+                    // The replay that made the batch counted its modifiers as heard, and the
+                    // app heard none of them: the next input that gets through sends them.
+                    self.heard.forget();
                 }
                 _ => allowed.push(message),
             }
@@ -929,8 +1156,18 @@ impl Instances {
         self.entries.is_empty()
     }
 
+    /// Closes every instance as `remove` closes one, for an app that goes with its instances
+    /// open (a `Forwarded` the root lets go of): they let go of what they held of the stack, so
+    /// no replica keeps an editor that is gone and no block stays open or wanted for it. Dropping
+    /// them could not: a drop at the thread's end reaches the stack's thread locals as they go.
+    pub(super) fn close_all(&mut self) {
+        let instances: Vec<EditorInstanceId> = self.entries.keys().copied().collect();
+        for instance in instances {
+            self.remove(instance);
+        }
+    }
+
     pub(super) fn remove(&mut self, instance: EditorInstanceId) -> bool {
-        self.end_gift(instance, gift::Keys::Drop);
         self.withdraw_all(instance);
         self.waiting.remove(&instance);
         self.gone.insert(instance);
@@ -938,10 +1175,12 @@ impl Instances {
         let Some(entry) = self.entries.remove(&instance) else {
             return false;
         };
+        ROLES.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
         self.owners.retain(|_, owner| *owner != instance);
         be_host_stack::want(be_host_stack::Owner::Editor(instance.0), Vec::new());
         be_host_stack::want_searches(be_host_stack::Owner::Editor(instance.0), Vec::new());
         be_host_stack::want_versions(be_host_stack::Owner::Editor(instance.0), Vec::new());
+        be_host_stack::want_channel(be_host_stack::Owner::Editor(instance.0), None);
         let mut entry = entry;
         for request in entry.renders.drain() {
             super::events::emit(
@@ -965,10 +1204,10 @@ impl Instances {
         if let Some(block) = entry.role.block()
             && let Some(link) = entry.content.as_mut()
         {
-            link.detach(instance, block.id, &shown_on(block.id));
+            link.detach(instance, &self.app_id, block.id, &shown_on(block.id));
         }
         for (block, link) in &mut entry.watched {
-            link.detach(instance, *block, &shown_on(*block));
+            link.detach(instance, &self.app_id, *block, &shown_on(*block));
         }
         for preview in entry.revision_previews.values() {
             if let Some(block) = preview.block() {
@@ -976,6 +1215,13 @@ impl Instances {
             }
         }
         entry.opened
+    }
+
+    /// Whether the instance `instance` opened in its app.
+    pub(super) fn is_open(&self, instance: EditorInstanceId) -> bool {
+        self.entries
+            .get(&instance)
+            .is_some_and(|entry| entry.opened)
     }
 
     fn editable(&self, block: Uuid) -> bool {
@@ -999,11 +1245,24 @@ impl Instances {
             return false;
         };
         match &message {
-            Some(FromEditor::Gesture(Gesture::Begin)) => link.gesturing = true,
-            Some(FromEditor::Gesture(Gesture::Commit | Gesture::Cancel)) => link.gesturing = false,
+            Some(FromEditor::Gesture {
+                id,
+                gesture: begun @ (Gesture::Begin | Gesture::BeginTentative),
+            }) => {
+                link.gestures.insert(*id, *begun);
+            }
+            Some(FromEditor::Gesture {
+                id,
+                gesture: Gesture::Commit | Gesture::Cancel,
+            }) => {
+                link.gestures.remove(id);
+            }
             _ => {}
         }
         let resend = matches!(message, Some(FromEditor::Resend));
+        if resend {
+            link.delivered = false;
+        }
         if let Some(source) = be_host_stack::revisions::source(block) {
             be_host_stack::revisions::load(block, source, link.content_type);
             if resend {
@@ -1023,7 +1282,7 @@ impl Instances {
             link.awaiting_preview = true;
         }
         if !(resend && attaching) {
-            be_host_stack::from_editor(block, instance.0, &frame);
+            be_host_stack::from_editor(block, instance.0, &self.app_id, &frame);
         }
         true
     }
@@ -1034,6 +1293,25 @@ impl Instances {
 
     fn connect(&mut self, client_id: Uuid) {
         self.connection = Some(Connection { client_id });
+    }
+
+    /// Takes `instance` in as an editor of `role` a root guest embeds (`Forwarded`): it opens
+    /// at the next pass (`next_screens`), and is served with no screen of the host's.
+    pub(super) fn open_forwarded(
+        &mut self,
+        instance: EditorInstanceId,
+        role: InstanceRole,
+        client_id: Uuid,
+        block_types: &Arc<crate::AppCatalog>,
+    ) {
+        self.forwarded = true;
+        self.connect(client_id);
+        if self.block_types.is_none() {
+            self.block_types = Some(Arc::clone(block_types));
+        }
+        self.entries
+            .entry(instance)
+            .or_insert_with(|| Instance::new(role));
     }
 
     pub(super) fn report(
@@ -1135,22 +1413,27 @@ impl Instances {
 
     pub(super) fn awaiting_content(&self) -> bool {
         self.entries.values().any(|entry| {
-            let mounted = entry.screens.values().any(|screen| screen.mounted > 0);
-            let own = entry
-                .role
-                .block()
-                .zip(entry.content.as_ref())
-                .map(|(block, link)| (block.id, link));
-            // A block it watches besides its own (its view's state, where the text app keeps
-            // where it was left) is waited for as its own block is.
-            mounted
-                && own
-                    .into_iter()
-                    .chain(entry.watched.iter().map(|(block, link)| (*block, link)))
-                    .any(|(block, link)| {
-                        link.attached.is_some() && !link.delivered && be_host_stack::may_load(block)
-                    })
+            entry.screens.values().any(|screen| screen.mounted > 0) && entry.awaits_content()
         })
+    }
+
+    /// Whether an editor served for a root (`Forwarded`) waits for a block's content: the root
+    /// mounts its views, so it waits whether or not this side saw one mounted.
+    pub(super) fn awaiting_forwarded_content(&self) -> bool {
+        self.entries.values().any(Instance::awaits_content)
+    }
+
+    /// Whether a host component is open: it has no screen to mount, so it asks for no frame,
+    /// but runs, and is passed each step, for as long as it is open.
+    pub(super) fn has_hosts(&self) -> bool {
+        self.entries
+            .values()
+            .any(|entry| matches!(entry.role, InstanceRole::Host(..)))
+    }
+
+    /// Whether the host asked this app for a view of any of its instances (`report`).
+    pub(super) fn has_views(&self) -> bool {
+        self.entries.values().any(|entry| !entry.screens.is_empty())
     }
 
     pub(super) fn has_mounted(&self) -> bool {
@@ -1492,9 +1775,12 @@ impl Instances {
             .collect();
         let files = super::input::file_drop(input, screen.dragging == Some(DragKind::Files));
         messages.extend(self.drag(instance, region, DragKind::Files, files));
-        let revoked =
-            (escaped || (pressed && input.hovered)) && self.revoke_active(instance, region);
-        (messages, revoked)
+        // A press in the placer takes its active children back, keyboard and frame; an Escape it
+        // does not handle takes back only the frame a child took over: the keyboard stays where
+        // it is, as under a root (be-sdk-root's `Children::revoke`).
+        let revoked = pressed && input.hovered && self.revoke_active(instance, region);
+        let framed_back = escaped && self.revoke_frame_children(instance, region);
+        (messages, revoked || framed_back)
     }
 
     pub(super) fn shown_anchored(
@@ -1911,6 +2197,7 @@ impl Instances {
         editor: Uuid,
         block: EditorBlock,
         source: Uuid,
+        exporter: &str,
         data: &[u8],
         resync: bool,
     ) -> Vec<Outbound> {
@@ -1920,6 +2207,7 @@ impl Instances {
         }
         let entry = self.entries.entry(instance).or_insert_with(|| {
             let mut entry = Instance::new(InstanceRole::Artifact(editor, block, source));
+            entry.artifact.exporter = exporter.to_owned();
             entry.artifact.data = data.to_vec();
             entry
         });
@@ -1944,6 +2232,24 @@ impl Instances {
         self.entries.get(&instance)?.artifact.description.clone()
     }
 
+    pub(super) fn artifact_failure(&self, instance: EditorInstanceId) -> Option<String> {
+        self.entries.get(&instance)?.artifact.failure.clone()
+    }
+
+    /// Gives the instance `instance`, opened as an artifact, the exporter that makes it and the
+    /// settings it was made with, which it opens with (`OpeningKind::Artifact`).
+    pub(super) fn seed_artifact(
+        &mut self,
+        instance: EditorInstanceId,
+        exporter: &str,
+        data: &[u8],
+    ) {
+        if let Some(entry) = self.entries.get_mut(&instance) {
+            entry.artifact.exporter = exporter.to_owned();
+            entry.artifact.data = data.to_vec();
+        }
+    }
+
     pub(super) fn artifact_draft(&self, instance: EditorInstanceId) -> Option<Vec<u8>> {
         self.entries.get(&instance)?.artifact.draft.clone()
     }
@@ -1966,6 +2272,10 @@ impl Instances {
         self.network = hosts;
     }
 
+    pub(super) fn allow_sharing(&mut self, allowed: bool) {
+        self.sharing = allowed;
+    }
+
     pub(super) fn allow_block_agents(&mut self, allowed: bool) {
         self.block_agents = allowed;
     }
@@ -1974,63 +2284,62 @@ impl Instances {
         self.app_id = app_id;
     }
 
+    /// Forgets what the old run had of its instances when the app restarts (`Runtime::restart`),
+    /// so the new run is sent their content, blocks, keyboard focus and children's statuses
+    /// again. What they described goes in `Run::restart` (`Descriptions`).
+    /// Opens an editor again as a Join member (`opening-kind.join`, no content) once its
+    /// block's access fell to Join, or as an ordinary editor once it rose from it: closed at the
+    /// app if it was open there, with all an app's close ends (its services, waiting
+    /// messages, early shows, the screens it announced) forgotten, as `remove` forgets them,
+    /// but the instance kept, so the next pass opens it again.
+    fn switch_kind(&mut self, instance: EditorInstanceId) -> Vec<Outbound> {
+        let Some(entry) = self.entries.get(&instance) else {
+            return Vec::new();
+        };
+        let InstanceRole::Editor(_, block) = entry.role else {
+            return Vec::new();
+        };
+        let joined = be_host_stack::access(block.id) == be_block_graph::Access::Join;
+        if joined == entry.joined {
+            return Vec::new();
+        }
+        let was_open = entry.opened;
+        let mut closed = Vec::new();
+        if was_open {
+            closed.push(Outbound::Close(instance));
+            self.withdraw_all(instance);
+            self.waiting.remove(&instance);
+            self.early_shows.remove(&instance);
+            self.owners.retain(|_, owner| *owner != instance);
+        }
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return closed;
+        };
+        if was_open {
+            for screen in entry.screens.values() {
+                self.announced.remove(&screen.request.screen);
+            }
+            forget_opened(&self.app_id, &self.heard, instance, entry);
+        }
+        let shown = entry.shown_on(block.id);
+        if let Some(link) = entry.content.as_mut() {
+            link.detach(instance, &self.app_id, block.id, &shown);
+        }
+        entry.shown.retain(|(on, _)| *on != block.id);
+        entry.joined = joined;
+        entry.content = match joined {
+            true => None,
+            false => own_content_type(block).map(ContentLink::new),
+        };
+        closed
+    }
+
     pub(super) fn reopen(&mut self) {
         self.heard.forget();
-        self.sent_block_types = None;
+        self.program_editors.again();
         self.announced.clear();
         for (instance, entry) in &mut self.entries {
-            entry.opened = false;
-            for request in entry.renders.drain() {
-                super::events::emit(
-                    &self.app_id,
-                    *instance,
-                    InstanceEvent::Rendered {
-                        request,
-                        body: None,
-                    },
-                );
-            }
-            entry.deferred.clear();
-            entry.reported_focus = None;
-            entry.reported_editable = None;
-            entry.reported_view = None;
-            entry.reported_presenting = false;
-            entry.published.forget_reported();
-            entry.heads = Heads::default();
-            // The old app's previews close with it: the new one numbers its ops afresh, so a
-            // preview kept here could answer to an op of the new app's.
-            for (_, preview) in entry.revision_previews.drain() {
-                if let Some(block) = preview.block() {
-                    be_host_stack::revisions::release(block);
-                }
-            }
-            super::events::emit(
-                &self.app_id,
-                *instance,
-                InstanceEvent::ArtifactWatch(Vec::new()),
-            );
-            entry.watches.clear();
-            entry.replicas.clear();
-            entry.shows.clear();
-            entry.reported_size = None;
-            entry.blocks_due = true;
-            entry.version_sent = None;
-            for link in entry.content.iter_mut().chain(entry.watched.values_mut()) {
-                link.delivered = false;
-            }
-            for screen in entry.screens.values_mut() {
-                screen.stopped = None;
-                // The new runner hears everything afresh, its views without the keyboard: a
-                // screen that had it hears so again once the app announces it.
-                if screen.input.focused() {
-                    let mut batch = be_sdk_api::InputBatch::new(screen.request.screen, false);
-                    batch.push(be_sdk_api::TimedInput::from(be_sdk_api::Input::Focus(true)));
-                    self.unannounced_input
-                        .push(Outbound::App(AppCall::Input(batch)));
-                }
-                screen.input = InputForwarder::new(self.heard.clone());
-            }
-            entry.stale = true;
+            forget_opened(&self.app_id, &self.heard, *instance, entry);
         }
         self.forget_services();
         self.owners.clear();
@@ -2039,6 +2348,12 @@ impl Instances {
     }
 
     pub(super) fn next_screens(&mut self, pass: u64) -> NextScreens {
+        // be-host's frame takes the stack's updates before the runtime's pass; a test that runs
+        // passes with no host takes them here as that frame would. Otherwise the test's stack
+        // takes them on a thread of its own, which applies what the worker did before it tells
+        // the watchers of it, and a pass between the two reads it without hearing of it.
+        #[cfg(test)]
+        be_host_stack::take_updates_in_frame();
         let client = self
             .connection
             .as_ref()
@@ -2050,25 +2365,43 @@ impl Instances {
         let changes = self.stack_changes.take();
         self.touch(&changes);
         let graph_moved = changes.graph;
+        if graph_moved {
+            self.settle_openings();
+        }
+        let contacts_moved = changes.contacts;
+        // What each joined block's host channel did, taken once in this pass for every editor
+        // that joins it.
+        let mut channel_news: HashMap<Uuid, Vec<be_sdk_api::blocks::ChannelEvent>> =
+            HashMap::default();
         let mut opened = Vec::new();
         let mut screens = Vec::new();
+        let forwarded = self.forwarded;
         self.relaying.clear();
         if let Some(block_types) = &self.block_types
-            && let Some((programs, program_editors)) =
-                be_host_base::program_editors::listed_since(self.sent_block_types)
+            && let Some(program_editors) = self.program_editors.take()
         {
-            self.sent_block_types = Some(programs);
             let debug_templates = block_types.debug_templates.clone();
             let mut block_types = block_types.catalog.clone();
             block_types.editors.extend(program_editors);
             opened.push(Outbound::App(AppCall::BlockTypes(block_types)));
             opened.push(Outbound::App(AppCall::DebugTemplates(debug_templates)));
         }
+        // An editor whose block's access crossed between Join and View opens again as the
+        // other kind: closed at the app first, once, before anything else is sent it.
+        for instance in &instances {
+            opened.extend(self.switch_kind(*instance));
+        }
         for instance in instances {
             let scope = self.scope(instance);
             let Some(entry) = self.entries.get_mut(&instance) else {
                 continue;
             };
+            if let InstanceRole::Editor(_, block) = entry.role {
+                be_host_stack::want_channel(
+                    be_host_stack::Owner::Editor(instance.0),
+                    entry.joined.then_some(block.id),
+                );
+            }
             be_host_stack::want(be_host_stack::Owner::Editor(instance.0), entry.wants());
             be_host_stack::want_searches(
                 be_host_stack::Owner::Editor(instance.0),
@@ -2106,7 +2439,7 @@ impl Instances {
                     || regions.iter().any(|request| request.view == *view)
                     || entry.anchored.iter().any(|held| held.view == *view)
             });
-            if regions.is_empty() && matches!(entry.role, InstanceRole::Editor(..)) {
+            if regions.is_empty() && matches!(entry.role, InstanceRole::Editor(..)) && !forwarded {
                 continue;
             }
             regions.sort_by_key(|request| request.screen.0);
@@ -2114,11 +2447,24 @@ impl Instances {
                 continue;
             };
             let client_id = client_id.into_bytes();
+            let fresh = !entry.opened;
             if !entry.opened {
                 entry.opened = true;
                 let account_id = account.into_bytes();
                 let organization_id = organization.into_bytes();
                 let (editor, kind) = match entry.role {
+                    InstanceRole::Editor(editor, block) if entry.joined => {
+                        entry.reported_editable = Some(false);
+                        (
+                            editor,
+                            OpeningKind::Join(OpenJoin {
+                                block_id: block.id.into_bytes(),
+                                block_type: block.block_type.into_bytes(),
+                                page_origin: page_origin(),
+                                host_palette: crate::host_draws_palette(),
+                            }),
+                        )
+                    }
                     InstanceRole::Editor(editor, block) => (
                         editor,
                         OpeningKind::Block(OpenBlock {
@@ -2132,6 +2478,18 @@ impl Instances {
                             },
                             page_origin: page_origin(),
                             host_palette: crate::host_draws_palette(),
+                        }),
+                    ),
+                    InstanceRole::Host(host, block) => (
+                        host,
+                        OpeningKind::Host(OpenHost {
+                            block_id: block.id.into_bytes(),
+                            block_type: block.block_type.into_bytes(),
+                            editable: {
+                                let editable = be_host_stack::access(block.id).can_edit();
+                                entry.reported_editable = Some(editable);
+                                editable
+                            },
                         }),
                     ),
                     InstanceRole::Picker(editor) => {
@@ -2164,7 +2522,19 @@ impl Instances {
                             block_id: block.id.into_bytes(),
                             block_type: block.block_type.into_bytes(),
                             source: source.into_bytes(),
+                            exporter: entry.artifact.exporter.clone(),
                             data: entry.artifact.data.clone(),
+                        }),
+                    ),
+                    InstanceRole::Export(editor, block) => (
+                        editor,
+                        OpeningKind::Export(OpenExport {
+                            block_id: block.id.into_bytes(),
+                            block_type: block.block_type.into_bytes(),
+                            // Asked before it is placed (`AppPicker::export`), and forgotten
+                            // only as it closes.
+                            request: super::export_request(instance)
+                                .expect("an Export dialog instance is told what it runs"),
                         }),
                     ),
                 };
@@ -2174,12 +2544,19 @@ impl Instances {
                     account_id,
                     organization_id,
                     client_id,
+                    offers_share: !be_host_stack::is_local(),
                     kind,
                 })));
                 let mut statuses: Vec<_> = entry
                     .screens
                     .values()
                     .flat_map(|screen| screen.reported_statuses.values().cloned())
+                    .chain(
+                        entry
+                            .forwarded_statuses
+                            .values()
+                            .flat_map(|reported| reported.values().cloned()),
+                    )
                     .collect();
                 statuses.sort_by_key(|status| status.child.0);
                 if !statuses.is_empty() {
@@ -2212,10 +2589,57 @@ impl Instances {
                     ));
                 }
             }
+            // A host component hears its block's host channel members come, speak and go
+            // (guides/blocks/hosted.md, "Hosting"), as the stack admits them.
+            // Taken on every pass it reaches, so news queued while it was skipped (no
+            // connection yet) waits for it rather than being passed over.
+            if let InstanceRole::Host(_, block) = entry.role {
+                for event in be_host_stack::take_member_events(block.id) {
+                    opened.push(Outbound::Event(instance, EditorEvent::Member(event)));
+                }
+            }
+            // An editor hears whether this device hosts its block, once it is anything but `no`
+            // and whenever it changes after.
+            if let InstanceRole::Editor(_, block) = entry.role {
+                let hosting = hosting_of(block.id);
+                let told = entry
+                    .reported_hosting
+                    .unwrap_or(be_sdk_api::blocks::HostingHere::No);
+                if told != hosting {
+                    entry.reported_hosting = Some(hosting);
+                    opened.push(Outbound::Event(instance, EditorEvent::Hosting(hosting)));
+                }
+            }
+            // A Join member hears its block's host channel open, close and carry what the host
+            // says; one just opened hears first who hosts now.
+            if let InstanceRole::Editor(_, block) = entry.role
+                && entry.joined
+            {
+                if fresh && let Some(host) = be_host_stack::channel_host(block.id) {
+                    opened.push(Outbound::Event(
+                        instance,
+                        EditorEvent::Channel(be_sdk_api::blocks::ChannelEvent::Open(
+                            host.into_bytes(),
+                        )),
+                    ));
+                }
+                let events = channel_news
+                    .entry(block.id)
+                    .or_insert_with(|| be_host_stack::take_channel_events(block.id));
+                for event in events.iter() {
+                    opened.push(Outbound::Event(
+                        instance,
+                        EditorEvent::Channel(event.clone()),
+                    ));
+                }
+            }
             entry.offer_blocks(scope);
             entry.offer_searches(scope);
             if stale {
                 entry.offer_version();
+            }
+            if stale || graph_moved || contacts_moved {
+                entry.offer_members(instance, self.epoch, &self.mail.names_reads.1);
             }
             if stale || graph_moved {
                 entry.offer_histories();
@@ -2229,7 +2653,7 @@ impl Instances {
                     },
                 );
                 for (block, head) in heads {
-                    entry.offer(Subject::Head(block), &head_value(head));
+                    entry.held.offer(Subject::Head(block), &head_value(head));
                 }
             }
             if stale || graph_moved {
@@ -2501,6 +2925,88 @@ impl Instances {
         changed
     }
 
+    /// Hears the keyboard asks one layout commit carries (`child-placement.keyboard-ask`), across
+    /// all its views: for each editor, the child that carries its highest. One above every ask
+    /// acted on for that editor moves the keyboard to its child at once, the compositor moving it
+    /// there as the commit is applied, whether the child's app runs yet or not
+    /// (decisions/keys_are_never_held.md): one event an editor per commit.
+    pub(super) fn hear_keyboard_asks(&mut self, children: &[ChildPlacements]) {
+        let mut asked: Vec<(EditorInstanceId, ChildId, u64)> = Vec::new();
+        for placements in children {
+            for placement in &placements.children {
+                match asked
+                    .iter_mut()
+                    .find(|(editor, ..)| *editor == placements.instance)
+                {
+                    Some(held) if placement.keyboard_ask > held.2 => {
+                        *held = (placements.instance, placement.child, placement.keyboard_ask);
+                    }
+                    Some(_) => {}
+                    None => {
+                        asked.push((placements.instance, placement.child, placement.keyboard_ask))
+                    }
+                }
+            }
+        }
+        for (instance, child, ask) in asked {
+            let Some(entry) = self.entries.get_mut(&instance) else {
+                continue;
+            };
+            if ask > entry.keyboard_ask {
+                entry.keyboard_ask = ask;
+                entry.asked_child = Some(child);
+                super::events::emit(
+                    &self.app_id,
+                    instance,
+                    InstanceEvent::KeyboardAsked(Some(child)),
+                );
+            }
+        }
+        // An ask whose child its editor no longer places is withdrawn.
+        for placements in children {
+            let Some(entry) = self.entries.get_mut(&placements.instance) else {
+                continue;
+            };
+            let Some(child) = entry.asked_child else {
+                continue;
+            };
+            let placed = entry
+                .screens
+                .values()
+                .chain(entry.anchored.iter().map(|held| &held.screen))
+                .any(|screen| {
+                    screen
+                        .children
+                        .children
+                        .iter()
+                        .any(|placement| placement.child == child)
+                });
+            if !placed {
+                entry.asked_child = None;
+                super::events::emit(
+                    &self.app_id,
+                    placements.instance,
+                    InstanceEvent::KeyboardAsked(None),
+                );
+            }
+        }
+    }
+
+    /// The host asks that `child` of `instance` take the keyboard, as a view that hands the
+    /// keyboard it has to the child that fills it does: the compositor moves it there as it
+    /// would for the editor's own ask.
+    pub(super) fn ask_keyboard(&mut self, instance: EditorInstanceId, child: ChildId) -> bool {
+        if !self.entries.contains_key(&instance) {
+            return false;
+        }
+        super::events::emit(
+            &self.app_id,
+            instance,
+            InstanceEvent::KeyboardAsked(Some(child)),
+        );
+        true
+    }
+
     pub(super) fn only_moves(&self, placements: &ChildPlacements) -> bool {
         let Some(screen) = self.any_screen(placements.instance, placements.view) else {
             return false;
@@ -2560,7 +3066,7 @@ impl Instances {
                 .map(|painted| host_rect(*painted, origin, scale))
                 .collect();
             if !painted.is_empty() {
-                for piece in pieces::subtract(rect.intersect(clip), &painted) {
+                for piece in rect.intersect(clip).subtract(&painted) {
                     holes.holes.push(Hole {
                         rect: piece,
                         occluders: Vec::new(),
@@ -2655,6 +3161,10 @@ impl Instances {
                     parent: *parent,
                 },
                 ChildContent::Rename(block) => super::HostContent::Rename(Uuid::from_bytes(*block)),
+                ChildContent::Export { block_id, request } => super::HostContent::Export {
+                    block: Uuid::from_bytes(*block_id),
+                    request: request.clone(),
+                },
                 ChildContent::WebView(_) => continue,
             };
             if !child.rect.is_positive() && child.mode != ChildMode::Hidden {
@@ -2776,20 +3286,30 @@ impl Instances {
     }
 
     pub(super) fn content_view(&self, instance: EditorInstanceId) -> ViewId {
-        let Some(entry) = self.entries.get(&instance) else {
-            return ViewId::MAIN;
-        };
+        self.content_view_besides(instance, None)
+            .unwrap_or(ViewId::MAIN)
+    }
+
+    /// The view holding the instance's content other than `besides`: its main view, or the dock
+    /// tab view its content moved to once its dock joined its placer's.
+    pub(super) fn content_view_besides(
+        &self,
+        instance: EditorInstanceId,
+        besides: Option<ViewId>,
+    ) -> Option<ViewId> {
+        let entry = self.entries.get(&instance)?;
         let holds = |view: &ViewId| {
-            entry.screens.get(view).is_some_and(|screen| {
-                screen.mounted > 0
-                    && screen
-                        .report
-                        .as_ref()
-                        .is_some_and(|report| report.content.is_some())
-            })
+            Some(*view) != besides
+                && entry.screens.get(view).is_some_and(|screen| {
+                    screen.mounted > 0
+                        && screen
+                            .report
+                            .as_ref()
+                            .is_some_and(|report| report.content.is_some())
+                })
         };
         if holds(&ViewId::MAIN) {
-            return ViewId::MAIN;
+            return Some(ViewId::MAIN);
         }
         entry
             .screens
@@ -2797,7 +3317,6 @@ impl Instances {
             .filter(|(_, screen)| screen.request.placement == ViewPlacement::Dock)
             .map(|(view, _)| *view)
             .find(holds)
-            .unwrap_or(ViewId::MAIN)
     }
 
     pub(super) fn frame_child(
@@ -2848,6 +3367,24 @@ impl Instances {
             .collect()
     }
 
+    /// Takes back the frame the children of `instance`'s view `region` took over, keeping them
+    /// active: whether any had it.
+    fn revoke_frame_children(&mut self, instance: EditorInstanceId, region: ViewId) -> bool {
+        let Some(screen) = self.screen_mut(instance, region) else {
+            return false;
+        };
+        let mut revoked = false;
+        for child in &screen.children.children {
+            if matches!(child.mode, ChildMode::Active | ChildMode::Live)
+                && !child.own_frame
+                && !screen.revoked.contains(&child.child)
+            {
+                revoked |= screen.frame_revoked.insert(child.child);
+            }
+        }
+        revoked
+    }
+
     pub(super) fn revoke_frame_child(&mut self, instance: EditorInstanceId) {
         let view = self.content_view(instance);
         let Some(screen) = self
@@ -2877,57 +3414,27 @@ impl Instances {
         else {
             return Vec::new();
         };
-        let mut changed = Vec::new();
-        let live: HashSet<ChildId> = statuses.iter().map(|status| status.child).collect();
-        for status in statuses {
-            let status = ChildStatus {
-                instance,
-                view: region,
-                child: status.child,
-                available: status.available,
-                intrinsic: status.intrinsic.map(|size| Vec2 {
-                    x: size.x,
-                    y: size.y,
-                }),
-                active: status.active,
-                interaction: status.interaction,
-                capabilities: status.capabilities,
-                resize: status.resize,
-                error: status.error,
-                menu: MenuEntry::flatten(&status.menu),
-                creation: status.creation,
-                preview: status.preview,
-                dialog: status.dialog,
-                picked: status.picked.clone(),
-                card: status.card,
-                title: status.title,
-                icon: status.icon,
-                group: status.group,
-                raised: status.raised,
-                rung: status.rung,
-                minimized: status.minimized,
-                fullscreen: status.fullscreen,
-                notice: status.notice,
-                menu_asked: status.menu_asked,
-            };
-            if screen.reported_statuses.get(&status.child) == Some(&status) {
-                continue;
-            }
-            screen
-                .reported_statuses
-                .insert(status.child, status.clone());
-            changed.push(status);
+        report_statuses(instance, region, &mut screen.reported_statuses, statuses)
+    }
+
+    /// Sets the statuses of the children an editor a root guest embeds placed in its view
+    /// `region`, as the root shows them (`Forwarded::show_children`): what changed since the
+    /// last, for the editor to hear.
+    pub(super) fn set_forwarded_statuses(
+        &mut self,
+        instance: EditorInstanceId,
+        region: ViewId,
+        statuses: Vec<HostChildStatus>,
+    ) -> Vec<Outbound> {
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return Vec::new();
+        };
+        let reported = entry.forwarded_statuses.entry(region).or_default();
+        let told = report_statuses(instance, region, reported, statuses);
+        if reported.is_empty() {
+            entry.forwarded_statuses.remove(&region);
         }
-        screen
-            .reported_statuses
-            .retain(|child, _| live.contains(child));
-        match changed.is_empty() {
-            true => Vec::new(),
-            false => vec![Outbound::Editor(
-                instance,
-                EditorCall::ChildStatuses(changed),
-            )],
-        }
+        told
     }
 
     pub(super) fn picked(&self, instance: EditorInstanceId) -> Option<BlockPick> {
@@ -2936,16 +3443,6 @@ impl Instances {
 
     pub(super) fn card(&self, instance: EditorInstanceId) -> bool {
         self.entries.get(&instance).is_some_and(|entry| entry.card)
-    }
-
-    /// Whether the instance's block content, if it edits one, has reached it.
-    pub(super) fn content_delivered(&self, instance: EditorInstanceId) -> bool {
-        self.entries.get(&instance).is_none_or(|entry| {
-            entry
-                .content
-                .as_ref()
-                .is_none_or(|link| link.attached.is_none() || link.delivered)
-        })
     }
 
     pub(super) fn statuses(&self, layout: &ScreenLayout, pass: u64) -> Vec<super::InstanceStatus> {
@@ -2989,7 +3486,9 @@ impl Instances {
                         InstanceRole::Creation(..) => "creation",
                         InstanceRole::Picker(..) => "picker",
                         InstanceRole::Rename(..) => "rename",
+                        InstanceRole::Export(..) => "export",
                         InstanceRole::Artifact(..) => "artifact",
+                        InstanceRole::Host(..) => "host",
                     },
                     opened: entry.opened,
                     intrinsic: entry.intrinsic,
@@ -3042,6 +3541,12 @@ impl Instances {
 
     pub(super) fn intrinsic_size(&self, instance: EditorInstanceId) -> Option<Vec2> {
         self.entries.get(&instance)?.intrinsic
+    }
+
+    pub(super) fn reported_a_frame(&self, instance: EditorInstanceId) -> bool {
+        self.entries
+            .get(&instance)
+            .is_some_and(|entry| entry.screens.values().any(|screen| screen.report.is_some()))
     }
 
     pub(super) fn view_size(&self, instance: EditorInstanceId, region: ViewId) -> Option<Vec2> {
@@ -3124,7 +3629,7 @@ impl Instances {
                         changed = true;
                     }
                     if let (Some(backdrop), false) = (&report.backdrop, anchored) {
-                        entry.backdrop = Some(backdrop.clone());
+                        entry.backdrop = Some(*backdrop);
                     }
                     changed |= screen.report.as_ref() != Some(&report);
                     screen.report = Some(report.clone());
@@ -3333,45 +3838,6 @@ impl Instances {
         )
     }
 
-    pub(super) fn replace_child(
-        &mut self,
-        instance: EditorInstanceId,
-        old: Uuid,
-        new: Uuid,
-    ) -> (Vec<Outbound>, Option<bool>) {
-        let Some(entry) = self.entries.get_mut(&instance) else {
-            return (Vec::new(), None);
-        };
-        match entry.replacements.get(&(old, new)) {
-            Some(Replacement::Pending(_)) => (Vec::new(), None),
-            Some(Replacement::Answered(_)) => {
-                let Some(Replacement::Answered(replaced)) = entry.replacements.remove(&(old, new))
-                else {
-                    unreachable!("the replacement was just answered")
-                };
-                (Vec::new(), Some(replaced))
-            }
-            None => {
-                entry.next_replacement += 1;
-                let request_id = entry.next_replacement;
-                entry
-                    .replacements
-                    .insert((old, new), Replacement::Pending(request_id));
-                (
-                    vec![Outbound::Editor(
-                        instance,
-                        EditorCall::ReplaceChild {
-                            request_id,
-                            old: old.into_bytes(),
-                            new: new.into_bytes(),
-                        },
-                    )],
-                    None,
-                )
-            }
-        }
-    }
-
     pub(super) fn grabbing(&self) -> bool {
         self.entries
             .values()
@@ -3415,9 +3881,41 @@ impl Instances {
         Some(screen.window.cursor)
     }
 
-    pub(super) fn screen_set(&mut self, screens: Vec<ScreenRequest>) -> Vec<ScreenRequest> {
-        self.announced = screens.iter().map(|screen| screen.screen).collect();
-        screens
+    /// Tells the app its screens: the `Screens` call, then `Input::Focus` for each newly
+    /// announced screen that has the keyboard, since the app's views start without it. Input
+    /// sent before a screen was announced is dropped (`gate`), so the keyboard is state the
+    /// screen learns here rather than input it missed.
+    pub(super) fn announce(&mut self, screens: Vec<ScreenRequest>) -> Vec<Outbound> {
+        let before = std::mem::replace(
+            &mut self.announced,
+            screens.iter().map(|screen| screen.screen).collect(),
+        );
+        let mut messages = Vec::new();
+        for screen in self
+            .entries
+            .values_mut()
+            .flat_map(|entry| entry.screens.values_mut())
+        {
+            let id = screen.request.screen;
+            if self.announced.contains(&id) && !before.contains(&id) {
+                // Presses made before the screen was announced were dropped (`gate`), so the app
+                // never saw a Down for them: it must not see an Up without one.
+                screen.input.forget_presses();
+            }
+            if self.announced.contains(&id) && !before.contains(&id) && screen.input.focused() {
+                let mut batch = be_sdk_api::InputBatch::new(id, false);
+                batch.push(be_sdk_api::TimedInput::from(be_sdk_api::Input::Focus(true)));
+                // The keyboard's modifiers are state too, told with it.
+                self.heard.forget();
+                if let Some(modifiers) = screen.input.modifiers_now() {
+                    batch.push(be_sdk_api::TimedInput::from(modifiers));
+                }
+                messages.push(Outbound::App(AppCall::Input(batch)));
+            }
+        }
+        let mut sent = vec![AppCall::Screens(screens).into()];
+        sent.extend(messages);
+        sent
     }
 
     fn instance_of_screen(&self, id: ScreenId) -> Option<EditorInstanceId> {
@@ -3462,30 +3960,6 @@ impl Instances {
         self.translate(&mut pasted, false);
     }
 
-    fn is_screen(&self, id: ScreenId) -> bool {
-        self.entries
-            .values()
-            .flat_map(|entry| entry.screens.values())
-            .any(|screen| screen.request.screen == id)
-    }
-
-    pub(super) fn take_announced_input(&mut self) -> Vec<Outbound> {
-        let held = std::mem::take(&mut self.unannounced_input);
-        let (announced, waiting): (Vec<Outbound>, Vec<Outbound>) =
-            held.into_iter().partition(|message| match message {
-                Outbound::App(AppCall::Input(batch)) => self.announced.contains(&batch.screen),
-                _ => true,
-            });
-        self.unannounced_input = waiting
-            .into_iter()
-            .filter(|message| match message {
-                Outbound::App(AppCall::Input(batch)) => self.is_screen(batch.screen),
-                _ => false,
-            })
-            .collect();
-        announced
-    }
-
     pub(super) fn place(
         &mut self,
         instance: EditorInstanceId,
@@ -3528,7 +4002,20 @@ impl Instances {
             && let Some(entry) = self.entries.get_mut(&instance)
             && entry.heads.wants(block, commit)
         {
-            entry.offer(Subject::Head(block), &head_value(head));
+            entry.held.offer(Subject::Head(block), &head_value(head));
+        }
+    }
+
+    fn names_read(&mut self, read: NamesRead) {
+        if let Some((instance, named)) = read.opened(self.epoch)
+            && let Some(entry) = self.entries.get_mut(&instance)
+        {
+            entry.members.named(named);
+            if entry.watches_members()
+                && let Some(value) = entry.members.value()
+            {
+                entry.held.offer(Subject::Members, &value);
+            }
         }
     }
 
@@ -3612,15 +4099,27 @@ impl Instances {
                     .role
                     .block()
                     .is_some_and(|block| be_host_stack::revisions::source(block.id).is_some());
+                let host = matches!(entry.role, InstanceRole::Host(..));
                 self.services.answers.push(reply.answer(&()));
                 let mut changed = false;
                 for message in messages {
                     if preview && !preview_may_tell(&message) {
                         continue;
                     }
+                    // A host component has no frame or view, and no person before it: what it
+                    // tells the shell of either is dropped, all but a failure it reports.
+                    if host && !matches!(message, ShellMessage::ReportFailure(_)) {
+                        continue;
+                    }
                     changed |= self.shell_message(instance, message);
                 }
                 changed
+            }
+            ShellCall::WebViewNew { .. } if matches!(entry.role, InstanceRole::Host(..)) => {
+                self.services
+                    .answers
+                    .push(call.refuse(OpError::Unsupported));
+                false
             }
             ShellCall::WebViewNew { id, .. } => {
                 entry.unshown_web_views.push(id);
@@ -3631,6 +4130,30 @@ impl Instances {
                     .answers
                     .push(call.refuse(OpError::Unsupported));
                 false
+            }
+        }
+    }
+
+    /// Takes what a root relays of what its dialog `instance` told the shell
+    /// (`Forwarded::shell_told`): the block it picked, its answer, whether it takes Escape itself
+    /// and whether it shows as a card, which its placer's status says, and the settings an
+    /// artifact's settings view edited, which its host applies once committed. Anything else is
+    /// the root's to act on, and is dropped.
+    pub(super) fn hear_relayed_shell(
+        &mut self,
+        instance: EditorInstanceId,
+        messages: Vec<ShellMessage>,
+    ) {
+        for message in messages {
+            if matches!(
+                message,
+                ShellMessage::Picked(_)
+                    | ShellMessage::CloseDialog(_)
+                    | ShellMessage::HandlesDismiss(_)
+                    | ShellMessage::ShowCard(_)
+                    | ShellMessage::ArtifactEdited(_)
+            ) {
+                self.shell_message(instance, message);
             }
         }
     }
@@ -3716,6 +4239,10 @@ impl Instances {
             ShellMessage::LeaveFrame => {
                 super::events::emit(&self.app_id, instance, InstanceEvent::Leaving);
             }
+            ShellMessage::ReportFailure(message) => {
+                be_host_base::notices::report(message);
+                return false;
+            }
             ShellMessage::ViewStopped(ViewEnd { view, stopped }) => {
                 let Some(screen) = entry.screens.get_mut(&view) else {
                     return false;
@@ -3756,14 +4283,8 @@ impl Instances {
             ShellMessage::CloseChild(child) => {
                 super::events::emit(&self.app_id, instance, InstanceEvent::ChildClosed(child));
             }
-            ShellMessage::FocusChild(child) => {
-                self.ask_gift(instance, gift::GiftTo::Child(child));
-            }
             // The runtime opens the palette before it hands the call here.
             ShellMessage::OpenPalette(_) => {}
-            ShellMessage::FocusBlockChild(block) => {
-                self.ask_block_gift(instance, Uuid::from_bytes(block));
-            }
             ShellMessage::ShowCard(card) => {
                 if entry.card == card {
                     return false;
@@ -3795,6 +4316,9 @@ impl Instances {
             ShellMessage::ArtifactDescribed(description) => {
                 entry.artifact.description = Some(description);
             }
+            ShellMessage::ArtifactFailed(failure) => {
+                entry.artifact.failure = failure;
+            }
             ShellMessage::ArtifactEdited(data) => {
                 let changed = entry.artifact.draft.as_ref() != Some(&data);
                 entry.artifact.draft = Some(data);
@@ -3802,9 +4326,9 @@ impl Instances {
             }
             ShellMessage::PlayAudio(command) => {
                 let changes = self.mail.audio_changes.1.clone();
-                let player = entry
-                    .audio
-                    .get_or_insert_with(|| AudioPlayer::new(move || changes.send(instance)));
+                let player = entry.audio.get_or_insert_with(|| {
+                    super::audio::open(Box::new(move || changes.send(instance)))
+                });
                 match command {
                     AudioCommand::Load(source) => player.load(source),
                     AudioCommand::Toggle => player.toggle(),
@@ -3845,24 +4369,6 @@ impl Instances {
                         },
                     );
                 }
-            }
-            EditorAnswer::Replaced {
-                request_id,
-                replaced,
-            } => {
-                let Some(key) = entry
-                    .replacements
-                    .iter()
-                    .find(
-                        |(_, state)| matches!(state, Replacement::Pending(id) if *id == request_id),
-                    )
-                    .map(|(key, _)| *key)
-                else {
-                    return false;
-                };
-                entry
-                    .replacements
-                    .insert(key, Replacement::Answered(replaced));
             }
         }
         true
@@ -3976,7 +4482,13 @@ impl Instances {
             return false;
         }
         self.shell = shell;
+        self.phone_layout = false;
         true
+    }
+
+    /// Whether the shell said it lays out as on a phone.
+    pub(super) fn phone_layout(&self) -> bool {
+        self.phone_layout
     }
 
     pub(super) fn set_focus(&mut self, focus: Focus) -> bool {
@@ -3997,6 +4509,64 @@ fn through(rect: Rect, laid_view: EditorView, view: EditorView) -> Rect {
         view.rect.min + (rect.min - laid_view.rect.min) * scale,
         rect.size() * scale,
     )
+}
+
+/// The statuses of the children an instance placed in its view `region` that changed since
+/// those `reported`, which it keeps for the next time: the message that tells the editor, if
+/// any did. A child left out of `statuses` is no longer reported.
+fn report_statuses(
+    instance: EditorInstanceId,
+    region: ViewId,
+    reported: &mut HashMap<ChildId, ChildStatus>,
+    statuses: Vec<HostChildStatus>,
+) -> Vec<Outbound> {
+    let mut changed = Vec::new();
+    let live: HashSet<ChildId> = statuses.iter().map(|status| status.child).collect();
+    for status in statuses {
+        let status = ChildStatus {
+            instance,
+            view: region,
+            child: status.child,
+            available: status.available,
+            intrinsic: status.intrinsic.map(|size| Vec2 {
+                x: size.x,
+                y: size.y,
+            }),
+            active: status.active,
+            interaction: status.interaction,
+            capabilities: status.capabilities,
+            resize: status.resize,
+            error: status.error,
+            menu: MenuEntry::flatten(&status.menu),
+            creation: status.creation,
+            preview: status.preview,
+            dialog: status.dialog,
+            picked: status.picked.clone(),
+            card: status.card,
+            title: status.title,
+            icon: status.icon,
+            group: status.group,
+            raised: status.raised,
+            rung: status.rung,
+            minimized: status.minimized,
+            fullscreen: status.fullscreen,
+            notice: status.notice,
+            menu_asked: status.menu_asked,
+        };
+        if reported.get(&status.child) == Some(&status) {
+            continue;
+        }
+        reported.insert(status.child, status.clone());
+        changed.push(status);
+    }
+    reported.retain(|child, _| live.contains(child));
+    match changed.is_empty() {
+        true => Vec::new(),
+        false => vec![Outbound::Editor(
+            instance,
+            EditorCall::ChildStatuses(changed),
+        )],
+    }
 }
 
 fn followed_clip(child: &ChildPlacement, laid_view: EditorView, view: EditorView) -> Rect {
@@ -4094,6 +4664,24 @@ fn offers_actions(entry: &Instance, view: ViewId) -> bool {
         || entry.anchored.iter().any(|held| held.view == view)
 }
 
+/// What the app's views described, which a restart forgets (`Run::restart`).
+impl Descriptions for Instances {
+    fn grafts(&mut self, each: &mut dyn FnMut(&mut Graft)) {
+        for entry in self.entries.values_mut() {
+            let anchored = entry.anchored.iter_mut().map(|held| &mut held.screen);
+            for screen in entry.screens.values_mut().chain(anchored) {
+                each(&mut screen.accessibility);
+            }
+        }
+    }
+
+    fn forget_actions(&mut self) {
+        for entry in self.entries.values_mut() {
+            entry.actions.clear();
+        }
+    }
+}
+
 fn shown_block(content: &ChildContent) -> Option<Uuid> {
     match content {
         ChildContent::Block { block_id, .. } => Some(Uuid::from_bytes(*block_id)),
@@ -4110,6 +4698,7 @@ fn preview_may_tell(message: &ShellMessage) -> bool {
             | ShellMessage::ChangeView(_)
             | ShellMessage::ViewStopped(_)
             | ShellMessage::Copy(_)
+            | ShellMessage::ReportFailure(_)
     )
 }
 

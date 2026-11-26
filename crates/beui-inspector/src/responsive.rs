@@ -57,11 +57,15 @@ pub struct Toolbar {
 
 impl Toolbar {
     pub fn open(&self) -> bool {
-        [&self.device, &self.zoom].into_iter().any(|select| {
-            select
-                .try_get()
-                .is_some_and(|select| self.document.api::<SelectApi>(select).open())
-        })
+        let device = self
+            .device
+            .try_get()
+            .is_some_and(|select| self.document.api::<SelectApi<&'static str>>(select).open());
+        let zoom = self
+            .zoom
+            .try_get()
+            .is_some_and(|select| self.document.api::<SelectApi<Option<f32>>>(select).open());
+        device || zoom
     }
 }
 
@@ -86,12 +90,21 @@ pub fn build(state: Stored<State>) -> Toolbar {
     }
 }
 
-fn device_index(size: Vec2) -> usize {
+/// The name of the device `size` is, either way round, or "Responsive".
+fn device_of(size: Vec2) -> &'static str {
     DEVICES
         .iter()
         .skip(1)
-        .position(|(_, device)| *device == size || *device == vec2(size.y, size.x))
-        .map_or(0, |index| index + 1)
+        .find(|(_, device)| *device == size || *device == vec2(size.y, size.x))
+        .map_or(DEVICES[0].0, |(name, _)| *name)
+}
+
+fn zoom_of(label: &str) -> Option<f32> {
+    ZOOMS
+        .iter()
+        .find(|(candidate, _)| *candidate == label)
+        .map(|(_, zoom)| *zoom)
+        .expect("a label from ZOOMS")
 }
 
 fn labels<T>(options: &[(&'static str, T)]) -> Vec<&'static str> {
@@ -105,13 +118,10 @@ fn ResponsiveToolbar(
     device: NodeRef,
     zoom: NodeRef,
 ) -> NodeId {
-    let selected_device = create_memo(move || Some(device_index(screen.get().size)));
+    let selected_device = create_memo(move || Some(device_of(screen.get().size)));
     let width = create_memo(move || f64::from(screen.get().size.x));
     let height = create_memo(move || f64::from(screen.get().size.y));
-    let selected_zoom = create_memo(move || {
-        let zoom = screen.get().zoom;
-        ZOOMS.iter().position(|(_, candidate)| *candidate == zoom)
-    });
+    let selected_zoom = create_memo(move || Some(screen.get().zoom));
     view! {
         <List spacing=Space::None>
             <Frame fill=ColorRole::Surface padding=PADDING>
@@ -121,12 +131,12 @@ fn ResponsiveToolbar(
                             @node_ref=&device
                             @test_id={"inspector.responsive.device"}
                             options={view! {
-                                <ForEach keys={labels(&DEVICES)}>|label: &'static str|
-                                    <ChoiceOption label />
+                                <ForEach value={labels(&DEVICES)}>|label: &'static str|
+                                    <ChoiceOption value=label label />
                                 </ForEach>
                             }}
-                            selected={Binding::new(selected_device, move |index: Option<usize>| {
-                                if let Some((_, size)) = index.and_then(|index| DEVICES.get(index))
+                            selected={Binding::new(selected_device, move |name: Option<&'static str>| {
+                                if let Some((_, size)) = DEVICES.iter().find(|(candidate, _)| Some(*candidate) == name)
                                     && *size != Vec2::ZERO
                                 {
                                     state.value().update_screen(|screen| screen.resized(*size));
@@ -175,14 +185,14 @@ fn ResponsiveToolbar(
                             @node_ref=&zoom
                             @test_id={"inspector.responsive.zoom"}
                             options={view! {
-                                <ForEach keys={labels(&ZOOMS)}>|label: &'static str|
-                                    <ChoiceOption label />
+                                <ForEach value={labels(&ZOOMS)}>|label: &'static str|
+                                    <ChoiceOption value={zoom_of(label)} label />
                                 </ForEach>
                             }}
-                            selected={Binding::new(selected_zoom, move |index: Option<usize>| {
-                                if let Some((_, zoom)) = index.and_then(|index| ZOOMS.get(index)) {
+                            selected={Binding::new(selected_zoom, move |zoom: Option<Option<f32>>| {
+                                if let Some(zoom) = zoom {
                                     state.value().update_screen(|screen| ScreenSimulation {
-                                        zoom: *zoom,
+                                        zoom,
                                         ..screen
                                     });
                                 }

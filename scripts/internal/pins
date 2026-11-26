@@ -34,31 +34,13 @@ cargo_size_aarch64_apple_darwin='12993393'
 cargo_size_x86_64_pc_windows_msvc='14552810'
 cargo_size_aarch64_pc_windows_msvc='16125527'
 
-# be, the tracker's command line tool (guides/tracker.md), built from the same
-# tree as the be-server the tracker lives on. The release is that server's
-# build id, written beside be, so the server refuses this be once it is
-# deployed from another build. ./scripts/deploy uploads each platform's be and
-# build-info.json to be_mirror/<release>/be-<triple>/ and rewrites these lines.
-# be_metadata_file is read only by bootstraps older than be_metadata_sha256_*.
-be_mirror='https://be3.pfg.pw/data'
-be_metadata_file='build-info.json'
-be_release='bb8b6572c10c151a27d428387b3333f8aa419900'
-be_sha256_x86_64_unknown_linux_gnu='4a42b60c37a7b6a8ef44857c7de696cb3e635aa30ef596613f0d1b520e679786'
-be_sha256_aarch64_unknown_linux_gnu='2cde6e97a6f87dd61397182cc6261f080d264778dfcb02a894aa693777da9d50'
-be_sha256_x86_64_apple_darwin=''
-be_sha256_aarch64_apple_darwin=''
-be_metadata_sha256_x86_64_unknown_linux_gnu='2d6f29800823e396962eacaebb290975b23428253bb1f0e1f696ae08d6aea997'
-be_metadata_sha256_aarch64_unknown_linux_gnu='2d6f29800823e396962eacaebb290975b23428253bb1f0e1f696ae08d6aea997'
-be_metadata_sha256_x86_64_apple_darwin=''
-be_metadata_sha256_aarch64_apple_darwin=''
-
 # crates/be-tool-bootstrap, which every script runs: the SHA-256 of each platform's
 # binary, which is also its name at https://be3-ci.b-cdn.net/bootstrap/<sha256>.
 # CI uploads and pins a new release when the binaries built from the checkout
 # are not these (guides/bootstrap.md).
-bootstrap_sha256_x86_64_unknown_linux_gnu='97988ae30297a7b82c1133faa853b9c0f87f957c7007f48e684b36b7550aa65a'
-bootstrap_sha256_aarch64_unknown_linux_gnu='b9d23eedb108cf1d56da8aedceb7de774e6961db1581e4572e45dbab31a37ede'
-bootstrap_sha256_x86_64_apple_darwin='0be20a8c3f2635f572544afe396a21b609ead95471064a47d00403017cb9cb35'
-bootstrap_sha256_aarch64_apple_darwin='6de28ce3509da972385e0b4f19ca1a3176b90d773b4068bdcfd9995d500e6469'
-bootstrap_sha256_x86_64_pc_windows_msvc='217678d9a80b9d5e602308ab276d4a72aedde12d5811b69842c38ff6f51ffbbd'
-bootstrap_sha256_aarch64_pc_windows_msvc='35229cad5c56b3b956d7da071d46349a496ec0e2d4968b8c8910b59226335a91'
+bootstrap_sha256_x86_64_unknown_linux_gnu='c69406c079dc231a71df1c6bf7f82494a4c37bcb70fa3fbfd33afc20cef0321d'
+bootstrap_sha256_aarch64_unknown_linux_gnu='300533d525c7ebb2153c0b4e9299683b471836c48710c1f78c8ca9908f29972c'
+bootstrap_sha256_x86_64_apple_darwin='ab85bedc8f19d5508c1cf6748f8b37645b69447217d7a4e41cd19984070241de'
+bootstrap_sha256_aarch64_apple_darwin='9423ae224217e9f632906b521781f45a70fb489a969edc30a22da0e1d241c36d'
+bootstrap_sha256_x86_64_pc_windows_msvc='3c6322f944393b463840fd9984efe1eb1eb3f14af74f1eedadf7ae78ab2ad741'
+bootstrap_sha256_aarch64_pc_windows_msvc='37b7f30ebf76e39eff768ce8d9f03a097a424186109c658302c8cbdf2b81f5fc'

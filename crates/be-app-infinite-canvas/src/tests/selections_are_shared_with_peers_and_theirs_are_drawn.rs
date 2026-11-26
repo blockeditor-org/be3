@@ -21,7 +21,6 @@ fn selections_are_shared_with_peers_and_theirs_are_drawn() {
     editor.run();
 
     editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
-    editor.run();
 
     let shown = editor.take_shown_presence();
     let cursor: CanvasCursor = shown

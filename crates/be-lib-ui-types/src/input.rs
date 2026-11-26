@@ -55,6 +55,8 @@ impl CursorIcon {
         CursorIcon::None,
     ];
 
+    /// Its CSS `cursor` keyword, but `Touch`'s, which CSS has none of (a page draws it as an
+    /// image, `crosshair` its fallback): `touch`, so every cursor has a name of its own.
     pub fn name(self) -> &'static str {
         match self {
             CursorIcon::Default => "default",
@@ -92,12 +94,24 @@ impl CursorIcon {
             CursorIcon::ZoomIn => "zoom-in",
             CursorIcon::ZoomOut => "zoom-out",
             CursorIcon::None => "none",
-            CursorIcon::Touch => "crosshair",
+            CursorIcon::Touch => "touch",
+        }
+    }
+
+    /// Its value for CSS's `cursor`: its name, but `Touch`'s fallback, `crosshair`, which a page
+    /// that draws the touch cursor as an image falls back to.
+    pub fn css(self) -> &'static str {
+        match self {
+            CursorIcon::Touch => CursorIcon::Crosshair.name(),
+            cursor => cursor.name(),
         }
     }
 
     pub fn from_name(name: &str) -> Option<CursorIcon> {
-        Self::ALL.into_iter().find(|icon| icon.name() == name)
+        Self::ALL
+            .into_iter()
+            .chain([CursorIcon::Touch])
+            .find(|icon| icon.name() == name)
     }
 }
 
@@ -111,6 +125,34 @@ impl TouchpadGesture {
         }
         self
     }
+}
+
+/// An input and when the platform sampled it, as a host hands a root guest its window's input.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Timed {
+    pub input: Input,
+    /// When it was sampled, in nanoseconds on the frame clock the host and its guest share
+    /// (be3:root's `frame-request` `time`), if the platform said: pens and touches mostly do,
+    /// so a stroke drawn from every sample keeps its pace. It is real time from the clock's
+    /// origin, so while the clock is stopped (drive's) it can be later than the frame's time.
+    pub time: Option<u64>,
+}
+
+impl From<Input> for Timed {
+    fn from(input: Input) -> Self {
+        Self { input, time: None }
+    }
+}
+
+/// `events` as bytes, as a host hands a root guest its window's input (be3:root's
+/// `input.deliver`, crates/be-wasm-root-api), which `decode` reads back.
+pub fn encode(events: &[Timed]) -> Vec<u8> {
+    postcard::to_allocvec(events).expect("input always serializes")
+}
+
+/// The events `encode` wrote.
+pub fn decode(bytes: &[u8]) -> Result<Vec<Timed>, String> {
+    postcard::from_bytes(bytes).map_err(|error| format!("the input could not be read: {error}"))
 }
 
 impl Input {

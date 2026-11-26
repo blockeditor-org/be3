@@ -56,6 +56,12 @@ impl Platform for AppPlatform {
         Box::pin(async move {
             let views = Views::default();
             let mut runner = Runner::new(launch);
+            // An app's async memos run on be-sdk's executor, which its host calls answer on,
+            // not on the runner's; installed before the program's setup makes any.
+            beui_reactive::spawn_with(|future| {
+                be_sdk_api::ops::guest::spawn(future);
+                Ok(())
+            });
             runner.context().set_window_hosting(WindowHosting::Placed);
             runner.context().set_shows_main(false);
             runner.context().set_hosts_scrims(true);
@@ -67,6 +73,7 @@ impl Platform for AppPlatform {
                 renderer: Box::new(ModuleRenderer),
                 fonts: None,
             };
+            let woken = waker.clone();
             let mut setup = Setup::new(Waker::new(move || waker.wake()));
             setup.provide(views.clone());
             runner.start(loaded, setup)?;
@@ -81,6 +88,8 @@ impl Platform for AppPlatform {
                 actions_version: 0,
                 sent_actions: HashMap::default(),
                 focused: HashSet::default(),
+                focus_told: HashMap::default(),
+                waker: woken,
                 unlisted: HashSet::default(),
                 listed: HashSet::default(),
                 toggles: HashMap::default(),
@@ -180,6 +189,11 @@ struct ModuleRunner {
     /// What each view last sent of them, at which change.
     sent_actions: HashMap<ViewRef, (SentActions, Vec<DescribedAction>)>,
     focused: HashSet<ViewRef>,
+    /// The window each view in `focused` was told to the document as focused in: a view given
+    /// the keyboard before the app matched it a window is told once it is (`tell_focus`).
+    focus_told: HashMap<ViewRef, WindowId>,
+    /// Wakes the app to step again, which asks the host for a frame (`frame-needed`).
+    waker: be_sdk::Waker,
     /// The views in `focused` the last frame did not list yet.
     unlisted: HashSet<ViewRef>,
     /// The views the last frame listed.
@@ -600,6 +614,31 @@ impl ModuleRunner {
         }
     }
 
+    /// Tells the document a window is focused once the app has matched it to a view that has
+    /// the keyboard: a view the host gives the keyboard before its window is open (a dock tab's
+    /// view shown again, given it at once) hears `Input::Focus` while it has no window to tell,
+    /// and its window would otherwise never hear it, leaving the focus wherever it was.
+    /// The next frame takes in what it tells, so it wakes the app to ask the host for one.
+    fn tell_focus(&mut self) {
+        let untold: Vec<(ViewRef, WindowId)> = self
+            .focused
+            .iter()
+            .filter_map(|id| Some((*id, *self.windows.get(id)?)))
+            .filter(|(id, window)| self.focus_told.get(id) != Some(window))
+            .collect();
+        if !untold.is_empty() {
+            self.waker.wake();
+        }
+        for (id, window) in untold {
+            self.focus_told.insert(id, window);
+            self.send(Incoming::Window(WindowReport::Focused {
+                window,
+                focused: true,
+            }));
+        }
+        self.focus_told.retain(|id, _| self.focused.contains(id));
+    }
+
     fn keyboard_view(&self) -> Option<ViewRef> {
         let keyboard = self.runner.context().keyboard_window();
         self.windows
@@ -911,6 +950,22 @@ impl Regions for ModuleRunner {
                 self.send(Incoming::Window(WindowReport::Focused { window, focused }));
             }
             let was = !self.focused.is_empty();
+            match (focused, window) {
+                (true, Some(window)) => {
+                    self.focus_told.insert(id, window);
+                }
+                (false, None) => {
+                    if let Some(told) = self.focus_told.remove(&id) {
+                        self.send(Incoming::Window(WindowReport::Focused {
+                            window: told,
+                            focused: false,
+                        }));
+                    }
+                }
+                _ => {
+                    self.focus_told.remove(&id);
+                }
+            }
             match focused {
                 true => self.focused.insert(id),
                 false => self.focused.remove(&id),
@@ -1013,6 +1068,7 @@ impl Regions for ModuleRunner {
             return Err(self.stopped());
         };
         self.match_windows(ratio, regions, active);
+        self.tell_focus();
         let released = self.release_held();
         debug_assert!(
             regions

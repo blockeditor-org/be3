@@ -4,8 +4,7 @@ extern crate beui_view as beui;
 use be_lib_stable_hash::HashMap;
 use std::rc::Rc;
 
-use bytemuck::{Pod, Zeroable};
-
+use be_lib_layers::LayerId;
 use beui_core::context::{Moved, WindowOutput};
 use beui_core::display::{Display, Group, Layer, Part, bounds_of};
 use beui_core::draw::{Quad, Turn, push_quads};
@@ -13,19 +12,24 @@ use beui_core::drawing::Drawing;
 use beui_core::fade::Fade;
 use beui_core::filter::Filter;
 use beui_core::font::{GlyphId, GlyphImage};
-use beui_core::painter::placed_shape;
+use beui_core::painter::{Shape, placed_shape};
+use beui_draw::compose::Placed;
 use beui_draw::{Draw, DrawAt};
 use beui_types::Color32;
 use beui_types::geometry::Region;
-use beui_types::{Image, ImageId};
+use beui_types::{ImageId, PathStyle};
 use beui_types::{Pos2, Rect, Vec2};
+use beui_vello::vello_common::kurbo::Affine;
 
+mod composite;
 pub mod filter;
 mod group;
 pub mod present;
 mod resources;
+mod scene;
 
-pub use resources::Resources;
+pub use resources::{Lost, Resources};
+use scene::{Item, Painted};
 
 #[cfg(all(target_arch = "wasm32", feature = "web"))]
 pub mod canvas;
@@ -68,48 +72,59 @@ fn or_unknown(value: &str) -> String {
 const ATLAS_SIZE: u32 = 2048;
 const GLYPH_PADDING: u32 = 1;
 
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-pub(crate) struct Instance {
-    rect: [f32; 4],
-    clip: [f32; 4],
-    uv: [f32; 4],
-    color: [f32; 4],
-    params: [f32; 4],
-    turn: [f32; 4],
-}
-
-impl Instance {
-    const ATTRIBUTES: [wgpu::VertexAttribute; 6] = wgpu::vertex_attr_array![
-        0 => Float32x4,
-        1 => Float32x4,
-        2 => Float32x4,
-        3 => Float32x4,
-        4 => Float32x4,
-        5 => Float32x4
-    ];
-
-    pub(crate) fn layout() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Self>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Instance,
-            attributes: &Self::ATTRIBUTES,
-        }
+/// The formats a texture beui draws on must also be viewed as: Vello writes sRGB-encoded values
+/// itself, so it draws into the non-sRGB view of an sRGB texture. Give these as the texture's
+/// (or surface configuration's) `view_formats`.
+pub fn view_formats(format: wgpu::TextureFormat) -> &'static [wgpu::TextureFormat] {
+    match format {
+        wgpu::TextureFormat::Rgba8UnormSrgb => &[wgpu::TextureFormat::Rgba8Unorm],
+        wgpu::TextureFormat::Bgra8UnormSrgb => &[wgpu::TextureFormat::Bgra8Unorm],
+        _ => &[],
     }
 }
 
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-pub(crate) struct Uniforms {
-    screen: [f32; 2],
-    origin: [f32; 2],
+/// The view of `view`'s texture that Vello draws into: the texture's non-sRGB format, which
+/// its `view_formats` must list (`view_formats`). A target is always the first level and layer
+/// of its texture (a Space panel's mips are drawn from it afterwards).
+pub(crate) fn drawn_view(view: &wgpu::TextureView) -> wgpu::TextureView {
+    let texture = view.texture();
+    let format = texture.format();
+    match format.is_srgb() {
+        false => view.clone(),
+        true => texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("beui drawn view"),
+            format: Some(format.remove_srgb_suffix()),
+            dimension: Some(wgpu::TextureViewDimension::D2),
+            base_mip_level: 0,
+            mip_level_count: Some(1),
+            base_array_layer: 0,
+            array_layer_count: Some(1),
+            ..Default::default()
+        }),
+    }
 }
 
+/// Each target's view Vello draws into, made once a frame.
+#[derive(Default)]
+struct Views(Vec<(wgpu::TextureView, wgpu::TextureView)>);
+
+impl Views {
+    fn of(&mut self, view: &wgpu::TextureView) -> wgpu::TextureView {
+        if let Some((_, drawn)) = self.0.iter().find(|(held, _)| held == view) {
+            return drawn.clone();
+        }
+        let drawn = drawn_view(view);
+        self.0.push((view.clone(), drawn.clone()));
+        drawn
+    }
+}
+
+/// Glyphs uploaded as Vello samples them: premultiplied RGBA8, a coverage glyph white with its
+/// coverage in every channel.
 pub(crate) struct Atlas {
     texture: wgpu::Texture,
-    texel: u32,
     pub(crate) view: wgpu::TextureView,
-    entries: HashMap<GlyphId, [f32; 4]>,
+    entries: HashMap<GlyphId, [u32; 4]>,
     row_y: u32,
     row_height: u32,
     cursor_x: u32,
@@ -117,7 +132,7 @@ pub(crate) struct Atlas {
 }
 
 impl Atlas {
-    pub(crate) fn new(device: &wgpu::Device, label: &str, format: wgpu::TextureFormat) -> Self {
+    pub(crate) fn new(device: &wgpu::Device, label: &str) -> Self {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some(label),
             size: wgpu::Extent3d {
@@ -128,13 +143,12 @@ impl Atlas {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format,
+            format: wgpu::TextureFormat::Rgba8Unorm,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         Self {
-            texel: format.block_copy_size(None).unwrap_or(1),
             texture,
             view,
             entries: HashMap::default(),
@@ -145,17 +159,22 @@ impl Atlas {
         }
     }
 
+    /// Where the glyph lies, in texels (left, top, width, height), uploading it if it is new.
     pub(crate) fn insert(
         &mut self,
         queue: &wgpu::Queue,
         id: GlyphId,
         image: &GlyphImage,
-    ) -> Option<[f32; 4]> {
-        if let Some(uv) = self.entries.get(&id) {
-            return Some(*uv);
+    ) -> Option<[u32; 4]> {
+        if let Some(region) = self.entries.get(&id) {
+            return Some(*region);
         }
-        let row = image.width * self.texel;
-        if image.pixels.len() < row as usize * image.height as usize {
+        let texel = match image.color {
+            true => 4,
+            false => 1,
+        };
+        let texels = image.width as usize * image.height as usize;
+        if image.pixels.len() < texels * texel {
             return None;
         }
         let width = image.width + GLYPH_PADDING;
@@ -178,6 +197,13 @@ impl Atlas {
         self.cursor_x += width;
         self.row_height = self.row_height.max(height);
 
+        let pixels = match image.color {
+            true => resources::premultiplied(&image.pixels[..texels * 4]),
+            false => image.pixels[..texels]
+                .iter()
+                .flat_map(|coverage| [*coverage; 4])
+                .collect(),
+        };
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &self.texture,
@@ -185,10 +211,10 @@ impl Atlas {
                 origin: wgpu::Origin3d { x, y, z: 0 },
                 aspect: wgpu::TextureAspect::All,
             },
-            &image.pixels,
+            &pixels,
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
-                bytes_per_row: Some(row),
+                bytes_per_row: Some(image.width * 4),
                 rows_per_image: Some(image.height),
             },
             wgpu::Extent3d {
@@ -197,16 +223,9 @@ impl Atlas {
                 depth_or_array_layers: 1,
             },
         );
-
-        let scale = ATLAS_SIZE as f32;
-        let uv = [
-            x as f32 / scale,
-            y as f32 / scale,
-            (x + image.width) as f32 / scale,
-            (y + image.height) as f32 / scale,
-        ];
-        self.entries.insert(id, uv);
-        Some(uv)
+        let region = [x, y, image.width, image.height];
+        self.entries.insert(id, region);
+        Some(region)
     }
 }
 
@@ -263,19 +282,18 @@ impl Repainting for WindowOutput {
     }
 }
 
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
+/// Where a run of items is placed: its pixels' translation in the document, the bound it is
+/// clipped to, the fade over it, and how strongly a punch in it erases.
+#[derive(Clone, Copy)]
 pub(crate) struct Space {
     translation: [f32; 2],
     opacity: f32,
-    padding: f32,
     clip: [f32; 4],
     fade: [f32; 4],
     widths: [f32; 4],
 }
 
 const OPEN: [f32; 4] = [-1.0e9, -1.0e9, 1.0e9, 1.0e9];
-const SPACES: usize = 64;
 const LISTED: usize = 4096;
 const REACH: f32 = 2.0;
 /// Frames drawn with no group before the group layers are freed.
@@ -284,31 +302,21 @@ const IDLE_GROUP_FRAMES: u32 = 120;
 pub struct Renderer {
     id: u64,
     resources: Resources,
-    srgb: bool,
     format: wgpu::TextureFormat,
-    uniforms: wgpu::BindGroup,
-    uniform_buffer: wgpu::Buffer,
-    instance_buffer: wgpu::Buffer,
-    instance_capacity: usize,
-    space_buffer: wgpu::Buffer,
-    space_group: wgpu::BindGroup,
-    space_capacity: usize,
-    space_stride: u64,
-    list_buffer: wgpu::Buffer,
-    list_capacity: usize,
-    list_top: usize,
-    generation: u64,
     lists: HashMap<ListKey, Encoded>,
     drawn: be_lib_stable_hash::HashSet<ListKey>,
     frames: u64,
     live: usize,
     pub encoded: usize,
     steps: Vec<Step>,
+    spaces: Vec<Space>,
     scissors: Option<Vec<[u32; 4]>>,
     origin: Vec2,
     held: be_lib_stable_hash::HashSet<ImageId>,
     using: be_lib_stable_hash::HashSet<ImageId>,
-    bound: Bound,
+    /// The image levels this frame's items sample.
+    levels: Vec<(ImageId, u32)>,
+    textures: scene::Textures,
     filters: Vec<filter::Prepared>,
     effects: Vec<filter::Effects>,
     opacities: Vec<f32>,
@@ -318,26 +326,37 @@ pub struct Renderer {
     bounds: Option<[u32; 4]>,
     whole: bool,
     scratch: Option<wgpu::Texture>,
+    /// Whether this renderer draws a window, which is composited while the program composites
+    /// windows (`beui_draw::compose`).
+    window: bool,
+    composition: Option<composite::Composition>,
+    /// Runs that erase each damaged region, which clear the upper root there.
+    cleared: Vec<Run>,
+    vello: Option<Vello>,
+    /// The non-sRGB views of the targets drawn this frame (`drawn_view`): in an app each view is
+    /// a host call.
+    views: Views,
+    /// The filter scene the scene being drawn blurs, while it is drawn.
+    filtered: Option<wgpu::TextureView>,
 }
 
-struct Bound {
-    glyphs: wgpu::BindGroup,
-    pictures: HashMap<ImageId, [wgpu::BindGroup; 2]>,
+/// Vello's renderer, made for the format it draws on when it first draws.
+struct Vello {
+    renderer: Option<(vello_gpu::Renderer, vello_gpu::Resources)>,
+    format: wgpu::TextureFormat,
+    scene: vello_gpu::Scene,
+    /// How many scenes it rendered since the encoder they went into was submitted: Vello's
+    /// buffers hold one scene, so a second is rendered only after the first was submitted.
+    rendered: usize,
 }
 
 #[derive(Clone)]
-struct Run {
-    punch: bool,
-    picture: Option<(ImageId, bool)>,
-    drawing: Option<(Drawing, DrawAt)>,
-    listed: bool,
-    space: u32,
-    start: u32,
-    count: u32,
+enum Run {
+    Items { space: u32, items: Vec<Item> },
+    Drawing(Drawing, DrawAt),
 }
 
 struct Emitted {
-    instances: Vec<Instance>,
     background: Vec<Run>,
     cleared: Vec<Run>,
     filters: usize,
@@ -370,30 +389,57 @@ impl Step {
             .max()
             .unwrap_or(0)
     }
+
+    /// Whether the steps hold what a Vello layer cannot: a drawing, painted in a pass of its
+    /// own, or a filter, which reads what is drawn beneath it.
+    fn splits(steps: &[Self]) -> bool {
+        steps.iter().any(|step| match step {
+            Self::Runs(runs) => runs.iter().any(|run| matches!(run, Run::Drawing(..))),
+            Self::Filter { .. } => true,
+            Self::Group { steps, .. } => Self::splits(steps),
+        })
+    }
+}
+
+fn push_items(steps: &mut Vec<Step>, space: u32, items: &[Item]) {
+    if items.is_empty() {
+        return;
+    }
+    if let Some(Step::Runs(runs)) = steps.last_mut() {
+        Run::extend(runs, space, items);
+        return;
+    }
+    steps.push(Step::Runs(vec![Run::Items {
+        space,
+        items: items.to_vec(),
+    }]));
 }
 
 fn push_run(steps: &mut Vec<Step>, run: Run) {
-    match steps.last_mut() {
-        Some(Step::Runs(runs)) => Run::push(runs, run),
-        _ => steps.push(Step::Runs(vec![run])),
+    match run {
+        Run::Items { space, items } => push_items(steps, space, &items),
+        run => match steps.last_mut() {
+            Some(Step::Runs(runs)) => runs.push(run),
+            _ => steps.push(Step::Runs(vec![run])),
+        },
     }
 }
 
 impl Run {
-    fn push(runs: &mut Vec<Self>, run: Self) {
-        if let Some(last) = runs.last_mut()
-            && last.drawing.is_none()
-            && run.drawing.is_none()
-            && last.punch == run.punch
-            && last.picture == run.picture
-            && last.listed == run.listed
-            && last.space == run.space
-            && last.start + last.count == run.start
+    fn extend(runs: &mut Vec<Self>, space: u32, items: &[Item]) {
+        if let Some(Self::Items {
+            space: held,
+            items: holding,
+        }) = runs.last_mut()
+            && *held == space
         {
-            last.count += run.count;
+            holding.extend_from_slice(items);
             return;
         }
-        runs.push(run);
+        runs.push(Self::Items {
+            space,
+            items: items.to_vec(),
+        });
     }
 }
 
@@ -406,20 +452,17 @@ struct ListKey {
 }
 
 struct Encoded {
-    instances: Vec<Instance>,
+    items: Vec<Item>,
     runs: Vec<ListRun>,
     parts: Vec<(usize, usize)>,
-    placed: Option<(u64, u32)>,
     atlas: u64,
     seen: u64,
 }
 
 enum ListRun {
-    Quads {
-        punch: bool,
-        picture: Option<(Image, bool)>,
-        start: u32,
-        count: u32,
+    Items {
+        start: usize,
+        count: usize,
     },
     Drawing {
         drawing: Drawing,
@@ -429,11 +472,7 @@ enum ListRun {
 }
 
 enum Encoding {
-    Instance {
-        punch: bool,
-        picture: Option<(Image, bool)>,
-        instance: Instance,
-    },
+    Item(Item),
     Drawing {
         drawing: Drawing,
         rect: [f32; 4],
@@ -553,10 +592,27 @@ struct Frame<'a> {
     pixels_per_point: f32,
     spaces: Vec<Space>,
     slots: HashMap<[u32; 15], u32>,
-    staging: Vec<Instance>,
     drawings: Vec<(Drawing, DrawAt)>,
     opacities: Vec<f32>,
-    overflow: bool,
+    /// Whether the frame is composited (`DrawAt::composited`).
+    composited: bool,
+    /// What is visited damaged or not.
+    forced: &'a Forced,
+}
+
+/// What a composited frame visits whether or not it is damaged: each drawing that placed a
+/// composited layer (an anchored view) last frame, and the displays that hold one, so the roots
+/// split where it paints.
+#[derive(Default)]
+pub(crate) struct Forced {
+    displays: be_lib_stable_hash::HashSet<u64>,
+    drawings: be_lib_stable_hash::HashSet<usize>,
+}
+
+impl Forced {
+    fn drawing(&self, drawing: &Drawing) -> bool {
+        !self.drawings.is_empty() && self.drawings.contains(&drawing.identity().0)
+    }
 }
 
 impl Frame<'_> {
@@ -591,7 +647,6 @@ impl Frame<'_> {
         self.spaces.push(Space {
             translation: origin,
             opacity,
-            padding: 0.0,
             clip: bound,
             fade: rect,
             widths: fade.widths,
@@ -615,8 +670,19 @@ impl Frame<'_> {
             let Step::Runs(runs) = step else {
                 continue;
             };
-            for run in runs.iter().filter(|run| run.punch) {
-                let held = self.spaces[run.space as usize];
+            for run in runs {
+                let Run::Items { space, items } = run else {
+                    continue;
+                };
+                let punches: Vec<Item> = items
+                    .iter()
+                    .filter(|item| matches!(item, Item::Punch { .. }))
+                    .cloned()
+                    .collect();
+                if punches.is_empty() {
+                    continue;
+                }
+                let held = self.spaces[*space as usize];
                 let fade = Fade::new(
                     Rect::from_min_max(
                         Pos2::new(held.fade[0], held.fade[1]),
@@ -626,13 +692,7 @@ impl Frame<'_> {
                 );
                 let space =
                     self.faded_space(held.translation, held.clip, fade, held.opacity * opacity);
-                push_run(
-                    into,
-                    Run {
-                        space,
-                        ..run.clone()
-                    },
-                );
+                push_items(into, space, &punches);
             }
         }
         into.push(Step::Group {
@@ -670,6 +730,10 @@ fn overlap(left: [f32; 4], right: [f32; 4]) -> [f32; 4] {
     ]
 }
 
+fn shows(reach: [f32; 4]) -> bool {
+    reach[0] < reach[2] && reach[1] < reach[3]
+}
+
 fn overlaps(left: [f32; 4], right: [f32; 4]) -> bool {
     let [x0, y0, x1, y1] = overlap(left, right);
     x0 < x1 && y0 < y1
@@ -699,63 +763,24 @@ fn translated(rect: [f32; 4], origin: [f32; 2]) -> [f32; 4] {
 
 impl Renderer {
     pub fn new(resources: &Resources) -> Self {
-        let shared = resources.0.borrow();
-        let device = &shared.device;
-        let format = shared.format;
-        let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("beui uniforms"),
-            size: std::mem::size_of::<Uniforms>() as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        let uniforms = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("beui uniforms"),
-            layout: &shared.uniform_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: uniform_buffer.as_entire_binding(),
-            }],
-        });
-        let instance_capacity = 1024;
-        let instance_buffer = vertex_buffer(device, "beui instances", instance_capacity);
-        let alignment = u64::from(device.limits().min_uniform_buffer_offset_alignment);
-        let space_stride = (std::mem::size_of::<Space>() as u64).div_ceil(alignment) * alignment;
-        let (space_buffer, space_group) =
-            space_buffer(device, &shared.space_layout, space_stride, SPACES);
-        let list_buffer = vertex_buffer(device, "beui listed instances", LISTED);
-        let glyphs = shared.glyphs.clone();
-        drop(shared);
+        let format = resources.0.borrow().format;
         Self {
             id: RENDERERS.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             resources: resources.clone(),
-            srgb: format.is_srgb(),
             format,
-            uniforms,
-            uniform_buffer,
-            instance_buffer,
-            instance_capacity,
-            space_buffer,
-            space_group,
-            space_capacity: SPACES,
-            space_stride,
-            list_buffer,
-            list_capacity: LISTED,
-            list_top: 0,
-            generation: 0,
             lists: HashMap::default(),
             drawn: be_lib_stable_hash::HashSet::default(),
             frames: 0,
             live: 0,
             encoded: 0,
             steps: Vec::new(),
+            spaces: Vec::new(),
             scissors: None,
             origin: Vec2::ZERO,
             held: be_lib_stable_hash::HashSet::default(),
             using: be_lib_stable_hash::HashSet::default(),
-            bound: Bound {
-                glyphs: glyphs.clone(),
-                pictures: HashMap::default(),
-            },
+            levels: Vec::new(),
+            textures: scene::Textures::default(),
             filters: Vec::new(),
             effects: Vec::new(),
             opacities: Vec::new(),
@@ -765,16 +790,40 @@ impl Renderer {
             bounds: None,
             whole: true,
             scratch: None,
+            window: false,
+            composition: None,
+            cleared: Vec::new(),
+            vello: None,
+            views: Views::default(),
+            filtered: None,
         }
+    }
+
+    /// Marks this renderer as drawing a window, which is composited while the program
+    /// composites windows (`beui_draw::compose::composite_windows`).
+    pub fn set_window(&mut self, window: bool) {
+        self.window = window;
+    }
+
+    /// The layers this renderer composited its last frame from, in the window's points, when it
+    /// composites.
+    pub fn layers(&self) -> Option<&be_lib_layers::WindowLayers> {
+        Some(self.composition.as_ref()?.list())
     }
 
     pub fn resources(&self) -> &Resources {
         &self.resources
     }
 
-    fn upload(&mut self, queue: &wgpu::Queue, image: &Image) {
+    fn upload(&mut self, queue: &wgpu::Queue, item: &Item) {
+        let Some((image, level)) = item.picture() else {
+            return;
+        };
         self.resources.0.borrow_mut().upload(queue, image);
         self.using.insert(image.id());
+        if !self.levels.contains(&(image.id(), level)) {
+            self.levels.push((image.id(), level));
+        }
     }
 
     fn settle_pictures(&mut self) {
@@ -785,20 +834,9 @@ impl Renderer {
         for id in self.held.difference(&self.using) {
             shared.release(*id);
         }
-        self.bound = Bound {
-            glyphs: shared.glyphs.clone(),
-            pictures: self
-                .using
-                .iter()
-                .filter_map(|id| {
-                    shared
-                        .pictures
-                        .get(id)
-                        .map(|picture| (*id, picture.bind_groups.clone()))
-                })
-                .collect(),
-        };
+        self.textures = scene::Textures::of(&shared, &self.levels);
         drop(shared);
+        self.levels.clear();
         self.held = std::mem::take(&mut self.using);
     }
 
@@ -867,12 +905,19 @@ impl Renderer {
                     view_formats: &[],
                 })),
         };
-        encoder.copy_texture_to_texture(at(texture, left, top), at(scratch, 0.0, 0.0), extent);
-        encoder.copy_texture_to_texture(
-            at(scratch, 0.0, 0.0),
-            at(texture, left + by[0], top + by[1]),
-            extent,
-        );
+        // A composited window's roots hold what its target shows, so they move with it.
+        let roots = self
+            .composition
+            .iter()
+            .flat_map(|composition| composition.roots());
+        for texture in std::iter::once(texture).chain(roots) {
+            encoder.copy_texture_to_texture(at(texture, left, top), at(scratch, 0.0, 0.0), extent);
+            encoder.copy_texture_to_texture(
+                at(scratch, 0.0, 0.0),
+                at(texture, left + by[0], top + by[1]),
+                extent,
+            );
+        }
     }
 
     pub fn id(&self) -> u64 {
@@ -896,20 +941,33 @@ impl Renderer {
         pixels_per_point: f32,
         repaint: Repaint,
     ) -> Repaint {
+        let composited = self.window && beui_draw::compose::compositing();
+        let mut repaint = repaint;
+        match composited {
+            true => {
+                let size = (screen.x.max(0.0) as u32, screen.y.max(0.0) as u32);
+                if self
+                    .composition
+                    .as_ref()
+                    .is_none_or(|composition| !composition.fits(self.format, size))
+                {
+                    self.composition = Some(composite::Composition::new(
+                        device,
+                        queue,
+                        self.format,
+                        size,
+                    ));
+                    repaint = Repaint::Everything;
+                }
+            }
+            false => self.composition = None,
+        }
         {
             let mut shared = self.resources.0.borrow_mut();
             if shared.full() {
                 shared.renew();
             }
         }
-        queue.write_buffer(
-            &self.uniform_buffer,
-            0,
-            bytemuck::bytes_of(&Uniforms {
-                screen: [screen.x, screen.y],
-                origin: [self.origin.x, self.origin.y],
-            }),
-        );
 
         let prepared: Vec<filter::Prepared> = output
             .filters()
@@ -948,61 +1006,60 @@ impl Renderer {
                 )
             }
         };
-        let (instances, steps, mut frame) = loop {
-            let mut frame = Frame {
+        // A composited window lists every drawing it shows, from what they placed last frame
+        // where nothing changed (`place`), and visits those that placed an anchored view.
+        let (found, forced) = match composited {
+            true => self.found(output, screen, pixels_per_point),
+            false => (Vec::new(), Forced::default()),
+        };
+        let mut frame = Frame {
+            queue,
+            damaged: damaged.as_deref(),
+            screen,
+            pixels_per_point,
+            spaces: Vec::new(),
+            slots: HashMap::default(),
+            drawings: Vec::new(),
+            opacities: Vec::new(),
+            composited,
+            forced: &forced,
+        };
+        frame.space([0.0; 2], OPEN, Fade::NONE);
+        let mut steps = self.emit(&mut frame, output, repaint);
+        self.record_drawings(device, queue, &frame.drawings);
+        let placed = match composited {
+            true => self.place(
+                device,
                 queue,
-                damaged: damaged.as_deref(),
+                found,
+                &frame.drawings,
+                &mut steps,
+                damaged.is_none(),
+            ),
+            false => Some(Vec::new()),
+        };
+        let Some(placed) = placed else {
+            // The first anchored view, where the upper root begins, is another than last
+            // frame's, so what the UI paints after it moves between the roots: the frame is
+            // prepared again, painted whole. That frame splits wherever it finds, so this
+            // happens at most once a frame.
+            self.release_drawings();
+            return self.prepare(
+                device,
+                queue,
+                output,
                 screen,
                 pixels_per_point,
-                spaces: Vec::new(),
-                slots: HashMap::default(),
-                staging: Vec::new(),
-                drawings: Vec::new(),
-                opacities: Vec::new(),
-                overflow: false,
-            };
-            frame.space([0.0; 2], OPEN, Fade::NONE);
-            let top = self.list_top;
-            let drawn = self.emit(&mut frame, output, repaint);
-            if !frame.overflow {
-                if !frame.staging.is_empty() {
-                    queue.write_buffer(
-                        &self.list_buffer,
-                        (top * std::mem::size_of::<Instance>()) as u64,
-                        bytemuck::cast_slice(&frame.staging),
-                    );
-                }
-                break (drawn.0, drawn.1, frame);
-            }
-            self.generation += 1;
-            self.list_top = 0;
-            let needed = frame.staging.len().max(self.list_capacity);
-            self.list_capacity = (needed * 2).next_power_of_two();
-            self.list_buffer = vertex_buffer(device, "beui listed instances", self.list_capacity);
-        };
-        if frame.spaces.len() > self.space_capacity {
-            self.space_capacity = frame.spaces.len().next_power_of_two();
-            (self.space_buffer, self.space_group) = space_buffer(
-                device,
-                &self.resources.0.borrow().space_layout,
-                self.space_stride,
-                self.space_capacity,
+                Repaint::Everything,
             );
-        }
-        let stride = self.space_stride as usize;
-        let mut spaces = vec![0u8; stride * frame.spaces.len()];
-        for (index, space) in frame.spaces.iter().enumerate() {
-            let bytes = bytemuck::bytes_of(space);
-            spaces[index * stride..index * stride + bytes.len()].copy_from_slice(bytes);
-        }
-        queue.write_buffer(&self.space_buffer, 0, &spaces);
-        self.record_drawings(device, queue, &frame.drawings);
+        };
         self.release_drawings();
         if self.lists.len() > 2 * self.live + LISTED {
             self.sweep(output, pixels_per_point);
         }
 
         self.opacities = std::mem::take(&mut frame.opacities);
+        self.spaces = std::mem::take(&mut frame.spaces);
         self.settle_pictures();
         let origin = self.origin;
         self.whole = damaged.is_none();
@@ -1024,64 +1081,53 @@ impl Renderer {
         };
         self.steps = steps;
         self.filters = prepared;
-        if instances.is_empty() {
-            return repaint;
+        if let Some(composition) = &mut self.composition {
+            let background = match repaint {
+                Repaint::Region { background, .. } => Some(background),
+                Repaint::Everything => None,
+            };
+            composition.take(
+                placed,
+                pixels_per_point,
+                origin,
+                self.scissors.as_deref(),
+                background,
+            );
         }
-        if instances.len() > self.instance_capacity {
-            self.instance_capacity = instances.len().next_power_of_two();
-            self.instance_buffer = vertex_buffer(device, "beui instances", self.instance_capacity);
-        }
-        queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&instances));
         repaint
     }
 
-    fn emit(
-        &mut self,
-        frame: &mut Frame,
-        output: &WindowOutput,
-        repaint: Repaint,
-    ) -> (Vec<Instance>, Vec<Step>) {
-        let mut instances = Vec::new();
+    fn emit(&mut self, frame: &mut Frame, output: &WindowOutput, repaint: Repaint) -> Vec<Step> {
         let mut runs = Vec::new();
-        if let (Repaint::Region { background, .. }, Some(damaged)) = (repaint, frame.damaged) {
-            let [.., alpha] = background.to_array();
-            for region in damaged {
-                if alpha < u8::MAX {
-                    Run::push(&mut runs, frame_run(true, None, 0, instances.len()));
-                    instances.push(Instance {
-                        rect: *region,
-                        clip: *region,
-                        uv: [0.0; 4],
-                        color: [0.0, 0.0, 0.0, 1.0],
-                        params: [0.0, 0.0, 0.0, 0.0],
-                        turn: turn(Turn::NONE),
-                    });
-                }
-                if alpha == 0 {
-                    continue;
-                }
-                Run::push(&mut runs, frame_run(false, None, 0, instances.len()));
-                instances.push(Instance {
-                    rect: *region,
-                    clip: *region,
-                    uv: [0.0; 4],
-                    color: self.encode(background),
-                    params: [0.0, 0.0, 0.0, 0.0],
-                    turn: turn(Turn::NONE),
-                });
-            }
-        }
         let mut cleared = Vec::new();
         for region in frame.damaged.unwrap_or_default() {
-            Run::push(&mut cleared, frame_run(true, None, 0, instances.len()));
-            instances.push(Instance {
+            let punch = Item::Punch {
                 rect: *region,
                 clip: *region,
-                uv: [0.0; 4],
-                color: [0.0, 0.0, 0.0, 1.0],
-                params: [0.0, 0.0, 0.0, 0.0],
-                turn: turn(Turn::NONE),
-            });
+                radius: 0.0,
+                turn: Turn::NONE,
+            };
+            Run::extend(&mut cleared, 0, std::slice::from_ref(&punch));
+            if let Repaint::Region { background, .. } = repaint {
+                let [.., alpha] = background.to_array();
+                if alpha < u8::MAX {
+                    Run::extend(&mut runs, 0, std::slice::from_ref(&punch));
+                }
+                if alpha > 0 {
+                    Run::extend(
+                        &mut runs,
+                        0,
+                        &[Item::Rect {
+                            rect: *region,
+                            clip: *region,
+                            color: background.to_array(),
+                            radii: [0.0; 4],
+                            stroke: 0.0,
+                            turn: Turn::NONE,
+                        }],
+                    );
+                }
+            }
         }
         let mut steps = vec![Step::Runs(runs.clone())];
         let at = Walk {
@@ -1093,14 +1139,14 @@ impl Renderer {
             clip: Rect::EVERYTHING,
             fade: Fade::NONE,
         };
+        self.cleared.clone_from(&cleared);
         let mut emitted = Emitted {
-            instances,
             background: runs,
             cleared,
             filters: 0,
         };
         self.emit_layers(frame, &output.layers, at, &mut emitted, &mut steps, true);
-        (emitted.instances, steps)
+        steps
     }
 
     fn emit_layers(
@@ -1112,36 +1158,29 @@ impl Renderer {
         steps: &mut Vec<Step>,
         bottom: bool,
     ) {
-        let mut quads = Vec::new();
+        let mut encodings = Vec::new();
         for (index, layer) in layers.iter().enumerate() {
             let bottom = bottom && index == 0;
             match layer {
                 Layer::Shape(shape) => {
                     let shape = placed_shape(shape, at.offset, at.clip);
-                    quads.clear();
-                    push_quads(&shape, at.factor, frame.damaged, &mut quads);
-                    for quad in quads.drain(..) {
-                        match self.encoding(frame.queue, quad) {
-                            Some(Encoding::Instance {
-                                punch,
-                                picture,
-                                instance,
-                            }) => {
-                                if let Some((image, _)) = &picture {
-                                    self.upload(frame.queue, image);
-                                }
-                                let picture = picture.map(|(image, smooth)| (image.id(), smooth));
-                                push_run(
-                                    steps,
-                                    frame_run(punch, picture, at.space, emitted.instances.len()),
-                                );
-                                emitted.instances.push(instance);
+                    let damaged = match &shape {
+                        Shape::Drawing { drawing, .. } if frame.forced.drawing(drawing) => None,
+                        _ => frame.damaged,
+                    };
+                    encodings.clear();
+                    self.encode_shape(frame.queue, &shape, at.factor, damaged, &mut encodings);
+                    for encoding in encodings.drain(..) {
+                        match encoding {
+                            Encoding::Item(item) => {
+                                self.upload(frame.queue, &item);
+                                push_items(steps, at.space, std::slice::from_ref(&item));
                             }
-                            Some(Encoding::Drawing {
+                            Encoding::Drawing {
                                 drawing,
                                 rect,
                                 clip,
-                            }) => {
+                            } => {
                                 if let Some(run) = self.push_drawing(
                                     frame,
                                     drawing,
@@ -1152,7 +1191,6 @@ impl Renderer {
                                     push_run(steps, run);
                                 }
                             }
-                            None => {}
                         }
                     }
                 }
@@ -1193,7 +1231,9 @@ impl Renderer {
     }
 
     fn walk(&mut self, frame: &mut Frame, display: &Display, at: Walk, steps: &mut Vec<Step>) {
-        if !frame.damages(at.reach(display)) {
+        let reach = at.reach(display);
+        let forced = frame.forced.displays.contains(&display.key) && shows(reach);
+        if !(forced || frame.damages(reach)) {
             return;
         }
         let key = at.key(display);
@@ -1209,28 +1249,8 @@ impl Renderer {
         {
             self.drawn.insert(key);
         }
-        let base = match encoded.placed {
-            Some((generation, start)) if generation == self.generation => start,
-            _ => {
-                let start = self.list_top;
-                if start + encoded.instances.len() > self.list_capacity {
-                    frame.overflow = true;
-                }
-                self.list_top += encoded.instances.len();
-                frame.staging.extend_from_slice(&encoded.instances);
-                encoded.placed = Some((self.generation, start as u32));
-                start as u32
-            }
-        };
         let mut shapes = 0;
-        self.walk_parts(
-            frame,
-            &display.parts,
-            at,
-            (&encoded, base),
-            &mut shapes,
-            steps,
-        );
+        self.walk_parts(frame, &display.parts, at, &encoded, &mut shapes, steps);
         self.lists.insert(key, encoded);
     }
 
@@ -1239,7 +1259,7 @@ impl Renderer {
         frame: &mut Frame,
         parts: &[Part],
         at: Walk,
-        (encoded, base): (&Encoded, u32),
+        encoded: &Encoded,
         shapes: &mut usize,
         steps: &mut Vec<Step>,
     ) {
@@ -1250,29 +1270,12 @@ impl Renderer {
                     *shapes += 1;
                     for run in &encoded.runs[from..to] {
                         match run {
-                            ListRun::Quads {
-                                punch,
-                                picture,
-                                start,
-                                count,
-                            } => {
-                                if let Some((image, _)) = picture {
-                                    self.upload(frame.queue, image);
+                            ListRun::Items { start, count } => {
+                                let items = &encoded.items[*start..*start + *count];
+                                for item in items {
+                                    self.upload(frame.queue, item);
                                 }
-                                push_run(
-                                    steps,
-                                    Run {
-                                        punch: *punch,
-                                        picture: picture
-                                            .as_ref()
-                                            .map(|(image, smooth)| (image.id(), *smooth)),
-                                        drawing: None,
-                                        listed: true,
-                                        space: at.space,
-                                        start: base + start,
-                                        count: *count,
-                                    },
-                                );
+                                push_items(steps, at.space, items);
                             }
                             ListRun::Drawing {
                                 drawing,
@@ -1302,18 +1305,11 @@ impl Renderer {
                     match *group {
                         Group::Mask { opacity, .. } if opacity < 1.0 => {
                             let mut grouped = Vec::new();
-                            self.walk_parts(
-                                frame,
-                                inner,
-                                within,
-                                (encoded, base),
-                                shapes,
-                                &mut grouped,
-                            );
+                            self.walk_parts(frame, inner, within, encoded, shapes, &mut grouped);
                             let bounds = at.reach_of(bounds_of(inner));
                             frame.group(opacity, bounds, grouped, steps);
                         }
-                        _ => self.walk_parts(frame, inner, within, (encoded, base), shapes, steps),
+                        _ => self.walk_parts(frame, inner, within, encoded, shapes, steps),
                     }
                 }
             }
@@ -1329,48 +1325,31 @@ impl Renderer {
         bound: [f32; 4],
     ) -> Option<Run> {
         let clip = overlap(clip, bound);
-        if !frame.damages(overlap(rect, clip)) {
+        let reach = overlap(rect, clip);
+        if !(frame.forced.drawing(&drawing) && shows(reach) || frame.damages(reach)) {
             return None;
         }
-        let shift = |[left, top, right, bottom]: [f32; 4]| {
-            [
-                left - self.origin.x,
-                top - self.origin.y,
-                right - self.origin.x,
-                bottom - self.origin.y,
-            ]
-        };
-        let at = DrawAt {
-            rect: shift(rect),
-            clip: shift(clip),
-            screen: frame.screen,
-            pixels_per_point: frame.pixels_per_point,
-            format: self.format,
-            renderer: self.id,
-        };
+        let at = self.draw_at(
+            rect,
+            clip,
+            frame.screen,
+            frame.pixels_per_point,
+            frame.composited,
+        );
         frame.drawings.push((drawing.clone(), at));
-        Some(Run {
-            punch: false,
-            picture: None,
-            drawing: Some((drawing, at)),
-            listed: false,
-            space: 0,
-            start: 0,
-            count: 0,
-        })
+        Some(Run::Drawing(drawing, at))
     }
 
     fn encode_list(&mut self, queue: &wgpu::Queue, display: &Display, at: &Walk) -> Encoded {
         let mut encoded = Encoded {
-            instances: Vec::new(),
+            items: Vec::new(),
             runs: Vec::new(),
             parts: Vec::new(),
-            placed: None,
             atlas: self.resources.0.borrow().epoch,
             seen: self.frames,
         };
         self.encode_parts(queue, display, &display.parts, *at, &mut encoded);
-        self.encoded += encoded.instances.len();
+        self.encoded += encoded.items.len();
         encoded
     }
 
@@ -1382,7 +1361,7 @@ impl Renderer {
         at: Walk,
         encoded: &mut Encoded,
     ) {
-        let mut quads = Vec::new();
+        let mut encodings = Vec::new();
         for part in parts {
             match part {
                 Part::Child(..) => {}
@@ -1394,51 +1373,32 @@ impl Renderer {
                     let from = encoded.runs.len();
                     for shape in &display.shapes[*start as usize..*end as usize] {
                         let shape = placed_shape(shape, at.offset, at.clip);
-                        quads.clear();
-                        push_quads(&shape, at.factor, None, &mut quads);
-                        for quad in quads.drain(..) {
-                            match self.encoding(queue, quad) {
-                                Some(Encoding::Instance {
-                                    punch,
-                                    picture,
-                                    instance,
-                                }) => {
-                                    let index = encoded.instances.len() as u32;
-                                    encoded.instances.push(instance);
-                                    if let Some(ListRun::Quads {
-                                        punch: held,
-                                        picture: pictured,
-                                        count,
-                                        ..
-                                    }) = encoded.runs[from..].last_mut()
-                                        && *held == punch
-                                        && pictured
-                                            .as_ref()
-                                            .map(|(image, smooth)| (image.id(), *smooth))
-                                            == picture
-                                                .as_ref()
-                                                .map(|(image, smooth)| (image.id(), *smooth))
+                        encodings.clear();
+                        self.encode_shape(queue, &shape, at.factor, None, &mut encodings);
+                        for encoding in encodings.drain(..) {
+                            match encoding {
+                                Encoding::Item(item) => {
+                                    encoded.items.push(item);
+                                    if let Some(ListRun::Items { count, .. }) =
+                                        encoded.runs[from..].last_mut()
                                     {
                                         *count += 1;
                                         continue;
                                     }
-                                    encoded.runs.push(ListRun::Quads {
-                                        punch,
-                                        picture,
-                                        start: index,
+                                    encoded.runs.push(ListRun::Items {
+                                        start: encoded.items.len() - 1,
                                         count: 1,
                                     });
                                 }
-                                Some(Encoding::Drawing {
+                                Encoding::Drawing {
                                     drawing,
                                     rect,
                                     clip,
-                                }) => encoded.runs.push(ListRun::Drawing {
+                                } => encoded.runs.push(ListRun::Drawing {
                                     drawing,
                                     rect,
                                     clip,
                                 }),
-                                None => {}
                             }
                         }
                     }
@@ -1478,53 +1438,118 @@ impl Renderer {
         self.live = live.len();
     }
 
+    /// The items `shape` draws at `factor` pixels a point, leaving out what lies outside
+    /// `damaged`: a path as Vello fills or strokes it, anything else as `push_quads` places it.
+    fn encode_shape(
+        &mut self,
+        queue: &wgpu::Queue,
+        shape: &Shape,
+        factor: f32,
+        damaged: Option<&[[f32; 4]]>,
+        out: &mut Vec<Encoding>,
+    ) {
+        if let Shape::Path {
+            path,
+            scale,
+            offset,
+            color,
+            rotation,
+            clip,
+        } = shape
+        {
+            let clip = pixel_bounds(*clip, factor);
+            let reach = beui_core::damage::path_bounds(path, *scale, *offset, *rotation);
+            if !reach.is_positive() || skipped(damaged, pixel_bounds(reach, factor), clip) {
+                return;
+            }
+            let turn = match rotation.turns() {
+                true => {
+                    let (sin, cos) = rotation.angle.sin_cos();
+                    beui_vello::turn(
+                        [rotation.pivot.x * factor, rotation.pivot.y * factor],
+                        cos,
+                        sin,
+                    )
+                }
+                false => Affine::IDENTITY,
+            };
+            let transform = turn
+                * Affine::translate((f64::from(offset.x * factor), f64::from(offset.y * factor)))
+                * Affine::scale(f64::from(scale * factor));
+            let style = match path.style() {
+                PathStyle::Fill(rule) => Painted::Fill(match rule {
+                    beui_types::FillRule::NonZero => {
+                        beui_vello::vello_common::peniko::Fill::NonZero
+                    }
+                    beui_types::FillRule::EvenOdd => {
+                        beui_vello::vello_common::peniko::Fill::EvenOdd
+                    }
+                }),
+                PathStyle::Stroke(stroke) => {
+                    Painted::Stroke(beui_core::path::kurbo_stroke(stroke, 1.0))
+                }
+            };
+            let outline = beui_core::path::kurbo_path(path.path(), 1.0);
+            let color = color.to_array();
+            let seamed = path.seamed()
+                && style == Painted::Fill(beui_vello::vello_common::peniko::Fill::NonZero);
+            out.push(Encoding::Item(Item::Path {
+                path: Rc::new(outline),
+                style,
+                transform,
+                clip,
+                color,
+                seamed,
+            }));
+            return;
+        }
+        let mut quads = Vec::new();
+        push_quads(shape, factor, damaged, &mut quads);
+        out.extend(
+            quads
+                .into_iter()
+                .filter_map(|quad| self.encoding(queue, quad)),
+        );
+    }
+
     fn encoding(&mut self, queue: &wgpu::Queue, quad: Quad) -> Option<Encoding> {
-        let plain = |instance| Encoding::Instance {
-            punch: false,
-            picture: None,
-            instance,
-        };
-        Some(match quad {
+        Some(Encoding::Item(match quad {
             Quad::Rect {
                 rect,
                 clip,
                 color,
                 corner_radius,
                 stroke_width,
-                turn: rotation,
-            } => plain(Instance {
+                turn,
+            } => Item::Rect {
                 rect,
                 clip,
-                uv: corner_radius,
-                color: self.encode(color),
-                params: [0.0, stroke_width, 0.0, 0.0],
-                turn: turn(rotation),
-            }),
+                color: color.to_array(),
+                radii: corner_radius,
+                stroke: stroke_width,
+                turn,
+            },
             Quad::Glyph {
                 rect,
                 clip,
                 color,
                 glyph,
-                turn: rotation,
+                turn,
             } => {
                 let image = glyph.image()?;
-                let colored = match image.color {
-                    true => 1.0,
-                    false => 0.0,
-                };
-                let uv = self
+                let region = self
                     .resources
                     .0
                     .borrow_mut()
                     .glyph(queue, glyph.id, image)?;
-                plain(Instance {
+                Item::Glyph {
                     rect,
                     clip,
-                    uv,
-                    color: self.encode(color),
-                    params: [0.0, 0.0, 1.0, colored],
-                    turn: turn(rotation),
-                })
+                    color: color.to_array(),
+                    region,
+                    colored: image.color,
+                    turn,
+                }
             }
             Quad::Image {
                 rect,
@@ -1534,73 +1559,381 @@ impl Renderer {
                 tint,
                 corner_radius,
                 smooth,
-                turn: rotation,
-            } => Encoding::Instance {
-                punch: false,
-                instance: Instance {
+                turn,
+            } => {
+                let texels = [
+                    (source[2] - source[0]).abs() * image.width() as f32,
+                    (source[3] - source[1]).abs() * image.height() as f32,
+                ];
+                let level = match smooth {
+                    true => beui_vello::mip_level(texels, [rect[2] - rect[0], rect[3] - rect[1]]),
+                    false => 0,
+                };
+                Item::Image {
                     rect,
                     clip,
-                    uv: source,
-                    color: self.encode(tint),
-                    params: [corner_radius, 0.0, 2.0, 0.0],
-                    turn: turn(rotation),
-                },
-                picture: Some((image, smooth)),
-            },
+                    source,
+                    image,
+                    level,
+                    tint: tint.to_array(),
+                    radius: corner_radius,
+                    smooth,
+                    turn,
+                }
+            }
             Quad::Line {
-                rect,
                 clip,
                 segment,
                 width,
                 color,
-            } => plain(Instance {
-                rect,
+                ..
+            } => Item::Line {
                 clip,
-                uv: segment,
-                color: self.encode(color),
-                params: [width / 2.0, 0.0, 3.0, 0.0],
-                turn: turn(Turn::NONE),
-            }),
+                segment,
+                width,
+                color: color.to_array(),
+            },
             Quad::Punch {
                 rect,
                 clip,
                 corner_radius,
-                turn: rotation,
-            } => Encoding::Instance {
-                punch: true,
-                picture: None,
-                instance: Instance {
-                    rect,
-                    clip,
-                    uv: [corner_radius; 4],
-                    color: [0.0, 0.0, 0.0, 1.0],
-                    params: [0.0, 0.0, 0.0, 0.0],
-                    turn: turn(rotation),
-                },
+                turn,
+            } => Item::Punch {
+                rect,
+                clip,
+                radius: corner_radius,
+                turn,
             },
             Quad::Drawing {
                 rect,
                 clip,
                 drawing,
-            } => Encoding::Drawing {
-                drawing,
-                rect,
-                clip,
+            } => {
+                return Some(Encoding::Drawing {
+                    drawing,
+                    rect,
+                    clip,
+                });
+            } // Paths are encoded whole (`encode_shape`), never as the triangles of a mesh.
+        }))
+    }
+
+    /// Where a drawing emit places at `rect` within `clip` (in the document's pixels) is drawn.
+    fn draw_at(
+        &self,
+        rect: [f32; 4],
+        clip: [f32; 4],
+        screen: Vec2,
+        pixels_per_point: f32,
+        composited: bool,
+    ) -> DrawAt {
+        let shift = |[left, top, right, bottom]: [f32; 4]| {
+            [
+                left - self.origin.x,
+                top - self.origin.y,
+                right - self.origin.x,
+                bottom - self.origin.y,
+            ]
+        };
+        DrawAt {
+            rect: shift(rect),
+            clip: shift(clip),
+            screen,
+            pixels_per_point,
+            format: self.format,
+            renderer: self.id,
+            composited,
+        }
+    }
+
+    /// Every drawing a composited window shows, in paint order, each where emit places it,
+    /// found by walking only the displays that hold drawings (`Display::drawings`); and what the
+    /// frame visits whether or not it is damaged: the drawings that placed a composited layer
+    /// last frame, and the displays that hold them.
+    fn found(
+        &self,
+        output: &WindowOutput,
+        screen: Vec2,
+        pixels_per_point: f32,
+    ) -> (Vec<(Drawing, DrawAt)>, Forced) {
+        struct Finding<'a> {
+            renderer: &'a Renderer,
+            screen: Vec2,
+            pixels_per_point: f32,
+            lifted: Option<&'a be_lib_stable_hash::HashSet<usize>>,
+            path: Vec<u64>,
+            found: Vec<(Drawing, DrawAt)>,
+            forced: Forced,
+        }
+        impl Finding<'_> {
+            fn shape(&mut self, shape: &Shape, at: Walk) {
+                if !matches!(shape, Shape::Drawing { .. }) {
+                    return;
+                }
+                let mut quads = Vec::new();
+                push_quads(
+                    &placed_shape(shape, at.offset, at.clip),
+                    at.factor,
+                    None,
+                    &mut quads,
+                );
+                for quad in quads {
+                    let Quad::Drawing {
+                        rect,
+                        clip,
+                        drawing,
+                    } = quad
+                    else {
+                        continue;
+                    };
+                    let (rect, clip) = (
+                        translated(rect, at.origin),
+                        overlap(translated(clip, at.origin), at.bound),
+                    );
+                    if !shows(overlap(rect, clip)) {
+                        continue;
+                    }
+                    if self
+                        .lifted
+                        .is_some_and(|lifted| lifted.contains(&drawing.identity().0))
+                    {
+                        self.forced.drawings.insert(drawing.identity().0);
+                        self.forced.displays.extend(self.path.iter().copied());
+                    }
+                    let at =
+                        self.renderer
+                            .draw_at(rect, clip, self.screen, self.pixels_per_point, true);
+                    self.found.push((drawing, at));
+                }
+            }
+
+            fn display(&mut self, display: &Display, at: Walk) {
+                if display.drawings == 0 || !shows(at.reach(display)) {
+                    return;
+                }
+                self.path.push(display.key);
+                self.parts(display, &display.parts, at);
+                self.path.pop();
+            }
+
+            fn parts(&mut self, display: &Display, parts: &[Part], at: Walk) {
+                for part in parts {
+                    match part {
+                        Part::Shapes { start, end, .. } => {
+                            for shape in &display.shapes[*start as usize..*end as usize] {
+                                self.shape(shape, at);
+                            }
+                        }
+                        Part::Child(_, translation, child) => {
+                            self.display(child, at.child(*translation))
+                        }
+                        Part::Group(group, inner) => {
+                            self.parts(display, inner, at.group(group, &mut |_, _, _| 0))
+                        }
+                    }
+                }
+            }
+
+            fn layers(&mut self, layers: &[Layer], at: Walk) {
+                for layer in layers {
+                    match layer {
+                        Layer::Shape(shape) => self.shape(shape, at),
+                        Layer::Display(translation, display) => {
+                            self.display(display, at.child(*translation))
+                        }
+                        Layer::Group(group, inner) => {
+                            self.layers(inner, at.group(group, &mut |_, _, _| 0))
+                        }
+                    }
+                }
+            }
+        }
+        let mut finding = Finding {
+            renderer: self,
+            screen,
+            pixels_per_point,
+            lifted: self
+                .composition
+                .as_ref()
+                .map(|composition| &composition.lifted),
+            path: Vec::new(),
+            found: Vec::new(),
+            forced: Forced::default(),
+        };
+        finding.layers(
+            &output.layers,
+            Walk {
+                factor: pixels_per_point,
+                space: 0,
+                origin: [0.0; 2],
+                bound: OPEN,
+                offset: Vec2::ZERO,
+                clip: Rect::EVERYTHING,
+                fade: Fade::NONE,
             },
-            Quad::Triangle {
-                corners: [a, b, c],
-                edges,
-                clip,
-                color,
-            } => plain(Instance {
-                rect: [a[0], a[1], b[0], b[1]],
-                clip,
-                uv: [c[0], c[1], 0.0, 0.0],
-                color: self.encode(color),
-                params: [f32::from(edges), 0.0, 4.0, 0.0],
-                turn: turn(Turn::NONE),
-            }),
-        })
+        );
+        (finding.found, finding.forced)
+    }
+
+    /// The layers a composited window's drawings place this frame, bottom first, each with the
+    /// segment it lies in (how many anchored views lie under it): a drawing prepared this frame
+    /// (`prepared`) says them anew, one that is where it was keeps last frame's, and any other
+    /// is prepared now. Splits the frame's steps between the roots at each drawing that places a
+    /// composited layer (an anchored view): a new root's steps begin there, cleared first where
+    /// it is damaged. Returns `None` when the anchored views the roots split at are not last
+    /// frame's on a frame not painted whole.
+    fn place(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        found: Vec<(Drawing, DrawAt)>,
+        prepared: &[(Drawing, DrawAt)],
+        steps: &mut Vec<Step>,
+        whole: bool,
+    ) -> Option<Vec<(Placed, usize)>> {
+        let fresh: be_lib_stable_hash::HashSet<(usize, u64)> = prepared
+            .iter()
+            .map(|(drawing, _)| drawing.identity())
+            .collect();
+        let composition = self.composition.as_mut()?;
+        let mut encoder = None;
+        let mut known = be_lib_stable_hash::HashMap::default();
+        let mut placed = Vec::new();
+        let mut lifted = be_lib_stable_hash::HashSet::default();
+        let mut splits_at = Vec::new();
+        for (drawing, at) in found {
+            let Some(draw) = drawing.draw::<Rc<dyn Draw>>() else {
+                continue;
+            };
+            let key = composite::Known::key(&drawing, &at);
+            let layers = match composition.known.remove(&key) {
+                _ if fresh.contains(&drawing.identity()) => draw.layers(),
+                Some(kept) if kept.at == at => kept.placed,
+                _ => {
+                    let encoder = encoder.get_or_insert_with(|| {
+                        device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                            label: Some("beui drawings"),
+                        })
+                    });
+                    draw.prepare(device, queue, encoder, at);
+                    draw.layers()
+                }
+            };
+            if let Some(layer) = layers.iter().find(|placed| !placed.inline) {
+                lifted.insert(drawing.identity().0);
+                splits_at.push(layer.layer.id);
+            }
+            let segment = splits_at.len();
+            placed.extend(layers.iter().cloned().map(|layer| (layer, segment)));
+            known.insert(
+                key,
+                composite::Known {
+                    drawing,
+                    at,
+                    placed: layers,
+                },
+            );
+        }
+        if let Some(encoder) = encoder {
+            queue.submit([encoder.finish()]);
+        }
+        composition.known = known;
+        composition.lifted = lifted;
+        debug_assert!(
+            {
+                let mut ids: Vec<LayerId> =
+                    placed.iter().map(|(shown, _)| shown.layer.id).collect();
+                ids.sort_unstable();
+                ids.windows(2).all(|pair| pair[0] != pair[1])
+            },
+            "every layer a window's drawings place has an id of its own"
+        );
+        if !whole && splits_at != composition.splits_at {
+            return None;
+        }
+        composition.splits_at = splits_at;
+        // Where each root after the first begins in the steps: at the run of each drawing that
+        // placed a composited layer, or after a group or filter holding one.
+        fn lifts(run: &Run, lifted: &be_lib_stable_hash::HashSet<usize>) -> bool {
+            matches!(run, Run::Drawing(drawing, _) if lifted.contains(&drawing.identity().0))
+        }
+        fn nested(steps: &[Step], lifted: &be_lib_stable_hash::HashSet<usize>) -> usize {
+            steps
+                .iter()
+                .map(|step| match step {
+                    Step::Runs(runs) => runs.iter().filter(|run| lifts(run, lifted)).count(),
+                    Step::Filter { steps, .. } | Step::Group { steps, .. } => nested(steps, lifted),
+                })
+                .sum()
+        }
+        let lifted = &composition.lifted;
+        let mut split = Vec::with_capacity(steps.len());
+        let mut splits = Vec::new();
+        for step in std::mem::take(steps) {
+            let runs = match step {
+                Step::Runs(runs) => runs,
+                Step::Filter {
+                    steps: ref inner, ..
+                }
+                | Step::Group {
+                    steps: ref inner, ..
+                } => {
+                    // An anchored view inside a group or filter cannot be lifted out of it: the
+                    // roots split after the step that holds it.
+                    let count = nested(inner, lifted);
+                    if count > 0 && !composition.warned_nested {
+                        // Known limit (plans/host_as_platform_adapter.md, The layer list): the
+                        // view ignores the group's opacity and filter, and what the group paints
+                        // after it lands below it.
+                        composition.warned_nested = true;
+                        eprintln!(
+                            "beui: an anchored view inside a group or filter is composited above \
+                             the whole group, unfaded and unfiltered"
+                        );
+                    }
+                    split.push(step);
+                    splits.extend(std::iter::repeat_n(split.len(), count));
+                    continue;
+                }
+            };
+            let mut held = Vec::new();
+            for run in runs {
+                if lifts(&run, lifted) {
+                    if !held.is_empty() {
+                        split.push(Step::Runs(std::mem::take(&mut held)));
+                    }
+                    splits.push(split.len());
+                }
+                held.push(run);
+            }
+            if !held.is_empty() {
+                split.push(Step::Runs(held));
+            }
+        }
+        *steps = split;
+        // An anchored view not in the steps is not damaged, and nothing damaged lies under or
+        // over it, so the damaged steps stay on the roots below it; the roots above it are
+        // cleared where damaged.
+        match whole {
+            true => debug_assert_eq!(
+                splits.len(),
+                composition.splits_at.len(),
+                "a frame painted whole holds every anchored view's drawing"
+            ),
+            false => debug_assert!(
+                splits.len() <= composition.splits_at.len(),
+                "a damaged frame holds at most the anchored views the window shows"
+            ),
+        }
+        splits.resize(composition.splits_at.len(), steps.len());
+        if !whole {
+            for (inserted, at) in splits.iter_mut().enumerate() {
+                *at += inserted;
+                steps.insert(*at, Step::Runs(self.cleared.clone()));
+            }
+        }
+        composition.splits = splits;
+        Some(placed)
     }
 
     fn record_drawings(
@@ -1623,46 +1956,45 @@ impl Renderer {
         queue.submit([encoder.finish()]);
     }
 
-    fn encode(&self, color: Color32) -> [f32; 4] {
-        match self.srgb {
-            true => color.to_linear_f32(),
-            false => color.to_normalized_gamma_f32(),
-        }
-    }
-
+    /// Where the frame draws on its target, `None` where it draws it whole: what its UI
+    /// damaged, or for a composited window, where its layers changed (`composite`).
     pub fn scissors(&self) -> Option<&[[u32; 4]]> {
-        self.scissors.as_deref()
-    }
-
-    /// Draws everything in one pass, for a frame with no filter and no group, which
-    /// need passes of their own.
-    fn paint(&self, pass: &mut wgpu::RenderPass<'_>) {
-        debug_assert!(self.filters.is_empty() && self.opacities.is_empty());
-        let Some(scissors) = &self.scissors else {
-            self.draw_steps(pass, &self.steps, None);
-            return;
-        };
-        for scissor in scissors {
-            if clip(pass, *scissor) {
-                self.draw_steps(pass, &self.steps, Some(*scissor));
-            }
+        match &self.composition {
+            Some(composition) => composition.composed.as_deref(),
+            None => self.scissors.as_deref(),
         }
     }
 
-    fn draw_steps(
-        &self,
-        pass: &mut wgpu::RenderPass<'_>,
-        steps: &[Step],
-        scissor: Option<[u32; 4]>,
+    /// Draws `output` onto `target`, `size` pixels showing `screen` points at
+    /// `pixels_per_point`, over what it holds: prepares `repaint`, or `whole` if the renderer
+    /// finds it must repaint everything, then renders and submits. How a guest draws a
+    /// document into a surface's texture (be-sdk-beui-platform's screens, be-sdk-beui-root's
+    /// surfaces).
+    #[allow(clippy::too_many_arguments)]
+    pub fn draw_onto(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        output: &WindowOutput,
+        (screen, pixels_per_point): (Vec2, f32),
+        (repaint, whole): (Repaint, Repaint),
+        target: &wgpu::TextureView,
+        size: (u32, u32),
     ) {
-        for step in steps {
-            match step {
-                Step::Runs(runs) => self.draw(pass, runs, scissor),
-                Step::Filter { steps, .. } | Step::Group { steps, .. } => {
-                    self.draw_steps(pass, steps, scissor)
-                }
-            }
+        let prepared = self.prepare(device, queue, output, screen, pixels_per_point, repaint);
+        if matches!(repaint, Repaint::Region { .. }) && matches!(prepared, Repaint::Everything) {
+            self.prepare(device, queue, output, screen, pixels_per_point, whole);
         }
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+        self.render(
+            device,
+            queue,
+            &mut encoder,
+            target,
+            size,
+            wgpu::LoadOp::Load,
+        );
+        queue.submit([encoder.finish()]);
     }
 
     pub fn render(
@@ -1683,26 +2015,61 @@ impl Renderer {
         } else {
             self.idle_groups = 0;
         }
-        if self.filters.is_empty() && self.opacities.is_empty() {
-            self.effects.clear();
-            let mut pass = self.begin(encoder, target, load);
-            self.paint(&mut pass);
-            return;
+        if let Some(vello) = &mut self.vello {
+            vello.rendered = 0;
         }
+        let Some(mut composition) = self.composition.take() else {
+            self.render_into(device, queue, encoder, target, load, 0..self.steps.len());
+            // No view outlives the frame: a presented swapchain texture, a layer replaced.
+            self.views.0.clear();
+            return;
+        };
+        // A composited window: its UI into the roots, one below its first anchored view and one
+        // above each, then the window from its layers.
+        composition.fit_roots(device);
+        let whole = self.whole;
+        let length = self.steps.len();
+        let bounds: Vec<usize> = std::iter::once(0)
+            .chain(composition.splits.iter().map(|at| (*at).min(length)))
+            .chain(std::iter::once(length))
+            .collect();
+        for (index, root) in composition.roots.iter().enumerate() {
+            let load = match (whole, index, load) {
+                (true, 0, wgpu::LoadOp::Clear(color)) => wgpu::LoadOp::Clear(color),
+                (true, _, _) => wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                (false, _, _) => wgpu::LoadOp::Load,
+            };
+            let view = root.view.clone();
+            let steps = bounds[index]..bounds[index + 1].max(bounds[index]);
+            self.render_into(device, queue, encoder, &view, load, steps);
+        }
+        composition.compose(queue, encoder, target, load);
+        self.composition = Some(composition);
+        self.views.0.clear();
+    }
+
+    /// Renders `steps` of the frame into `target`: what lies between the drawings and filters,
+    /// and whatever a group or filter holds that a Vello layer can, as Vello scenes.
+    fn render_into(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
+        load: wgpu::LoadOp<wgpu::Color>,
+        steps: std::ops::Range<usize>,
+    ) {
         if self.empty() {
             return;
         }
-        if !self.opacities.is_empty() {
+        let size = self.target;
+        if Step::splits(&self.steps[steps.clone()]) && !self.opacities.is_empty() {
             let depth = Step::depth(&self.steps);
             let format = self.format;
             self.groups
                 .get_or_insert_with(|| group::Groups::new(device, format))
                 .prepare(device, queue, &self.opacities, depth, size);
         }
-        let scissors: Vec<Option<[u32; 4]>> = match &self.scissors {
-            Some(scissors) => scissors.iter().copied().map(Some).collect(),
-            None => vec![None],
-        };
         let format = self.format;
         self.effects.truncate(self.filters.len());
         while self.effects.len() < self.filters.len() {
@@ -1711,67 +2078,208 @@ impl Renderer {
         for effects in &mut self.effects {
             effects.ensure(device, size);
         }
-        let steps = std::mem::take(&mut self.steps);
-        let mut load = load;
-        for scissor in scissors {
-            self.render_steps(device, queue, encoder, target, load, scissor, &steps, 0);
-            load = wgpu::LoadOp::Load;
-        }
-        self.steps = steps;
+        let clear = match load {
+            wgpu::LoadOp::Clear(color) => Some(srgb(self.format, color)),
+            wgpu::LoadOp::Load | wgpu::LoadOp::DontCare(_) => None,
+        };
+        let clip = self.scissors.clone();
+        let held = std::mem::take(&mut self.steps);
+        let mut onto = Onto::new(target, size, clear, clip);
+        self.begin_scene(&onto);
+        self.paint_steps(device, queue, encoder, &mut onto, &held[steps], 0);
+        self.flush(device, queue, encoder, &mut onto);
+        self.steps = held;
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn render_steps(
+    /// Starts the scene for `onto`: clipped to what it draws, and over its background when it
+    /// is cleared whole.
+    fn begin_scene(&mut self, onto: &Onto<'_>) {
+        let (width, height) = onto.size;
+        let (width, height) = (
+            width.clamp(1, u32::from(u16::MAX)) as u16,
+            height.clamp(1, u32::from(u16::MAX)) as u16,
+        );
+        let vello = self
+            .vello
+            .get_or_insert_with(|| Vello::scene_only(width, height));
+        vello.scene.reset_and_resize(width, height);
+        let mut canvas = scene::Gpu(&mut vello.scene);
+        use beui_vello::Canvas;
+        canvas.set_transform(Affine::IDENTITY);
+        if let Some(clip) = &onto.clip {
+            let mut path = beui_vello::vello_common::kurbo::BezPath::new();
+            for [left, top, width, height] in clip {
+                let rect = beui_vello::rect([
+                    *left as f32,
+                    *top as f32,
+                    (*left + *width) as f32,
+                    (*top + *height) as f32,
+                ]);
+                path.extend(beui_vello::vello_common::kurbo::Shape::path_elements(
+                    &rect, 0.1,
+                ));
+            }
+            canvas.push_clip_path(&path);
+        }
+        if onto.first
+            && let Some(color) = onto.clear
+            && color[3] > 0
+        {
+            beui_vello::filled_rect(
+                &mut canvas,
+                [0.0, 0.0, width as f32, height as f32],
+                [0.0; 4],
+                0.0,
+                color,
+                Affine::IDENTITY,
+            );
+        }
+        onto.drawn.set(false);
+    }
+
+    /// Renders the scene built for `onto` and starts the next.
+    fn flush(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
-        target: &wgpu::TextureView,
-        load: wgpu::LoadOp<wgpu::Color>,
-        scissor: Option<[u32; 4]>,
+        onto: &mut Onto<'_>,
+    ) {
+        let format = onto.view.texture().format().remove_srgb_suffix();
+        let Some(vello) = &mut self.vello else {
+            return;
+        };
+        if onto.clip.is_some() {
+            vello.scene.pop_clip();
+        }
+        // Checked at each render: a submit before it may have found the device lost.
+        let wanted = (onto.first || onto.drawn.get()) && !self.resources.lost();
+        if wanted {
+            if vello.format != format || !vello.made() {
+                vello.make(device, queue, format, onto.size);
+            }
+            // vello_gpu's buffers hold one render, so a render after another (past a drawing, into
+            // a group's or filter's layer) waits for the encoder to be submitted: a frame split N
+            // times costs N submits.
+            if vello.rendered > 0 {
+                let done = std::mem::replace(
+                    encoder,
+                    device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                        label: Some("beui encoder"),
+                    }),
+                );
+                queue.submit([done.finish()]);
+            }
+            let rects: Vec<vello_gpu::geometry::RectU16> = onto
+                .clip
+                .iter()
+                .flatten()
+                .map(|[left, top, width, height]| {
+                    vello_gpu::geometry::RectU16::new(
+                        *left as u16,
+                        *top as u16,
+                        (*left + *width).min(u32::from(u16::MAX)) as u16,
+                        (*top + *height).min(u32::from(u16::MAX)) as u16,
+                    )
+                })
+                .collect();
+            let target_init = match (onto.first, &onto.clip) {
+                (false, _) => vello_gpu::TargetInit::SrcOver,
+                (true, Some(_)) => vello_gpu::TargetInit::Clear(vello_gpu::ClearSettings::Rects {
+                    color: beui_vello::vello_common::peniko::Color::TRANSPARENT,
+                    rects: &rects,
+                }),
+                (true, None) if onto.clear.is_some() => {
+                    vello_gpu::TargetInit::Clear(vello_gpu::ClearSettings::default())
+                }
+                (true, None) => vello_gpu::TargetInit::SrcOver,
+            };
+            let drawn = self.views.of(onto.view);
+            let mut options = vello_gpu::RenderOptions::default();
+            options.target_init = target_init;
+            let Vello {
+                renderer: Some((renderer, resources)),
+                scene,
+                ..
+            } = vello
+            else {
+                unreachable!("Vello's renderer was made");
+            };
+            if let Err(error) = renderer.render(
+                scene,
+                resources,
+                encoder,
+                vello_gpu::RenderTarget {
+                    view: &drawn,
+                    depth_view: None,
+                },
+                &self.textures.bindings(self.filtered.as_ref()),
+                options,
+            ) {
+                eprintln!("beui: Vello could not render the frame: {error:?}");
+            }
+            vello.rendered += 1;
+        }
+        onto.first = false;
+        self.begin_scene(onto);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn paint_steps(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        onto: &mut Onto<'_>,
         steps: &[Step],
         depth: usize,
     ) {
-        let initial = load;
-        let mut load = load;
-        let mut loaded = false;
         for step in steps {
             match step {
                 Step::Runs(runs) => {
-                    let mut pass = self.begin_at(encoder, target, load, depth);
-                    if let Some(scissor) = scissor {
-                        clip(&mut pass, scissor);
-                    }
-                    self.draw(&mut pass, runs, scissor);
-                }
-                Step::Filter {
-                    index,
-                    bottom,
-                    steps: filtered,
-                } => {
-                    let Some(scene) = self.effects.get(*index).and_then(filter::Effects::scene)
-                    else {
-                        continue;
-                    };
-                    let scene = scene.clone();
-                    let scene_load = match (self.whole, initial) {
-                        (true, wgpu::LoadOp::Clear(color)) if *bottom => wgpu::LoadOp::Clear(color),
-                        (true, _) => wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                        (false, _) => wgpu::LoadOp::Load,
-                    };
-                    self.render_steps(
-                        device, queue, encoder, &scene, scene_load, scissor, filtered, depth,
-                    );
-                    let (prepared, srgb) = (self.filters[*index], self.srgb);
-                    if let Some(effects) = self.effects.get_mut(*index) {
-                        effects.record(device, queue, encoder, &prepared, srgb, scissor);
-                    }
-                    let mut pass = self.begin_at(encoder, target, load, depth);
-                    if let Some(scissor) = scissor {
-                        clip(&mut pass, scissor);
-                    }
-                    if let Some(effects) = self.effects.get(*index) {
-                        effects.compose(&mut pass);
+                    for run in runs {
+                        match run {
+                            Run::Items { space, items } => {
+                                let Some(vello) = &mut self.vello else {
+                                    continue;
+                                };
+                                let space = self.spaces[*space as usize];
+                                scene::run(
+                                    &mut scene::Gpu(&mut vello.scene),
+                                    &space,
+                                    items,
+                                    [self.origin.x, self.origin.y],
+                                    &self.textures,
+                                );
+                                onto.drawn.set(true);
+                            }
+                            Run::Drawing(drawing, at) => {
+                                self.flush(device, queue, encoder, onto);
+                                let Some(draw) = drawing.draw::<Rc<dyn Draw>>() else {
+                                    continue;
+                                };
+                                let scissors: Vec<Option<[u32; 4]>> = match &onto.clip {
+                                    Some(clip) => clip.iter().copied().map(Some).collect(),
+                                    None => vec![None],
+                                };
+                                let mut pass =
+                                    self.begin_at(encoder, onto.view, wgpu::LoadOp::Load, depth);
+                                for scissor in scissors {
+                                    let Some(at) = within(*at, scissor) else {
+                                        continue;
+                                    };
+                                    let bounds = scissor.unwrap_or([
+                                        0,
+                                        0,
+                                        at.screen.x as u32,
+                                        at.screen.y as u32,
+                                    ]);
+                                    if clip(&mut pass, clipped(at.clip, bounds)) {
+                                        draw.paint(&mut pass, at);
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
                 Step::Group {
@@ -1779,50 +2287,122 @@ impl Renderer {
                     bounds,
                     steps: grouped,
                 } => {
+                    let opacity = self.opacities.get(*index).copied().unwrap_or(1.0);
+                    if !Step::splits(grouped) {
+                        if let Some(vello) = &mut self.vello {
+                            vello.scene.push_opacity_layer(opacity);
+                        }
+                        self.paint_steps(device, queue, encoder, onto, grouped, depth);
+                        if let Some(vello) = &mut self.vello {
+                            vello.scene.pop_layer();
+                        }
+                        continue;
+                    }
+                    // A group holding a drawing or a filter: its own layer, composed at its
+                    // opacity.
+                    self.flush(device, queue, encoder, onto);
                     let region = self.region(*bounds);
-                    let region = match scissor {
-                        Some(scissor) => intersected(scissor, region),
-                        None => region,
+                    let regions: Vec<[u32; 4]> = match &onto.clip {
+                        Some(clip) => clip
+                            .iter()
+                            .map(|scissor| intersected(*scissor, region))
+                            .filter(|region| region[2] > 0 && region[3] > 0)
+                            .collect(),
+                        None => vec![region]
+                            .into_iter()
+                            .filter(|region| region[2] > 0 && region[3] > 0)
+                            .collect(),
                     };
                     let Some(layer) = self
                         .groups
                         .as_ref()
                         .and_then(|groups| groups.layer_view(depth))
                         .cloned()
-                        .filter(|_| region[2] > 0 && region[3] > 0)
                     else {
                         continue;
                     };
-                    {
-                        let mut pass =
-                            self.begin_at(encoder, &layer, wgpu::LoadOp::Load, depth + 1);
+                    if regions.is_empty() {
+                        continue;
+                    }
+                    let mut inner =
+                        Onto::new(&layer, layer_size(&layer), None, Some(regions.clone()));
+                    self.begin_scene(&inner);
+                    self.paint_steps(device, queue, encoder, &mut inner, grouped, depth + 1);
+                    self.flush(device, queue, encoder, &mut inner);
+                    // The scene is shared: what follows the group is drawn onto this target again.
+                    self.begin_scene(onto);
+                    let drawn = self.views.of(onto.view);
+                    let mut pass = self.begin_at(encoder, &drawn, wgpu::LoadOp::Load, depth);
+                    for region in regions {
                         clip(&mut pass, region);
                         if let Some(groups) = &self.groups {
-                            groups.clear(&mut pass);
+                            groups.compose(&mut pass, depth, *index);
                         }
                     }
-                    self.render_steps(
-                        device,
-                        queue,
-                        encoder,
-                        &layer,
-                        wgpu::LoadOp::Load,
-                        Some(region),
-                        grouped,
-                        depth + 1,
-                    );
-                    let mut pass = self.begin_at(encoder, target, load, depth);
-                    clip(&mut pass, region);
-                    if let Some(groups) = &self.groups {
-                        groups.compose(&mut pass, depth, *index);
+                }
+                Step::Filter {
+                    index,
+                    bottom,
+                    steps: filtered,
+                } => {
+                    self.flush(device, queue, encoder, onto);
+                    let Some(scene_view) = self
+                        .effects
+                        .get(*index)
+                        .and_then(filter::Effects::scene)
+                        .cloned()
+                    else {
+                        continue;
+                    };
+                    let clear = match (self.whole, onto.clear) {
+                        (true, Some(color)) if *bottom => Some(color),
+                        (true, _) => Some([0; 4]),
+                        (false, _) => None,
+                    };
+                    let mut inner = Onto::new(&scene_view, onto.size, clear, onto.clip.clone());
+                    self.begin_scene(&inner);
+                    self.paint_steps(device, queue, encoder, &mut inner, filtered, depth);
+                    self.flush(device, queue, encoder, &mut inner);
+                    let (prepared, srgb) = (self.filters[*index], self.format.is_srgb());
+                    let blurred = self
+                        .effects
+                        .get(*index)
+                        .and_then(filter::Effects::blurred)
+                        .cloned();
+                    if let Some(blurred) = blurred.filter(|_| prepared.sigma() > 0.0) {
+                        let region = prepared.region();
+                        // Blurred whole: under a clip, vello_gpu 0.4's filter layer takes
+                        // nothing from outside the clip's pixels, so light from beside the damage
+                        // went missing. The combine pass composes only the damage.
+                        let mut onto_blur = Onto::new(&blurred, onto.size, Some([0; 4]), None);
+                        self.begin_scene(&onto_blur);
+                        if let Some(vello) = &mut self.vello {
+                            scene::blur(&mut vello.scene, onto.size, region, prepared.sigma());
+                        }
+                        onto_blur.drawn.set(true);
+                        self.filtered = Some(self.views.of(&scene_view));
+                        self.flush(device, queue, encoder, &mut onto_blur);
+                        self.filtered = None;
+                    }
+                    self.begin_scene(onto);
+                    let scissors: Vec<Option<[u32; 4]>> = match &onto.clip {
+                        Some(clip) => clip.iter().copied().map(Some).collect(),
+                        None => vec![None],
+                    };
+                    if let Some(effects) = self.effects.get_mut(*index) {
+                        effects.record(device, queue, &prepared, srgb);
+                    }
+                    let mut pass = self.begin_at(encoder, onto.view, wgpu::LoadOp::Load, depth);
+                    for scissor in scissors {
+                        if let Some(scissor) = scissor {
+                            clip(&mut pass, scissor);
+                        }
+                        if let Some(effects) = self.effects.get(*index) {
+                            effects.compose(&mut pass);
+                        }
                     }
                 }
             }
-            load = wgpu::LoadOp::Load;
-            loaded = true;
-        }
-        if !loaded {
-            drop(self.begin_at(encoder, target, load, depth));
         }
     }
 
@@ -1891,81 +2471,6 @@ impl Renderer {
         }
         pass
     }
-
-    fn draw(&self, pass: &mut wgpu::RenderPass<'_>, runs: &[Run], scissor: Option<[u32; 4]>) {
-        if runs.is_empty() {
-            return;
-        }
-        let (pipeline, punch_pipeline) = {
-            let shared = self.resources.0.borrow();
-            (shared.pipeline.clone(), shared.punch_pipeline.clone())
-        };
-        pass.set_bind_group(0, &self.uniforms, &[]);
-        let mut bound = None;
-        let mut buffer = None;
-        let mut space = None;
-        for run in runs {
-            if let Some((drawing, at)) = run.drawing.as_ref() {
-                if let (Some(draw), Some(at)) =
-                    (drawing.draw::<Rc<dyn Draw>>(), within(*at, scissor))
-                {
-                    let bounds = scissor.unwrap_or([0, 0, at.screen.x as u32, at.screen.y as u32]);
-                    if clip(pass, clipped(at.clip, bounds)) {
-                        draw.paint(pass, at);
-                    }
-                    clip(pass, bounds);
-                    pass.set_bind_group(0, &self.uniforms, &[]);
-                    bound = None;
-                    buffer = None;
-                    space = None;
-                }
-                continue;
-            }
-            let group = run.picture.and_then(|(id, smooth)| {
-                self.bound
-                    .pictures
-                    .get(&id)
-                    .map(|groups| &groups[usize::from(smooth)])
-            });
-            if run.picture.is_some() && group.is_none() {
-                continue;
-            }
-            if buffer != Some(run.listed) {
-                let instances = match run.listed {
-                    true => &self.list_buffer,
-                    false => &self.instance_buffer,
-                };
-                pass.set_vertex_buffer(0, instances.slice(..));
-                buffer = Some(run.listed);
-            }
-            if bound != Some(run.picture) {
-                pass.set_bind_group(2, group.unwrap_or(&self.bound.glyphs), &[]);
-                bound = Some(run.picture);
-            }
-            if space != Some(run.space) {
-                let offset = (u64::from(run.space) * self.space_stride) as u32;
-                pass.set_bind_group(1, &self.space_group, &[offset]);
-                space = Some(run.space);
-            }
-            pass.set_pipeline(match run.punch {
-                true => &punch_pipeline,
-                false => &pipeline,
-            });
-            pass.draw(0..6, run.start..run.start + run.count);
-        }
-    }
-}
-
-fn frame_run(punch: bool, picture: Option<(ImageId, bool)>, space: u32, at: usize) -> Run {
-    Run {
-        punch,
-        picture,
-        drawing: None,
-        listed: false,
-        space,
-        start: at as u32,
-        count: 1,
-    }
 }
 
 fn mark(display: &Display, at: Walk, live: &mut be_lib_stable_hash::HashSet<ListKey>) {
@@ -1997,10 +2502,6 @@ fn mark_layers(layers: &[Layer], at: Walk, live: &mut be_lib_stable_hash::HashSe
             }
         }
     }
-}
-
-fn turn(turn: Turn) -> [f32; 4] {
-    [turn.pivot[0], turn.pivot[1], turn.cos, turn.sin]
 }
 
 fn physical(region: Rect, origin: Vec2, screen: Vec2, pixels_per_point: f32) -> [f32; 4] {
@@ -2098,47 +2599,114 @@ pub fn wgpu_color_in(format: wgpu::TextureFormat, color: Color32) -> wgpu::Color
     }
 }
 
-fn vertex_buffer(device: &wgpu::Device, label: &str, capacity: usize) -> wgpu::Buffer {
-    device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some(label),
-        size: (capacity * std::mem::size_of::<Instance>()) as u64,
-        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-        mapped_at_creation: false,
-    })
+/// What a run of scenes draws onto: a target (or a group's layer, or a filter's scene), the
+/// part of it they draw, and how it starts.
+struct Onto<'a> {
+    view: &'a wgpu::TextureView,
+    size: (u32, u32),
+    /// The colour the target starts as when it is cleared whole, straight sRGB.
+    clear: Option<[u8; 4]>,
+    /// The pixels drawn (left, top, width, height), or none for the whole target.
+    clip: Option<Vec<[u32; 4]>>,
+    /// Whether the next scene is the first, which clears what it draws.
+    first: bool,
+    /// Whether the scene being built holds anything.
+    drawn: std::cell::Cell<bool>,
 }
 
-fn space_buffer(
-    device: &wgpu::Device,
-    layout: &wgpu::BindGroupLayout,
-    stride: u64,
-    capacity: usize,
-) -> (wgpu::Buffer, wgpu::BindGroup) {
-    let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("beui spaces"),
-        size: stride * capacity as u64,
-        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        mapped_at_creation: false,
-    });
-    let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("beui space group"),
-        layout,
-        entries: &[wgpu::BindGroupEntry {
-            binding: 0,
-            resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                buffer: &buffer,
-                offset: 0,
-                size: wgpu::BufferSize::new(std::mem::size_of::<Space>() as u64),
-            }),
-        }],
-    });
-    (buffer, group)
-}
-
-pub(crate) fn rgba(srgb: bool) -> wgpu::TextureFormat {
-    match srgb {
-        true => wgpu::TextureFormat::Rgba8UnormSrgb,
-        false => wgpu::TextureFormat::Rgba8Unorm,
+impl<'a> Onto<'a> {
+    fn new(
+        view: &'a wgpu::TextureView,
+        size: (u32, u32),
+        clear: Option<[u8; 4]>,
+        clip: Option<Vec<[u32; 4]>>,
+    ) -> Self {
+        Self {
+            view,
+            size,
+            clear,
+            clip,
+            first: true,
+            drawn: std::cell::Cell::new(false),
+        }
     }
+}
+
+impl Vello {
+    fn scene_only(width: u16, height: u16) -> Self {
+        Self {
+            renderer: None,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            scene: vello_gpu::Scene::new(width, height),
+            rendered: 0,
+        }
+    }
+
+    fn made(&self) -> bool {
+        self.renderer.is_some()
+    }
+
+    fn make(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        format: wgpu::TextureFormat,
+        (width, height): (u32, u32),
+    ) {
+        let config = vello_gpu::RenderTargetConfig {
+            format,
+            width: width.clamp(1, u32::from(u16::MAX)) as u16,
+            height: height.clamp(1, u32::from(u16::MAX)) as u16,
+        };
+        self.renderer = Some(vello_gpu::Renderer::new(device, queue, &config));
+        self.format = format;
+    }
+}
+
+/// A clear colour as wgpu takes it for a target of `format` (linear on an sRGB target), back
+/// to straight sRGB bytes.
+fn srgb(format: wgpu::TextureFormat, color: wgpu::Color) -> [u8; 4] {
+    let encode = |value: f64| {
+        let value = value.clamp(0.0, 1.0);
+        match format.is_srgb() {
+            true if value <= 0.003_130_8 => value * 12.92,
+            true => 1.055 * value.powf(1.0 / 2.4) - 0.055,
+            false => value,
+        }
+    };
+    [
+        (encode(color.r) * 255.0).round() as u8,
+        (encode(color.g) * 255.0).round() as u8,
+        (encode(color.b) * 255.0).round() as u8,
+        (color.a.clamp(0.0, 1.0) * 255.0).round() as u8,
+    ]
+}
+
+fn layer_size(view: &wgpu::TextureView) -> (u32, u32) {
+    let size = view.texture().size();
+    (size.width, size.height)
+}
+
+fn pixel_bounds(rect: Rect, pixels_per_point: f32) -> [f32; 4] {
+    [
+        (rect.min.x * pixels_per_point).round(),
+        (rect.min.y * pixels_per_point).round(),
+        (rect.max.x * pixels_per_point).round(),
+        (rect.max.y * pixels_per_point).round(),
+    ]
+}
+
+fn skipped(damaged: Option<&[[f32; 4]]>, rect: [f32; 4], clip: [f32; 4]) -> bool {
+    let Some(damaged) = damaged else {
+        return false;
+    };
+    !damaged.iter().any(|damaged| {
+        let left = rect[0].max(clip[0]).max(damaged[0]);
+        let top = rect[1].max(clip[1]).max(damaged[1]);
+        let right = rect[2].min(clip[2]).min(damaged[2]);
+        let bottom = rect[3].min(clip[3]).min(damaged[3]);
+        left < right && top < bottom
+    })
 }
 
 #[cfg(test)]

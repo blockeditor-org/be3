@@ -48,6 +48,7 @@ fn opened(runtime: &mut Runtime, guest: &mut Connection) -> OpId {
         account_id: [4; 16],
         organization_id: [5; 16],
         client_id: [6; 16],
+        offers_share: true,
         kind: OpeningKind::Block(OpenBlock {
             block_id: [0; 16],
             block_type: [0; 16],

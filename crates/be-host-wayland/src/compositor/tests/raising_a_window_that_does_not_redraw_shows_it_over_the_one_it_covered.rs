@@ -19,7 +19,7 @@ fn Stacked(windows: Windows) -> NodeId {
     ORDER.with(|held| *held.borrow_mut() = Some(order));
     view! {
         <Layers>
-            <ForEach keys={order}>|id: WindowId|
+            <ForEach value={order}>|id: WindowId|
                 <Frame width={Size::Custom(SHOWN.x)} height={Size::Custom(SHOWN.y)}>
                     <WindowView windows id />
                 </Frame>
@@ -37,8 +37,11 @@ struct Screen {
 
 impl Screen {
     fn new(device: wgpu::Device, queue: wgpu::Queue) -> Self {
-        let renderer =
-            beui_host::native::Renderer::new(&beui_host::native::Resources::new(&device, FORMAT));
+        let renderer = beui_host::native::Renderer::new(&beui_host::native::Resources::new(
+            &device,
+            FORMAT,
+            &Default::default(),
+        ));
         let target = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("kept screen"),
             size: wgpu::Extent3d {

@@ -35,7 +35,7 @@ fn a_nested_docks_dialog_and_focus_are_the_outer_docks() {
                                             <Frame @test_id="content.11" />
                                         </DockTab>
                                     </DockPane>
-                                    <ForEach keys={dialogs}>|id: u64|
+                                    <ForEach value={dialogs}>|id: u64|
                                         <DockDialog
                                             id
                                             parent=11u64

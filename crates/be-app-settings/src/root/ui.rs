@@ -1,7 +1,8 @@
+use be_block_input::InputSettingsContent;
 use be_sdk_beui::be_block::settings::{Settings, SettingsProfile};
 use be_sdk_beui::be_block::{
-    DisplaySettings, DisplaySettingsContent, InputSettingsContent, OfflineSettings,
-    OfflineSettingsContent, SettingsContent, SettingsProfileContent, TagsContent, WORKSPACE_TYPE,
+    DisplaySettings, DisplaySettingsContent, OfflineSettings, OfflineSettingsContent,
+    SettingsContent, SettingsProfileContent, TagsContent, WORKSPACE_TYPE,
 };
 use be_sdk_beui::be_block_content::{BlockContent, LiveEdit};
 use be_sdk_beui::beui::icons::Glyph;
@@ -69,7 +70,6 @@ pub fn SettingsView(editor: Editor) -> NodeId {
     let settings = editor.block_content::<SettingsContent>();
     let block = editor.block_id();
     let own = create_memo(move || is_own_settings(&editor, block));
-    let others = create_memo(move || !own.get());
     let blocked = blocked(editor, settings, own);
     let blocks = editor.blocks();
     let _graph = store((
@@ -78,13 +78,11 @@ pub fn SettingsView(editor: Editor) -> NodeId {
     ));
     let shown = shown_block(editor);
     let push_device = editor.watch::<PushDeviceWatch>();
-    let push_supported = create_memo(move || push_device.get().is_some());
-    let recoverable = create_memo(move || own.get() && editor.organization_settings().is_some());
     view! {
         <Scroll>
             <Frame padding=PADDING>
                 <List spacing=SECTION_SPACING>
-                    <Show condition={others}>
+                    <Show value={move || !own.get()}>
                         <Text style=TextStyle::CAPTION>{NOT_OURS}</Text>
                     </Show>
                     <Section title="This device" caption="">
@@ -102,14 +100,14 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                                 blocked={blocked}
                                 shown={shown}
                             />
-                            <Show condition={push_supported}>
+                            <Show value={move || push_device.with(Option::is_some)}>
                                 <PushRow editor={editor} device={push_device} />
                             </Show>
                         </List>
                     </Section>
                     <Devices editor={editor} settings={settings} blocked={blocked} shown={shown} />
                     <Workspaces editor={editor} shown={shown} />
-                    <Show condition={own}>
+                    <Show value={own}>
                         <Section title="You" caption="">
                             <List spacing=ROW_SPACING>
                                 <StorageRow editor={editor} />
@@ -124,7 +122,7 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                                         }
                                     }}
                                 />
-                                <Show condition={recoverable}>
+                                <Show value={move || editor.organization_settings().is_some()}>
                                     <Text style=TextStyle::CAPTION @test_id={"settings.only-yours"}>
                                         {ONLY_YOURS}
                                     </Text>
@@ -164,24 +162,23 @@ fn StorageRow(editor: Editor) -> NodeId {
 const PUSH_DENIED: &str =
     "Notifications are blocked for this site. Allow them in the browser's site settings.";
 
-/// Whether this device shows notifications while the app is closed (plans/notifications.md),
-/// for hosts that can receive pushes; the host asks for the person's permission when it is
-/// turned on, so this runs in their press.
+/// Whether this device shows notifications while the app is closed
+/// (guides/running/android.md, "Push notifications"), for hosts that can receive pushes; the
+/// host asks for the person's permission when it is turned on, so this runs in their press.
 #[component]
 fn PushRow(editor: Editor, device: Memo<Option<PushDevice>>) -> NodeId {
     let on = create_memo(move || device.get() == Some(PushDevice::On));
     let denied = create_memo(move || device.get() == Some(PushDevice::Denied));
     let failed = create_signal(None::<String>);
-    let note = create_memo(move || match (denied.get(), failed.get()) {
-        (true, _) => PUSH_DENIED.to_owned(),
-        (false, Some(failure)) => failure,
-        (false, None) => String::new(),
-    });
     view! {
         <SettingsRow
             label="Notifications"
             description="Hear about new messages on this device while be-host is closed"
-            note={note}
+            note={move || match (denied.get(), failed.get()) {
+                (true, _) => PUSH_DENIED.to_owned(),
+                (false, Some(failure)) => failure,
+                (false, None) => String::new(),
+            }}
             locked={denied}
             compact=true
         >
@@ -211,14 +208,9 @@ fn OfflineRow(
     shown: Memo<Option<Uuid>>,
 ) -> NodeId {
     let (open, offline) = opener::<SettingsContent, OfflineSettingsContent>(editor, settings);
-    let selected = create_memo(move || {
-        offline
-            .get()
-            .is_some_and(|block| shown.get() == Some(block))
-    });
     let workspaces = workspaces(editor);
     let resolved = editor.resolved_settings::<OfflineSettings>(editor.block_id());
-    let detail = create_memo(move || {
+    let detail = move || {
         let personal = editor.organization_settings().is_none();
         let all = workspaces.get();
         let kept = resolved.with(|resolved| {
@@ -232,13 +224,17 @@ fn OfflineRow(
             1 => "Your workspace is not kept".to_owned(),
             count => format!("{kept} of {count} workspaces kept"),
         }
-    });
+    };
     view! {
         <SettingRow
             label="Offline"
             detail={detail}
             glyph=ICON_CLOUD_OFF
-            selected={selected}
+            selected={move || {
+                offline
+                    .get()
+                    .is_some_and(|block| shown.get() == Some(block))
+            }}
             disabled={blocked}
             @test_id={"settings.offline"}
             on_click={open}
@@ -270,34 +266,28 @@ pub(super) fn workspaces(editor: Editor) -> Memo<Vec<Uuid>> {
 #[component]
 fn Workspaces(editor: Editor, shown: Memo<Option<Uuid>>) -> NodeId {
     let workspaces = workspaces(editor);
-    let listed = create_memo(move || !workspaces.with(Vec::is_empty));
     view! {
         <List spacing=Space::None>
-            <Show condition={listed}>
+            <Show value={move || !workspaces.with(Vec::is_empty)}>
                 <Section title="Workspaces" caption="">
                     <List spacing=ROW_SPACING>
-                        <ForEach keys={workspaces}>|workspace: Uuid| {
-                            let label = create_memo(move || block::name_of(editor, workspace));
+                        <ForEach value={workspaces}>|workspace: Uuid| {
                             let settings = create_memo(move || editor.settings_block(workspace));
                             let manages =
                                 create_memo(move || editor.blocks().access(workspace).can_manage());
-                            let detail = create_memo(move || match (settings.get().is_some(), manages.get()) {
-                                (true, _) => "Has settings of its own".to_owned(),
-                                (false, true) => "Nothing set yet".to_owned(),
-                                (false, false) => "Nothing set, and only its managers set them".to_owned(),
-                            });
-                            let unopenable =
-                                create_memo(move || settings.get().is_none() && !manages.get());
-                            let selected = create_memo(move || {
-                                settings.get().is_some_and(|settings| shown.get() == Some(settings))
-                            });
                             view! {
                                 <SettingRow
-                                    label={label}
-                                    detail={detail}
+                                    label={move || block::name_of(editor, workspace)}
+                                    detail={move || match (settings.get().is_some(), manages.get()) {
+                                        (true, _) => "Has settings of its own".to_owned(),
+                                        (false, true) => "Nothing set yet".to_owned(),
+                                        (false, false) => "Nothing set, and only its managers set them".to_owned(),
+                                    }}
                                     glyph=ICON_FOLDER_COG
-                                    selected={selected}
-                                    disabled={unopenable}
+                                    selected={move || {
+                                        settings.get().is_some_and(|settings| shown.get() == Some(settings))
+                                    }}
+                                    disabled={move || settings.get().is_none() && !manages.get()}
                                     @test_id={format!("settings.workspace.{workspace}")}
                                     on_click={move || block::open_settings_of(editor, workspace)}
                                 />
@@ -338,8 +328,8 @@ fn Devices(
                             .open_block_with(block, SettingsContent::CONTENT_TYPE, DEVICES_EDITOR)
                     }}
                 />
-                <ForEach keys={profiles}>|profile: Uuid| {
-                    let label = create_memo(move || {
+                <ForEach value={profiles}>|profile: Uuid| {
+                    let label = move || {
                         children
                             .get()
                             .into_iter()
@@ -347,7 +337,7 @@ fn Devices(
                             .find(|info| info.id == profile)
                             .and_then(|info| info.name())
                             .unwrap_or_else(|| "Profile".to_owned())
-                    });
+                    };
                     let class = create_memo(move || {
                         editor
                             .content_of::<SettingsProfileContent>(profile)
@@ -355,7 +345,7 @@ fn Devices(
                             .ok()
                             .flatten()
                     });
-                    let detail = create_memo(move || {
+                    let detail = move || {
                         let kind = class.get().map(|class| class.name().to_owned());
                         match (used.get() == Some(profile), kind) {
                             (true, Some(kind)) => format!("This device · {kind}"),
@@ -363,14 +353,13 @@ fn Devices(
                             (false, Some(kind)) => kind,
                             (false, None) => String::new(),
                         }
-                    });
-                    let selected = create_memo(move || shown.get() == Some(profile));
+                    };
                     view! {
                         <SettingRow
                             label={label}
                             detail={detail}
                             glyph=ICON_MONITOR_SMARTPHONE
-                            selected={selected}
+                            selected={move || shown.get() == Some(profile)}
                             @test_id={format!("settings.profile.{profile}")}
                             on_click={move || {
                                 editor
@@ -408,39 +397,27 @@ fn Devices(
 #[component]
 fn Organization(editor: Editor, shown: Memo<Option<Uuid>>) -> NodeId {
     let settings = create_memo(move || editor.organization_settings());
-    let listed = create_memo(move || settings.get().is_some());
-    let detail = create_memo(move || {
-        match settings
-            .get()
-            .is_some_and(|settings| editor.blocks().access(settings).can_manage())
-        {
-            true => "You administer them".to_owned(),
-            false => "Set by its administrators".to_owned(),
-        }
-    });
-    let selected = create_memo(move || {
-        settings
-            .get()
-            .is_some_and(|settings| shown.get() == Some(settings))
-    });
     view! {
         <List spacing=Space::None>
-            <Show condition={listed}>
+            <Show value={settings}>|settings: ReadSignal<Uuid>|
                 <Section title="Organization" caption="">
                     <SettingRow
                         label="Policies"
-                        detail={detail}
+                        detail={move || {
+                            match editor.blocks().access(settings.get()).can_manage() {
+                                true => "You administer them".to_owned(),
+                                false => "Set by its administrators".to_owned(),
+                            }
+                        }}
                         glyph=ICON_BUILDING
-                        selected={selected}
+                        selected={move || shown.get() == Some(settings.get())}
                         @test_id={"settings.organization"}
                         on_click={move || {
-                            if let Some(settings) = settings.get_untracked() {
-                                editor.host().open_block_with(
-                                    settings,
-                                    SettingsContent::CONTENT_TYPE,
-                                    ORGANIZATION_EDITOR,
-                                );
-                            }
+                            editor.host().open_block_with(
+                                settings.get_untracked(),
+                                SettingsContent::CONTENT_TYPE,
+                                ORGANIZATION_EDITOR,
+                            );
                         }}
                     />
                 </Section>
@@ -467,7 +444,6 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
             .get()
             .is_some_and(|parent| is_own_settings(&editor, parent))
     });
-    let others = create_memo(move || !own.get());
     let setup = DeviceSetup::new(editor, profile, parent);
     let blocked = blocked(editor, profile, own);
     let client = editor.host().client_id();
@@ -480,63 +456,62 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
                 .flatten()
         }) == Some(block)
     });
-    let unused = create_memo(move || !used.get() && !blocked.get());
     let shown = shown_block(editor);
     let differs = setup.differs();
     let finished = create_signal(false);
     let setting_up =
         create_memo(move || used.get() && differs.get() && !blocked.get() && !finished.get());
-    let browsing = create_memo(move || !setting_up.get());
-    let status = create_memo(move || match used.get() {
-        true => "Used on this device".to_owned(),
-        false => "Not used on this device".to_owned(),
-    });
+    let browsing = move || {
+        view! {
+            <SettingsSection
+                title="Settings profile"
+                description="What is set here replaces the settings for every device, on the devices that use this profile. What is not set follows them."
+            >
+                <SettingsRow
+                    label={move || match used.get() {
+                        true => "Used on this device".to_owned(),
+                        false => "Not used on this device".to_owned(),
+                    }}
+                >
+                    <Show value={move || !used.get() && !blocked.get()}>
+                        <Button
+                            label="Use on this device"
+                            variant=ButtonVariant::Primary
+                            @test_id={"settings-profile.use"}
+                            on_click={move || {
+                                if let Some(settings) = parent.get_untracked() {
+                                    editor
+                                        .content_of::<SettingsContent>(settings)
+                                        .operate(Settings::add_profile(client, block));
+                                }
+                            }}
+                        />
+                    </Show>
+                </SettingsRow>
+            </SettingsSection>
+            <SettingsSection title="In this profile">
+                <Frame padding=CARD_PADDING>
+                    <Kinds editor={editor} layer={profile} blocked={blocked} shown={shown} />
+                </Frame>
+            </SettingsSection>
+        }
+    };
     view! {
         <SettingsPage>
-            <Show condition={others}>
+            <Show value={move || !own.get()}>
                 <Frame padding={Padding::horizontal(NOTICE_INSET)}>
                     <Text style=TextStyle::CAPTION>{NOT_OURS}</Text>
                 </Frame>
             </Show>
-            <Show condition={setting_up}>
+            <Show value={setting_up}>
                 <SetUpHeading />
             </Show>
             <DeviceSection setup={setup} blocked={blocked} />
-            <Show condition={differs}>
+            <Show value={differs}>
                 <DifferencesSection setup={setup} blocked={blocked} />
             </Show>
-            <Show condition={setting_up}>
+            <Show value={setting_up} fallback={browsing}>
                 <SetUpDone on_done={move || finished.set(true)} />
-            </Show>
-            <Show condition={browsing}>
-                <SettingsSection
-                    title="Settings profile"
-                    description="What is set here replaces the settings for every device, on the devices that use this profile. What is not set follows them."
-                >
-                    <SettingsRow label={status}>
-                        <Show condition={unused}>
-                            <Button
-                                label="Use on this device"
-                                variant=ButtonVariant::Primary
-                                @test_id={"settings-profile.use"}
-                                on_click={move || {
-                                    if let Some(settings) = parent.get_untracked() {
-                                        editor
-                                            .content_of::<SettingsContent>(settings)
-                                            .operate(Settings::add_profile(client, block));
-                                    }
-                                }}
-                            />
-                        </Show>
-                    </SettingsRow>
-                </SettingsSection>
-            </Show>
-            <Show condition={browsing}>
-                <SettingsSection title="In this profile">
-                    <Frame padding=CARD_PADDING>
-                        <Kinds editor={editor} layer={profile} blocked={blocked} shown={shown} />
-                    </Frame>
-                </SettingsSection>
             </Show>
         </SettingsPage>
     }
@@ -544,14 +519,13 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
 
 #[component]
 pub(super) fn Section(title: &'static str, caption: &'static str, children: Child) -> NodeId {
-    let captioned = !caption.is_empty();
     view! {
         <List spacing=SPACING>
             <List spacing=CAPTION_SPACING>
                 <Text style=TextStyle::HEADING>{title}</Text>
-                <Show condition={captioned}>
+                {(!caption.is_empty()).then(|| view! {
                     <Text style=TextStyle::CAPTION>{caption}</Text>
-                </Show>
+                })}
             </List>
             {children}
         </List>
@@ -569,28 +543,33 @@ fn SettingRow(
 ) -> NodeId {
     let label = create_memo(move || label.get());
     let detail = create_memo(move || detail.get());
-    let glyph = create_memo(move || glyph.get());
     let off = create_memo(move || disabled.get());
-    let has_detail = create_memo(move || !detail.get().is_empty());
-    let text_color = create_memo(move || match off.get() {
-        true => TextColor::Muted,
-        false => TextColor::Default,
-    });
-    let icon_color = create_memo(move || match (off.get(), selected.get()) {
-        (false, true) => TextColor::Accent,
-        _ => TextColor::Muted,
-    });
+    let selected = create_memo(move || selected.get());
     view! {
-        <ListRow label={label} selected disabled={off} on_click={on_click}>
+        <ListRow label={label} selected={selected} disabled={off} on_click={on_click}>
             <Frame padding={Padding::vertical(ROW_PADDING)}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_GAP>
-                    <Text color={icon_color} align=TextAlign::Center>
+                    <Text
+                        color={move || match (off.get(), selected.get()) {
+                            (false, true) => TextColor::Accent,
+                            _ => TextColor::Muted,
+                        }}
+                        align=TextAlign::Center
+                    >
                         <Icon glyph={glyph} />
                     </Text>
                     <ListItem grow=1.0>
                         <List spacing=Space::None>
-                            <Text color={text_color} overflow=Overflow::Ellipsis>{label}</Text>
-                            <Show condition={has_detail}>
+                            <Text
+                                color={move || match off.get() {
+                                    true => TextColor::Muted,
+                                    false => TextColor::Default,
+                                }}
+                                overflow=Overflow::Ellipsis
+                            >
+                                {label}
+                            </Text>
+                            <Show value={move || detail.with(|detail| !detail.is_empty())}>
                                 <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
                                     {detail}
                                 </Text>
@@ -632,22 +611,22 @@ fn Kinds<C: Layer>(
     #[prop(default = false)] summarize: Prop<bool>,
 ) -> NodeId {
     let display_now = LayeredSettings::<DisplaySettings>::this_device(editor).effective();
-    let display_detail = create_memo(move || match summarize.get() {
-        true => display_now
-            .with(|display| format!("{} · {}%", display.theme().name(), display.scale_percent())),
-        false => "Theme, scale, screens, sleep and lock".to_owned(),
-    });
     let (open_input, input) = opener::<C, InputSettingsContent>(editor, layer);
     let (open_display, display) = opener::<C, DisplaySettingsContent>(editor, layer);
     let (open_editors, editors) = opener::<C, EditorSettingsContent>(editor, layer);
-    let showing = move |block: ReadSignal<Option<Uuid>>| {
+    let showing = move |block: Memo<Option<Uuid>>| {
         create_memo(move || block.get().is_some_and(|block| shown.get() == Some(block)))
     };
     view! {
         <List spacing=ROW_SPACING>
             <SettingRow
                 label="Display"
-                detail={display_detail}
+                detail={move || match summarize.get() {
+                    true => display_now.with(|display| {
+                        format!("{} · {}%", display.theme().name(), display.scale_percent())
+                    }),
+                    false => "Theme, scale, screens, sleep and lock".to_owned(),
+                }}
                 glyph=ICON_MONITOR
                 selected={showing(display)}
                 disabled={blocked}
@@ -679,7 +658,7 @@ fn Kinds<C: Layer>(
 fn opener<C: Layer, K: BlockContent + Default>(
     editor: Editor,
     layer: ContentProjection<C>,
-) -> (impl Fn() + Clone + use<C, K>, ReadSignal<Option<Uuid>>) {
+) -> (impl Fn() + Clone + use<C, K>, Memo<Option<Uuid>>) {
     let resolved = layer.project(|layer| layer.kind(K::CONTENT_TYPE));
     let host = editor.host();
     let open = move || {

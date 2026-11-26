@@ -39,8 +39,7 @@ fn a_raster_layer_is_drawn_pixel_sharp_with_its_grid() {
     );
 
     let corner = editor.rect_of("infinite-canvas.canvas").center();
-    editor.pinch(corner, 3.0);
-    editor.run();
+    editor.zoom_view(corner, 3.0);
     editor.settle();
     editor.snapshot("a_raster_layer_is_drawn_pixel_sharp_with_its_grid");
 }

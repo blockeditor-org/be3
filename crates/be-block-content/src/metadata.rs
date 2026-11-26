@@ -4,7 +4,24 @@ use be_block_model::{BlockRef, Stored, from_cbor, to_cbor};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
+/// The longest a block's name is, in UTF-8 bytes: `Blocks::set_name` refuses a longer one, and a
+/// name taken from content is cut to it (`clip_name`).
 pub const MAX_NAME_BYTES: usize = 128;
+
+/// `name` cut to `MAX_NAME_BYTES` at a character's boundary, for a name taken from content (a
+/// text's first line, a database row's title) rather than typed as one.
+pub fn clip_name(name: &str) -> &str {
+    let mut end = name.len().min(MAX_NAME_BYTES);
+    while !name.is_char_boundary(end) {
+        end -= 1;
+    }
+    &name[..end]
+}
+
+/// Why a name is refused, as a rename shows it.
+pub fn name_too_long() -> String {
+    format!("A name is at most {MAX_NAME_BYTES} bytes long.")
+}
 
 pub const NAME: MetaKey<String> =
     MetaKey::defined(0x6be3_6d65_7461_4e00_8a1e_6e61_6d65_0001, "name");
@@ -52,6 +69,12 @@ pub const SCHEMA: MetaKey<String> =
 pub const ARTIFACT: MetaKey<Artifact> =
     MetaKey::defined(0x6be3_6d65_7461_4100_8a1e_6172_7469_0001, "artifact");
 
+/// A fingerprint of the content an artifact's exporter last made, so whoever makes it again
+/// writes it only when it differs. Kept apart from `ARTIFACT`, which only the person changes
+/// (settings applied, unlinked): the instance that makes the artifact writes only this.
+pub const ARTIFACT_MADE: MetaKey<u64> =
+    MetaKey::defined(0x6be3_6d65_7461_4100_8a1e_6d61_6465_0001, "artifact_made");
+
 pub const LOCAL_ID: MetaKey<Uuid> =
     MetaKey::defined(0x6be3_6d65_7461_4c00_8a1e_6c6f_6361_0001, "local_id");
 
@@ -67,9 +90,9 @@ pub const DELETED_FROM: MetaKey<DeletedFrom> =
 pub const SETTINGS: MetaKey<BlockRef> =
     MetaKey::defined(0x6be3_6d65_7461_5300_8a1e_7365_7474_0001, "settings");
 
-/// The block's search index (plans/search.md): a block of `be_block_graph::SEARCH_INDEX_TYPE`
-/// under it holding the text of its whole tree. Held by its block like `SETTINGS`, so never
-/// listed among its children.
+/// The block's search index (guides/blocks/host.md, "Search"): a block of
+/// `be_block_graph::SEARCH_INDEX_TYPE` under it holding the text of its whole tree. Held by its
+/// block like `SETTINGS`, so never listed among its children.
 pub const SEARCH_INDEX: MetaKey<BlockRef> =
     MetaKey::defined(0x6be3_6d65_7461_4900_8a1e_7365_6172_0001, "search_index");
 
@@ -159,6 +182,9 @@ pub struct Thumbhash {
 pub struct Artifact {
     pub source: BlockRef,
     pub source_type: Uuid,
+    /// The exporter of the source's editor that makes the block (guides/apps/editor.md,
+    /// "Exporting").
+    pub exporter: String,
     #[serde(with = "be_block_model::bytes")]
     pub settings: Vec<u8>,
 }

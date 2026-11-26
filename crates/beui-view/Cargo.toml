@@ -9,7 +9,6 @@ accesskit = "0.24.1"
 beui-html = { path = "../beui-html" }
 beui-tree = { path = "../beui-tree" }
 beui-types = { path = "../beui-types" }
-beui-macros = { path = "../beui-macros" }
 beui-reactive = { path = "../beui-reactive" }
 be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 

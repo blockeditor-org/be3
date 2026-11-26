@@ -9,7 +9,7 @@ fn only_the_files_not_already_here_are_downloaded() {
     let first = manifest(vec![
         (
             "be-host",
-            helper::File {
+            ManifestFile {
                 executable: true,
                 ..app.clone()
             },

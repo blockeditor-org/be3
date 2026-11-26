@@ -15,6 +15,7 @@ fn host_window_messages_round_trip() {
         },
         size: Some(Vec2::new(640.0, 480.0)),
         maximized: true,
+        opens_hidden: true,
     };
     watched_round_trips::<WindowsWatch>(vec![window.clone()]);
     {
@@ -40,6 +41,7 @@ fn host_window_messages_round_trip() {
                 docks: None,
                 anchor: None,
                 fullscreen: false,
+                keyboard_ask: 0,
             }],
             occluders: Vec::new(),
         });

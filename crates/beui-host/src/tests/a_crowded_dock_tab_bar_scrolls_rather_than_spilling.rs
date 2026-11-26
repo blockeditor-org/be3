@@ -8,7 +8,7 @@ fn a_crowded_dock_tab_bar_scrolls_rather_than_spilling() {
     harness.frame(Vec::new());
     let area = harness.rect(dock);
     assert!(
-        text_within(harness.document(), dock, "Tab 24")
+        find_text(harness.document(), dock, "Tab 24", Match::Exact)
             .is_none_or(|last| harness.rect(last).left() > area.right()),
         "the tabs a pane has no room for sit past its edge"
     );
@@ -23,7 +23,7 @@ fn a_crowded_dock_tab_bar_scrolls_rather_than_spilling() {
         "walking to the last tab scrolls the bar until it is in view"
     );
     assert!(
-        text_within(harness.document(), dock, "Tab 1")
+        find_text(harness.document(), dock, "Tab 1", Match::Exact)
             .is_none_or(|first| harness.rect(first).right() < area.left()),
         "the tabs it scrolled past are the ones that leave"
     );

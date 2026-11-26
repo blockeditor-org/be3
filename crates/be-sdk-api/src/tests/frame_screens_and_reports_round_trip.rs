@@ -29,7 +29,7 @@ fn frame_screens_and_reports_round_trip() {
             Pos2::new(10.0, 20.0),
             Vec2::new(300.0, 200.0),
         )),
-        top_bar: TopBar::Phone,
+        top_bar: TopBar::Shown,
         dialog: Some(DialogFrame {
             narrow: true,
             bottom_inset: 24.0,
@@ -39,6 +39,7 @@ fn frame_screens_and_reports_round_trip() {
             Pos2::new(40.0, -28.0),
             Vec2::new(120.0, 28.0),
         )),
+        phone: true,
     });
     round_trips(&vec![request]);
 

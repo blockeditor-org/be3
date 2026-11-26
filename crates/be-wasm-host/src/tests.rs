@@ -1,95 +1,53 @@
 use super::*;
 
-use be_wasm_gpu_abi::device as abi;
-
 fn host() -> Host {
     let (device, queue) = wgpu::Device::noop(&wgpu::DeviceDescriptor::default());
-    Host::new(device, queue, None).unwrap()
+    Host::new(device, queue).unwrap()
 }
 
 fn escaped(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("\\{byte:02x}")).collect()
 }
 
-fn buffer_descriptor() -> Vec<u8> {
-    be_wasm_ops::encode(&abi::BufferDescriptor {
-        label: Some("vertices".into()),
-        size: 256,
-        usage: wgpu::BufferUsages::VERTEX.bits(),
-        mapped_at_creation: false,
-    })
-}
-
+/// A guest whose `$ask_adapter` asks wasi:webgpu for an adapter with the options at a pointer
+/// (none, at 0): a gpu call that reads the guest's memory, answering a ticket.
 fn guest(body: &str) -> String {
-    let descriptor = buffer_descriptor();
+    let options =
+        be_wasm_ops::encode(&None::<be_wasm_gpu_abi::webgpu::webgpu::GpuRequestAdapterOptions>);
     format!(
         r#"(module
-            (import "env" "memory" (memory 1 4 shared))
-            (import "be3:gpu/device@0.1.0" "create-buffer" (func $create_buffer (param i32 i32) (result i32)))
-            (import "be3:gpu/device@0.1.0" "take-error" (func $take_error (param i32 i32) (result i32)))
+            (import "env" "memory" (memory 1 4))
+            (import "{webgpu}" "get-gpu" (func $get_gpu (result i32)))
+            (import "{webgpu}" "[method]gpu.request-adapter" (func $request_adapter (param i32 i32 i32) (result i32)))
             (import "be3_host" "host_send" (func $host_send (param i32 i32)))
             (import "be3_host" "host_receive" (func $host_receive (param i32 i32) (result i64)))
-            (data (i32.const 0) "{descriptor}")
+            (data (i32.const 0) "{options}")
             (global $length i32 (i32.const {length}))
+            (func $ask_adapter (param $at i32) (param $length i32) (result i32)
+                (call $request_adapter (call $get_gpu) (local.get $at) (local.get $length)))
             (func (export "app_start"))
             (func (export "app_shutdown"))
             (func (export "app_step") {body})
         )"#,
-        descriptor = escaped(&descriptor),
-        length = descriptor.len(),
+        options = escaped(&options),
+        length = options.len(),
+        webgpu = be_wasm_gpu_abi::embed::webgpu::MODULE,
     )
 }
 
-fn threaded_guest(body: &str) -> String {
-    format!(
-        r#"(module
-            (import "env" "memory" (memory 1 4 shared))
-            (import "wasi" "thread-spawn" (func $spawn (param i32) (result i32)))
-            (import "be3:gpu/device@0.1.0" "create-buffer" (func $create_buffer (param i32 i32) (result i32)))
-            (import "be3_host" "host_send" (func $host_send (param i32 i32)))
-            (import "be3_host" "host_wake" (func $host_wake))
-            (func (export "app_start") (drop (call $spawn (i32.const 0))))
-            (func (export "app_shutdown"))
-            (func (export "app_step")
-                (call $host_send (i32.const 8) (i32.const 1)))
-            (func (export "wasi_thread_start") (param i32 i32) {body})
-        )"#
-    )
-}
-
+/// A root library: the memory it imports, its table and stack pointer, and what the app above
+/// it reaches through it.
 fn root() -> &'static str {
     r#"(module
-        (import "env" "memory" (memory 2 4 shared))
-        (import "wasi" "thread-spawn" (func $spawn (param i32) (result i32)))
+        (import "env" "memory" (memory 2 4))
         (import "be3_host" "host_send" (func $host_send (param i32 i32)))
-        (import "be3_host" "host_wake" (func $host_wake))
-        (type $unary (func (param i32)))
         (table (export "__indirect_function_table") 2 funcref)
         (elem (i32.const 1) $double)
         (global $stack (export "__stack_pointer") (mut i32) (i32.const 4096))
-        (global $tls (export "__tls_base") (mut i32) (i32.const 1024))
-        (global (export "__tls_size") i32 (i32.const 32))
-        (global (export "__tls_align") i32 (i32.const 4))
-        (global (export "ROOT_LOCAL") i32 (i32.const 8))
         (global (export "counter") i32 (i32.const 2048))
-        (data (i32.const 1032) "\64")
-        (data (i32.const 1108) "\c8")
         (func $double (export "double") (param i32) (result i32)
             (i32.mul (local.get 0) (i32.const 2)))
         (func (export "send") (param i32 i32) (call $host_send (local.get 0) (local.get 1)))
-        (func (export "wake") (call $host_wake))
-        (func (export "spawn") (param $function i32) (param $argument i32)
-            (i32.store (i32.const 3000) (i32.const 12000))
-            (i32.store (i32.const 3004) (i32.const 1100))
-            (i32.store (i32.const 3008) (local.get $function))
-            (i32.store (i32.const 3012) (local.get $argument))
-            (drop (call $spawn (i32.const 3000))))
-        (func (export "wasi_thread_start") (param $thread i32) (param $start i32)
-            (global.set $stack (i32.load (local.get $start)))
-            (global.set $tls (i32.load offset=4 (local.get $start)))
-            (call_indirect (type $unary)
-                (i32.load offset=12 (local.get $start))
-                (i32.load offset=8 (local.get $start))))
     )"#
 }
 
@@ -97,107 +55,103 @@ fn root_identity() -> String {
     be_wasm_dylink::identity(root().as_bytes())
 }
 
+/// An app linked against `root()`, which calls a function of the root's through its table, counts
+/// in the root's data and reads its own relocated data, and sends 42 + 5 when every one held.
 fn linked_app(identity: &str) -> String {
     r#"(module
-        (import "env" "memory" (memory 1 4 shared))
+        (import "env" "memory" (memory 1 4))
         (import "env" "__indirect_function_table" (table 0 funcref))
         (import "env" "__stack_pointer" (global $stack (mut i32)))
         (import "env" "__memory_base" (global $memory_base i32))
         (import "env" "__table_base" (global $table_base i32))
         (import "env" "send" (func $send (param i32 i32)))
-        (import "env" "spawn" (func $spawn (param i32 i32)))
-        (import "env" "wake" (func $wake))
         (import "GOT.mem" "counter" (global $counter (mut i32)))
         (import "GOT.mem" "own_value" (global $own_value (mut i32)))
         (import "GOT.func" "double" (global $double (mut i32)))
-        (import "GOT.func" "worker" (global $worker_slot (mut i32)))
-        (import "GOT.tls" "ROOT_LOCAL" (global $root_local (mut i32)))
         (type $doubling (func (param i32) (result i32)))
-        (global $tls (export "__tls_base") (mut i32) (i32.const 0))
-        (global (export "__tls_size") i32 (i32.const 20))
-        (global (export "__tls_align") i32 (i32.const 4))
         (global (export "own_value") i32 (i32.const 64))
         (global (export "__be3_lib_0_{IDENTITY}") i32 (i32.const 0))
-        (global (export "__be3_dylink_256_2_1_0_20_4") i32 (i32.const 0))
-        (elem (global.get $table_base) func $worker)
-        (func (export "__wasm_init_tls") (param $block i32)
-            (global.set $tls (local.get $block))
-            (i32.store offset=16 (local.get $block) (i32.const 7)))
+        (global (export "__be3_dylink_256_2_1_0") i32 (i32.const 0))
         (func (export "__wasm_apply_data_relocs")
             (i32.store offset=64 (global.get $memory_base) (i32.const 5)))
-        (func $root_local (result i32)
-            (i32.load (i32.add (global.get $tls) (global.get $root_local))))
         (func (export "app_start")
-            (if (i32.ne (call_indirect (type $doubling) (i32.const 21) (global.get $double)) (i32.const 42))
-                (then unreachable))
-            (drop (i32.atomic.rmw.add (global.get $counter) (i32.const 1)))
-            (if (i32.ne (i32.load (i32.const 2048)) (i32.const 1)) (then unreachable))
-            (if (i32.ne (i32.load (global.get $own_value)) (i32.const 5)) (then unreachable))
-            (if (i32.lt_u (global.get $tls) (i32.const 65536)) (then unreachable))
-            (if (i32.ne (i32.load offset=16 (global.get $tls)) (i32.const 7)) (then unreachable))
-            (if (i32.ne (call $root_local) (i32.const 100)) (then unreachable))
-            (call $spawn (global.get $worker_slot) (i32.add (global.get $memory_base) (i32.const 200))))
+            (i32.store (global.get $counter) (i32.add (i32.load (global.get $counter)) (i32.const 1)))
+            (if (i32.ne (i32.load (i32.const 2048)) (i32.const 1)) (then unreachable)))
         (func (export "app_shutdown"))
         (func (export "app_step")
-            (call $send (i32.add (global.get $memory_base) (i32.const 200)) (i32.const 1)))
-        (func $worker (export "worker") (param $result i32)
-            (i32.atomic.store8 (local.get $result)
+            (i32.store8 offset=200 (global.get $memory_base)
                 (i32.add
-                    (i32.add
-                        (i32.load offset=16 (global.get $tls))
-                        (call $root_local))
+                    (call_indirect (type $doubling) (i32.const 21) (global.get $double))
                     (i32.load (global.get $own_value))))
-            (call $wake))
+            (call $send (i32.add (global.get $memory_base) (i32.const 200)) (i32.const 1)))
     )"#
     .replace("{IDENTITY}", identity)
 }
 
-#[derive(Default)]
-struct Told {
-    woken: std::sync::Mutex<bool>,
-    changed: std::sync::Condvar,
-}
-
-impl Told {
-    fn listen(app: &App) -> std::sync::Arc<Self> {
-        let told = std::sync::Arc::new(Self::default());
-        app.on_wake({
-            let told = std::sync::Arc::clone(&told);
-            move || {
-                *told.woken.lock().unwrap() = true;
-                told.changed.notify_all();
-            }
-        });
-        told
-    }
-
-    fn wait(&self) {
-        let mut woken = self.woken.lock().unwrap();
-        while !*woken {
-            woken = self.changed.wait(woken).unwrap();
-        }
-        *woken = false;
-    }
-}
-
-fn settled(app: &mut App, wanted: u8) -> Result<(), String> {
-    let told = Told::listen(app);
-    loop {
-        app.step()?;
-        if app
-            .take_outbound()
-            .last()
-            .is_some_and(|frame| frame == &[wanted])
-        {
-            return Ok(());
-        }
-        if !app.take_wake() {
-            told.wait();
-        }
-    }
-}
-
 const ECHO: &[u8] = include_bytes!(env!("GUEST_ECHO_WASM"));
+
+const WEBGPU: &[u8] = include_bytes!(env!("GUEST_WEBGPU_WASM"));
+
+const COUNTER_TYPES: &[u8] = include_bytes!(env!("COUNTER_TYPES_WASM"));
+
+/// Every frame the counter's type module sends from its start until it has described its type's
+/// blank content, which it describes, run on a host seeded with `seed`.
+fn counter_answers(seed: [u8; 32]) -> Vec<Vec<u8>> {
+    use be_sdk_type_api::{
+        embed::exports::replicas,
+        ops::{Connection, Incoming, Side},
+    };
+    let waiting = std::sync::Arc::default();
+    let channel = Host::pure()
+        .unwrap()
+        .with_seed(seed)
+        .spawn(
+            "be3.counter".to_owned(),
+            |host| host.load_bytes(COUNTER_TYPES),
+            std::sync::Arc::new(|| {}),
+            std::sync::Arc::clone(&waiting),
+        )
+        .unwrap();
+    let mut worker = be_wasm_guest_host::Worker::new(channel, waiting);
+    let deadline = be_wasm_guest_host::Deadline::after(std::time::Duration::from_secs(60));
+    let mut host = Connection::new(Side::Host);
+    let started = replicas::start(&mut host);
+    assert_eq!(worker.queue(host.take_outbound()), None);
+    let (mut sent, mut described) = (Vec::new(), None);
+    loop {
+        for frame in worker.take_received() {
+            host.receive(&frame).unwrap();
+            sent.push(frame);
+        }
+        while let Some(event) = host.next_event() {
+            match event {
+                Incoming::Completed { op, outcome } if op == started.op() => {
+                    let types = started.decode(outcome).expect("the module lists its types");
+                    let info = types.first().expect("it has a type");
+                    described = Some(replicas::describe(
+                        &mut host,
+                        info.content_type,
+                        info.blank.clone(),
+                        uuid::Uuid::nil(),
+                    ));
+                    assert_eq!(worker.queue(host.take_outbound()), None);
+                }
+                Incoming::Completed { op, outcome }
+                    if described.is_some_and(|described| described.op() == op) =>
+                {
+                    let answered = described.unwrap().decode(outcome);
+                    assert!(matches!(answered, Ok(Ok(_))), "{answered:?}");
+                    return sent;
+                }
+                _ => {}
+            }
+        }
+        assert!(
+            worker.wait(deadline).expect("the module runs"),
+            "the module never answered"
+        );
+    }
+}
 
 fn echo_frames(
     worker: &mut be_wasm_guest_host::Worker<
@@ -219,30 +173,40 @@ fn echo_frames(
     Ok(received)
 }
 
-mod a_dropped_app_ends_its_threads;
-mod a_guest_creates_a_buffer_and_reports_its_handle;
+mod a_code_cache_entry_that_is_not_whole_or_not_the_modules_is_refused;
+mod a_code_cache_entry_v8_refuses_costs_only_the_compile;
+mod a_guest_asks_for_an_adapter_and_reports_its_ticket;
+mod a_guest_drives_wasi_webgpu_through_its_generated_bindings;
 mod a_guest_pointer_past_its_memory_is_refused;
 mod a_guest_reads_a_frame_the_host_queued;
+mod a_guest_that_declares_garbage_collected_types_is_refused;
+mod a_guest_that_grows_its_memory_is_read_where_it_grew;
 mod a_guest_that_never_reaches_the_gpu_opens_no_device;
 mod a_guest_that_reaches_the_gpu_without_a_device_is_told_why;
+mod a_guest_that_reads_past_its_memory_traps;
+mod a_guest_that_would_have_threads_is_refused;
 mod a_library_that_is_not_what_it_is_named_is_refused;
+mod a_module_from_bytes_compiles_once_and_each_instance_runs_on_its_own;
+mod a_module_from_bytes_imports_the_memory_it_defines;
+mod a_module_from_bytes_is_capped_at_the_memory_each_instance_is_given;
 mod a_pure_guest_echoes_and_wakes_on_a_thread_of_its_own;
-mod a_pure_guest_is_loaded_from_its_precompiled_module;
-mod a_pure_guest_may_not_import_wasi;
+mod a_pure_guest_may_not_have_two_memories;
+mod a_pure_guest_may_not_import_more_of_wasi_than_it_is_answered;
 mod a_pure_guest_may_not_outgrow_its_memory_limit;
 mod a_pure_guest_that_hangs_is_interrupted;
 mod a_pure_guest_that_panics_reports_its_panic_message;
-mod a_spawned_guest_thread_may_not_reach_the_gpu;
-mod a_spawned_guest_thread_shares_the_memory_it_was_given;
-mod a_spawned_guest_thread_wakes_the_host;
+mod a_pure_guests_hash_keys_come_from_its_seed;
+mod a_pure_guests_randomness_is_chacha20s_stream_from_its_seed;
 mod a_standalone_app_with_a_memory_of_its_own_paints_through_the_gpu;
-mod a_thread_that_trapped_wakes_the_host_to_be_told;
 mod a_type_module_answers_on_a_thread_of_its_own;
-mod an_app_linked_against_a_library_runs_on_it_in_every_thread;
+mod a_type_module_built_for_wasip1_imports_a_pure_guests_wasi_and_answers_alike_from_one_seed;
+mod a_wasi_call_naming_more_than_the_memory_is_refused;
+mod an_app_linked_against_a_library_runs_on_it;
 mod an_app_runs_its_constructors_before_it_starts;
 mod an_app_runs_on_a_thread_of_its_own;
 mod an_app_runs_on_when_another_is_interrupted;
 mod an_app_that_panics_reports_its_panic_message;
-mod an_interrupted_app_stops_on_every_thread;
+mod an_interrupted_app_stops_while_it_runs;
 mod an_interrupted_host_loads_no_app;
-mod the_thread_local_diamond_runs_on_every_thread;
+mod bytes_that_are_not_a_pure_guests_module_do_not_compile;
+mod every_wasi_call_a_pure_guest_is_answered_is_defined;

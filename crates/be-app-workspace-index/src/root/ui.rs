@@ -4,11 +4,12 @@ use uuid::Uuid;
 use be_sdk_beui::Editor;
 use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
 use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
-use be_sdk_beui::beui::dock::{DockBar, DockPane, DockTab, Docking, DockingLayout};
-use be_sdk_beui::beui::icons::{ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_FOLDER};
+use be_sdk_beui::beui::dock::{DockBar, DockPane, DockTab, Docking};
+use be_sdk_beui::beui::icons::{ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_FOLDER, ICON_PENCIL_LINE};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign, Vec2};
+use be_sdk_beui::block_menu::{DeleteBlock, ExportAs, Exporter, MoveTo, rename_block};
 
 use super::entries::{Entry, Folder, FolderSort, Listing};
 use beui::{Align, Direction, Justify};
@@ -35,8 +36,6 @@ enum FolderView {
 }
 
 impl FolderView {
-    const ALL: [Self; 3] = [Self::LargeGrid, Self::SmallGrid, Self::List];
-
     fn label(self) -> &'static str {
         match self {
             Self::LargeGrid => "Large grid",
@@ -49,8 +48,12 @@ impl FolderView {
 #[derive(Clone, Copy)]
 struct Cells {
     editor: Editor,
+    folder: Folder,
     entries: Memo<Vec<Entry>>,
     selected: Signal<Option<Uuid>>,
+    /// The entry whose name is being edited in place.
+    renaming: Signal<Option<Uuid>>,
+    exporter: Exporter,
 }
 
 impl Cells {
@@ -62,21 +65,32 @@ impl Cells {
     }
 
     fn entry(&self, key: Uuid) -> Memo<Option<Entry>> {
-        let entries = self.entries;
-        create_memo(move || {
-            entries.with(|entries| entries.iter().find(|entry| entry.reference == key).cloned())
-        })
+        self.folder.entry(key)
+    }
+
+    /// Edits entry `key`'s name in place, if it may be renamed.
+    fn rename(&self, key: Uuid) {
+        let editable = self
+            .folder
+            .menu_block_now(key)
+            .is_some_and(|block| block.access.can_edit());
+        if editable {
+            self.renaming.set(Some(key));
+        }
     }
 
     fn open(&self, entry: Memo<Option<Entry>>) -> impl Fn() + use<> {
-        let host = self.editor.host();
+        let cells = *self;
         move || {
-            let Some(entry) = entry.get_untracked() else {
-                return;
-            };
-            if let (Some(id), Some(block_type)) = (entry.id, entry.block_type) {
-                host.open_block(id, block_type);
+            if let Some(entry) = entry.get_untracked() {
+                cells.open_entry(&entry);
             }
+        }
+    }
+
+    fn open_entry(&self, entry: &Entry) {
+        if let (Some(id), Some(block_type)) = (entry.id, entry.block_type) {
+            self.editor.host().open_block(id, block_type);
         }
     }
 }
@@ -104,53 +118,39 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
     });
 
     let empty = create_memo(move || entries.with(Vec::is_empty));
-    let unordered = create_memo(move || sort.get() == FolderSort::Intrinsic);
-    let direction_glyph = create_memo(move || match descending.get() {
-        true => ICON_ARROW_DOWN,
-        false => ICON_ARROW_UP,
-    });
-    let direction_label = create_memo(move || match descending.get() {
-        true => "Descending".to_owned(),
-        false => "Ascending".to_owned(),
-    });
-    let mode_index = create_memo(move || {
-        FolderView::ALL
-            .iter()
-            .position(|shown| *shown == mode.get())
-    });
-    let sort_index = create_memo(move || {
-        FolderSort::ALL
-            .iter()
-            .position(|order| *order == sort.get())
-    });
+    let shown_mode = create_memo(move || Some(mode.get()));
+    let shown_sort = create_memo(move || Some(sort.get()));
     let flip = move || {
         descending.set(!descending.get_untracked());
     };
     let cells = Cells {
         editor,
+        folder,
         entries,
         selected,
+        renaming: create_signal(None),
+        exporter: Exporter::new(editor),
     };
 
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
-    let hovering = create_memo(move || drop.get().is_some());
-    let outline = create_memo(move || match drop.get() {
-        Some(true) => ColorRole::Accent,
-        _ => ColorRole::Danger,
-    });
-    let layout = DockingLayout::<&'static str>::new();
     view! {
-        <Docking layout focus={Some(STAGE)}>
-            <DockPane id="stage" locked=true bare=true>
-                <DockTab id=STAGE title="Folder">
+        <Docking>
+            <DockPane stage=true>
+                <DockTab id=STAGE>
                     <Frame
                         @node_ref={&content}
-                        border={create_memo(move || hovering.get().then(|| Border::new(outline.get()).width(DROP_OUTLINE)))}
+                        border={move || drop.get().map(|welcome| {
+                            let outline = match welcome {
+                                true => ColorRole::Accent,
+                                false => ColorRole::Danger,
+                            };
+                            Border::new(outline).width(DROP_OUTLINE)
+                        })}
                     >
                         <List spacing=Space::None>
-                            <Show condition={empty}>
+                            <Show value={empty}>
                                 <Frame padding=PADDING>
                                     <Text
                                         style=TextStyle::CAPTION
@@ -162,39 +162,41 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                                 </Frame>
                             </Show>
                             <ListItem grow=1.0>
-                                <Scroll>
-                                    <Frame padding=PADDING>
-                                        <List spacing=Space::None>
-                                            <Dynamic value={mode}>|shown: FolderView| {
-                                                match shown {
-                                                    FolderView::List => view! {
-                                                        <EntryRows cells={cells} />
-                                                    },
-                                                    FolderView::LargeGrid => view! {
-                                                        <EntryTiles
-                                                            cells={cells}
-                                                            tile=LARGE_TILE
-                                                            icon_size=LARGE_ICON
-                                                        />
-                                                    },
-                                                    FolderView::SmallGrid => view! {
-                                                        <EntryTiles
-                                                            cells={cells}
-                                                            tile=SMALL_TILE
-                                                            icon_size=SMALL_ICON
-                                                        />
-                                                    },
-                                                }
-                                            }</Dynamic>
-                                        </List>
-                                    </Frame>
-                                </Scroll>
+                                <Dynamic value={mode}>|shown: FolderView| {
+                                    match shown {
+                                        FolderView::List => view! {
+                                            <EntryRows cells={cells} />
+                                        },
+                                        FolderView::LargeGrid => view! {
+                                            <Scroll>
+                                                <Frame padding=PADDING>
+                                                    <EntryTiles
+                                                        cells={cells}
+                                                        tile=LARGE_TILE
+                                                        icon_size=LARGE_ICON
+                                                    />
+                                                </Frame>
+                                            </Scroll>
+                                        },
+                                        FolderView::SmallGrid => view! {
+                                            <Scroll>
+                                                <Frame padding=PADDING>
+                                                    <EntryTiles
+                                                        cells={cells}
+                                                        tile=SMALL_TILE
+                                                        icon_size=SMALL_ICON
+                                                    />
+                                                </Frame>
+                                            </Scroll>
+                                        },
+                                    }
+                                }</Dynamic>
                             </ListItem>
                         </List>
                     </Frame>
                 </DockTab>
             </DockPane>
-            <Show condition={chrome}>
+            <Show value={chrome}>
                 <DockBar
                     id=TOOLBAR
                     parent=STAGE
@@ -205,14 +207,22 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                         <ListItem shrink=1.0>
                             <Select
                                 options={view! {
-                                    <ChoiceOption label={FolderView::LargeGrid.label()} />
-                                    <ChoiceOption label={FolderView::SmallGrid.label()} />
-                                    <ChoiceOption label={FolderView::List.label()} />
+                                    <ChoiceOption
+                                        value=FolderView::LargeGrid
+                                        label={FolderView::LargeGrid.label()}
+                                    />
+                                    <ChoiceOption
+                                        value=FolderView::SmallGrid
+                                        label={FolderView::SmallGrid.label()}
+                                    />
+                                    <ChoiceOption
+                                        value=FolderView::List
+                                        label={FolderView::List.label()}
+                                    />
                                 }}
-                                selected={Binding::new(mode_index, move |chosen: Option<usize>| {
-                                    if let Some(shown) = chosen.and_then(|index| FolderView::ALL.get(index))
-                                    {
-                                        mode.set(*shown);
+                                selected={Binding::new(shown_mode, move |chosen: Option<FolderView>| {
+                                    if let Some(shown) = chosen {
+                                        mode.set(shown);
                                     }
                                 })}
                                 label="Layout"
@@ -222,14 +232,22 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                         <ListItem shrink=1.0>
                             <Select
                                 options={view! {
-                                    <ChoiceOption label={FolderSort::Intrinsic.label()} />
-                                    <ChoiceOption label={FolderSort::Name.label()} />
-                                    <ChoiceOption label={FolderSort::Type.label()} />
+                                    <ChoiceOption
+                                        value=FolderSort::Intrinsic
+                                        label={FolderSort::Intrinsic.label()}
+                                    />
+                                    <ChoiceOption
+                                        value=FolderSort::Name
+                                        label={FolderSort::Name.label()}
+                                    />
+                                    <ChoiceOption
+                                        value=FolderSort::Type
+                                        label={FolderSort::Type.label()}
+                                    />
                                 }}
-                                selected={Binding::new(sort_index, move |chosen: Option<usize>| {
-                                    if let Some(order) = chosen.and_then(|index| FolderSort::ALL.get(index))
-                                    {
-                                        sort.set(*order);
+                                selected={Binding::new(shown_sort, move |chosen: Option<FolderSort>| {
+                                    if let Some(order) = chosen {
+                                        sort.set(order);
                                     }
                                 })}
                                 label="Sort"
@@ -238,9 +256,15 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                         </ListItem>
                         <Button
                             icon_only=true
-                            glyph={direction_glyph}
-                            label={direction_label}
-                            disabled={unordered}
+                            glyph={move || match descending.get() {
+                                true => ICON_ARROW_DOWN,
+                                false => ICON_ARROW_UP,
+                            }}
+                            label={move || match descending.get() {
+                                true => "Descending".to_owned(),
+                                false => "Ascending".to_owned(),
+                            }}
+                            disabled={move || sort.get() == FolderSort::Intrinsic}
                             @test_id={"folder.direction"}
                             on_click={flip}
                         />
@@ -251,37 +275,101 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
     }
 }
 
+/// The entries as rows, each edited in place and with the menu every block row has (Rename,
+/// Move to, Delete, Export as; be_sdk_beui's `block_menu`).
 #[component]
 fn EntryRows(cells: Cells) -> NodeId {
     let keys = cells.keys();
-    let selected = cells.selected;
-    let chosen = create_selector(move || selected.get());
+    let Cells {
+        editor,
+        selected,
+        renaming,
+        ..
+    } = cells;
+    let item = move |key: Uuid| {
+        cells
+            .folder
+            .entry_tracked(key)
+            .map(|entry| TreeItem {
+                label: entry.name,
+                ..TreeItem::default()
+            })
+            .unwrap_or_default()
+    };
+    let open = move |key: Uuid| {
+        if let Some(entry) = cells.folder.entry_now(key) {
+            cells.open_entry(&entry);
+        }
+    };
+    let rename = move |(key, name): (Uuid, String)| {
+        if let Some(block) = cells.folder.menu_block_now(key) {
+            rename_block(editor, block.id, &name);
+        }
+        renaming.set(None);
+    };
     view! {
-        <List spacing=Space::Xs2>
-            <ForEach keys={keys}>|key: Uuid| {
-                let entry = cells.entry(key);
-                let open = cells.open(entry);
-                let here = chosen.memo(Some(key));
-                view! {
-                    <ListRow
-                        selected={here}
-                        @test_id={entry_test_id(key)}
-                        on_click={move || selected.set(Some(key))}
-                        on_activate={open}
-                    >
-                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                            <EntryGlyph entry={entry} size=ROW_ICON />
-                            <ListItem grow=1.0>
-                                <Text overflow=Overflow::Ellipsis color={name_color(entry)}>
-                                    {name_of(entry)}
-                                </Text>
-                            </ListItem>
-                            <Text style=TextStyle::CAPTION>{type_of(entry)}</Text>
-                        </List>
-                    </ListRow>
-                }
-            }</ForEach>
-        </List>
+        <Tree
+            keys={keys}
+            item={item}
+            selected={selected}
+            spacing=Space::Xs2
+            padding=PADDING
+            row_test_id={entry_test_id}
+            menu={move |key: Uuid| Some(view! {
+                <EntryMenu cells key />
+            })}
+            editing={renaming}
+            on_select={move |key: Uuid| selected.set(Some(key))}
+            on_open={open}
+            on_edit={move |key: Uuid| cells.rename(key)}
+            on_rename={rename}
+            on_cancel_edit={move |_: Uuid| renaming.set(None)}
+            leading={move |face: TreeRowFace<Uuid>| {
+                Children::from([into_segment(view! {
+                    <EntryGlyph entry={cells.entry(face.key)} size=ROW_ICON />
+                })])
+            }}
+        >|face: TreeRowFace<Uuid>| {
+            let entry = cells.entry(face.key);
+            view! {
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                    <ListItem grow=1.0>
+                        <Text overflow=Overflow::Ellipsis color={name_color(entry)}>
+                            {name_of(entry)}
+                        </Text>
+                    </ListItem>
+                    <Text style=TextStyle::CAPTION>{type_of(entry)}</Text>
+                </List>
+            }
+        }</Tree>
+    }
+}
+
+#[component]
+fn EntryMenu(cells: Cells, key: Uuid) -> TreeMenu {
+    let Cells {
+        editor,
+        folder,
+        exporter,
+        ..
+    } = cells;
+    let block = folder.menu_block(key);
+    let destinations = folder.destinations();
+    let named = entry_test_id(key);
+    let uneditable =
+        move || !block.with(|block| block.as_ref().is_some_and(|block| block.access.can_edit()));
+    TreeMenu {
+        items: view! {
+            <MenuItem
+                label="Rename"
+                glyph=ICON_PENCIL_LINE
+                disabled={uneditable}
+                on_click={move || cells.rename(key)}
+            />
+            <MoveTo editor block destinations named={format!("{named}.move-to")} />
+            <DeleteBlock editor block />
+            <ExportAs exporter block named={format!("{named}.export")} />
+        },
     }
 }
 
@@ -292,7 +380,7 @@ fn EntryTiles(cells: Cells, tile: Vec2, icon_size: TextSize) -> NodeId {
     let chosen = create_selector(move || selected.get());
     view! {
         <List direction=Direction::Horizontal wrap=true align=Align::Start spacing=TILE_SPACING>
-            <ForEach keys={keys}>|key: Uuid| {
+            <ForEach value={keys}>|key: Uuid| {
                 let entry = cells.entry(key);
                 let open = cells.open(entry);
                 let here = chosen.memo(Some(key));

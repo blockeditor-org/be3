@@ -8,7 +8,6 @@ fn a_video_on_a_phone_on_its_side_shows_its_panes_beside_the_player() {
     fixture.insert(1);
     fixture.editor.run();
     fixture.editor.tap(format!("video.clip.{clip}"));
-    fixture.editor.run();
     fixture.editor.settle();
 
     assert!(

@@ -20,6 +20,7 @@ fn a_module_is_fetched_once_and_a_new_config_only_reconfigures_it() {
         Some(wanted("remapper.wasm", b"b")),
         "what arrives runs the config wanted by then"
     );
+    loader.installed(wanted("remapper.wasm", b"b"));
     assert_eq!(
         loader.want(Some(wanted("remapper.wasm", b"c"))),
         Step::Configure(b"c".to_vec())

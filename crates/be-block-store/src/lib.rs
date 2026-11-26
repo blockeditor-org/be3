@@ -8,7 +8,7 @@ pub mod store;
 #[cfg(feature = "vault")]
 pub mod vault;
 
-pub use chunker::{ChunkerConfig, split};
+pub use chunker::{ChunkerConfig, Splitter, split};
 pub use hash::Hash;
 pub use manifest::{
     ChunkRef, LoadedPart, Manifest, Node, NodeRef, Part, PartRef, Stored, decode_value,
@@ -16,7 +16,10 @@ pub use manifest::{
 };
 pub use store::{FileStore, MemoryStore, ObjectStore};
 #[cfg(feature = "vault")]
-pub use vault::{ContentKey, Keyring, Vault, sealed_key};
+pub use vault::{
+    ContentKey, Keyring, Ledger, Noted, PartWriter, Pins, Unnamed, Vault, VaultStore, WeakUnnamed,
+    Written, sealed_key,
+};
 
 #[derive(Debug)]
 pub enum StoreError {

@@ -1,0 +1,21 @@
+load("@root//buck/cargo:defs.bzl", "cargo_package")
+load("@root//buck/wasm:defs.bzl", "wasm_library")
+
+cargo_package()
+
+# be-sdk-test and everything under it that base and beui do not hold, above
+# them, and libtest and getopts (third-party/libtest): what every app test
+# needs and no app ships, which app tests link rather than each compiling it
+# again (guides/app_libraries.md, Tests). No crate here can name libtest,
+# which is unstable, so its archives are handed to the link whole.
+wasm_library(
+    libraries = [
+        "//crates/be-sdk-library-base:module",
+        "//crates/be-sdk-library-beui:module",
+    ],
+    module = "test",
+    rustc_flags = [
+        "-Clink-arg=$(location //third-party/libtest:test[static_pic])",
+        "-Clink-arg=$(location //third-party/libtest:getopts[static_pic])",
+    ],
+)

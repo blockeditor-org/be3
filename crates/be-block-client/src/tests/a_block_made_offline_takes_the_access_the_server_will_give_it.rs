@@ -7,7 +7,7 @@ async fn a_block_made_offline_takes_the_access_the_server_will_give_it() {
     let admin = harness.owner("admin@example.com").await;
     let member = harness.member(&admin, "member@example.com").await;
     let team = workspace(&admin, "Team").await;
-    let public = admin.keys().contact(member.account()).unwrap();
+    let public = admin.verified_identity(member.account()).unwrap();
     admin
         .share(team, member.account(), Access::Edit, &public)
         .await

@@ -8,10 +8,10 @@ const PAGE_WIDTH: f32 = 200.0;
 const BREAKPOINT: f32 = 300.0;
 
 #[component]
-fn Page(#[prop(children)] sections: Render<(), Children<ListItem>>) -> NodeId {
+fn Page(#[prop(children)] sections: Build<Children<ListItem>>) -> NodeId {
     view! {
         <Container>|_size|
-            <List spacing=0.0 children={sections.call(())} />
+            <List spacing=0.0 children={sections.call()} />
         </Container>
     }
 }

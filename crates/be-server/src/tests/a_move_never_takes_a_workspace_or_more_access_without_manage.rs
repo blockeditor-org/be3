@@ -4,13 +4,12 @@ use be_block_graph::Access;
 #[tokio::test]
 async fn a_move_never_takes_a_workspace_or_more_access_without_manage() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.personal().await;
-    let mut editor = harness.client().await;
-    let editor_id = editor.register("editor@example.com").await;
+    let mut editor = harness.member("editor@example.com").await;
+    let editor_id = editor.id();
     editor.personal().await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let _ = editor.accept(link, &[]).await;
     let workspace = owner.create_block(BlockParent::Root).await;
     let document = owner.create_block(BlockParent::Block(workspace)).await;

@@ -156,6 +156,14 @@ block's children in the order of its references, and be-block-model's own
 reference index keeps the order blocks first appeared in. The manifest's
 `children` says which of these edits the type accepts.
 
+A type whose references live in its content takes `Replace` as well: the block
+menu's Unlink gives a container its own copy of a reference by duplicating the
+block and replacing the original with the copy, and the open editor sees the
+rewrite through its replica like any other edit. When the edit needs the whole
+document or the client it is made as (a sequence edit, such as rewriting a block
+URL in text), override `Root::child_edit_in` instead, as
+`crates/be-type-text/src/text.rs` does.
+
 ## 7. Undo
 
 A `Document` implements `Undo`: each step is reverted against the state as it
@@ -165,8 +173,8 @@ it without writing anything.
 
 Content that does not fit a document (a large file, `Blob<K>`) implements
 `BlockContent`, `LiveEdit`, `Merge` and optionally `Undo` by hand. Content that
-is a document but must not load whole wraps one and forwards those traits to
-it, saving it as the first part (`crates/be-type-chat`'s `ChatContent`). Its
+is a document but needs traits of its own wraps one and forwards those traits
+to it (`crates/be-type-chat`'s `ChatContent`). Its
 constructors and constants go on the kind (`PdfFile::from_file`), since a
 types crate cannot add methods to be-block-content's `Blob<K>`. Bump
 `BlobKind::SCHEMA` when the header changes so an old one would be misread;
@@ -192,7 +200,7 @@ that offers blocks saved before the change for reset
 `id` is the `CONTENT_TYPE`; `display_name`, `icon` (a Lucide codepoint) and
 `color` are what every label, the add menu and the file tree show, whichever
 editor opens the block. The `be_sdk_manifest` types document the rest
-(`children`, `press`, `exported_whole`, `plain_file`). Every type names its
+(`children`, `press`, `exported_whole`, `plain_file`, `counts_unread`). Every type names its
 module, and all of an app's types name the same one: the host runs one
 instance per app. Then give the editor's `app()` in its BUCK file
 `types = "//crates/be-type-my-block:module"`, which stages the module beside

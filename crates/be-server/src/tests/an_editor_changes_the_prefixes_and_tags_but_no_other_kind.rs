@@ -8,22 +8,27 @@ async fn create_under(
 ) -> Result<BlockSummary, Error> {
     let block = Uuid::new_v4();
     let key = Uuid::new_v4();
+    let root = client.root(block);
+    let placement = client.placement(block, BlockParent::Block(parent)).await;
     client
         .call(|peer| {
-            client::blocks::create_block(
-                peer,
-                block,
-                content_type,
-                BlockParent::Block(parent),
-                Vec::new(),
-                Vec::new(),
-                key,
-                KeySet {
+            peer.write_all::<be_block_protocol::BlockSummary>(vec![
+                be_block_protocol::Op::CreateBlock {
+                    block,
+                    content_type,
+                    parent: BlockParent::Block(parent),
+                    metadata: Vec::new(),
+                    references: Vec::new(),
+                    key,
+                    owner_only: false,
+                    root,
+                    placement,
+                },
+                be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
                     keys: vec![row(key, block, KeyKind::Data)],
                     wrapped: Vec::new(),
-                },
-                false,
-            )
+                })),
+            ])
         })
         .await
 }
@@ -38,13 +43,12 @@ fn created(response: &Result<BlockSummary, Error>) -> Uuid {
 #[tokio::test]
 async fn an_editor_changes_the_prefixes_and_tags_but_no_other_kind() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.personal().await;
-    let mut editor = harness.client().await;
-    let editor_id = editor.register("editor@example.com").await;
+    let mut editor = harness.member("editor@example.com").await;
+    let editor_id = editor.id();
     editor.personal().await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let _ = editor.accept(link, &[]).await;
 
     let workspace = owner.create_block(BlockParent::Root).await;
@@ -97,7 +101,7 @@ async fn an_editor_changes_the_prefixes_and_tags_but_no_other_kind() {
         "an editor opened a kind a manager made: {opened:?}"
     );
     let tag = create_under(&mut editor, Uuid::from_u128(0x7a6), tags).await;
-    assert!(matches!(tag, Ok(_)), "{tag:?}");
+    assert!(tag.is_ok(), "{tag:?}");
 
     assert_eq!(editor.read_block(home).await.access, Access::View);
     let author = Author::new(editor_id);

@@ -21,7 +21,7 @@ fn a_tree_rows_more_button_opens_its_menu_below_itself_and_a_right_click_opens_i
                     items: view! {
                         <unstyled::MenuItem
                             label="Rename"
-                            row_test_id={"tree.menu.rename".to_owned()}
+                            @test_id={"tree.menu.rename".to_owned()}
                             on_click={move || chosen.update(|chosen| chosen.push(row))}
                         />
                         <unstyled::MenuItem label="Delete" />

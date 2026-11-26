@@ -29,12 +29,16 @@ async fn read() {
         .unwrap();
     let head = peer.remote_head(block).await.unwrap();
 
-    let mut session =
-        Session::<MemoryStore, TextContent>::open(tracker.shared_peer(), block, sources()())
-            .await
-            .unwrap();
+    let mut session = Session::<MemoryStore, TextContent>::open(
+        tracker.shared_peer(),
+        block,
+        sources()(),
+        Vec::new(),
+    )
+    .await
+    .unwrap();
     let journaled = async {
-        while !session.is_owner() || session.content().is_none() {
+        while !session.is_holder() || session.content().is_none() {
             let woken = session.next().await;
             session.handle(woken).await.unwrap();
         }

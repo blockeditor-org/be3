@@ -1,7 +1,7 @@
 use accesskit::Role;
 use beui_components_unstyled as unstyled;
+pub use beui_components_unstyled::ActionLabels;
 use beui_components_unstyled::{ActionBarHandle, MenuNodes, ToggleHandle};
-use beui_macros::{component, view};
 use beui_view::actions::{Action, MenuNode};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
@@ -20,29 +20,17 @@ const DIVIDER_HEIGHT: Size = Size::Custom(18.0);
 const DIVIDER_MARGIN: Space = Space::Xs;
 const LABEL_MARGIN: Space = Space::Xs2;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum ActionLabels {
-    #[default]
-    Shown,
-    Icons,
-    Overflow,
-}
-
 #[component]
 pub fn ActionBar(
     menu: Prop<Vec<MenuNode>>,
-    #[prop(default = ActionLabels::Shown)] labels: ActionLabels,
+    #[prop(default = ActionLabels::Shown)] labels: Prop<ActionLabels>,
     #[prop(default = false)] title: Prop<bool>,
     #[prop(default = Direction::Horizontal)] direction: Direction,
     #[prop(default = ButtonSize::Toolbar)] size: ButtonSize,
     #[prop(default = String::from("actions"))] test_prefix: String,
 ) -> NodeId {
     view! {
-        <unstyled::ActionBar
-            menu
-            labels={labels != ActionLabels::Overflow}
-            title
-        >|handle: ActionBarHandle|
+        <unstyled::ActionBar menu labels title>|handle: ActionBarHandle|
             <ActionBarFace handle labels direction size test_prefix />
         </unstyled::ActionBar>
     }
@@ -51,7 +39,7 @@ pub fn ActionBar(
 #[component]
 fn ActionBarFace(
     handle: ActionBarHandle,
-    labels: ActionLabels,
+    labels: Prop<ActionLabels>,
     direction: Direction,
     size: ButtonSize,
     test_prefix: String,
@@ -66,13 +54,18 @@ fn ActionBarFace(
             actions.with(|actions| actions.iter().map(Action::key).collect::<Vec<_>>())
         })
     };
-    let (icon_keys, label_keys) = (keys(icons), keys(labelled));
-    let divided = create_memo(move || {
-        labels == ActionLabels::Shown
-            && icons.with(|icons| !icons.is_empty())
-            && labelled.with(|labelled| !labelled.is_empty())
+    let icon_keys = keys(icons);
+    // Keyed by whether they show their labels too, so a bar whose labels change (a window
+    // that narrows) builds its labelled pins again as icons, and back.
+    let label_keys = create_memo(move || {
+        let shown = labels.get() == ActionLabels::Shown;
+        labelled.with(|actions| {
+            actions
+                .iter()
+                .map(|action| (action.key(), shown))
+                .collect::<Vec<_>>()
+        })
     });
-    let offered = create_memo(move || overflow.with(|items| !items.is_empty()));
     let prefix = test_prefix.clone();
     let pin = move |actions: Memo<Vec<Action>>, key: u64, shown: bool| {
         let action = actions
@@ -91,16 +84,22 @@ fn ActionBarFace(
     let menu_id = format!("{test_prefix}.menu");
     view! {
         <List direction=direction align=Align::Center spacing=SPACING>
-            <ForEach keys={icon_keys}>|key: u64| { icon_pin(icons, key, false) }</ForEach>
-            <Show condition={divided}>
+            <ForEach value={icon_keys}>|key: u64| { icon_pin(icons, key, false) }</ForEach>
+            <Show
+                value={move || {
+                    labels.get() == ActionLabels::Shown
+                        && icons.with(|icons| !icons.is_empty())
+                        && labelled.with(|labelled| !labelled.is_empty())
+                }}
+            >
                 <Frame padding={Padding::horizontal(DIVIDER_MARGIN)}>
                     <Separator direction=Direction::Vertical length=DIVIDER_HEIGHT />
                 </Frame>
             </Show>
-            <ForEach keys={label_keys}>|key: u64| {
-                labelled_pin(labelled, key, labels == ActionLabels::Shown)
+            <ForEach value={label_keys}>|(key, shown): (u64, bool)| {
+                labelled_pin(labelled, key, shown)
             }</ForEach>
-            <Show condition={offered}>
+            <Show value={move || overflow.with(|items| !items.is_empty())}>
                 <MenuButton
                     icon_only=true
                     variant=ButtonVariant::Ghost
@@ -157,9 +156,8 @@ fn ActionPin(action: Action, labelled: bool, size: ButtonSize, prefix: String) -
                     icon_only,
                     tooltip,
                 };
-                let pressed = create_memo(move || checked.get());
                 view! {
-                    <ButtonFace handle={face} variant size pressed={pressed} />
+                    <ButtonFace handle={face} variant size pressed={checked} />
                 }
             }</unstyled::Toggle>
         },

@@ -1,7 +1,8 @@
-use be_sdk_beui::be_block::{InputRemapper, InputRemapperContent};
+use be_block_input::{InputRemapper, InputRemapperContent};
 use be_sdk_beui::beui::{Key, Modifiers, Vec2, pos2};
 use be_sdk_beui::{EditorHost, OwnedEditor, RemapState, RemapsWatch};
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use uuid::Uuid;
 
 use crate::input_remaps::InputRemapsRoot;
@@ -57,7 +58,6 @@ fn stored(editor: &BeuiTest<InputRemapsRoot>) -> String {
 
 fn show_toml(editor: &mut BeuiTest<InputRemapsRoot>) {
     editor.click("input-remaps.toml");
-    editor.run();
 }
 
 /// Chooses what an open rule does: 0 acts as a key, 1 taps, 2 plays a sequence,
@@ -65,10 +65,8 @@ fn show_toml(editor: &mut BeuiTest<InputRemapsRoot>) {
 fn choose_does(editor: &mut BeuiTest<InputRemapsRoot>, rule: &str, does: usize) {
     let rect = editor.rect_of(&format!("{rule}.does"));
     editor.click(pos2(rect.min.x + 12.0, rect.center().y));
-    editor.run();
     for _ in 0..does {
         editor.key(Key::ArrowRight, Modifiers::NONE);
-        editor.run();
     }
 }
 
@@ -76,28 +74,21 @@ fn choose_does(editor: &mut BeuiTest<InputRemapsRoot>, rule: &str, does: usize) 
 fn all_keys(editor: &mut BeuiTest<InputRemapsRoot>) {
     let rect = editor.rect_of("input-remaps.picker.tabs");
     editor.click(pos2(rect.min.x + 12.0, rect.center().y));
-    editor.run();
     for _ in 0..2 {
         editor.key(Key::ArrowRight, Modifiers::NONE);
-        editor.run();
     }
 }
 
 /// Opens a rule, and picks its key from All keys.
 fn pick_from_all_keys(editor: &mut BeuiTest<InputRemapsRoot>, opener: &str, name: &str) {
     editor.click(opener);
-    editor.run();
     all_keys(editor);
     editor.click(format!("input-remaps.picker.key.{name}").as_str());
-    editor.run();
 }
 
 fn apply(editor: &mut BeuiTest<InputRemapsRoot>, text: &str) {
     show_toml(editor);
     editor.click("input-remaps.text");
-    editor.run();
     editor.type_text(text);
-    editor.run();
     editor.click("input-remaps.apply");
-    editor.run();
 }

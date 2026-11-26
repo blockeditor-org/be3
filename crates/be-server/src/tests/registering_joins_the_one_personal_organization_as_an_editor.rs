@@ -5,15 +5,9 @@ use super::*;
 #[tokio::test]
 async fn registering_joins_the_one_personal_organization_as_an_editor() {
     let directory = std::env::temp_dir().join(format!("be-server-test-{}", Uuid::new_v4()));
-    let (account, company) = fixture_account(
-        &directory,
-        "owner@example.com",
-        "Owner",
-        "correct horse battery",
-        "Company",
-    )
-    .await
-    .unwrap();
+    let (account, company) = fixture_account(&directory, "owner@example.com", "Owner", "Company")
+        .await
+        .unwrap();
     let store = ServerStore::open(&directory).unwrap();
 
     let personal = store.personal_organization().await.unwrap();

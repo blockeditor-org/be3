@@ -1,4 +1,3 @@
-use super::copying_as_svg_writes_every_shape_kind::palette_runs;
 use super::*;
 use be_sdk_beui::beui::{Key, Modifiers};
 
@@ -23,12 +22,13 @@ fn a_raster_layer_is_exported_pixel_sharp() {
             ..Modifiers::NONE
         },
     );
-    editor.run();
 
-    palette_runs(&mut editor, "copy as svg");
-    let copied = editor.take_copied_text();
+    let copied = vec![
+        String::from_utf8(copied_export(&mut editor, "svg", "image/svg+xml"))
+            .expect("the SVG is text"),
+    ];
     let [svg] = copied.as_slice() else {
-        panic!("Copy as SVG puts one SVG on the clipboard, put {copied:?}");
+        panic!("Copy puts one SVG on the clipboard, put {copied:?}");
     };
     assert!(
         svg.contains(
@@ -38,15 +38,11 @@ fn a_raster_layer_is_exported_pixel_sharp() {
     );
     assert!(svg.contains("href=\"data:image/png;base64,"));
 
-    palette_runs(&mut editor, "copy as png");
-    let copied = editor
-        .take_copied(be_sdk_beui::beui::clipboard::formats::PNG)
-        .into_iter()
-        .map(|item| item.data)
-        .collect::<Vec<_>>();
-    let [png] = copied.as_slice() else {
-        panic!("Copy as PNG puts one image on the clipboard");
-    };
+    let png = &copied_export(
+        &mut editor,
+        "png",
+        be_sdk_beui::beui::clipboard::formats::PNG,
+    );
     let image = image::load_from_memory_with_format(png, image::ImageFormat::Png)
         .expect("the export is a readable PNG")
         .into_rgba8();

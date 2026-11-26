@@ -7,3 +7,12 @@ WasmLibrariesInfo = provider(
         "closure": provider_field(list, default = []),
     }
 )
+
+# An app's worker modules (guides/adding_an_app.md, Workers): what its
+# :module carries for the program to stage under workers/<app id>/, each
+# by its file name.
+AppWorkersInfo = provider(
+    fields = {
+        "modules": provider_field(list, default = []),
+    }
+)

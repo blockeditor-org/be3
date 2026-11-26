@@ -1,5 +1,6 @@
 use be_sdk_beui::beui::Vec2;
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use be_type_logic_grid::LogicGame;
 use be_type_logic_grid::LogicGameContent;
 use logicgame::challenges::ChallengeId;

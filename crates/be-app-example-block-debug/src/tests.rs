@@ -1,6 +1,7 @@
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::native::Document;
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use be_type_example_counter::{Counter, CounterContent};
 use uuid::Uuid;
 
@@ -32,5 +33,5 @@ fn says_within(document: &Document, node: NodeId, words: &str) -> bool {
         || document
             .children(node)
             .into_iter()
-            .any(|child| says_within(&document, child, words))
+            .any(|child| says_within(document, child, words))
 }

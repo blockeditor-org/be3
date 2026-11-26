@@ -6,6 +6,7 @@ fn exiting_takes_the_compositor_down_before_the_thread_ends() {
         &wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::LowPower,
             force_fallback_adapter: false,
+            apply_limit_buckets: false,
             compatible_surface: None,
         },
     ))
@@ -28,6 +29,7 @@ fn exiting_takes_the_compositor_down_before_the_thread_ends() {
         device,
         queue,
         format: wgpu::TextureFormat::Rgba8Unorm,
+        lost: Default::default(),
     });
     Linux::start(&setup);
     assert!(

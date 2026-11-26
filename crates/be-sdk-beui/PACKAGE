@@ -18,6 +18,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-content:be-block-content",
+                "//crates/be-block-graph:be-block-graph",
                 "//crates/be-block:be-block",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/be-sdk-api:be-sdk-api",
@@ -38,6 +39,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-content:be-block-content",
+                "//crates/be-block-graph:be-block-graph",
                 "//crates/be-block:be-block",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/be-sdk-api:be-sdk-api",
@@ -58,6 +60,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-content:be-block-content",
+                "//crates/be-block-graph:be-block-graph",
                 "//crates/be-block:be-block",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/be-sdk-api:be-sdk-api",
@@ -78,6 +81,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-content:be-block-content",
+                "//crates/be-block-graph:be-block-graph",
                 "//crates/be-block:be-block",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/be-sdk-api:be-sdk-api",
@@ -98,6 +102,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-content:be-block-content",
+                "//crates/be-block-graph:be-block-graph",
                 "//crates/be-block:be-block",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/be-sdk-api:be-sdk-api",
@@ -118,6 +123,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-content:be-block-content",
+                "//crates/be-block-graph:be-block-graph",
                 "//crates/be-block:be-block",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/be-sdk-api:be-sdk-api",
@@ -141,6 +147,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-content:be-block-content",
+                "//crates/be-block-graph:be-block-graph",
                 "//crates/be-block:be-block",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/be-sdk-api:be-sdk-api",
@@ -161,6 +168,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-content:be-block-content",
+                "//crates/be-block-graph:be-block-graph",
                 "//crates/be-block:be-block",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/be-sdk-api:be-sdk-api",

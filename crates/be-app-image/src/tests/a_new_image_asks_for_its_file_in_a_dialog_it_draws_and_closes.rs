@@ -25,7 +25,6 @@ fn a_new_image_asks_for_its_file_in_a_dialog_it_draws_and_closes() {
     dialog.click("creation.cancel");
     dialog.dismiss();
     dialog.key(Key::Escape, Modifiers::NONE);
-    dialog.run();
     assert_eq!(
         dialog.take_dialog_closes(),
         vec![DialogAnswer::Dismissed; 3],

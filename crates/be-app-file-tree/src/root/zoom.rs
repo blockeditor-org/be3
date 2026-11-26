@@ -1,14 +1,22 @@
-use be_sdk_beui::be_block_content::ViewState;
-use std::cell::{Cell, RefCell};
-use std::rc::Rc;
+use be_sdk_beui::be_block_content::ViewStateKind;
+use std::cell::RefCell;
 
 use be_sdk_beui::Editor;
 use be_sdk_beui::Press;
 use be_sdk_beui::beui::reactive::*;
 
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
 use super::rows::{Row, RowKey, Tree as FileTree};
 
-const ZOOMED: &str = "zoomed";
+/// The folder zoomed into, kept in the view so the tree reopens zoomed.
+#[derive(Deserialize, PartialEq, Serialize)]
+struct Zoomed(Option<RowKey>);
+
+impl ViewStateKind for Zoomed {
+    const ID: Uuid = Uuid::from_u128(0x6669_6c65_2d74_7265_652d_7a6f_6f6d_0001);
+}
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct Focus {
@@ -69,33 +77,10 @@ impl Zoom {
                 zoomed.set(None);
             }
         });
-        let restored = Rc::new(Cell::new(false));
-        let adopted = Rc::clone(&restored);
-        create_binding(move || {
-            if adopted.get() {
-                return;
-            }
-            let Some(view) = editor.view_content() else {
-                return;
-            };
-            let Ok(saved) = view.read(|held| {
-                held.root()
-                    .state(ZOOMED)
-                    .and_then(ViewState::value::<Option<RowKey>>)
-            }) else {
-                return;
-            };
-            adopted.set(true);
-            untrack(|| zoomed.set(saved.flatten()));
-        });
-        create_effect(move || {
-            let key = zoomed.get();
-            if !restored.get() {
-                return;
-            }
-            let state = ViewState::new(&key, Vec::new());
-            untrack(|| editor.set_view_state(ZOOMED, Some(&state)));
-        });
+        editor.view_state::<Zoomed>().keep(
+            move |kept| zoomed.set(kept.and_then(|kept| kept.0)),
+            move || Zoomed(zoomed.get()),
+        );
         Self {
             tree,
             zoomed,

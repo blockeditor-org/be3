@@ -40,6 +40,8 @@ pub struct EditorSession {
     views: HashMap<ViewId, ViewState>,
     host: EditorHost,
     own_block: Option<Uuid>,
+    /// Opened as a host component: given no frames, so `outbound` passes it instead.
+    hosting: bool,
     dragged: Option<(ViewId, Dragged)>,
     intrinsic: Option<Vec2>,
     artifact: Option<ArtifactState>,
@@ -58,6 +60,8 @@ struct ArtifactState {
     described: Option<Vec<u8>>,
     edited: bool,
     regenerating: Option<Sender<Result<(), Failure>>>,
+    /// The failure last told the host (`artifact-failed`).
+    failure: Option<String>,
 }
 
 impl ArtifactState {
@@ -68,6 +72,7 @@ impl ArtifactState {
             described: None,
             edited: false,
             regenerating: None,
+            failure: None,
         }
     }
 
@@ -130,17 +135,25 @@ impl Drop for EditorSession {
 
 impl EditorSession {
     pub fn new(instance: EditorInstanceId, waker: Waker, open: Open) -> Self {
-        Self::joining(instance, waker, open, &Module::default())
+        Self::joining(
+            instance,
+            waker,
+            open,
+            crate::EditorCapabilities::default(),
+            &Module::default(),
+        )
     }
 
     pub(crate) fn joining(
         instance: EditorInstanceId,
         waker: Waker,
         open: Open,
+        capabilities: crate::EditorCapabilities,
         module: &Module,
     ) -> Self {
         let host = EditorHost::new(waker);
         host.set_instance(instance);
+        host.set_capabilities(capabilities);
         module.enter(instance, &host);
         Self::adopt(instance, open(host.clone()), host)
     }
@@ -158,6 +171,7 @@ impl EditorSession {
             views: HashMap::default(),
             host,
             own_block: None,
+            hosting: false,
             dragged: None,
             intrinsic: None,
             artifact: None,
@@ -283,6 +297,10 @@ impl EditorSession {
         self.host.set_organization_id(organization);
     }
 
+    pub(crate) fn set_offers_share(&self, offered: bool) {
+        self.host.set_offers_share(offered);
+    }
+
     pub(crate) fn set_page_origin(&self, origin: String) {
         self.host.set_page_origin(origin);
     }
@@ -301,6 +319,18 @@ impl EditorSession {
 
     pub(crate) fn reveal(&self, at: be_sdk_api::SearchLocation) {
         self.host.reveal(at);
+    }
+
+    pub(crate) fn member(&self, event: be_sdk_api::blocks::MemberEvent) {
+        self.host.member(event);
+    }
+
+    pub(crate) fn channel(&self, event: be_sdk_api::blocks::ChannelEvent) {
+        self.host.channel(event);
+    }
+
+    pub(crate) fn set_hosting(&self, hosting: be_sdk_api::blocks::HostingHere) {
+        self.host.set_hosting(hosting);
     }
 
     pub(crate) fn show_dialog(&self, block_id: Uuid, dialog: be_sdk_api::ShellDialog) {
@@ -346,10 +376,6 @@ impl EditorSession {
             .render_clip(serial, format, Box::new(move |data| rendered.send(data)));
     }
 
-    pub(crate) fn replace_child(&mut self, old: Uuid, new: Uuid) -> bool {
-        self.editor.replace_child(old, new)
-    }
-
     pub(crate) fn set_presenting(&self, presenting: bool) {
         self.host.set_presenting(presenting);
     }
@@ -365,6 +391,28 @@ impl EditorSession {
         self.editor.connect(block_id);
     }
 
+    /// A Join member's session: its block, given no content, only the host channel.
+    pub(crate) fn connect_join(&mut self, block_id: Uuid, block_type: Uuid) {
+        self.host.set_block_type(block_type);
+        self.host.set_joined(true);
+        self.own_block = Some(block_id);
+        self.link.connect(block_id, block_type);
+        self.editor.connect_join(block_id);
+    }
+
+    /// A host component's session: its block, with no screen ever given it.
+    pub(crate) fn connect_host(&mut self, block_id: Uuid, block_type: Uuid) {
+        self.host.set_block_type(block_type);
+        self.own_block = Some(block_id);
+        self.hosting = true;
+        self.link.connect(block_id, block_type);
+        self.editor.connect_host(block_id);
+    }
+
+    pub(crate) fn hosting(&self) -> bool {
+        self.hosting
+    }
+
     pub(crate) fn connect_picker(&mut self, picker: crate::host::PickerRequest) {
         self.host.set_editable(true);
         self.host.set_picker(picker);
@@ -377,15 +425,20 @@ impl EditorSession {
         self.editor.connect(Uuid::nil());
     }
 
+    pub(crate) fn connect_export(&mut self, export: crate::host::ExportDialogRequest) {
+        self.host.set_editable(true);
+        self.editor.connect_export(export);
+    }
+
     pub(crate) fn connect_creation(&mut self, template: String) {
         self.host.set_editable(true);
         self.editor.connect_creation(template);
     }
 
     pub(crate) fn connect_artifact(&mut self, artifact: crate::Artifact, data: Vec<u8>) {
-        self.artifact = Some(ArtifactState::new(data));
         self.host.set_editable(true);
-        self.editor.connect_artifact(artifact);
+        self.editor.connect_artifact(artifact, &data);
+        self.artifact = Some(ArtifactState::new(data));
     }
 
     pub(crate) fn artifact_settings(&mut self, data: Vec<u8>) {
@@ -430,7 +483,7 @@ impl EditorSession {
                 state.tree = None;
             }
             state.placement = Some(*placement);
-            state.metrics = Some(request.metrics.clone());
+            state.metrics = Some(request.metrics);
             state.frame = request.frame;
             state.windows = request.windows;
             state.fit = request.fit;
@@ -461,6 +514,11 @@ impl EditorSession {
 
     pub fn outbound(&mut self) {
         let instance = self.instance;
+        // A host component and an artifact instance are given no frame: each takes in what
+        // arrived here instead.
+        if self.hosting || self.artifact.is_some() {
+            self.editor.pass();
+        }
         self.link.exchange(instance, &self.host);
         self.watch_docks();
         crate::asked::asking(Some(instance), || {
@@ -497,6 +555,11 @@ impl EditorSession {
             if artifact.edited {
                 artifact.edited = false;
                 tell.push(ShellMessage::ArtifactEdited(artifact.draft.clone()));
+            }
+            let failure = self.editor.artifact_failure();
+            if artifact.failure != failure {
+                artifact.failure.clone_from(&failure);
+                tell.push(ShellMessage::ArtifactFailed(failure));
             }
             if artifact.regenerating.is_some()
                 && let Some(result) = self.editor.poll_artifact()
@@ -820,7 +883,7 @@ impl EditorSession {
             fit: state.is_some_and(|state| state.fit),
             docked: state.is_some_and(|state| state.docked),
             host_place: state.and_then(|state| state.host_place.clone()),
-            anchor_space: state.and_then(|state| state.anchor_space.clone()),
+            anchor_space: state.and_then(|state| state.anchor_space),
             origin: state.and_then(|state| state.origin),
         }
     }

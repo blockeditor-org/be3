@@ -15,8 +15,8 @@ fn a_menu_from_a_zoomed_out_checklist_on_a_canvas_escapes_its_card_at_full_size(
     host.key("Escape");
     host.gone(ROW);
 
-    host.click("#infinite-canvas.pill.zoom-out");
-    host.click("#infinite-canvas.pill.zoom-out");
+    host.click("#editor.zoom_out");
+    host.click("#editor.zoom_out");
     let (pane_x, pane_y, pane_width, pane_height) = host.place(PANE);
     let (_, _, draft_width, _) = host.place("#checklist.draft");
     host.run(&["click", "#checklist.draft", "right"]);

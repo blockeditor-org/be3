@@ -152,18 +152,21 @@ impl Find {
     }
 }
 
-type CursorCache = (
-    Vec<CursorPosition>,
-    Vec<(Option<usize>, Option<usize>)>,
-    Option<std::ops::Range<usize>>,
-);
+/// Where the cursors are: what `TextAreaState::cursors` holds, so its readers wake when a
+/// cursor moves or the composition changes, and only then.
+#[derive(Clone, Default, PartialEq)]
+pub struct Cursors {
+    pub positions: Vec<CursorPosition>,
+    /// Each cursor's anchor and focus as byte indices.
+    pub indices: Vec<(Option<usize>, Option<usize>)>,
+    pub composition: Option<std::ops::Range<usize>>,
+}
 
 struct Inner {
     core: RefCell<Core>,
     snapshot: RefCell<Snapshot>,
     find: Find,
     canvas: NodeRef,
-    cursor_cache: RefCell<CursorCache>,
     selecting: Cell<bool>,
     show_runs: Cell<bool>,
     touch_mode: Signal<bool>,
@@ -175,13 +178,10 @@ struct Inner {
     reveal: Cell<Option<Rect>>,
     scroll_to: Cell<Option<ScrollAnchor>>,
     scrolled: Signal<Option<ScrollAnchor>>,
-    reveals: Signal<u64>,
-    focus_requests: Signal<u64>,
-    focus_handled: Cell<u64>,
-    content: Signal<u64>,
-    content_counter: Cell<u64>,
-    cursors: Signal<u64>,
-    cursor_counter: Cell<u64>,
+    reveals: Trigger,
+    focus_pending: Signal<bool>,
+    content: Trigger,
+    cursors: Signal<Cursors>,
     selected: Signal<Option<Selected>>,
     rows_built: Cell<u64>,
     layout: Signal<TextAreaLayout>,
@@ -210,12 +210,12 @@ impl TextAreaState {
             anchor: start,
             focus: start,
         });
-        let content = create_signal(0);
-        let cursors = create_signal(0);
+        let content = create_trigger();
+        let cursors = create_signal(Cursors::default());
         let layout = create_signal(TextAreaLayout::default());
-        let reveals = create_signal(0);
+        let reveals = create_trigger();
         let scrolled = create_signal(None);
-        let focus_requests = create_signal(0);
+        let focus_pending = create_signal(false);
         let touch_mode = create_signal(false);
         let caret_handle = create_signal(false);
         let selected = create_signal(None);
@@ -224,7 +224,6 @@ impl TextAreaState {
             snapshot: RefCell::new(Snapshot::default()),
             find: Find::new(),
             canvas: NodeRef::new(),
-            cursor_cache: RefCell::new((Vec::new(), Vec::new(), None)),
             selecting: Cell::new(false),
             show_runs: Cell::new(false),
             touch_mode,
@@ -237,12 +236,9 @@ impl TextAreaState {
             scroll_to: Cell::new(None),
             scrolled,
             reveals,
-            focus_requests,
-            focus_handled: Cell::new(0),
+            focus_pending,
             content,
-            content_counter: Cell::new(0),
             cursors,
-            cursor_counter: Cell::new(0),
             selected,
             rows_built: Cell::new(0),
             layout,
@@ -349,9 +345,7 @@ impl TextAreaState {
     fn sync_selected(&self) {
         let inner = self.0.value();
         let selected = inner.core.borrow().selected();
-        if inner.selected.get_untracked() != selected {
-            inner.selected.set(selected);
-        }
+        inner.selected.set(selected);
     }
 
     pub fn set_show_runs(&self, shown: bool) {
@@ -360,9 +354,9 @@ impl TextAreaState {
         self.sync_document();
     }
 
-    pub fn content(&self) -> ReadSignal<u64> {
-        let inner = self.0.value();
-        inner.content.read_only()
+    /// Notified whenever the document's snapshot (its bytes, lines and formats) changes.
+    pub fn content(&self) -> Trigger {
+        self.0.value().content
     }
 
     pub fn rows_built(&self) -> u64 {
@@ -374,7 +368,7 @@ impl TextAreaState {
             .with(|inner| inner.rows_built.set(inner.rows_built.get() + 1));
     }
 
-    pub fn cursors(&self) -> ReadSignal<u64> {
+    pub fn cursors(&self) -> ReadSignal<Cursors> {
         let inner = self.0.value();
         inner.cursors.read_only()
     }
@@ -416,7 +410,11 @@ impl TextAreaState {
     /// area published rather than the `Core`, so memos the view recomputes while the
     /// core runs a command (asking the view for rows) never borrow it.
     pub fn composition(&self) -> Option<Range<usize>> {
-        self.0.with(|inner| inner.cursor_cache.borrow().2.clone())
+        self.0.with(|inner| {
+            inner
+                .cursors
+                .with_untracked(|cursors| cursors.composition.clone())
+        })
     }
 
     pub fn caret_indices(&self) -> Vec<usize> {
@@ -503,32 +501,31 @@ impl TextAreaState {
 
     fn request_reveal(&self) {
         let inner = self.0.value();
-        inner.reveals.update(|reveals| *reveals += 1);
+        inner.reveals.notify();
     }
 
+    /// Asks the text area to take the keyboard. The request waits until a mounted text area
+    /// takes it, so one made before the first mount still counts once.
     pub fn focus(&self) {
         let inner = self.0.value();
-        inner.focus_requests.update(|count| *count += 1);
+        inner.focus_pending.set(true);
     }
 
-    pub fn focus_requests(&self) -> ReadSignal<u64> {
-        let inner = self.0.value();
-        inner.focus_requests.read_only()
-    }
-
-    /// Whether `focus` was asked since the text area last took a request: each request focuses
-    /// once, so a text area mounted again later (a hidden view shown again) does not take the
-    /// keyboard for a request an earlier mount handled. A request made before the first mount
-    /// still counts once.
+    /// Whether `focus` was asked since the text area last took a request, taking it: each
+    /// request focuses once, so a text area mounted again later (a hidden view shown again)
+    /// does not take the keyboard for a request an earlier mount handled. Reads tracked, so
+    /// the effect calling it hears the next request.
     pub fn take_focus_request(&self) -> bool {
         let inner = self.0.value();
-        let asked = inner.focus_requests.get();
-        inner.focus_handled.replace(asked) != asked
+        let pending = inner.focus_pending.get();
+        if pending {
+            inner.focus_pending.set(false);
+        }
+        pending
     }
 
-    pub fn reveals(&self) -> ReadSignal<u64> {
-        let inner = self.0.value();
-        inner.reveals.read_only()
+    pub fn reveals(&self) -> Trigger {
+        self.0.value().reveals
     }
 
     pub fn canvas(&self) -> NodeRef {
@@ -646,6 +643,7 @@ impl TextAreaState {
             single_line: false,
             prose: Some(prose),
             geometry,
+            code_padding: 0.0,
         };
         let font = FontId::proportional(font_size).bold(prose.bold);
         let wrap = match prose.wrap {
@@ -679,7 +677,6 @@ impl TextAreaState {
                 style: SpanStyle::new(font, colors.syntax.markdown_plain_text),
                 hang: row.hang,
                 anywhere: false,
-                least: false,
             };
             lines.push(ProseLine {
                 layout: lay_out(&row.pieces(Vec2::splat(square)), options)?,
@@ -696,8 +693,8 @@ impl TextAreaState {
 
     pub fn find_status(&self) -> FindStatus {
         let inner = self.0.value();
-        inner.content.get();
-        inner.cursors.get();
+        inner.content.track();
+        inner.cursors.track();
         let query = inner.find.query.get();
         let case_sensitive = inner.find.case_sensitive.get();
         inner.core.borrow().find_status(&query, case_sensitive)
@@ -920,16 +917,15 @@ impl TextAreaState {
             runs,
             formats,
         };
-        inner.content_counter.set(inner.content_counter.get() + 1);
-        inner.content.set(inner.content_counter.get());
+        inner.content.notify();
     }
 
     fn sync_cursors(&self) {
         let inner = self.0.value();
-        let positions = {
+        let cursors = {
             let core = inner.core.borrow();
-            let cursors = core.cursor_positions();
-            let indices = cursors
+            let positions = core.cursor_positions();
+            let indices = positions
                 .iter()
                 .map(|cursor| {
                     (
@@ -938,14 +934,13 @@ impl TextAreaState {
                     )
                 })
                 .collect();
-            (cursors.to_vec(), indices, core.composition())
+            Cursors {
+                positions: positions.to_vec(),
+                indices,
+                composition: core.composition(),
+            }
         };
-        if *inner.cursor_cache.borrow() == positions {
-            return;
-        }
-        *inner.cursor_cache.borrow_mut() = positions;
-        inner.cursor_counter.set(inner.cursor_counter.get() + 1);
-        inner.cursors.set(inner.cursor_counter.get());
+        inner.cursors.set(cursors);
     }
 }
 

@@ -8,6 +8,7 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+be-block-repository = { path = "../be-block-repository" }
 beui = { path = "../beui" }
 be-sdk-beui = { path = "../be-sdk-beui" }
 uuid = "1"

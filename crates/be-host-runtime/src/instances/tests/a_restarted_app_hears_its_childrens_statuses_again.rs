@@ -54,7 +54,7 @@ fn a_restarted_app_hears_its_childrens_statuses_again() {
         "an unchanged status is not news"
     );
 
-    instances.reopen();
+    restart(&mut instances);
 
     assert_eq!(
         statuses_sent(&instances.next_screens(PASS).opened),

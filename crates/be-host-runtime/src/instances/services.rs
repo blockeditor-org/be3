@@ -2,13 +2,14 @@ use be_lib_stable_hash::HashMap;
 
 use be_sdk_api::{
     AccessListing, BlockAgent, BlockIdRole, EditorInstanceId, Failure, FileSave, ImportedBlock,
-    PastedBlock, SavedFile, Signer,
+    PastedBlock, SavedFile,
     embed::host_services::Call,
     ops::{OpError, OpId, Outcome, Reply, wire},
 };
 use uuid::Uuid;
 
 use super::Instances;
+use crate::InstanceRole;
 use crate::wire::Service;
 use be_host_base::{
     host,
@@ -41,6 +42,40 @@ struct Work {
 pub(super) struct Services {
     serving: HashMap<OpId, Work>,
     pub(super) answers: Vec<(OpId, Outcome)>,
+    /// What an app without `sharing` asked to open to anyone inside on a block it made, held
+    /// until the server takes the create (`Instances::settle_openings`).
+    pub(super) openings: Vec<Opening>,
+}
+
+/// A `set-access` held until the block it opens is the server's (`Services::openings`).
+pub(super) struct Opening {
+    block: Uuid,
+    access: be_block_graph::Access,
+    created_by: Option<String>,
+    answering: Answering<Result<(), Failure>>,
+}
+
+/// Where a block an app made stands for opening it: the server's and still the app's, only
+/// this device's so far, or not the app's (the host dropped the create, or the server's own
+/// block took its place).
+enum Made {
+    Taken,
+    Waiting,
+    Lost,
+}
+
+fn made_state(block: Uuid, created_by: &Option<String>) -> Made {
+    let Some(node) = be_host_stack::node(block) else {
+        return Made::Lost;
+    };
+    let ours = node.metadata.get(&be_block_content::CREATED_BY) == *created_by
+        && node.author.is_some()
+        && node.author == be_host_stack::account();
+    match (ours, node.changed > 0) {
+        (false, _) => Made::Lost,
+        (true, true) => Made::Taken,
+        (true, false) => Made::Waiting,
+    }
 }
 
 struct Answering<T, E = wire::Plain> {
@@ -86,7 +121,7 @@ impl<T, E: wire::Encode<Result<T, Failure>>> Answering<Result<T, Failure>, E> {
 #[derive(Default)]
 pub(super) struct RevisionPreview {
     opened: Option<Result<Uuid, Failure>>,
-    asked: Option<Reply<Result<[u8; 16], Failure>>>,
+    asked: Option<Reply<Result<[u8; 16], Failure>, be_sdk_api::ops::wire::FallibleBytes>>,
 }
 
 impl RevisionPreview {
@@ -228,11 +263,67 @@ impl Instances {
         }
     }
 
-    /// The block whose signatures `instance` makes and checks: the one it shows, or for a
-    /// revision preview the block the revision is of.
-    fn signed_in(&self, instance: EditorInstanceId) -> Option<Uuid> {
-        let block = self.entries.get(&instance)?.role.block()?.id;
-        Some(revisions::source(block).unwrap_or(block))
+    /// Granting or revealing access is only for an app whose manifest sets `sharing`, so an app
+    /// the person opened cannot share what it shows, or read who has it or its links, unasked.
+    /// Any app may open a block it just made to anyone inside (`set-access` of `ANYONE_INSIDE`
+    /// at View or below, on a block it made in this run), as the editor framework does for a
+    /// settings kind every member reads: that names no one, though the app can copy what it reads into such a block.
+    fn refuses_sharing(&self, instance: EditorInstanceId, call: &Call) -> bool {
+        if self.sharing {
+            return false;
+        }
+        match call {
+            Call::SetAccess {
+                block,
+                account,
+                access,
+                ..
+            } => {
+                let opening = Uuid::from_bytes(*account) == be_block_graph::ANYONE_INSIDE
+                    && be_host_stack::app_graph::access_of(*access) > be_block_graph::Access::None
+                    && be_host_stack::app_graph::access_of(*access) <= be_block_graph::Access::View;
+                let block = Uuid::from_bytes(*block);
+                // Whether the server took it, and the block is still the app's, the call
+                // waits on (`made_state`).
+                let made = self
+                    .entries
+                    .get(&instance)
+                    .is_some_and(|entry| entry.made.contains(&block));
+                !(opening && made)
+            }
+            Call::ListAccess { .. }
+            | Call::TransferOwnership { .. }
+            | Call::AcceptOwnership { .. }
+            | Call::ListShareLinks { .. }
+            | Call::MakeShareLink { .. }
+            | Call::RevokeShareLink { .. }
+            | Call::MakeContactLink { .. } => true,
+            _ => false,
+        }
+    }
+
+    /// Each opening held for a block an app made (`Services::openings`) once the graph moved:
+    /// made once the server took the create and the block is still the app's, refused once it
+    /// is not, held while the create is this device's alone.
+    pub(super) fn settle_openings(&mut self) {
+        for opening in std::mem::take(&mut self.services.openings) {
+            if opening.answering.withdrawn() {
+                continue;
+            }
+            match made_state(opening.block, &opening.created_by) {
+                Made::Waiting => self.services.openings.push(opening),
+                Made::Lost => opening.answering.send(Err(Failure::Denied)),
+                Made::Taken => {
+                    let answering = opening.answering;
+                    be_host_stack::set_access(
+                        opening.block,
+                        be_block_graph::ANYONE_INSIDE,
+                        opening.access,
+                        move |set| answering.send_or_fail(set),
+                    );
+                }
+            }
+        }
     }
 
     pub(super) fn local(&self, instance: EditorInstanceId, mut id: [u8; 16]) -> [u8; 16] {
@@ -248,26 +339,36 @@ impl Instances {
             .is_some_and(|block| revisions::source(block.id).is_some())
     }
 
+    /// The block a host component runs on, when `instance` is one: what it may reach of the
+    /// graph is that block and the blocks below it.
+    pub(super) fn hosting(&self, instance: EditorInstanceId) -> Option<Uuid> {
+        match self.entries.get(&instance)?.role {
+            InstanceRole::Host(_, block) => Some(block.id),
+            _ => None,
+        }
+    }
+
     pub fn serve(&mut self, service: Service) {
         let Service { instance, mut call } = service;
         self.scoped(instance, true, &mut |visit| {
             call.visit_block_ids(&mut |id| visit(id))
         });
+        // A host component, unattended, reads its app's data; everything that would ask a
+        // person, or reach past its block, is refused.
+        if self.hosting(instance).is_some()
+            && !matches!(call, Call::ReadData { .. } | Call::ListData { .. })
+        {
+            return self.refuse(call, OpError::Denied);
+        }
         if self.previewing(instance)
-            && !matches!(
-                call,
-                Call::ReadData { .. }
-                    | Call::ListData { .. }
-                    | Call::Verify { .. }
-                    | Call::SigningBlock { .. }
-            )
+            && !matches!(call, Call::ReadData { .. } | Call::ListData { .. })
         {
             return self.refuse(call, OpError::Denied);
         }
         if !self.entries.contains_key(&instance) {
             return self.refuse(call, OpError::Canceled);
         }
-        if self.refuses_block_agents(instance, &call) {
+        if self.refuses_block_agents(instance, &call) || self.refuses_sharing(instance, &call) {
             return self.refuse(call, OpError::Denied);
         }
         match call {
@@ -388,6 +489,26 @@ impl Instances {
                     }));
                 });
             }
+            Call::FileOfContent {
+                reply,
+                block_type,
+                content,
+                name,
+            } => {
+                let answering = self.answering(instance, reply);
+                be_host_stack::file_of_content(
+                    Uuid::from_bytes(block_type),
+                    content,
+                    name,
+                    move |file| {
+                        answering.send_or_fail(file.map(|file| SavedFile {
+                            name: file.name.unwrap_or_default(),
+                            mime_type: file.media_type,
+                            data: file.bytes,
+                        }));
+                    },
+                );
+            }
             Call::ImportBlocks { reply, parent } => {
                 let Some(parent) = be_host_stack::app_graph::parent_of(parent) else {
                     return self.answer_now(reply, Err(Failure::Denied));
@@ -500,7 +621,7 @@ impl Instances {
                             self.editable(*holder)
                                 && be_host_stack::node(*holder).is_some_and(|holder| {
                                     holder.parent != Some(be_block_graph::BlockParent::Detached)
-                                        && holder.references.contains(&block)
+                                        && holder.refers_to(block) == Some(true)
                                 })
                         })
                         .map(|holder| self.local(instance, holder.into_bytes()));
@@ -547,8 +668,12 @@ impl Instances {
             }
             Call::ListAccess { reply, block } => {
                 let answering = self.answering(instance, reply);
-                be_host_stack::list_access(Uuid::from_bytes(block), move |listed| {
-                    answering.listed(be_host_stack::app_graph::grants_of(listed));
+                let block = Uuid::from_bytes(block);
+                let levels = be_host_stack::node(block)
+                    .map(|node| be_host_stack::discovery::offered_levels(node.content_type))
+                    .unwrap_or_default();
+                be_host_stack::list_access(block, move |listed| {
+                    answering.listed(be_host_stack::app_graph::grants_of(listed, levels));
                 });
             }
             Call::SetAccess {
@@ -558,20 +683,70 @@ impl Instances {
                 access,
             } => {
                 let answering = self.answering(instance, reply);
-                be_host_stack::set_access(
+                let (block, access) = (
+                    Uuid::from_bytes(block),
+                    be_host_stack::app_graph::access_of(access),
+                );
+                // An app without `sharing` gets here only to open a block it made: that waits
+                // for the server to take the create, so a block it named that the server
+                // already holds, unseen here, is never opened.
+                if !self.sharing {
+                    let created_by = self.created_by();
+                    match made_state(block, &created_by) {
+                        Made::Taken => {}
+                        Made::Waiting => {
+                            self.services.openings.push(Opening {
+                                block,
+                                access,
+                                created_by,
+                                answering,
+                            });
+                            return;
+                        }
+                        Made::Lost => return answering.send(Err(Failure::Denied)),
+                    }
+                }
+                be_host_stack::set_access(block, Uuid::from_bytes(account), access, move |set| {
+                    answering.send_or_fail(set)
+                });
+            }
+            Call::TransferOwnership {
+                reply,
+                block,
+                account,
+            } => {
+                let answering = self.answering(instance, reply);
+                be_host_stack::transfer_ownership(
                     Uuid::from_bytes(block),
                     Uuid::from_bytes(account),
-                    be_host_stack::app_graph::access_of(access),
                     move |set| answering.send_or_fail(set),
                 );
             }
-            Call::SetNotifyMode { reply, block, mode } => {
+            Call::AcceptOwnership { reply, block } => {
                 let answering = self.answering(instance, reply);
-                be_host_stack::set_notify_mode(
+                be_host_stack::accept_ownership(Uuid::from_bytes(block), move |set| {
+                    answering.send_or_fail(set)
+                });
+            }
+            Call::SetMute { reply, block, mode } => {
+                let answering = self.answering(instance, reply);
+                be_host_stack::set_mute(
                     Uuid::from_bytes(block),
-                    be_host_stack::app_graph::notify_mode_of(mode),
+                    be_host_stack::app_graph::mute_of(mode),
                     move |set| answering.send_or_fail(set),
                 );
+            }
+            Call::SetPhoneLayout { reply, on } => {
+                let answering = self.answering(instance, reply);
+                match self.shell == Some(instance) {
+                    true => {
+                        crate::runtime::ask_phone_layout(&self.app_id, instance, on);
+                        self.phone_layout = on;
+                        answering.send(Ok(()));
+                    }
+                    false => answering
+                        .send_or_fail(Err("Only the shell says how the host lays out.".to_owned())),
+                }
             }
             Call::SetPushDevice { reply, on } => {
                 let answering = self.answering(instance, reply);
@@ -593,6 +768,50 @@ impl Instances {
                 be_host_stack::make_contact_link(Some(offer), move |made| {
                     answering.send_or_fail(made)
                 });
+            }
+            Call::ListShareLinks { reply, block } => {
+                let answering = self.answering(instance, reply);
+                be_host_stack::list_share_links(Uuid::from_bytes(block), move |listed| {
+                    answering.send_or_fail(listed.map(|links| {
+                        links
+                            .into_iter()
+                            .map(|(row, url)| be_sdk_api::ShareLink {
+                                id: row.id.to_string(),
+                                access: be_host_stack::app_graph::level_of(row.access),
+                                admits: be_host_stack::app_graph::admits_of(row.admits),
+                                url,
+                                maker: row.maker.into_bytes(),
+                                maker_name: row.maker_name,
+                                opened_by: row.opened_by.map(|_| row.opened_by_name),
+                            })
+                            .collect::<Vec<_>>()
+                    }))
+                });
+            }
+            Call::MakeShareLink {
+                reply,
+                block,
+                access,
+                admits,
+            } => {
+                let answering = self.answering(instance, reply);
+                be_host_stack::make_share_link(
+                    Uuid::from_bytes(block),
+                    be_host_stack::app_graph::access_of(access),
+                    be_host_stack::app_graph::link_admits(admits),
+                    move |made| answering.send_or_fail(made),
+                );
+            }
+            Call::RevokeShareLink { reply, block, link } => {
+                let answering = self.answering(instance, reply);
+                match Uuid::parse_str(&link) {
+                    Ok(link) => be_host_stack::revoke_share_link(
+                        Uuid::from_bytes(block),
+                        link,
+                        move |revoked| answering.send_or_fail(revoked),
+                    ),
+                    Err(_) => answering.send_or_fail(Err("That is not a share link.".to_owned())),
+                }
             }
             Call::CreateBlockAgent { reply, block, name } => {
                 let answering = self.answering(instance, reply);
@@ -624,46 +843,6 @@ impl Instances {
             Call::TerminalHostBuild { reply } => {
                 let answering = self.answering(instance, reply);
                 answering.send_or_fail(be_host_stack::terminal_host::build_info());
-            }
-            Call::SigningBlock { reply } => {
-                let found = match self.signed_in(instance) {
-                    Some(block) => Ok(self.local(instance, block.into_bytes())),
-                    None => Err(Failure::Unavailable),
-                };
-                self.answer_now(reply, found);
-            }
-            Call::Sign { reply, bytes } => {
-                let answering = self.answering(instance, reply);
-                let Some(block) = self.signed_in(instance) else {
-                    return answering.send(Err(Failure::Unavailable));
-                };
-                if self.app_id.is_empty() || bytes.len() > MAX_SIGNED_BYTES {
-                    return answering.send(Err(Failure::Denied));
-                }
-                be_host_stack::authorship::sign(
-                    block,
-                    by_app(&self.app_id, &bytes),
-                    move |signed| answering.send_or_fail(signed),
-                );
-            }
-            Call::Verify {
-                reply,
-                account,
-                bytes,
-                signature,
-            } => {
-                let answering = self.answering(instance, reply);
-                let Some(block) = self.signed_in(instance) else {
-                    return answering.send(Err(Failure::Unavailable));
-                };
-                if self.app_id.is_empty() {
-                    return answering.send(Err(Failure::Denied));
-                }
-                let account = Uuid::from_bytes(account);
-                let bytes = by_app(&self.app_id, &bytes);
-                be_host_stack::authorship::verify(account, block, bytes, signature, move |found| {
-                    answering.send(found.map(signer).map_err(|_| Failure::Unavailable))
-                });
             }
             Call::ListData { reply } => {
                 let answering = self.answering(instance, reply);
@@ -704,10 +883,15 @@ impl Instances {
         for op in ops {
             self.withdraw(op);
         }
+        // An instance that stops waits on no opening.
+        self.services
+            .openings
+            .retain(|opening| opening.answering.instance != instance);
         self.forget_fetches(Some(instance));
     }
 
     pub(super) fn forget_services(&mut self) {
+        self.services.openings.clear();
         self.forget_fetches(None);
         for (_, work) in self.services.serving.drain() {
             work.aborted.abort();
@@ -776,26 +960,4 @@ impl Instances {
         desk.deliver(self);
         std::mem::take(&mut self.services.answers)
     }
-}
-
-fn signer(signer: be_host_stack::authorship::Signer) -> Signer {
-    use be_host_stack::authorship::Signer as Found;
-    match signer {
-        Found::Verified => Signer::Verified,
-        Found::Unverified => Signer::Unverified,
-        Found::Changed => Signer::Changed,
-        Found::Bad => Signer::Bad,
-    }
-}
-
-/// The most an app may ask the host to sign at once (`sign`): a record's bytes, not a file.
-const MAX_SIGNED_BYTES: usize = 64 * 1024;
-
-/// `bytes` as `app_id` signs or checks them: its manifest id, framed, ahead of them, so one app
-/// cannot make a signature another app's `verify` accepts, even in a block both are shown.
-fn by_app(app_id: &str, bytes: &[u8]) -> Vec<u8> {
-    let mut bound = (app_id.len() as u64).to_be_bytes().to_vec();
-    bound.extend_from_slice(app_id.as_bytes());
-    bound.extend_from_slice(bytes);
-    bound
 }

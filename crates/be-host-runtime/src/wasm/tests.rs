@@ -10,6 +10,7 @@ use be_sdk_api::{
 use be_wasm_host::{App, Host};
 
 mod a_standalone_triangle_paints_what_the_triangle_linked_against_its_library_paints;
+mod the_sandbox_finds_only_the_modules_an_app_stages;
 
 const SURFACE: u32 = 1;
 const WIDTH: u32 = 320;
@@ -20,6 +21,7 @@ fn device() -> (wgpu::Device, wgpu::Queue) {
         &wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::LowPower,
             force_fallback_adapter: false,
+            apply_limit_buckets: false,
             compatible_surface: None,
         },
     ))
@@ -99,6 +101,7 @@ fn opening(editor: [u8; 16]) -> Opening {
         account_id: [3; 16],
         organization_id: [4; 16],
         client_id: [5; 16],
+        offers_share: true,
         kind: OpeningKind::Block(OpenBlock {
             block_id: [1; 16],
             block_type: [2; 16],
@@ -189,7 +192,7 @@ fn read_back(device: &wgpu::Device, queue: &wgpu::Queue, texture: &wgpu::Texture
     device
         .poll(wgpu::PollType::wait_indefinitely())
         .expect("the device never finished the copy");
-    let mapped = readback.slice(..).get_mapped_range();
+    let mapped = readback.slice(..).get_mapped_range().unwrap();
     mapped
         .chunks(row as usize)
         .flat_map(|line| line[..(width * 4) as usize].to_vec())

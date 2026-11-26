@@ -4,7 +4,7 @@ use crate::primitives::*;
 use crate::reactive::*;
 use beui::PointerPress;
 
-fn presses(forwarded: ReadSignal<Vec<ForwardedInput>>) -> usize {
+fn presses(forwarded: impl Get<Vec<ForwardedInput>>) -> usize {
     forwarded.with_untracked(|forwarded| {
         forwarded
             .iter()
@@ -45,12 +45,8 @@ fn a_capturing_catcher_over_a_forwarding_one_keeps_the_press_from_it() {
 
     harness.click(pos2(55.0, 100.0));
     assert_eq!(pressed.get_untracked(), 1);
-    assert_eq!(
-        presses(forwarded.read_only()),
-        0,
-        "the catcher beneath is covered"
-    );
+    assert_eq!(presses(forwarded), 0, "the catcher beneath is covered");
 
     harness.click(pos2(150.0, 100.0));
-    assert_eq!(presses(forwarded.read_only()), 1);
+    assert_eq!(presses(forwarded), 1);
 }

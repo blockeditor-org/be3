@@ -39,7 +39,9 @@ impl ChildPlacements {
                 | ChildContent::Window(_)
                 | ChildContent::Creation { .. }
                 | ChildContent::DockTab(_) => {}
-                ChildContent::ArtifactSettings { block_id } | ChildContent::Rename(block_id) => {
+                ChildContent::ArtifactSettings { block_id }
+                | ChildContent::Rename(block_id)
+                | ChildContent::Export { block_id, .. } => {
                     visit(self.instance, BlockIdRole::Existing, block_id);
                 }
                 ChildContent::Picker { filter, parent, .. } => {
@@ -78,6 +80,9 @@ impl Opening {
                 location(&mut open.parent, &mut existing);
             }
             OpeningKind::Rename(open) => existing(&mut open.block_id),
+            OpeningKind::Export(open) => existing(&mut open.block_id),
+            OpeningKind::Host(open) => existing(&mut open.block_id),
+            OpeningKind::Join(open) => existing(&mut open.block_id),
             OpeningKind::Creation(_) => {}
         }
     }
@@ -99,9 +104,14 @@ impl crate::embed::host_services::Call {
             | Self::ReadPlainFile { block, .. }
             | Self::ListAccess { block, .. }
             | Self::SetAccess { block, .. }
+            | Self::TransferOwnership { block, .. }
+            | Self::AcceptOwnership { block, .. }
             | Self::MakeContactLink { block, .. }
+            | Self::ListShareLinks { block, .. }
+            | Self::MakeShareLink { block, .. }
+            | Self::RevokeShareLink { block, .. }
             | Self::CreateBlockAgent { block, .. }
-            | Self::SetNotifyMode { block, .. } => visit(block),
+            | Self::SetMute { block, .. } => visit(block),
             Self::ImportBlocks { parent, .. } => location(parent, visit),
             Self::CutBlocks { blocks, holder, .. } => {
                 blocks.iter_mut().for_each(&mut *visit);
@@ -118,15 +128,14 @@ impl crate::embed::host_services::Call {
             Self::PickFile { .. }
             | Self::RevisionPreviewOpened { .. }
             | Self::SaveFile { .. }
+            | Self::FileOfContent { .. }
             | Self::RotateAgentToken { .. }
             | Self::RemoveAgent { .. }
             | Self::TerminalHostBinary { .. }
             | Self::TerminalHostBuild { .. }
-            | Self::SigningBlock { .. }
-            | Self::Sign { .. }
-            | Self::Verify { .. }
             | Self::ListData { .. }
             | Self::SetPushDevice { .. }
+            | Self::SetPhoneLayout { .. }
             | Self::ReadData { .. } => {}
         }
     }
@@ -151,7 +160,7 @@ impl BlockQuery {
             | Self::Parents(block_id)
             | Self::Block(block_id)
             | Self::OpenSettings(block_id) => visit(BlockIdRole::Existing, block_id),
-            Self::Roots | Self::Detached | Self::Shared | Self::Unfiled => {}
+            Self::Roots | Self::Detached | Self::Shared | Self::Unfiled | Self::OwnerOffers => {}
         }
     }
 }
@@ -230,14 +239,71 @@ impl BlockCommand {
             | Self::Artifact { .. }
             | Self::Restore
             | Self::Share
+            | Self::Export(_)
             | Self::Leave
             | Self::CloseEditor
-            | Self::Define { .. } => {}
+            | Self::Define { .. }
+            | Self::TellMember(_)
+            | Self::TellHost(_)
+            | Self::KeepHosting(_)
+            | Self::DismissLogDoubt => {}
+        }
+    }
+}
+
+impl BlockCommand {
+    /// Whether a host component may act so on a block in its reach
+    /// (`Call::may_be_made_by_a_host`): never to leave or share it, close an editor, regenerate
+    /// artifacts, or reach anything the command finds or places itself.
+    fn may_be_made_by_a_host(&self) -> bool {
+        let block = |location: &BlockLocation| matches!(location, BlockLocation::Block(_));
+        match self {
+            Self::Undo
+            | Self::Redo
+            | Self::History(_)
+            | Self::Unlink { .. }
+            | Self::Reorder { .. }
+            | Self::Place { .. }
+            | Self::Restore
+            | Self::Define { .. }
+            | Self::TellMember(_) => true,
+            Self::Delete { source, .. } | Self::Move { source, .. } => block(source),
+            Self::SetParent(parent) => block(parent),
+            Self::Version(command) => command.may_be_made_by_a_host(),
+            // An account-wide membership change, a person's dialog or editor, artifacts made
+            // where the service places them, and a Join member's side of the channel.
+            Self::Leave
+            | Self::Share
+            | Self::Export(_)
+            | Self::CloseEditor
+            | Self::Artifact { .. }
+            | Self::TellHost(_)
+            | Self::KeepHosting(_)
+            | Self::DismissLogDoubt => false,
         }
     }
 }
 
 impl VersionCommand {
+    /// Within a checkout the host reaches; never a new block the service places (a fork, a
+    /// checkout, a branch) nor the upstream repository.
+    fn may_be_made_by_a_host(&self) -> bool {
+        match self {
+            Self::Adopt { .. }
+            | Self::Resolve { .. }
+            | Self::Finish { .. }
+            | Self::Update
+            | Self::Switch { .. }
+            | Self::Merge { .. }
+            | Self::Undo { .. } => true,
+            Self::CreateBranch { .. }
+            | Self::NewCheckout { .. }
+            | Self::Fork
+            | Self::PullUpstream
+            | Self::PushUpstream => false,
+        }
+    }
+
     pub fn visit_block_ids(&mut self, visit: &mut Ids<'_>) {
         match self {
             Self::Adopt { block_id } | Self::Resolve { block_id, .. } => {
@@ -278,7 +344,7 @@ impl crate::embed::blocks::Call {
                 crate::blocks::BlockSubject::History(block)
                 | crate::blocks::BlockSubject::Head(block)
                 | crate::blocks::BlockSubject::Artifact(block) => visit(existing, block),
-                crate::blocks::BlockSubject::Version => {}
+                crate::blocks::BlockSubject::Version | crate::blocks::BlockSubject::Members => {}
             },
             Self::SearchWatchNew { within, .. } => {
                 if let Some(within) = within {
@@ -291,6 +357,50 @@ impl crate::embed::blocks::Call {
             | Self::SearchWatchNext { .. }
             | Self::ShowRequestsNew { .. }
             | Self::ShowRequestsNext { .. } => {}
+        }
+    }
+
+    /// Whether a host component, which reaches only its own block and the blocks below it and
+    /// has no person before it, may make the call (guides/apps/host_services.md, "Host
+    /// components"); the block ids it names are checked against that reach apart. Every variant
+    /// is decided here, with no wildcard, so a new one is refused until someone decides.
+    pub fn may_be_made_by_a_host(&self) -> bool {
+        let block = |location: &BlockLocation| matches!(location, BlockLocation::Block(_));
+        match self {
+            Self::CreateBlock { parent, .. } => block(parent),
+            Self::Act { command, .. } => command.may_be_made_by_a_host(),
+            Self::BlockWatchNew { subject, .. } => match subject {
+                crate::blocks::BlockSubject::Blocks(query) => match query {
+                    BlockQuery::Children(_)
+                    | BlockQuery::References(_)
+                    | BlockQuery::Backrefs(_)
+                    | BlockQuery::Parents(_)
+                    | BlockQuery::Block(_)
+                    | BlockQuery::OpenSettings(_) => true,
+                    BlockQuery::Roots
+                    | BlockQuery::Detached
+                    | BlockQuery::Shared
+                    | BlockQuery::Unfiled
+                    | BlockQuery::OwnerOffers => false,
+                },
+                crate::blocks::BlockSubject::History(_)
+                | crate::blocks::BlockSubject::Head(_)
+                | crate::blocks::BlockSubject::Artifact(_)
+                | crate::blocks::BlockSubject::Version => true,
+                // Names are for a person to read, and a host has none before it.
+                crate::blocks::BlockSubject::Members => false,
+            },
+            Self::SearchWatchNew { within, .. } => within.is_some(),
+            Self::WriteContent { .. }
+            | Self::ReplicaNew { .. }
+            | Self::ReplicaFrames { .. }
+            | Self::ReplicaSend { .. }
+            | Self::BlockWatchNext { .. }
+            | Self::SearchWatchNext { .. }
+            | Self::ShowRequestsNew { .. }
+            | Self::ShowRequestsNext { .. } => true,
+            // Shows a block to a person.
+            Self::OpenBlock { .. } => false,
         }
     }
 

@@ -2,9 +2,9 @@ use crate::reactive::Child;
 use crate::reactive::Children;
 use crate::reactive::NodeId;
 use crate::reactive::Prop;
+use crate::reactive::component;
 use crate::types::Track;
 pub use crate::types::tree::GridCell;
-use beui_macros::component;
 
 /// Cells in shared columns, filled row by row; each row is as tall as its tallest cell.
 /// For forms and property panels whose labels share a width: a list of rows is a `List`

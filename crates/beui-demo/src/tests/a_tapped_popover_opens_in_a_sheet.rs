@@ -26,7 +26,7 @@ fn a_tapped_popover_opens_in_a_sheet() {
     test.click(trigger);
     test.settle();
     assert!(
-        !test.shows("sheet.handle"),
+        !test.shown("sheet.handle"),
         "a click opens the popover under its button"
     );
     press_key(&mut test, beui::Key::Escape);
@@ -34,7 +34,7 @@ fn a_tapped_popover_opens_in_a_sheet() {
     tap(&mut test, trigger);
     test.settle();
     assert!(
-        test.shows("sheet.handle"),
+        test.shown("sheet.handle"),
         "a tap opens the popover in a sheet"
     );
     test.snapshot("a_popover_in_a_sheet");

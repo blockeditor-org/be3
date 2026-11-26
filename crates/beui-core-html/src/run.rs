@@ -34,11 +34,14 @@ const BASE_STYLES: &str = "\
 .beui-glyph::before { content: attr(data-glyph); position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: center; white-space: pre; line-height: normal; font: var(--beui-glyph-font); color: var(--beui-glyph-color); pointer-events: none; }
 .beui-text-decor { position: absolute; inset: 0; pointer-events: none; }
 .beui-text-decor > * { position: absolute; }
-.beui-mark { z-index: -1; }
+.beui-mark, .beui-span-background { z-index: -1; }
+[data-beui-decorated] > [data-beui-background] { background-color: transparent !important; }
 .beui-caret-blink { animation: beui-caret-blink 1060ms steps(1, end) infinite; }
 @keyframes beui-caret-blink { 50% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .beui-caret-blink { animation: none; } }
 .beui-layers > * + * { pointer-events: none; }
+[data-beui-lent] { opacity: 0 !important; }
+.beui-replica { display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); pointer-events: none; }
 .beui-stand-in { outline: 2px dashed #ff69b4; outline-offset: -2px; }
 .beui-overlay { position: fixed; inset: auto; margin: 0; padding: 0; border: 0; background: transparent; color: inherit; pointer-events: auto; max-width: none; max-height: none; overflow: visible; }
 .beui-overlay:is([open], :popover-open) { display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); }
@@ -46,7 +49,6 @@ const BASE_STYLES: &str = "\
 .beui-overlay:popover-open::backdrop { pointer-events: none; }
 .beui-beak { position: absolute; z-index: -1; width: var(--beui-beak); height: var(--beui-beak); top: calc(var(--beui-beak) / -2); left: calc(50% - var(--beui-beak) / 2); transform: rotate(45deg); }
 .beui-beak[hidden] { display: none; }
-@container anchored(fallback: flip-block) { .beui-beak { top: auto; bottom: calc(var(--beui-beak) / -2); } }
 ";
 
 pub const STYLES_ID: &str = "beui-styles";
@@ -71,6 +73,7 @@ pub fn root() -> Option<NodeId> {
 }
 
 fn root_element(build: impl FnOnce() -> NodeId) -> Node {
+    crate::tree::install_hooks();
     let child = build();
     let root = create("Root", "div");
     set_attribute(root, "class", Some("beui-root".to_owned()));

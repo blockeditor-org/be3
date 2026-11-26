@@ -19,15 +19,9 @@ pub(crate) struct DialogControl {
 impl DialogControl {
     pub(crate) fn frame(&self, frame: Option<DialogFrame>) {
         let frame = frame.unwrap_or_default();
-        if self.narrow.get_untracked() != frame.narrow {
-            self.narrow.set(frame.narrow);
-        }
-        if self.inset.get_untracked() != frame.bottom_inset {
-            self.inset.set(frame.bottom_inset);
-        }
-        if self.modal.get_untracked() != frame.modal {
-            self.modal.set(frame.modal);
-        }
+        self.narrow.set(frame.narrow);
+        self.inset.set(frame.bottom_inset);
+        self.modal.set(frame.modal);
     }
 
     pub(crate) fn dismiss(&self) {
@@ -39,7 +33,7 @@ impl DialogControl {
 pub(crate) fn AppDialog(
     host: EditorHost,
     control: Rc<Cell<Option<DialogControl>>>,
-    #[prop(children)] content: Render,
+    #[prop(children)] content: Build<NodeId>,
 ) -> NodeId {
     let narrow = create_signal(false);
     let inset = create_signal(0.0_f32);
@@ -81,7 +75,7 @@ pub(crate) fn AppDialog(
             escape
         },
     );
-    let body = content.call(());
+    let body = content.call();
     on_back(true, move |gesture| {
         if gesture == BackGesture::Invoked {
             dismiss.call(());
@@ -91,14 +85,17 @@ pub(crate) fn AppDialog(
 }
 
 #[component]
-pub(crate) fn SettingsDialog(artifacts: Artifacts, #[prop(children)] content: Render) -> NodeId {
+pub(crate) fn SettingsDialog(
+    artifacts: Artifacts,
+    #[prop(children)] content: Build<NodeId>,
+) -> NodeId {
     let settings = artifacts.settings();
     let saved = artifacts.saved_settings();
     let unchanged =
         create_memo(move || settings.with(|settings| saved.with(|saved| settings == saved)));
     let cancel = artifacts.host().clone();
     let apply = artifacts.host().clone();
-    let body = content.call(());
+    let body = content.call();
     view! {
         <DialogBody
             title="Dynamic artifact settings"

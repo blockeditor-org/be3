@@ -26,6 +26,8 @@ struct State {
     stalling: Mutex<bool>,
     jamming: Mutex<bool>,
     heard: watch::Sender<u64>,
+    /// The bytes from the server held back while answers are held (`hold_answers`).
+    held: watch::Sender<u64>,
     counters: Mutex<Vec<Counter>>,
     /// How long each read from the server waits before it goes on to the client
     /// (`delay_answers`).
@@ -47,6 +49,8 @@ struct Link {
     /// let go (`hold_requests`, `hold_answers`).
     holding_requests: watch::Sender<bool>,
     holding_answers: watch::Sender<bool>,
+    /// The relay's count of the bytes held back from the server (`State::held`).
+    held: watch::Sender<u64>,
     answer_delay: std::time::Duration,
 }
 
@@ -79,6 +83,7 @@ impl Relay {
             stalling: Mutex::new(false),
             jamming: Mutex::new(false),
             heard: watch::Sender::new(0),
+            held: watch::Sender::new(0),
             counters: Mutex::new(Vec::new()),
             answer_delay: Mutex::new(std::time::Duration::ZERO),
         });
@@ -121,7 +126,7 @@ impl Relay {
     }
 
     /// Holds back what the connections open now send the server, unlike `stall`, which drops it:
-    /// delivered in order once let go.
+    /// delivered in order once let go, even when its client went away meanwhile.
     pub fn hold_requests(&self, holding: bool) {
         for link in self.state.links() {
             link.holding_requests.send_replace(holding);
@@ -176,6 +181,8 @@ impl Relay {
         }
     }
 
+    /// The bytes the relay has read from its clients, on their way to the server: not what the
+    /// server answers (`held`).
     pub fn heard(&self) -> u64 {
         *self.state.heard.borrow()
     }
@@ -183,6 +190,19 @@ impl Relay {
     pub async fn heard_beyond(&self, bytes: u64) {
         let mut heard = self.state.heard.subscribe();
         let _ = heard.wait_for(|heard| *heard > bytes).await;
+    }
+
+    /// The bytes from the server held back so far while answers are held (`hold_answers`):
+    /// what the server has answered and the client has not been given.
+    pub fn held(&self) -> u64 {
+        *self.state.held.borrow()
+    }
+
+    /// Waits until more than `bytes` from the server are held back: an answer the server sent
+    /// since `held` was read waits at the relay.
+    pub async fn held_beyond(&self, bytes: u64) {
+        let mut held = self.state.held.subscribe();
+        let _ = held.wait_for(|held| *held > bytes).await;
     }
 
     pub fn count(
@@ -225,6 +245,7 @@ async fn accept(listener: TcpListener, state: Arc<State>) {
             cut: watch::Sender::new(false),
             holding_requests: watch::Sender::new(false),
             holding_answers: watch::Sender::new(false),
+            held: state.held.clone(),
             answer_delay: *state
                 .answer_delay
                 .lock()
@@ -268,7 +289,8 @@ async fn carry(client: TcpStream, link: Link, state: Arc<State>, holding: bool) 
         tokio::select! {
             () = &mut up => {}
             () = down => {
-                if *link.stalled.borrow() {
+                // What is held for the server still goes once let go.
+                if *link.stalled.borrow() || *link.holding_requests.borrow() {
                     up.await;
                 }
             }
@@ -339,6 +361,15 @@ async fn pump(
         };
         let read = match read {
             Ok(0) | Err(_) => {
+                // Requests held when the client went away were sent before it did: they reach
+                // the server once let go, as bytes already on their way would.
+                if heard.is_some() && !held.is_empty() {
+                    let _ = let_go.wait_for(|holding| !*holding).await;
+                    if let Some(to) = &mut to {
+                        let _ = to.write_all(&held).await;
+                    }
+                    return;
+                }
                 for (due, bytes) in delayed {
                     tokio::time::sleep_until(due).await;
                     if let Some(to) = &mut to
@@ -390,6 +421,9 @@ async fn pump(
         }
         if *holding.borrow() {
             held.extend_from_slice(&buffer[..read]);
+            if heard.is_none() {
+                link.held.send_modify(|held| *held += read as u64);
+            }
             continue;
         }
         if !held.is_empty() && !send(&mut to, &mut delayed, delay, std::mem::take(&mut held)).await

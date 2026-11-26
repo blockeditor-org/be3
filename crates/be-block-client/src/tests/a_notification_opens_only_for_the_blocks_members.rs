@@ -30,7 +30,7 @@ async fn a_notification_opens_only_for_the_blocks_members() {
             .await
             .unwrap();
     }
-    let public = owner.keys().contact(guest.account()).unwrap();
+    let public = owner.verified_identity(guest.account()).unwrap();
     owner
         .share(folder, guest.account(), Access::View, &public)
         .await

@@ -21,6 +21,14 @@ pub(crate) fn copy(clip: crate::types::Clip) {
     with_document(|document| document.copy(clip));
 }
 
+pub(crate) fn share(clip: crate::types::Clip) {
+    with_document(|document| document.share(clip));
+}
+
+pub(crate) fn use_share_sheet() -> ReadSignal<bool> {
+    with_document(|document| document.watch_share_sheet())
+}
+
 pub(crate) fn request_paste() {
     with_document(Document::request_paste);
 }
@@ -41,7 +49,7 @@ pub(crate) fn touched_by_finger() -> bool {
     try_with_document(|document| document.touched_by_finger()).unwrap_or(false)
 }
 
-pub(crate) fn use_keyboard() -> ReadSignal<bool> {
+pub(crate) fn use_document_keyboard() -> ReadSignal<bool> {
     with_document(|document| document.watch_keyboard())
 }
 
@@ -55,6 +63,11 @@ pub(crate) fn focus_visible() -> bool {
     with_document(|document| {
         document.watch_focus_visible().get_untracked() && document.watch_keyboard().get_untracked()
     })
+}
+
+pub(crate) fn focus_held() -> Memo<bool> {
+    let focused = with_document(|document| document.watch_focused());
+    create_memo(move || focused.get().is_some())
 }
 
 pub(crate) fn holds_focus(node: NodeRef) -> Memo<bool> {
@@ -219,8 +232,15 @@ pub(crate) fn bind_test_id(node: NodeId, test_id: Prop<String>) {
     });
 }
 
+pub(crate) fn bind_description(node: NodeId, description: Prop<String>) {
+    bind(node, move || {
+        let description = Some(description.get()).filter(|description| !description.is_empty());
+        with_document(|document| document.set_description(node, description));
+    });
+}
+
 pub(crate) use crate::core::nodes::{
-    focus_ancestry, focused_node, opener_of, set_focus, stacked_at, tree_local, use_font_revision,
+    focus_ancestry, focused_node, opener_of, set_focus, stacked_at, tree_local, use_font_changes,
     use_preference_layer, use_preferences, window_of,
 };
 

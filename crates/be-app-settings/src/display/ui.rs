@@ -40,13 +40,7 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
     });
     let bar = editor.offered::<DesktopBarWatch>();
     let rotate_shown = create_memo(move || bar.get() && offered.get());
-    let screens = create_memo(move || bar.get() || offered.get());
-    let screens_title = create_memo(move || match offered.get() {
-        true => "Screens".to_owned(),
-        false => "Desktop bar".to_owned(),
-    });
     let before_rotate = create_memo(move || none.get() || arranged.get());
-    let after_rotate = create_memo(move || before_rotate.get() || rotate_shown.get());
     let in_bar = create_memo(move || merged.with(DisplaySettings::rotate_in_bar));
     let rotate_in_bar = DisplaySettings::rotate_in_bar_setting();
     let in_bar_row = settings.row(&rotate_in_bar);
@@ -60,19 +54,24 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
     view! {
         <SettingsPage @node_ref=&page>
             <AppearanceSection editor={editor} settings={settings} read_only={read_only} />
-            <Show condition={screens}>
-                <SettingsSection title={screens_title}>
-                    <Show condition={none}>
+            <Show value={move || bar.get() || offered.get()}>
+                <SettingsSection
+                    title={move || match offered.get() {
+                        true => "Screens".to_owned(),
+                        false => "Desktop bar".to_owned(),
+                    }}
+                >
+                    <Show value={none}>
                         <SettingsRow label="No screen is connected to this session." />
                     </Show>
-                    <Show condition={arranged}>
+                    <Show value={arranged}>
                         <ArrangementRow
                             settings={settings}
                             displays={displays}
                             read_only={read_only}
                         />
                     </Show>
-                    <Show condition={rotate_shown}>
+                    <Show value={rotate_shown}>
                         <LayeredSettingsRow
                             setting={in_bar_row}
                             label="Rotate button in the bar"
@@ -90,12 +89,12 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
                             />
                         </LayeredSettingsRow>
                     </Show>
-                    <Show condition={bar}>
+                    <Show value={bar}>
                         <LayeredSettingsRow
                             setting={keyboard_row}
                             label="Keyboard button in the bar"
                             description="A button in the desktop's bar that opens the on-screen keyboard."
-                            separated={after_rotate}
+                            separated={move || before_rotate.get() || rotate_shown.get()}
                             compact=true
                             locked={read_only}
                             id={"display.keyboard-in-bar".to_owned()}
@@ -110,7 +109,7 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
                     </Show>
                 </SettingsSection>
             </Show>
-            <ForEach keys={ids}>|id: String|
+            <ForEach value={ids}>|id: String|
                 <ScreenSection
                     id={id}
                     settings={settings}
@@ -118,7 +117,7 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
                     read_only={read_only}
                 />
             </ForEach>
-            <Show condition={power}>
+            <Show value={power}>
                 <PowerSection settings={settings} read_only={read_only} />
             </Show>
             <ChangesToast changes={settings.changes()} anchor={page} />

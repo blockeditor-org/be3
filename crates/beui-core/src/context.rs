@@ -19,7 +19,7 @@ use crate::input::InputState;
 use crate::paint::{Item, Recorded, Recording};
 use crate::painter::{Painter, PainterState, Scope, Shape};
 use crate::program::Waker;
-use crate::program::accessibility_dump::{AccessibilityDump, TestIds};
+use crate::program::accessibility_dump::{AccessibilityDump, Rendered, TestIds};
 use crate::screen_simulation::ScreenSimulation;
 use crate::window::{Appearance, WindowHosting, WindowState};
 use beui_types::ClipItem;
@@ -80,6 +80,8 @@ struct Inner {
     damage: RefCell<Vec<Rect>>,
     moves: RefCell<Vec<(Moved, Vec<Rc<Display>>)>>,
     copied: RefCell<Option<Clip>>,
+    shared: RefCell<Option<Clip>>,
+    share_sheet: Cell<bool>,
     paste: Cell<Option<PasteRequest>>,
     clipboard_reads: RefCell<Vec<ClipboardRead>>,
     copy_watchers: RefCell<Vec<CopyWatcher>>,
@@ -134,6 +136,8 @@ struct Inner {
     automated: Cell<bool>,
     overflows_wanted: Cell<bool>,
     unhurried: Cell<bool>,
+    presents_late: Cell<bool>,
+    held: RefCell<Option<String>>,
     waker: RefCell<Option<Waker>>,
     in_frame: Cell<bool>,
     woken: Cell<bool>,
@@ -272,6 +276,8 @@ pub struct FrameOutput {
     pub close_requested: bool,
     pub raise_requested: bool,
     pub copied: Option<Clip>,
+    /// What the frame handed to the platform's share sheet.
+    pub shared: Option<Clip>,
     pub paste: Option<PasteRequest>,
     pub clipboard_reads: Vec<ClipboardRead>,
     pub file_picks: Vec<FilePickRequest>,
@@ -311,11 +317,16 @@ impl FrameOutput {
         self.pixels_per_point
     }
 
-    pub fn test_ids(&self) -> Rc<TestIds> {
+    /// The accessibility tree as `drive` reads it, empty unless the frame was automated.
+    pub fn tree(&self) -> Rc<Rendered> {
         self.dump
             .as_ref()
-            .map(|dump| Rc::clone(dump.rendered().test_ids()))
+            .map(AccessibilityDump::rendered)
             .unwrap_or_default()
+    }
+
+    pub fn test_ids(&self) -> Rc<TestIds> {
+        Rc::clone(self.tree().test_ids())
     }
 
     pub fn test_id_rect(&self, test_id: &str) -> Option<Rect> {
@@ -380,6 +391,8 @@ impl Context {
                 damage: RefCell::new(Vec::new()),
                 moves: RefCell::new(Vec::new()),
                 copied: RefCell::new(None),
+                shared: RefCell::new(None),
+                share_sheet: Cell::new(false),
                 paste: Cell::new(None),
                 clipboard_reads: RefCell::new(Vec::new()),
                 copy_watchers: RefCell::new(Vec::new()),
@@ -434,6 +447,8 @@ impl Context {
                 automated: Cell::new(false),
                 overflows_wanted: Cell::new(false),
                 unhurried: Cell::new(false),
+                presents_late: Cell::new(false),
+                held: RefCell::new(None),
                 waker: RefCell::new(None),
                 in_frame: Cell::new(false),
                 woken: Cell::new(false),
@@ -525,6 +540,31 @@ impl Context {
 
     pub fn hurried(&self) -> bool {
         self.automated() && !self.inner.unhurried.get()
+    }
+
+    /// Has a driven program take in what it hears from programs of its own (be-host's apps)
+    /// only at the start of the next frame, so a frame is drawn between an app's layout and
+    /// its present (`drive present late`).
+    pub fn set_presents_late(&self, late: bool) {
+        self.inner.presents_late.set(late);
+    }
+
+    pub fn presents_late(&self) -> bool {
+        self.automated() && self.inner.presents_late.get()
+    }
+
+    /// Has a driven program hold back everything one of its own programs sends it (a be-host
+    /// app, by its id) until this is cleared, as though that program were slow to answer
+    /// (`drive hold`): a test's way to make what it sends arrive late.
+    pub fn set_held(&self, held: Option<String>) {
+        *self.inner.held.borrow_mut() = held;
+    }
+
+    pub fn held(&self) -> Option<String> {
+        match self.automated() {
+            true => self.inner.held.borrow().clone(),
+            false => None,
+        }
     }
 
     pub fn set_seen(&self, seen: bool) {
@@ -758,6 +798,7 @@ impl Context {
         self.inner.damage.borrow_mut().clear();
         self.inner.moves.borrow_mut().clear();
         self.inner.copied.borrow_mut().take();
+        self.inner.shared.borrow_mut().take();
         self.inner.paste.set(None);
         self.inner.fullscreen.set(None);
         self.inner.window_requests.borrow_mut().clear();
@@ -911,6 +952,7 @@ impl Context {
             window_requests: std::mem::take(&mut *self.inner.window_requests.borrow_mut()),
             dump,
             copied,
+            shared: self.inner.shared.borrow_mut().take(),
             paste: self.inner.paste.take(),
             clipboard_reads: std::mem::take(&mut *self.inner.clipboard_reads.borrow_mut()),
             file_picks: std::mem::take(&mut *self.inner.file_pick_requests.borrow_mut()),
@@ -1037,6 +1079,21 @@ impl Context {
     /// Puts `clip` on the clipboard at the end of the frame.
     pub fn copy(&self, clip: Clip) {
         *self.inner.copied.borrow_mut() = Some(clip);
+    }
+
+    /// Hands `clip` to the platform's share sheet at the end of the frame, where
+    /// `has_share_sheet` says it has one.
+    pub fn share(&self, clip: Clip) {
+        *self.inner.shared.borrow_mut() = Some(clip);
+    }
+
+    /// Whether the platform has a share sheet, as its runner last said.
+    pub fn has_share_sheet(&self) -> bool {
+        self.inner.share_sheet.get()
+    }
+
+    pub fn set_share_sheet(&self, sheet: bool) {
+        self.inner.share_sheet.set(sheet);
     }
 
     pub fn request_paste(&self) {

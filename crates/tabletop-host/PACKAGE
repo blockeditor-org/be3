@@ -17,6 +17,7 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-wasm-pure-wasi:be-wasm-pure-wasi",
                 "//crates/tabletop-api:tabletop-api",
                 "//third-party/rust:bincode-1.3.3",
                 "//third-party/rust:uuid-1.29.1",
@@ -30,6 +31,7 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-wasm-pure-wasi:be-wasm-pure-wasi",
                 "//crates/tabletop-api:tabletop-api",
                 "//third-party/rust:bincode-1.3.3",
                 "//third-party/rust:uuid-1.29.1",
@@ -43,6 +45,7 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-wasm-pure-wasi:be-wasm-pure-wasi",
                 "//crates/tabletop-api:tabletop-api",
                 "//third-party/rust:bincode-1.3.3",
                 "//third-party/rust:uuid-1.29.1",
@@ -56,6 +59,7 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-wasm-pure-wasi:be-wasm-pure-wasi",
                 "//crates/tabletop-api:tabletop-api",
                 "//third-party/rust:bincode-1.3.3",
                 "//third-party/rust:uuid-1.29.1",
@@ -69,6 +73,7 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-wasm-pure-wasi:be-wasm-pure-wasi",
                 "//crates/tabletop-api:tabletop-api",
                 "//third-party/rust:bincode-1.3.3",
                 "//third-party/rust:uuid-1.29.1",
@@ -82,6 +87,7 @@ write_package_value("be3.cargo", {
         "wasi-guest": {
             "binaries": {},
             "deps": [
+                "//crates/be-wasm-pure-wasi:be-wasm-pure-wasi",
                 "//crates/tabletop-api:tabletop-api",
                 "//third-party/rust:bincode-1.3.3",
                 "//third-party/rust:uuid-1.29.1",
@@ -95,6 +101,7 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-wasm-pure-wasi:be-wasm-pure-wasi",
                 "//crates/tabletop-api:tabletop-api",
                 "//third-party/rust:bincode-1.3.3",
                 "//third-party/rust:uuid-1.29.1",
@@ -108,6 +115,7 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-wasm-pure-wasi:be-wasm-pure-wasi",
                 "//crates/tabletop-api:tabletop-api",
                 "//third-party/rust:bincode-1.3.3",
                 "//third-party/rust:uuid-1.29.1",

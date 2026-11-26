@@ -13,29 +13,27 @@ pub const TABLE: &str = "__indirect_function_table";
 pub const STACK_POINTER: &str = "__stack_pointer";
 pub const MEMORY_BASE: &str = "__memory_base";
 pub const TABLE_BASE: &str = "__table_base";
-pub const TLS_BASE: &str = "__tls_base";
-pub const TLS_SIZE: &str = "__tls_size";
-pub const TLS_ALIGN: &str = "__tls_align";
-pub const INIT_TLS: &str = "__wasm_init_tls";
 pub const APPLY_DATA_RELOCS: &str = "__wasm_apply_data_relocs";
 pub const CONSTRUCTORS: &str = "__wasm_call_ctors";
 pub const PAGE_SIZE: u32 = 65536;
 pub const ENV: &str = "env";
 pub const GOT_MEMORY: &str = "GOT.mem";
 pub const GOT_FUNCTION: &str = "GOT.func";
-pub const GOT_THREAD_LOCAL: &str = "GOT.tls";
-pub const START_ARGUMENT_TLS: u32 = 4;
 pub const REGION_HEADER: u32 = 8;
 const MAX_ALIGN_LOG2: u32 = 16;
 const IDENTITY_LENGTH: usize = 64;
-const BLOCKS_PER_GROWTH: u32 = 16;
 pub const SHORT_SYMBOL_PREFIX: char = '#';
 const SHORTENED: [&str; 3] = ["_R", "_Z", "anon."];
 const SHORT_SYMBOL_BYTES: usize = 12;
 const BASE64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
+/// The SHA-256 of `bytes`.
+pub fn sha256(bytes: &[u8]) -> [u8; 32] {
+    Sha256::digest(bytes).into()
+}
+
 pub fn identity(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
+    sha256(bytes)
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()
@@ -123,20 +121,13 @@ pub struct Declared {
     pub memory_align: u32,
     pub table_size: u32,
     pub table_align: u32,
-    pub tls_size: u32,
-    pub tls_align: u32,
 }
 
 impl Declared {
     pub fn export(&self) -> String {
         format!(
-            "{LAYOUT_EXPORT_PREFIX}{}_{}_{}_{}_{}_{}",
-            self.memory_size,
-            self.memory_align,
-            self.table_size,
-            self.table_align,
-            self.tls_size,
-            self.tls_align
+            "{LAYOUT_EXPORT_PREFIX}{}_{}_{}_{}",
+            self.memory_size, self.memory_align, self.table_size, self.table_align
         )
     }
 
@@ -144,22 +135,14 @@ impl Declared {
         let layout = exports
             .into_iter()
             .find_map(|export| export.strip_prefix(LAYOUT_EXPORT_PREFIX))
-            .ok_or("it does not say how much memory, table and thread-local storage it needs")?;
+            .ok_or("it does not say how much memory and table it needs")?;
         let unreadable = || format!("its layout {layout} is not one this reads");
         let numbers: Vec<u32> = layout
             .split('_')
             .map(|number| number.parse::<u32>())
             .collect::<Result<_, _>>()
             .map_err(|_| unreadable())?;
-        let [
-            memory_size,
-            memory_align,
-            table_size,
-            table_align,
-            tls_size,
-            tls_align,
-        ] = numbers[..]
-        else {
+        let [memory_size, memory_align, table_size, table_align] = numbers[..] else {
             return Err(unreadable());
         };
         Ok(Self {
@@ -167,8 +150,6 @@ impl Declared {
             memory_align: memory_align.min(MAX_ALIGN_LOG2),
             table_size,
             table_align: table_align.min(MAX_ALIGN_LOG2),
-            tls_size,
-            tls_align: tls_align.clamp(1, 1 << MAX_ALIGN_LOG2),
         })
     }
 }
@@ -191,7 +172,6 @@ pub enum Import {
     Function(usize),
     Address(usize),
     FunctionSlot(i32),
-    ThreadLocal(usize),
     Elsewhere,
 }
 
@@ -200,7 +180,6 @@ pub enum Import {
 pub struct Placed {
     pub memory_base: u32,
     pub table_base: u32,
-    pub block: u32,
     pub imports: Vec<Import>,
 }
 
@@ -212,21 +191,12 @@ pub struct Slot {
     pub name: String,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Blocks {
-    pub size: u32,
-    pub align: u32,
-    pub pages: u32,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Plan {
     pub modules: Vec<Placed>,
     pub table_grow: u64,
     pub slots: Vec<Slot>,
-    pub blocks: Blocks,
     pub region: u32,
 }
 
@@ -285,29 +255,9 @@ pub fn plan(modules: &[Described], placed: u32, table_size: u64) -> Result<Plan,
         table_bases.push(base);
         next = base + u64::from(module.table_size);
     }
-    let mut size = 0;
-    let mut align = 1;
-    let mut block_offsets = Vec::with_capacity(declared.len());
-    for module in &declared {
-        let offset = aligned(size, u64::from(module.tls_align));
-        block_offsets.push(offset);
-        size = offset + u64::from(module.tls_size);
-        align = align.max(module.tls_align);
-    }
-    let align = align.max(4);
-    let size = u32::try_from(aligned(size, u64::from(align))).map_err(|_| too_big())?;
-    let blocks = Blocks {
-        size,
-        align,
-        pages: u32::try_from(
-            (u64::from(size) * u64::from(BLOCKS_PER_GROWTH)).div_ceil(u64::from(PAGE_SIZE)),
-        )
-        .map_err(|_| too_big())?,
-    };
     let mut placed_modules = vec![Placed {
         memory_base: 0,
         table_base: 0,
-        block: 0,
         imports: Vec::new(),
     }];
     let mut slots = Vec::new();
@@ -349,10 +299,6 @@ pub fn plan(modules: &[Described], placed: u32, table_size: u64) -> Result<Plan,
                     defined(modules, index + 1, |module| module.globals.contains(name))
                         .ok_or_else(|| missing(from, name, "nothing it is linked with"))?,
                 ),
-                (GOT_THREAD_LOCAL, _) => Import::ThreadLocal(
-                    defined(modules, index, |module| module.globals.contains(name))
-                        .ok_or_else(|| missing(from, name, "no library under it"))?,
-                ),
                 _ => Import::Elsewhere,
             };
             imports.push(import);
@@ -360,7 +306,6 @@ pub fn plan(modules: &[Described], placed: u32, table_size: u64) -> Result<Plan,
         placed_modules.push(Placed {
             memory_base,
             table_base,
-            block: u32::try_from(block_offsets[index - 1]).map_err(|_| too_big())?,
             imports,
         });
     }
@@ -368,27 +313,8 @@ pub fn plan(modules: &[Described], placed: u32, table_size: u64) -> Result<Plan,
         modules: placed_modules,
         table_grow: next - table_size,
         slots,
-        blocks,
         region,
     })
-}
-
-impl Blocks {
-    pub fn carve(&self, start: u32, pages: u32) -> Vec<u32> {
-        if self.size == 0 {
-            return Vec::new();
-        }
-        let size = u64::from(self.size);
-        let end =
-            (u64::from(start) + u64::from(pages) * u64::from(PAGE_SIZE)).min(u64::from(u32::MAX));
-        let mut at = aligned(u64::from(start), u64::from(self.align));
-        let mut carved = Vec::new();
-        while at + size <= end {
-            carved.push(at as u32);
-            at += size;
-        }
-        carved
-    }
 }
 
 impl Plan {
@@ -398,20 +324,103 @@ impl Plan {
             .checked_add_signed(value)
             .ok_or_else(|| "an address lies past a 32-bit address space".to_owned())
     }
+}
 
-    pub fn block(&self, blocks: u32, module: usize) -> u32 {
-        blocks.wrapping_add(self.modules[module].block)
+/// The memory a pure guest's module defines, in pages, which `importing_memory` imports instead.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DefinedMemory {
+    pub initial: u64,
+    pub maximum: Option<u64>,
+}
+
+/// A pure guest's module with the memory it defines imported instead, as `env.memory` of the same
+/// type, so that it compiles once and each instance of it is given a memory capped at its own
+/// limit (be-wasm-host's and be-wasm-sandbox-host's sandboxes). A module that defines no
+/// memory is unchanged. Answers the module and the memory it defined, in pages.
+pub fn importing_memory(bytes: &[u8]) -> Result<(Vec<u8>, Option<DefinedMemory>), String> {
+    use wasm_encoder::Encode;
+    use wasmparser::{Parser, Payload};
+    let invalid =
+        |error: wasmparser::BinaryReaderError| format!("the module is not valid: {error}");
+    let mut defined = None;
+    for payload in Parser::new(0).parse_all(bytes) {
+        if let Payload::MemorySection(reader) = payload.map_err(invalid)? {
+            for memory in reader {
+                defined = Some(memory.map_err(invalid)?);
+            }
+        }
     }
+    let Some(memory) = defined else {
+        return Ok((bytes.to_vec(), None));
+    };
+    let mut import = Vec::new();
+    ENV.encode(&mut import);
+    MEMORY_NAME.encode(&mut import);
+    wasm_encoder::EntityType::Memory(wasm_encoder::MemoryType {
+        minimum: memory.initial,
+        maximum: memory.maximum,
+        memory64: memory.memory64,
+        shared: memory.shared,
+        page_size_log2: memory.page_size_log2,
+    })
+    .encode(&mut import);
+    let imports = |count: u32, entries: &[u8]| {
+        let mut data = Vec::new();
+        count.encode(&mut data);
+        data.extend_from_slice(entries);
+        data.extend_from_slice(&import);
+        data
+    };
+    let mut module = wasm_encoder::Module::new();
+    let mut placed = false;
+    for payload in Parser::new(0).parse_all(bytes) {
+        let payload = payload.map_err(invalid)?;
+        let Some((id, range)) = payload.as_section() else {
+            continue;
+        };
+        let section = &bytes[range.start as usize..range.end as usize];
+        match &payload {
+            Payload::MemorySection(_) => continue,
+            Payload::ImportSection(reader) => {
+                // The entries follow the count, a LEB128 whose last byte has no high bit.
+                let counted = section
+                    .iter()
+                    .position(|byte| byte & 0x80 == 0)
+                    .map_or(section.len(), |last| last + 1);
+                let data = imports(reader.count() + 1, &section[counted..]);
+                module.section(&wasm_encoder::RawSection { id, data: &data });
+                placed = true;
+                continue;
+            }
+            _ => {}
+        }
+        // A module without imports gets a section for its memory's, before the first known
+        // section that follows imports.
+        if !placed && id > IMPORT_SECTION {
+            let data = imports(1, &[]);
+            module.section(&wasm_encoder::RawSection {
+                id: IMPORT_SECTION,
+                data: &data,
+            });
+            placed = true;
+        }
+        module.section(&wasm_encoder::RawSection { id, data: section });
+    }
+    if !placed {
+        let data = imports(1, &[]);
+        module.section(&wasm_encoder::RawSection {
+            id: IMPORT_SECTION,
+            data: &data,
+        });
+    }
+    let defined = DefinedMemory {
+        initial: memory.initial,
+        maximum: memory.maximum,
+    };
+    Ok((module.finish(), Some(defined)))
 }
 
-pub fn spawned_thread_locals(start_argument: i32) -> Result<u32, String> {
-    (start_argument as u32)
-        .checked_add(START_ARGUMENT_TLS)
-        .ok_or_else(|| {
-            "a spawned thread's start argument lies past a 32-bit address space".to_owned()
-        })
-}
+const IMPORT_SECTION: u8 = 2;
 
-pub fn thread_local_slot(address: u32, own_base: u32) -> i32 {
-    address.wrapping_sub(own_base) as i32
-}
+/// The name a pure guest's memory is imported under, from `ENV`.
+pub const MEMORY_NAME: &str = "memory";

@@ -11,17 +11,17 @@ fn a_break_ends_a_burst_but_not_an_open_gesture() {
     sim.advance(1_000);
     sim.operate(0, 1, Checklist::set_text(item, "b"));
     sim.advance(100);
-    sim.gesture(0, 2, Gesture::Break);
+    sim.break_step(0, 2);
     sim.operate(0, 1, Checklist::set_text(item, "c"));
     sim.advance(100);
-    sim.gesture(0, 1, Gesture::Break);
+    sim.break_step(0, 1);
     sim.advance(100);
     sim.operate(0, 1, Checklist::set_text(item, "d"));
     sim.advance(1_000);
 
     sim.gesture(0, 1, Gesture::Begin);
     sim.operate(0, 1, Checklist::set_text(item, "e"));
-    sim.gesture(0, 1, Gesture::Break);
+    sim.break_step(0, 1);
     sim.operate(0, 1, Checklist::set_text(item, "f"));
     sim.gesture(0, 1, Gesture::Cancel);
     sim.settle();

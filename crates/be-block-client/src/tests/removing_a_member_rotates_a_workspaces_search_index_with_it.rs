@@ -9,7 +9,7 @@ async fn index_bytes(peer: &Peer<MemoryStore>, index: Uuid) -> Vec<u8> {
         .await
         .unwrap()
         .expect("the index has content");
-    let commit = peer.load_commit(head).await.unwrap();
+    let commit = peer.load_reached(head).await.unwrap();
     peer.read_manifest(&commit.manifest).await.unwrap()
 }
 
@@ -46,7 +46,7 @@ async fn removing_a_member_rotates_a_workspaces_search_index_with_it() {
         .unwrap()
         .published();
     for member in [&reader, &removed] {
-        let public = admin.keys().contact(member.account()).unwrap();
+        let public = admin.verified_identity(member.account()).unwrap();
         admin
             .share(team, member.account(), Access::View, &public)
             .await

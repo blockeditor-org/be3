@@ -18,7 +18,7 @@ fn focusing_a_node_inside_a_culled_row_lays_it_out() {
                     <ListItem grow=1.0>
                         <Offset>
                             <List spacing=0.0>
-                                <ForEach keys={indices(ROWS)}>|index: usize| {
+                                <ForEach value={indices(ROWS)}>|index: usize| {
                                     let row = rows[index];
                                     view! {
                                         <Frame @node_ref=&row>
@@ -49,7 +49,13 @@ fn focusing_a_node_inside_a_culled_row_lays_it_out() {
         "the row holding the focus is laid out again"
     );
     assert!(
-        text_within(harness.document(), row, &format!("Row {FOCUSED}")).is_some(),
+        find_text(
+            harness.document(),
+            row,
+            &format!("Row {FOCUSED}"),
+            Match::Exact
+        )
+        .is_some(),
         "what the focus moved onto is laid out"
     );
 }

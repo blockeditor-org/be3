@@ -9,7 +9,11 @@ async fn a_connect_nobody_answers_times_out() {
     let connecting = tokio::spawn({
         let url = relay.url();
         let clock = clock.clone();
-        async move { Connection::connect(&url, &clock).await.map(drop) }
+        async move {
+            Connection::connect(&url, &clock, &Credentials::Header)
+                .await
+                .map(drop)
+        }
     });
 
     relay.heard_beyond(0).await;

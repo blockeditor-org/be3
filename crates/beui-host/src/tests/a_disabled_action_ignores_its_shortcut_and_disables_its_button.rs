@@ -9,7 +9,6 @@ fn a_disabled_action_ignores_its_shortcut_and_disables_its_button() {
     let runs = create_signal(0);
     let enabled = create_signal(false);
     let document = build_node(move || {
-        let enabled = create_memo(move || enabled.get());
         let group = Action::new("test.group", "Group", move || {
             runs.update(|runs| *runs += 1)
         })
@@ -32,7 +31,15 @@ fn a_disabled_action_ignores_its_shortcut_and_disables_its_button() {
     harness.key(Key::G, ctrl);
     harness.click(harness.center(harness.find("group")));
     assert_eq!(runs.get_untracked(), 0);
-    assert!(text_within(harness.document(), harness.find("group"), "Group").is_some());
+    assert!(
+        find_text(
+            harness.document(),
+            harness.find("group"),
+            "Group",
+            Match::Exact
+        )
+        .is_some()
+    );
 
     enabled.set(true);
     harness.frame(Vec::new());

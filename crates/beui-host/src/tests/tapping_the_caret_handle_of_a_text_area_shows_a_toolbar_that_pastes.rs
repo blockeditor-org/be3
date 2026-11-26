@@ -41,8 +41,8 @@ fn tapping_the_caret_handle_of_a_text_area_shows_a_toolbar_that_pastes() {
     harness.touch(TouchPhase::End, handle);
     harness.frame(Vec::new());
 
-    assert!(text_within(harness.document(), root, "Copy").is_none());
-    let paste = text_within(harness.document(), root, "Paste")
+    assert!(find_text(harness.document(), root, "Copy", Match::Exact).is_none());
+    let paste = find_text(harness.document(), root, "Paste", Match::Exact)
         .expect("tapping the handle shows its toolbar");
     let row = harness.center(paste);
     harness.touch(TouchPhase::Start, row);

@@ -7,11 +7,6 @@ mod web;
 
 mod keyboard_host;
 
-#[cfg(all(feature = "window", not(target_arch = "wasm32")))]
-mod runner;
-#[cfg(all(feature = "window", not(target_arch = "wasm32")))]
-mod saved_preferences;
-
 #[cfg(test)]
 #[allow(hidden_glob_reexports)]
 use beui_core::{

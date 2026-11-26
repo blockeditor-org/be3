@@ -37,7 +37,17 @@ fn adding_notes_makes_a_text_block_and_gives_it_the_keyboard() {
 
     test.click("presentation.notes.add");
     test.settle();
-    let asked = test.take_block_child_focus();
+    let asked: Vec<Uuid> = test
+        .take_keyboard_asks()
+        .into_iter()
+        .filter_map(|child| {
+            test.children()
+                .iter()
+                .find(|placement| placement.child == child)
+                .and_then(|placement| placement.content.block_id())
+                .map(Uuid::from_bytes)
+        })
+        .collect();
     let [made]: [Uuid; 1] = texts(&test)
         .try_into()
         .unwrap_or_else(|made: Vec<_>| panic!("one notes block is made, made {made:?}"));
@@ -57,7 +67,7 @@ fn adding_notes_makes_a_text_block_and_gives_it_the_keyboard() {
     assert_eq!(
         asked,
         [made],
-        "the keyboard is asked for the editor of the notes block just made"
+        "the editor of the notes block just made is placed asking for the keyboard"
     );
     assert!(
         test.children().iter().any(|placement| matches!(

@@ -27,5 +27,16 @@
       "module": "counter_types.wasm"
     }
   },
+  "hosts": {
+    "counter_host": {
+      "id": "6b1f0c2e-8d4a-4e7b-9c3f-2a5d7e9b1c04",
+      "edits": "636f756e-7465-722d-626c-6f636b2d0001",
+      "levels": [
+        { "access": "join", "name": "Join", "line": "Connect to whoever hosts the counter, and count with them." },
+        { "access": "edit", "name": "Host", "line": "Can run the counter, and so read and change it directly." },
+        { "access": "manage", "name": "Manage", "line": "Can also share it." }
+      ]
+    }
+  },
   "entry_point": "counter.wasm"
 }

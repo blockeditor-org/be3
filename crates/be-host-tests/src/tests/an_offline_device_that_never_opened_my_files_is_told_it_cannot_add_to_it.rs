@@ -4,7 +4,7 @@ use super::*;
 /// listed it does not hold: offline, it says so instead of making a block that never shows.
 #[test]
 fn an_offline_device_that_never_opened_my_files_is_told_it_cannot_add_to_it() {
-    let server = Server::start();
+    let server = server();
     let dev = server.account("Dev");
     let mut laptop = HostTest::device(&dev);
     let mut phone = laptop.another_device();

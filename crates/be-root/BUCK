@@ -1,0 +1,45 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_package", "cargo_test")
+load("@root//buck/program:defs.bzl", "app_data", "app_types")
+load("@root//buck/wasm:defs.bzl", "app_module")
+
+cargo_package()
+
+# The root be-host runs in place of its own UI
+# (decisions/the_real_root_is_its_own_crate_not_the_testing_root.md), built on
+# be-sdk-root and be-sdk-beui-root and linked against the app libraries as an
+# editor is (decisions/a_root_links_beui_as_an_app_does.md), so :module is
+# be_root.wasm linked against base and beui.
+app_module(
+    name = "module",
+    module = "be_root",
+)
+
+# Its constants, which the tests that run it read natively.
+cargo_library()
+
+# The tests run :module as be-host runs a root, on be-wasm-root-host, linked
+# against BASE_LIBRARY_WASM and BEUI_LIBRARY_WASM as an editor is, and compare
+# what it paints with the paintings in snapshots/.
+cargo_test(
+    env = {
+        "BASE_LIBRARY_WASM": "$(location //crates/be-sdk-library-base:module)",
+        "BEUI_LIBRARY_WASM": "$(location //crates/be-sdk-library-beui:module)",
+        "BE_ROOT_WASM": "$(location :module)",
+    },
+    paints = True,
+)
+
+# The root staged as an app, with no editors, data or block types, which
+# `be-host --root=be3.root` runs.
+export_file(
+    name = "manifest",
+    src = "manifest.json",
+)
+
+app_data(
+    name = "data",
+)
+
+app_types(
+    name = "types",
+)

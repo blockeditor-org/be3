@@ -7,3 +7,39 @@ impl<T, F: Future<Output = T> + 'static> Request<T> for F {}
 pub fn spawn_request(request: impl Request<()>) {
     wasm_bindgen_futures::spawn_local(request);
 }
+
+/// Asks the browser to keep this origin's storage rather than evict it under pressure, unless
+/// it already does (`navigator.storage.persisted()`, then `persist()`): true once it will, false
+/// when it refuses or cannot say. Read through `Reflect`, as the page and a worker each have a
+/// `navigator` of their own.
+pub async fn keep_storage() -> bool {
+    use wasm_bindgen::JsCast;
+    let get = |of: &wasm_bindgen::JsValue, name: &str| {
+        js_sys::Reflect::get(of, &wasm_bindgen::JsValue::from_str(name))
+            .ok()
+            .filter(|value| !value.is_undefined() && !value.is_null())
+    };
+    let Some(storage) =
+        get(&js_sys::global(), "navigator").and_then(|navigator| get(&navigator, "storage"))
+    else {
+        return false;
+    };
+    let ask = |name: &str| {
+        let storage = storage.clone();
+        let call = get(&storage, name)
+            .and_then(|method| method.dyn_into::<js_sys::Function>().ok())
+            .and_then(|method| method.call0(&storage).ok())
+            .and_then(|answer| answer.dyn_into::<js_sys::Promise>().ok());
+        async move {
+            let Some(promise) = call else {
+                return false;
+            };
+            wasm_bindgen_futures::JsFuture::from(promise)
+                .await
+                .ok()
+                .and_then(|kept| kept.as_bool())
+                .unwrap_or(false)
+        }
+    };
+    ask("persisted").await || ask("persist").await
+}

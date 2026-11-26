@@ -3,6 +3,7 @@ use be_type_settings::EditorSettingsContent;
 
 use be_sdk_beui::beui::{Key, Modifiers};
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use uuid::Uuid;
 
 use crate::default_editors::DefaultEditorsRoot;
@@ -31,6 +32,7 @@ fn choosing_a_default_editor_stores_it() {
                 name: "Note".to_owned(),
                 icon_codepoint: String::new(),
                 extensions: Vec::new(),
+                exporters: Vec::new(),
             },
             EditorDescriptor {
                 editor: debug.into_bytes(),
@@ -38,6 +40,7 @@ fn choosing_a_default_editor_stores_it() {
                 name: "Debug view".to_owned(),
                 icon_codepoint: String::new(),
                 extensions: Vec::new(),
+                exporters: Vec::new(),
             },
         ],
     });
@@ -45,15 +48,11 @@ fn choosing_a_default_editor_stores_it() {
     let picker = format!("default-editors.{block_type}");
     let choose = |editor: &mut BeuiTest<DefaultEditorsRoot>, index: usize| {
         editor.click(&picker);
-        editor.run();
         editor.key(Key::Home, Modifiers::NONE);
-        editor.run();
         for _ in 0..index {
             editor.key(Key::ArrowDown, Modifiers::NONE);
-            editor.run();
         }
         editor.key(Key::Enter, Modifiers::NONE);
-        editor.run();
     };
     let stored = |editor: &BeuiTest<DefaultEditorsRoot>| {
         editor

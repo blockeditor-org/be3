@@ -6,36 +6,37 @@ fn an_older_announcement_never_undoes_a_newer_one() {
     let mut graph = Graph::default();
     listed(&mut graph, vec![node(gone)], 10);
 
-    graph.put(node(note), 12);
+    graph.put(changed_at(node(note), 12), 12);
     graph.remove(note, 11);
     assert!(
         graph.get(note).is_some(),
         "a removal from before it was made"
     );
 
-    graph.put(node(gone), 9);
+    graph.put(changed_at(node(gone), 9), 9);
     graph.remove(gone, 10);
-    graph.put(node(gone), 10);
+    graph.put(changed_at(node(gone), 10), 10);
     assert!(
         graph.get(gone).is_some(),
         "an announcement as new as the last"
     );
     graph.remove(gone, 13);
-    graph.put(node(gone), 12);
+    graph.put(changed_at(node(gone), 12), 12);
     assert!(
         graph.get(gone).is_none(),
         "a change from before it was removed"
     );
 
     let unknown = Uuid::new_v4();
-    graph.put(node(unknown), 9);
+    graph.remove(unknown, 9);
+    graph.put(changed_at(node(unknown), 8), 8);
     assert!(
         graph.get(unknown).is_none(),
-        "a change from before the graph was loaded"
+        "a change from before the block was gone"
     );
     graph.relist_all();
     graph.listed(Listing::Children(BlockParent::Root), Vec::new(), 2);
-    graph.put(node(unknown), 3);
+    graph.put(changed_at(node(unknown), 3), 3);
     assert!(
         graph.get(unknown).is_some(),
         "a reload starts over, as a restarted server does"

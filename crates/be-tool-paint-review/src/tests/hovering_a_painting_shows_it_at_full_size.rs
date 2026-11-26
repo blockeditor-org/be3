@@ -12,7 +12,7 @@ fn hovering_a_painting_shows_it_at_full_size() {
             .contains(&"after-beui-demo.buttons".to_owned()),
         "hovering fetches the full image at once"
     );
-    assert!(review.test.shows("paint_review.preview"));
+    assert!(review.test.shown("paint_review.preview"));
     review.deliver();
     assert_eq!(
         review.text("paint_review.preview.caption"),
@@ -36,5 +36,5 @@ fn hovering_a_painting_shows_it_at_full_size() {
     );
     review.test.leave();
     review.test.frame(Vec::new());
-    assert!(!review.test.shows("paint_review.preview"));
+    assert!(!review.test.shown("paint_review.preview"));
 }

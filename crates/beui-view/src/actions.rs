@@ -4,7 +4,7 @@ use std::rc::{Rc, Weak};
 use std::any::Any;
 
 use crate::reactive::{
-    Get, IntoProp, KeyAt, KeyEvent, KeyInput, Memo, NodeId, NodeRef, OwnedSignal, Prop, Set,
+    Get, IntoPropValue, KeyAt, KeyEvent, KeyInput, Memo, NodeId, NodeRef, OwnedTrigger, Prop,
     create_effect, create_memo, on_cleanup, provide_context, untrack, use_context,
 };
 use crate::types::icons::Glyph;
@@ -162,14 +162,14 @@ impl PartialEq for Action {
 
 impl Action {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(
+    pub fn new<M1>(
         id: impl Into<String>,
-        label: impl IntoProp<String>,
+        label: impl IntoPropValue<Prop<String>, M1>,
         run: impl Fn() + 'static,
     ) -> ActionBuilder {
         ActionBuilder {
             id: id.into(),
-            label: label.into_prop(),
+            label: label.into_prop_value(),
             glyph: None,
             shortcuts: Vec::new(),
             enabled: Prop::Static(true),
@@ -307,19 +307,19 @@ impl ActionBuilder {
         self
     }
 
-    pub fn enabled(mut self, enabled: impl IntoProp<bool>) -> Self {
-        self.enabled = enabled.into_prop();
+    pub fn enabled<M>(mut self, enabled: impl IntoPropValue<Prop<bool>, M>) -> Self {
+        self.enabled = enabled.into_prop_value();
         self
     }
 
-    pub fn checked(mut self, checked: impl IntoProp<bool>) -> Self {
-        self.checked = Some(checked.into_prop());
+    pub fn checked<M>(mut self, checked: impl IntoPropValue<Prop<bool>, M>) -> Self {
+        self.checked = Some(checked.into_prop_value());
         self.radio = false;
         self
     }
 
-    pub fn radio(mut self, chosen: impl IntoProp<bool>) -> Self {
-        self.checked = Some(chosen.into_prop());
+    pub fn radio<M1>(mut self, chosen: impl IntoPropValue<Prop<bool>, M1>) -> Self {
+        self.checked = Some(chosen.into_prop_value());
         self.radio = true;
         self
     }
@@ -467,10 +467,9 @@ struct RegistryData {
     global: Rc<ScopeData>,
     scopes: RefCell<Vec<Weak<ScopeData>>>,
     next: Cell<u64>,
-    version: OwnedSignal<u64>,
+    changed: OwnedTrigger,
     listeners: RefCell<Vec<Rc<KeyHandler>>>,
     described: RefCell<Option<Rc<dyn Any>>>,
-    menus: RefCell<Vec<(u64, Vec<MenuNode>)>>,
 }
 
 #[derive(Clone)]
@@ -485,18 +484,14 @@ impl Registry {
             }),
             scopes: RefCell::new(Vec::new()),
             next: Cell::new(1),
-            version: OwnedSignal::new(0),
+            changed: OwnedTrigger::new(),
             listeners: RefCell::new(Vec::new()),
             described: RefCell::new(None),
-            menus: RefCell::new(Vec::new()),
         }))
     }
 
     fn touch(&self) {
-        self.0
-            .version
-            .handle()
-            .update(|version| *version = version.wrapping_add(1));
+        self.0.changed.notify();
     }
 
     fn scopes(&self) -> Vec<Rc<ScopeData>> {
@@ -765,7 +760,7 @@ fn install(registry: &Registry) {
                 return;
             };
             let registry = Registry(registry);
-            registry.0.version.get();
+            registry.0.changed.track();
             let chords = registry.intercepted();
             if *reported.borrow() != chords {
                 reported.replace(chords.clone());
@@ -777,8 +772,8 @@ fn install(registry: &Registry) {
                 return;
             };
             let registry = Registry(registry);
-            registry.0.version.get();
-            focused.get();
+            registry.0.changed.track();
+            focused.track();
             let path = untrack(crate::core::actions::focus_ancestry);
             let hosts = match hosting {
                 Some(hosting) => hosting.get(),
@@ -803,33 +798,50 @@ pub fn active_actions_from(focus_path: &[NodeId]) -> Vec<Action> {
     registry().actions(focus_path)
 }
 
+/// Adds `items` to the menu of the enclosing [`menu_scope`] for as long as the calling scope
+/// lasts. Outside any menu scope it adds to nothing.
 pub fn add_to_menu(items: Vec<MenuNode>) {
-    let registry = registry();
-    let key = registry.0.next.get();
-    registry.0.next.set(key + 1);
-    registry.0.menus.borrow_mut().push((key, items));
-    registry.touch();
+    let Some(MenuScope(scope)) = use_context::<MenuScope>() else {
+        return;
+    };
+    let key = scope.next.get();
+    scope.next.set(key + 1);
+    scope.menus.borrow_mut().push((key, items));
+    scope.changed.notify();
     on_cleanup(move || {
-        registry
-            .0
-            .menus
-            .borrow_mut()
-            .retain(|(held, _)| *held != key);
-        registry.touch();
+        scope.menus.borrow_mut().retain(|(held, _)| *held != key);
+        scope.changed.notify();
     });
 }
 
-pub fn document_menu() -> Memo<Vec<MenuNode>> {
-    let registry = registry();
+/// Gathers what [`add_to_menu`] adds beneath the calling scope into one menu, each part after a
+/// separator, apart from any other menu scope: an editor frame keeps its own editor's commands,
+/// though one document holds every editor an app shows.
+pub fn menu_scope() -> Memo<Vec<MenuNode>> {
+    let scope = Rc::new(MenuScopeData {
+        next: Cell::new(1),
+        changed: OwnedTrigger::new(),
+        menus: RefCell::new(Vec::new()),
+    });
+    provide_context(MenuScope(Rc::clone(&scope)));
     create_memo(move || {
-        registry.0.version.get();
+        scope.changed.track();
         let mut nodes = Vec::new();
-        for (_, items) in registry.0.menus.borrow().iter() {
+        for (_, items) in scope.menus.borrow().iter() {
             nodes.push(MenuNode::Separator);
             nodes.extend(items.iter().cloned());
         }
         tidy_menu(nodes)
     })
+}
+
+#[derive(Clone)]
+struct MenuScope(Rc<MenuScopeData>);
+
+struct MenuScopeData {
+    next: Cell<u64>,
+    changed: OwnedTrigger,
+    menus: RefCell<Vec<(u64, Vec<MenuNode>)>>,
 }
 
 #[derive(Clone, PartialEq)]

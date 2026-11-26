@@ -1,15 +1,8 @@
 package be3:server@0.1.0;
 
-/// The connection itself.
-interface connection {
-    /// Answers at once, so a client learns its socket is alive; the server
-    /// answers it ahead of anything else it is doing.
-    ping: async func();
-}
-
 /// Signing in, and the account's other devices.
 interface account {
-    use types.{account-id, client-id, error};
+    use types.{account-id, client-id, error, link-id, organization-id};
 
     /// A browser sign-in waiting for approval: the code a person approves in
     /// the browser, the secret that proves this client began it, the fewest
@@ -34,13 +27,18 @@ interface account {
         expired,
     }
 
-    /// A signed-in connection. `token` is empty when the token came in the
-    /// request's Authorization header.
+    /// A signed-in connection, as the server's greeting tells it (`Welcome`).
+    /// `token` is empty when the token came in the request's Authorization
+    /// header, and in a sign-in a poll approved, which signs no connection in,
+    /// `client` is 0.
     record authenticated {
         account: account-id,
         email: string,
         display-name: string,
         token: string,
+        /// This connection, as sessions, pairing and `session-happened` name
+        /// it.
+        client: client-id,
     }
 
     /// A message from another connection of the same account.
@@ -61,39 +59,53 @@ interface account {
         quota: option<u64>,
     }
 
-    /// Starts a browser sign-in. Made as a one-shot call (`POST .../call`),
-    /// like `poll-browser-login`: a connection's first call is `authenticate`.
-    begin-browser-login: async func() -> result<browser-login, error>;
+    /// One message in an account's mailbox (`query.mailbox`), kept until a device of the
+    /// account deletes it (`delete-message`).
+    record message {
+        id: u64,
+        /// Who it is from: the account that caused it, or none for the server's own notice.
+        %from: option<account-id>,
+        letter: letter,
+        /// When the server took it, in milliseconds since the epoch.
+        created: s64,
+    }
 
-    /// Where the sign-in begun with `code` and `secret` stands. Polled again
-    /// sooner than its interval, it fails with `slow-down`, and the interval
-    /// grows by five seconds (RFC 8628).
-    poll-browser-login: async func(code: string, secret: string) -> result<browser-login-state, error>;
+    /// What a message says. The server writes each in the transaction of the change it tells,
+    /// so none is lost between a change and its telling.
+    variant letter {
+        /// The server's notice: a way to sign in added or removed, or the email changing. In its
+        /// first `NOTICE_HOLD` (a week) no device deletes it, since whoever it warns about may
+        /// hold a session too; a device hides it for itself meanwhile.
+        notice(string),
+        /// A link of the account's was accepted (`accept-link`), by the message's sender.
+        accepted(accepted-link),
+        /// A contact took a new recovery phrase (`set-recovery-key`): its key change, sealed with
+        /// its old key for this account (`RecoverySecret::seal_key_change`).
+        key-change(list<u8>),
+        /// The account's record of the sender as a contact, sealed by the account for itself
+        /// (`be_block_client::contacts::OwnContact`), left by the write that made the two
+        /// contacts (`accept-link`, `create-agent`) for a device to keep in the account's block
+        /// (guides/blocks/keys.md, "Contacts").
+        contact(list<u8>),
+        /// The sender is no longer a contact (`remove-contact`, left to both): a device drops
+        /// its record from the account's block.
+        removed,
+        /// What the account pins for an organization (its access log's root and escrow key),
+        /// sealed by the account for itself (`be_block_client::contacts::seal_pin`), left by the
+        /// write it came with (`create-organization`, an invitation's `accept-link`,
+        /// `create-agent`) for a device to keep in the account's block.
+        pinned(pinned-letter),
+    }
 
-    /// Makes a profile on this device's own server and signs in to it.
-    create-local-profile: async func(display-name: string) -> result<authenticated, error>;
+    record pinned-letter {
+        organization: organization-id,
+        sealed: list<u8>,
+    }
 
-    /// Signs this connection in with an account token, or with none, the token
-    /// of the request's Authorization header.
-    authenticate: async func(token: option<string>) -> result<authenticated, error>;
+    record accepted-link {
+        link: link-id,
+        /// The accepter's card, sealed with the link's code.
+        card: list<u8>,
+    }
 
-    /// Ends the session the token named and signs this connection out. With
-    /// `push-address`, the device's push endpoint, the account forgets that
-    /// endpoint in every organization too, as the device stops taking its pushes.
-    logout: async func(push-address: option<string>) -> result<_, error>;
-
-    /// The signed-in account's storage usage and quota: its value as the stream opens,
-    /// then each new value as the bytes it pays for change. A latest-value
-    /// stream: a connection may hold several, each starting with the current
-    /// value, and one whose first value cannot be read ends with the failure.
-    /// Ends at once, denied, before an organization is open.
-    storage-changed: func() -> stream<account-storage>;
-
-    /// Sends a pairing message to one of the account's other connections, or
-    /// to all of them with no `to`. Fails when `to` is no longer connected.
-    pair: async func(to: option<client-id>, payload: list<u8>) -> result<_, error>;
-
-    /// The pairing messages the account's other connections send this one,
-    /// for as long as it is open.
-    paired: func() -> stream<pairing-message>;
 }

@@ -65,7 +65,7 @@ fn a_docked_editors_popover_is_an_anchored_view_of_its_tab() {
             .iter()
             .map(|(view, screen)| {
                 let (placement, mut request) = dock_screen(*view, *screen, true);
-                request.anchor_space = Some(space.clone());
+                request.anchor_space = Some(space);
                 (placement, request)
             })
             .unzip();

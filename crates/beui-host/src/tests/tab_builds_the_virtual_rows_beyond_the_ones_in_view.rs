@@ -12,7 +12,7 @@ fn tab_builds_the_virtual_rows_beyond_the_ones_in_view() {
                 <ListItem grow=1.0>
                     <Offset @node_ref=&scroll>
                         <VirtualList
-                            keys={indices(VIRTUAL_ITEM_COUNT)}
+                            value={indices(VIRTUAL_ITEM_COUNT)}
                             item_size=VIRTUAL_ITEM_HEIGHT
                         >|key: ReadSignal<usize>| {
                             let label = create_memo(move || format!("Row {}", key.get()));
@@ -38,7 +38,13 @@ fn tab_builds_the_virtual_rows_beyond_the_ones_in_view() {
         harness.key(Key::Tab, Modifiers::NONE);
         let focused = harness.document().focused.expect("Tab reaches every row");
         assert!(
-            text_within(harness.document(), focused, &format!("Row {row}")).is_some(),
+            find_text(
+                harness.document(),
+                focused,
+                &format!("Row {row}"),
+                Match::Exact
+            )
+            .is_some(),
             "Tab number {} lands on row {row}",
             row + 1
         );
@@ -57,10 +63,11 @@ fn tab_builds_the_virtual_rows_beyond_the_ones_in_view() {
         .focused
         .expect("Shift+Tab reaches the last row");
     assert!(
-        text_within(
+        find_text(
             harness.document(),
             last,
-            &format!("Row {}", VIRTUAL_ITEM_COUNT - 1)
+            &format!("Row {}", VIRTUAL_ITEM_COUNT - 1),
+            Match::Exact
         )
         .is_some()
     );

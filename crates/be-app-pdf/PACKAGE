@@ -19,12 +19,14 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-sdk-beui:be-sdk-beui",
                 "//crates/be-type-pdf:be-type-pdf",
+                "//crates/be-worker-pdf:be-worker-pdf",
                 "//crates/beui:beui",
             ],
             "examples": {},
             "features": [],
             "test_deps": [
                 "//crates/be-sdk-test:be-sdk-test",
+                "//crates/be-worker-pdf-render:be-worker-pdf-render",
                 "//third-party/rust:uuid-1.29.1",
             ],
             "test_features": [],

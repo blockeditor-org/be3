@@ -26,22 +26,17 @@ fn module(
 
 fn diamond() -> Vec<Described> {
     vec![
-        module("root", "", &[], &["malloc"], &["ROOT_DATA", "ROOT_TLS"]),
+        module("root", "", &[], &["malloc"], &["ROOT_DATA"]),
         module(
             "left",
-            "__be3_dylink_100_4_3_2_12_4",
-            &[
-                (ENV, TABLE),
-                (ENV, MEMORY_BASE),
-                (ENV, "malloc"),
-                (GOT_THREAD_LOCAL, "ROOT_TLS"),
-            ],
+            "__be3_dylink_100_4_3_2",
+            &[(ENV, TABLE), (ENV, MEMORY_BASE), (ENV, "malloc")],
             &["left_function"],
-            &["LEFT_DATA", "LEFT_TLS"],
+            &["LEFT_DATA"],
         ),
         module(
             "app",
-            "__be3_dylink_8_0_1_0_20_8",
+            "__be3_dylink_8_0_1_0",
             &[
                 (ENV, "left_function"),
                 (GOT_FUNCTION, "malloc"),
@@ -49,7 +44,6 @@ fn diamond() -> Vec<Described> {
                 (GOT_MEMORY, "ROOT_DATA"),
                 (GOT_MEMORY, "LEFT_DATA"),
                 (GOT_MEMORY, "OWN_DATA"),
-                (GOT_THREAD_LOCAL, "LEFT_TLS"),
                 ("be3_host", "host_wake"),
             ],
             &["own_function"],
@@ -62,7 +56,5 @@ mod a_library_that_is_not_what_it_is_named_is_refused;
 mod a_mangled_symbol_is_shortened_and_others_are_kept;
 mod a_missing_symbol_names_it_and_its_importer;
 mod a_plan_places_every_module_after_the_ones_it_needs;
-mod a_thread_local_slot_is_relative_to_the_importing_block;
-mod blocks_are_carved_from_the_pages_grown_for_them;
 mod the_declared_layout_is_read_from_an_export;
 mod the_libraries_are_read_in_dependency_order;

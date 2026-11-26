@@ -12,7 +12,7 @@ fn a_for_each_keeps_its_rows_between_the_children_beside_it() {
         view! {
             <List direction=Direction::Horizontal spacing=0.0>
                 <Frame @node_ref=&lead width=10.0 />
-                <ForEach keys={items}>|value: u32|
+                <ForEach value={items}>|value: u32|
                     <Frame width={value as f32 * 10.0} />
                 </ForEach>
                 <Frame @node_ref=&trail width=5.0 />

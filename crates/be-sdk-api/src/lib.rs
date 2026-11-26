@@ -11,9 +11,10 @@ be_wasm_ops_bindgen::generate!({
         "be3:ui/types@0.1.0": ::be_lib_ui_types::types,
         "be3:preferences/types@0.1.0": ::be_lib_ui_preferences::types,
         "be3:keys/types@0.1.0": ::be_lib_ui_keys::types,
-        "be3:gpu/device@0.1.0": ::be_wasm_gpu_abi::device,
+        "wasi:webgpu/webgpu@0.3.0-rc.2": ::be_wasm_gpu_abi::webgpu::webgpu,
+        "be3:gpu/host@0.1.0": ::be_wasm_gpu_abi::host,
     },
-    local: ["be3:gpu/device@0.1.0"],
+    local: ["wasi:webgpu/webgpu@0.3.0-rc.2", "be3:gpu/host@0.1.0"],
     with: {
         "uuid": [u8; 16],
         "hash": [u8; 32],
@@ -24,19 +25,21 @@ be_wasm_ops_bindgen::generate!({
         "web-view-id": crate::WebViewId,
         "view-id": crate::ViewId,
     },
+    encodings: {"uuid": ::be_wasm_ops::wire::Bytes, "hash": ::be_wasm_ops::wire::Bytes},
     copy: [
         "uuid", "hash", "host-window-id", "editor-instance-id", "screen-id", "child-id", "web-view-id", "view-id",
     ],
     default: [
-        "frame-chrome", "top-bar", "frame-spec", "fonts", "screen-layout",
+        "frame-chrome", "top-bar", "frame-spec", "screen-layout",
         "block-metadata", "artifact-state", "version-status",
         "menu-command", "menu-check", "menu-pin", "menu-heading", "block-filter", "child-preview",
         "catalog", "audio-status", "child-layer", "child-mode", "host-preference-sources",
         "host-contact", "host-image", "window-origin", "remap-state", "input-capture", "input-reach", "keyboard-layout", "keyboard-layouts",
+        "screen-input-state", "screen-wall-state", "screen-region-state",
         "power-availability", "media-level", "audio-output", "media-levels", "wifi-security",
         "wifi-network", "wifi-link", "wifi-status", "incoming-notification", "notification-inbox",
         "notification-report", "host-program", "program-catalog", "tray-toggle", "tray-menu-item", "host-tray-item",
-        "dialog-status", "dialog-frame", "window-kind", "insets", "picture", "block-history",
+        "account-role", "dialog-status", "dialog-frame", "window-kind", "insets", "picture", "block-history",
         "search-hit", "search-results",
     ],
     inline: [
@@ -44,19 +47,20 @@ be_wasm_ops_bindgen::generate!({
         "delete-command", "move-command", "reorder-command", "place-command", "adopt-command",
         "finish-command", "branch-command", "create-branch-command", "resolve-command",
         "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
-        "block-child", "creation-child", "artifact-settings-child", "picker-child",
+        "block-child", "creation-child", "artifact-settings-child", "picker-child", "export-child",
         "window-fullscreen", "wifi-connect", "wifi-hidden", "notification-closed", "notification-action-invoked",
         "program-list", "program-launch", "program-exec", "tray-scroll", "tray-menu-chosen",
     ],
-    ordered: ["child-content", "dock-tab-path", "block-filter"],
-    own_debug: ["font-face"],
+    ordered: ["child-content", "dock-tab-path", "block-filter", "export-request"],
 });
 
 pub use accessibility::DescribedAction;
 pub use app::ShellDialog;
+/// The fonts a host bundles, which it tells an app and a root (be3:ui's).
+pub use be_lib_ui_types::{FontFace, FontRole, Fonts};
 pub use be_wasm_ops as ops;
 pub use blocks::{
-    ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockMetadata, BlockQuery,
+    ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockMember, BlockMetadata, BlockQuery,
     ConflictSide, SearchHit, SearchLocation, SearchResults, StoredHead, VersionBranch,
     VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionOperation,
     VersionStatus,
@@ -65,27 +69,31 @@ pub use debug::debug::{DebugTemplate, PerformanceMeasurement};
 pub use dock::{DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedView, DockUpdate};
 pub use guest::dock::DockWatch;
 pub use host_services::{
-    AccessGrant, AccessListing, BlockAgent, ImportedBlock, PastedBlock, Revision, Signer,
-    TerminalHostBe, TerminalHostDownload, TerminalHostSource,
+    AccessGrant, AccessListing, BlockAgent, ImportedBlock, LinkAdmits, OfferedLevel, PastedBlock,
+    Revision, ShareLink, TerminalHostBe, TerminalHostDownload, TerminalHostFile,
+    TerminalHostSource,
 };
 pub use shared::access::AccessLevel;
 pub use shell_types::ChildStatus;
 pub use shell_types::{
     ArtifactDescription, AudioCommand, AudioSource, AudioStatus, Catalog, ChildPreview,
-    CreationProgress, DialogAnswer, DialogStatus, DropAction, EditorDescriptor, FitArea,
-    OfferedClipItem, PreviewImage, Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
+    CreationProgress, DialogAnswer, DialogStatus, DropAction, EditorDescriptor, ExporterDescriptor,
+    FitArea, OfferedClipItem, PreviewImage, Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
 };
 pub use types::{
     AnchorSpace, AnchoredPlacement, ChildContent, ChildLayer, ChildMode, ChildPlacement,
-    ChildPlacements, DialogFrame, Failure, FontFace, FontRole, Fonts, FrameChrome, FrameReport,
-    FrameSpec, Hello, HelloAccepted, HostPanel, HostTransform, HostView, InputBatch, Insets,
-    LayoutCommit, MenuAsk, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening, OpeningKind,
+    ChildPlacements, DialogFrame, Failure, FrameChrome, FrameReport, FrameSpec, Hello,
+    HelloAccepted, HostPanel, HostTransform, HostView, InputBatch, Insets, LayoutCommit, MenuAsk,
+    Occluder, OpenArtifact, OpenBlock, OpenCreation, OpenHost, OpenJoin, Opening, OpeningKind,
     Picture, PresentCommit, PresentedFrame, PressClaim, ScreenDamage, ScreenLayout,
     ScreenPlacement, ScreenRequest, ScreenWindow, Scrim, SurfaceFormat, SurfaceRect, SurfaceSpec,
     SurfaceSupport, TimedInput, TopBar, ViewAnchor, ViewEdge, ViewPlacement, ViewSize,
     ViewportMetrics,
 };
-pub use types::{BlockFilter, BlockLocation, BlockPick, OpenPicker, OpenRename, PickedBlock};
+pub use types::{
+    BlockFilter, BlockLocation, BlockPick, ExportRequest, OpenExport, OpenPicker, OpenRename,
+    PickedBlock,
+};
 pub use types::{
     DockAlign, DockBar, DockBarEdge, DockBarHide, DockBarMove, DockBarPlace, DockBarPlacement,
     DockBarWindow, DockChild, DockChildClose, DockChildHosted, DockChildPick, DockCompact,
@@ -105,11 +113,14 @@ pub use types::{
 
 pub use account::AccountStorage;
 pub use account::HostPreferenceSources;
-pub use account::{BlockNotifyMode, NotifyMode, PushDevice};
+pub use account::{AccountRole, BlockMute, NotifyMode, PushDevice};
 pub use be_wasm_ops::Watched;
 pub use contacts::HostContact;
 pub use desktop::{
-    displays::{HostDisplay, ScreenEdge, ScreenEdgeState, ScreenSide},
+    displays::{
+        HostDisplay, ScreenInput, ScreenInputState, ScreenRegion, ScreenRegionState, ScreenSide,
+        ScreenWall, ScreenWallState,
+    },
     input::{
         CapturedChord, CapturedTrigger, HostInputDevice, InputCapture, InputReach, KeyboardLayout,
         KeyboardLayouts, Pointing, RemapState, WheelTurn,
@@ -128,12 +139,12 @@ pub use desktop::{
 };
 pub use desktop_types::TrayMenuEntry;
 pub use guest::account::{
-    AdministratorWatch, LinkBaseWatch, NotifyModesWatch, PreferenceSourcesWatch, PushDeviceWatch,
+    LinkBaseWatch, MutesWatch, PreferenceSourcesWatch, PushDeviceWatch, RoleWatch,
     StorageUsageWatch,
 };
 pub use guest::contacts::ContactsWatch;
 pub use guest::desktop::{
-    displays::{DesktopBarWatch, DisplaysWatch, ScreenEdgesWatch},
+    displays::{DesktopBarWatch, DisplaysWatch, ScreenInputWatch},
     epaper::EpaperWatch,
     input::{
         InputCaptureWatch, InputDevicesWatch, InputReachWatch, KeyboardLayoutsWatch, RemapsWatch,
@@ -243,10 +254,6 @@ pub struct HostWindowId(pub u64);
 impl TopBar {
     pub fn shown(self) -> bool {
         matches!(self, Self::Shown)
-    }
-
-    pub fn phone(self) -> bool {
-        matches!(self, Self::Phone)
     }
 }
 
@@ -413,6 +420,13 @@ impl ViewId {
 }
 
 impl ViewPlacement {
+    /// Whether views anchored in it (a select's list, a menu) open as views of their own past
+    /// its bounds: every view but a preview, which takes no input. An artifact's settings view,
+    /// a dialog, is one.
+    pub fn anchors(self) -> bool {
+        !matches!(self, Self::Parent(ParentView::Preview))
+    }
+
     pub fn reports(self) -> bool {
         !matches!(
             self,
@@ -554,7 +568,8 @@ impl ChildContent {
             | Self::ArtifactSettings { .. }
             | Self::DockTab(_)
             | Self::Picker { .. }
-            | Self::Rename(_) => None,
+            | Self::Rename(_)
+            | Self::Export { .. } => None,
         }
     }
 }
@@ -569,7 +584,7 @@ impl ChildPlacements {
 }
 
 pub fn is_published(interface: &str) -> bool {
-    interface == AdministratorWatch::INTERFACE
+    interface == RoleWatch::INTERFACE
         || interface == ContactsWatch::INTERFACE
         || extension_of(interface).is_some()
 }
@@ -593,6 +608,10 @@ impl AccessLevel {
         self >= Self::KnowExists
     }
 
+    pub fn can_join(self) -> bool {
+        self >= Self::Join
+    }
+
     pub fn can_view(self) -> bool {
         self >= Self::View
     }
@@ -609,6 +628,7 @@ impl AccessLevel {
         match self {
             Self::None => "No access",
             Self::KnowExists => "Knows it exists",
+            Self::Join => "Can join",
             Self::View => "Can view",
             Self::Edit => "Can edit",
             Self::Manage => "Can manage",
@@ -623,17 +643,6 @@ pub enum WebViewCommand {
     Reload,
     FocusHost,
     Close,
-}
-
-impl fmt::Debug for FontFace {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("FontFace")
-            .field("role", &self.role)
-            .field("index", &self.index)
-            .field("bytes", &self.data.len())
-            .finish()
-    }
 }
 
 impl Insets {
@@ -833,3 +842,16 @@ fn blob(value: &[u8]) -> Result<(), DecodeError> {
 
 #[cfg(test)]
 mod tests;
+
+impl TerminalHostFile {
+    /// Whether `name` is one a development build's file may have beside `be`: a plain file
+    /// name, which no shell command reads as a path, an option or a quote. The host refuses to
+    /// answer any other, and an app to place one.
+    pub fn plain_name(name: &str) -> bool {
+        !name.is_empty()
+            && !name.starts_with(['.', '-'])
+            && name
+                .chars()
+                .all(|character| character.is_ascii_alphanumeric() || "._-".contains(character))
+    }
+}

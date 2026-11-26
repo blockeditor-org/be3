@@ -16,7 +16,7 @@ fn declared(test: &mut BeuiTest<StandaloneRoot>) -> HashMap<String, u64> {
             DockMessage::Declare(declare) => declare.declaration,
             _ => None,
         })
-        .last()
+        .next_back()
         .expect("the docked editor declares its dock");
     declaration
         .tabs
@@ -95,6 +95,7 @@ fn a_layout_kept_while_joined_comes_back_in_a_standalone_dock() {
             fullscreen: None,
             mode: be_sdk_api::DockMode::Tiled,
             covers: Vec::new(),
+            restored: 0,
         }),
     })]);
     kept_dock(&joined, display);

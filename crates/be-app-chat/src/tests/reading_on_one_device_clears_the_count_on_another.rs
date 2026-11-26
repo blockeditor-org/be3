@@ -16,11 +16,7 @@ fn reading_on_one_device_clears_the_count_on_another() {
     laptop.editor.blur();
     laptop.run();
     for body in ["Two more things", "Who takes the notes next week?"] {
-        laptop.arrive(signed_by(
-            &laptop.content(),
-            ROSA,
-            Message::new(ROSA, MORNING + 40 * MINUTE, body),
-        ));
+        laptop.arrive(ROSA, &message(MORNING + 40 * MINUTE, body));
     }
     assert!(
         laptop
@@ -45,28 +41,21 @@ fn reading_on_one_device_clears_the_count_on_another() {
         })
         .expect("the laptop keeps where it read in its owner-only settings");
     assert!(laptop.editor.store().owner_only(reads));
-    let first = laptop.id(0);
-    laptop
-        .editor
-        .edit::<ChatReadsContent>(Some(reads), &ChatReads::set_read(CHAT, PHONE, first, &[]));
+    laptop.editor.edit::<ChatReadsContent>(
+        Some(reads),
+        &ChatReads::set_read(CHAT, PHONE, laptop.seq(0)),
+    );
     laptop.run();
     assert!(
         laptop.editor.shown("chat.unread"),
         "the phone, behind, takes no reading back"
     );
 
-    // The phone reads the chat, dropping the places it saw: its edit syncs to the laptop as
-    // any edit does.
-    let newest = laptop.content().newest().expect("the chat has messages");
-    let seen = laptop
+    // The phone reads the chat: its edit syncs to the laptop as any edit does.
+    let newest = laptop.seq(3);
+    laptop
         .editor
-        .content::<ChatReadsContent>(Some(reads))
-        .root()
-        .places(CHAT);
-    laptop.editor.edit::<ChatReadsContent>(
-        Some(reads),
-        &ChatReads::set_read(CHAT, PHONE, newest, &seen),
-    );
+        .edit::<ChatReadsContent>(Some(reads), &ChatReads::set_read(CHAT, PHONE, newest));
     laptop.run();
     assert!(
         !laptop.editor.shown("chat.unread"),
@@ -77,11 +66,8 @@ fn reading_on_one_device_clears_the_count_on_another() {
             .editor
             .content::<ChatReadsContent>(Some(reads))
             .root()
-            .places(CHAT)
-            .into_iter()
-            .map(|place| (place.device, place.message))
-            .collect::<Vec<_>>(),
-        [(PHONE, newest)],
-        "the phone's place, further on, replaced those it saw"
+            .place(CHAT),
+        Some(newest),
+        "the furthest place counts"
     );
 }

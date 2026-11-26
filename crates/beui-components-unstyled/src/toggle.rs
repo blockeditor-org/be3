@@ -1,6 +1,5 @@
 use crate::form::Posted;
 use accesskit::{Node, Role, Toggled};
-use beui_macros::{component, view};
 use beui_view::types::icons::Glyph;
 
 use beui_view::types::CursorIcon;
@@ -38,7 +37,7 @@ pub fn Toggle(
     #[prop(default = true)] tab_stop: Prop<bool>,
     #[prop(default = true)] press_focus: Prop<bool>,
     #[prop(default = String::new())] name: Prop<String>,
-    #[prop(children)] content: Option<Render<ToggleHandle>>,
+    #[prop(children)] content: Option<Render<ToggleHandle, NodeId>>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
     let label = action_label(action.as_ref(), label);
@@ -67,7 +66,7 @@ pub fn Toggle(
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(role)));
     component_accessibility(create_memo(move || {
         let mut node = accessibility.get();
-        if node.label().is_none() && !label.get().is_empty() {
+        if node.label().is_none() && !label.with(String::is_empty) {
             node.set_label(label.get());
         }
         node.set_toggled(match mixed.get() {
@@ -110,10 +109,6 @@ pub fn Toggle(
     };
     let key_toggle = toggle_checked.clone();
     let tab_stop = Prop::dynamic(move || tab_stop.get() && !disabled.get());
-    let cursor = create_memo(move || match disabled.get() {
-        true => CursorIcon::Default,
-        false => CursorIcon::PointingHand,
-    });
 
     api.fill(ToggleApi(checked));
 
@@ -126,7 +121,10 @@ pub fn Toggle(
             on_focus_change={focused}
             on_activate_change={key_active}
             on_activate={key_toggle}
-            cursor
+            cursor={move || match disabled.get() {
+                true => CursorIcon::Default,
+                false => CursorIcon::PointingHand,
+            }}
             key_active
             on_click={toggle_checked}
             on_hover_change={hovered}

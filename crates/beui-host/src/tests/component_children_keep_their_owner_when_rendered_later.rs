@@ -2,9 +2,9 @@ use super::*;
 use crate::reactive::*;
 
 #[component]
-fn Deferred(children: Render) -> NodeId {
+fn Deferred(children: Build<NodeId>) -> NodeId {
     view! {
-        <styled::Frame>{children.call(())}</styled::Frame>
+        <styled::Frame>{children.call()}</styled::Frame>
     }
 }
 

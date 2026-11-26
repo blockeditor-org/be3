@@ -14,7 +14,7 @@ fn finds(text: &str, blocks: &[Uuid]) {
     want_searches(Owner::Host, vec![ask.clone()]);
     let mut expected = blocks.to_vec();
     expected.sort();
-    crate::wait_until(|shared| {
+    crate::wait_until(&format!("found {text:?} in what it should"), |shared| {
         let answer = shared.search.answer(&ask)?;
         let mut found: Vec<Uuid> = answer.hits.iter().map(|hit| hit.block).collect();
         found.sort();
@@ -47,21 +47,18 @@ fn a_search_finds_what_another_device_indexes_while_this_one_is_online() {
         Some(TextBlock::of("").encode()),
         false,
     );
-    assert_eq!(
-        change_child(
-            workspace,
-            WorkspaceContent::CONTENT_TYPE,
-            ChildChange::Add(apples)
-        ),
-        Some(true)
-    );
+    assert!(made(change_child(
+        workspace,
+        WorkspaceContent::CONTENT_TYPE,
+        ChildChange::Add(apples)
+    )));
     open(apples, TextContent::CONTENT_TYPE);
     type_text(apples, 0, "apples");
     flush();
     finds("apples", &[apples]);
     // The mirror takes the index's name once its root's metadata is settled, which a search
     // over the index does not wait for.
-    let index = crate::wait_until(|shared| {
+    let index = crate::wait_until("named the workspace's search index", |shared| {
         shared
             .graph
             .get(workspace)?

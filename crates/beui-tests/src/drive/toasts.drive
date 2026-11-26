@@ -1,22 +1,30 @@
 # Toasts stack in their area, close from their dismiss button and run an
-# action; a plain toast goes by itself after eight seconds.
+# action; a plain toast goes by itself after eight seconds. Each slides in
+# and out on a spring, so the stopped clock is paused past it.
 clock stop
 wait 'value="Toasts 0 chose nothing"'
 click 'Button "Toast"'
+pause 500
 wait '#toast.1'
 click 'Button "Message"'
+pause 500
 wait '#toast.2'
 wait 'value="Toasts 2 chose nothing"'
 click '#toast.1.dismiss'
+pause 500
 wait not '#toast.1'
 wait 'value="Toasts 1 chose nothing"'
 click '#toast.2.action.reply'
+pause 500
 wait not '#toast.2'
 wait 'value="Toasts 0 chose reply 2"'
 click 'Button "Toast"'
+pause 500
 wait '#toast.3'
 pause 7000
 wait '#toast.3'
 pause 1500
+# Its time is up by now; it slides off.
+pause 500
 wait not '#toast.3'
 wait 'value="Toasts 0 chose reply 2"'

@@ -35,6 +35,7 @@ impl Zoomed {
                                 @node_ref=&area
                                 state
                                 line_numbers=false
+                                scroll={plain_scroll()}
                             />
                         </CanvasItem>
                     </Canvas>

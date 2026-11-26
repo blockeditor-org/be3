@@ -13,7 +13,6 @@ fn play_hands_the_host_the_tracks_bytes_once() {
     played(&mut test);
 
     test.click("audio.play");
-    test.run();
     assert_eq!(
         played(&mut test),
         [
@@ -26,16 +25,14 @@ fn play_hands_the_host_the_tracks_bytes_once() {
     );
 
     test.click("audio.play");
-    test.run();
     assert_eq!(played(&mut test), [AudioCommand::Toggle]);
 
-    let replaced = AudioFile::from_file("other.wav", "audio/wav", vec![4, 5]).unwrap();
+    let replaced = AudioFile::from_file("other.wav", vec![4, 5]);
     test.hold(None, replaced.clone());
     test.run();
     assert_eq!(played(&mut test), [AudioCommand::Reset]);
 
     test.click("audio.play");
-    test.run();
     assert_eq!(
         played(&mut test),
         [

@@ -11,7 +11,7 @@ use std::path::Path;
 use rand::TryRngCore;
 use rusqlite::{Connection, OptionalExtension, params};
 
-use super::{hash_token, portal::now};
+use super::{TokenKind, hash_token, portal::now};
 use crate::{ServerError, schema};
 
 /// Characters in a code, drawn from `ALPHABET`: 100 bits.
@@ -30,7 +30,7 @@ pub struct InviteCode {
     pub used: i64,
 }
 
-fn open(data_dir: &Path) -> Result<Connection, ServerError> {
+pub(super) fn open(data_dir: &Path) -> Result<Connection, ServerError> {
     std::fs::create_dir_all(data_dir)?;
     let connection = be_block_sqlite_schema::open(data_dir.join("metadata.sqlite"))?;
     schema::initialize(&connection)?;
@@ -45,7 +45,7 @@ pub(crate) fn invite_hash(code: &str) -> String {
         .filter(char::is_ascii_alphanumeric)
         .map(|c| c.to_ascii_lowercase())
         .collect();
-    hash_token(&format!("invite:{code}"))
+    hash_token(TokenKind::Invite, &code)
 }
 
 /// Makes a code that registers up to `uses` accounts (no limit for `None`)

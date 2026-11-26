@@ -4,7 +4,7 @@ load("@root//buck/wasm:defs.bzl", "app")
 cargo_package()
 
 app(
-    extra_deps = ["root//third-party/pdfium:pdfium"],
     module = "pdf",
     types = "//crates/be-type-pdf:module",
+    workers = ["//crates/be-worker-pdf-render:module"],
 )

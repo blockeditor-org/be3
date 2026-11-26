@@ -8,7 +8,7 @@ rewritten, conflicts are data, and every operation can be undone.
 
 ## The pieces
 
-- A **repository** (`be_block::Repository`) holds branch heads, an optional
+- A **repository** (`be_block_repository::Repository`) holds branch heads, an optional
   upstream repository in the same organization, and the operation log. It
   keeps its history alive with `Peer::hold` (`HoldObjects`, `Hold::Lasting`), whatever its own
   commits' retention does.
@@ -21,7 +21,7 @@ rewritten, conflicts are data, and every operation can be undone.
 - A **change** is the line of snapshots sharing a `ChangeId`
   (`Commit::change`); rewriting keeps the change id and makes a new commit id.
   A commit with none is its own change (`Commit::change_id`).
-- A **checkout** (`be_block::Checkout`) is the parent of a working tree of
+- A **checkout** (`be_block_repository::Checkout`) is the parent of a working tree of
   ordinary blocks, edited by every editor and session as usual. Sharing the
   checkout block is working together; two checkouts are working apart. It
   records its repository, branch, `working` snapshot, root, each block's head
@@ -48,7 +48,7 @@ created as `masked(local, scope_mask(checkout))` with the `LOCAL_ID` metadata
 key; a block created in or adopted into a checkout keeps its own id as its
 local id. The host translates every block id crossing the app protocol for an
 instance inside a checkout (`Instances::translate`, over the `BlockIds` of what
-crosses, in `be-host-runtime/src/calls.rs`; a clip item's ids are its `refs`
+crosses, in `be-sdk-app-host/src/calls.rs`; a clip item's ids are its `refs`
 whatever its format, guides/beui/platforms.md), and the peer resolves published
 references the same way (`Peer::set_resolver`), so neither content nor editors
 know about checkouts. Resolution looks in the instance's checkout first and
@@ -65,18 +65,39 @@ under the checkout), resolve, undo, fork, pull and push. It answers a
 `block-watch` of the `version` subject with each shown repository's and checkout's `version-status`,
 recomputed when the mirror changes, and holds followed checkouts' trees in the
 mirror (`Query::Subtree` under `Owner::Version`), re-listing before each
-operation so every head is current.
+operation so every head is current. The statuses, computed in the worker's
+loop, and the commands, run in its lane (guides/blocks/host.md), share one
+cache of the trees and commits either read or wrote (`version::Objects`), so
+neither reads again what the other holds; it keeps the `TREES_KEPT` trees and
+`COMMITS_KEPT` commits used last. Edits go on while a command runs, so
+a block it writes may have moved since it read it: the write merges with what
+the block moved to (`merge_over`), from the two heads' common ancestor found
+within `MERGE_BASE_DEPTH` levels of each (`Peer::merge_base`, which fetches
+only the commits it reaches, a level of both sides in one round of requests), or else from the head the command read,
+as when a side reaches a commit retention thinned away, which is not taken for a
+root.
+
+Offline, every operation runs against the device's store. A command reads and
+writes each block over this device's newest head rather than the server's
+(`head_here`, and `scan` for the tree), its writes wait in the outbox
+(`Saved::Kept`), as do the blocks it makes (listed through `Graph::made` until
+the drain sends them) and the holds on its snapshots' commits and trees
+(`Op::Hold`). A branch another device moved meanwhile reaches the drain as the
+repository's divergence, which merges through `Repository::merge_in`: their
+commit stays at the branch's name and this device's is kept beside it
+(`kept_beside`: `main-2`, `main-3`), so a checkout still on the branch is told
+to bring in the newer changes, as when the server refuses the move online.
 
 A checkout replaces content someone has open through the replica's reconcile
-on `head-moved` (a head another connection published, which `changes` tells as
-`Event::BlockChanged` with `own` unset); the worker calls
+on `head-moved` (a head the block's followed tree read names, `Replicas::heard_head`,
+which the replica takes as news unless it published or had it); the worker calls
 `head-moved` for what it publishes itself (`Replicas::moved_here`).
 
 ## Not built yet
 
-- A snapshot takes each block's head after this peer seals what it owns, so
-  another peer's unsealed session edits are left out; a seal barrier would fix
-  that.
+- A snapshot takes each block's head after this peer seals the sessions it
+  holds the lease of, so edits the server ordered but another peer has not
+  sealed are left out; a seal barrier would fix that.
 - Conflicts resolve a block at a time by taking one side; the three sides are
   linked, not shown side by side.
 - A repository never lets go of history until it is collected itself; freeing

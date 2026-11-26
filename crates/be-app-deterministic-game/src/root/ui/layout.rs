@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::rc::Rc;
+
 use be_sdk_beui::beui::{Pos2, Rect, Vec2, pos2, vec2};
 use tabletop_api::Spot;
 use tabletop_api::board::{Area, Board, ItemId, Sprite};
@@ -46,6 +49,12 @@ pub(crate) struct Layout {
     pub(crate) unit: f32,
     pub(crate) items: Vec<Placed>,
     pub(crate) spots: Vec<SpotPlace>,
+    /// Where each item is in `items`, the first with its id, built with them and shared by
+    /// the layouts made from this one (`centered_in`), so finding one
+    /// (`item`) takes a step rather than a scan.
+    places: Rc<HashMap<ItemId, usize>>,
+    /// Where each spot is in `spots`.
+    spot_places: Rc<HashMap<Spot, usize>>,
 }
 
 pub(crate) fn movable(sprite: &Sprite) -> bool {
@@ -78,23 +87,32 @@ impl Layout {
             })
             .collect();
         let mut spots: Vec<SpotPlace> = Vec::new();
+        let mut spot_places: HashMap<Spot, usize> = HashMap::new();
         for placed in &items {
             let Some(spot) = placed.spot else {
                 continue;
             };
             let piece = matches!(placed.sprite, Sprite::Piece(_));
-            match spots.iter_mut().find(|known| known.spot == spot) {
-                Some(known) => {
+            match spot_places.get(&spot) {
+                Some(&known) => {
+                    let known = &mut spots[known];
                     known.rect = known.rect.union(placed.rect);
                     known.occupied |= piece;
                 }
-                None => spots.push(SpotPlace {
-                    spot,
-                    rect: placed.rect,
-                    look: Look::of(&placed.sprite),
-                    occupied: piece,
-                }),
+                None => {
+                    spot_places.insert(spot, spots.len());
+                    spots.push(SpotPlace {
+                        spot,
+                        rect: placed.rect,
+                        look: Look::of(&placed.sprite),
+                        occupied: piece,
+                    });
+                }
             }
+        }
+        let mut places = HashMap::with_capacity(items.len());
+        for (index, placed) in items.iter().enumerate() {
+            places.entry(placed.id).or_insert(index);
         }
         Self {
             size: vec2(
@@ -104,6 +122,8 @@ impl Layout {
             unit,
             items,
             spots,
+            places: Rc::new(places),
+            spot_places: Rc::new(spot_places),
         }
     }
 
@@ -115,12 +135,21 @@ impl Layout {
             .and_then(|placed| placed.spot)
     }
 
+    /// The piece or card on top at each spot, which a press there takes.
+    pub(crate) fn faces(&self) -> HashMap<Spot, ItemId> {
+        self.items
+            .iter()
+            .filter(|placed| movable(&placed.sprite))
+            .filter_map(|placed| Some((placed.spot?, placed.id)))
+            .collect()
+    }
+
     pub(crate) fn find(&self, spot: Spot) -> Option<&SpotPlace> {
-        self.spots.iter().find(|place| place.spot == spot)
+        self.spots.get(*self.spot_places.get(&spot)?)
     }
 
     pub(crate) fn item(&self, id: ItemId) -> Option<&Placed> {
-        self.items.iter().find(|placed| placed.id == id)
+        self.items.get(*self.places.get(&id)?)
     }
 
     pub(crate) fn lifted(&self, spot: Spot) -> Option<&Placed> {
@@ -157,6 +186,8 @@ impl Layout {
                     ..place.clone()
                 })
                 .collect(),
+            places: Rc::clone(&self.places),
+            spot_places: Rc::clone(&self.spot_places),
         }
     }
 

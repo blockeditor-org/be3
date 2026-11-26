@@ -9,7 +9,7 @@ fn a_context_menu_as_tall_as_the_window_allows_shows_every_item() {
     let region = NodeRef::new();
     let (document, [menu]) = toolbar_of(move || {
         let items = view! {
-            <ForEach keys={(0..20).collect::<Vec<usize>>()}>|index: usize| {
+            <ForEach value={(0..20).collect::<Vec<usize>>()}>|index: usize| {
                 let label = format!("Item {index}");
                 view! {
                     <unstyled::MenuItem label />

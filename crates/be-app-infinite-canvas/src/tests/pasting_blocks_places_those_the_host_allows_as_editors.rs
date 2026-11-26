@@ -17,7 +17,6 @@ fn pasting_blocks_places_those_the_host_allows_as_editors() {
     let mut editor = editor(&[]);
     let center = editor.rect_of("infinite-canvas.canvas").center();
     editor.click(center);
-    editor.run();
     let blocks = Blocks {
         blocks: vec![block(1), block(2)],
     };

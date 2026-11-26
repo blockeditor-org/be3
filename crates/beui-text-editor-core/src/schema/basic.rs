@@ -246,7 +246,7 @@ impl SchemaHtml for Basic {
         html::write(fragment)
     }
 
-    fn from_html(&self, html: &str) -> TextFragment {
+    fn read_html(&self, html: &str) -> TextFragment {
         html::read(html)
     }
 }
@@ -373,12 +373,7 @@ impl Schema for Basic {
     }
 
     fn decorate(&self, block: &MarkSet) -> Option<Language> {
-        match block.get(CODE_BLOCK)?.as_text()? {
-            "rust" => Some(Language::Rust),
-            "toml" => Some(Language::Toml),
-            "zig" => Some(Language::Zig),
-            _ => None,
-        }
+        Language::for_code_block(block.get(CODE_BLOCK)?.as_text()?)
     }
 
     fn tools(&self) -> &[Tool] {

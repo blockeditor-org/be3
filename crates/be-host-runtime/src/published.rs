@@ -3,29 +3,15 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use be_sdk_api::{
-    ContactsWatch, EditorInstanceId, ScreenEdgesWatch, Watched as _, WindowsWatch,
-    ops::{MethodId, Started, Watching},
+    ContactsWatch, EditorInstanceId, ScreenInputWatch, Watched as _, WindowsWatch,
+    ops::{MethodId, Started},
 };
+use be_sdk_app_host::published::interface_of;
 use be_sdk_manifest::extension_of;
 
-use super::calls::{EditorCall, Outbound};
+use be_sdk_app_host::calls::{EditorCall, Outbound};
 
 pub(super) const MAX_CALLS: usize = 64;
-
-pub(super) fn watching(method: MethodId) -> Option<Watching> {
-    be_sdk_api::embed::WATCHES
-        .iter()
-        .find(|watching| {
-            (watching.open == method || watching.next == method)
-                && be_sdk_api::is_published(watching.interface)
-        })
-        .copied()
-}
-
-pub(super) fn interface_of(started: &Started) -> Option<&'static str> {
-    let (interface, _) = be_sdk_api::embed::method_name(started.method)?.split_once('#')?;
-    be_sdk_api::is_published(interface).then_some(interface)
-}
 
 const WINDOWS_DESKTOP: [&str; 3] = ["windows", "programs", "power"];
 
@@ -37,6 +23,8 @@ pub fn run_as_desktop() {
     DESKTOP.store(true, Ordering::Relaxed);
 }
 
+/// Whether this host offers a be3:desktop interface (`Wire::offering`): which it offers depends
+/// on the platform and on whether it runs as a desktop.
 pub(super) fn offered(interface: &str) -> bool {
     if extension_of(interface) != Some("be3:desktop") {
         return false;
@@ -81,14 +69,15 @@ pub(super) fn offers(interface: &str, platform: Platform, desktop: bool) -> bool
     }
 }
 
-/// The screen edges wall the pointer, so only the shell sets them and hears their pushes.
+/// The shell's screen input walls the pointer and takes touches, so only the shell sets it and
+/// hears it.
 fn shell_only(open: MethodId) -> bool {
-    open == ContactsWatch::OPEN || open == WindowsWatch::OPEN || open == ScreenEdgesWatch::OPEN
+    open == ContactsWatch::OPEN || open == WindowsWatch::OPEN || open == ScreenInputWatch::OPEN
 }
 
 fn shell_only_call(started: &Started) -> bool {
     interface_of(started) == Some(WindowsWatch::INTERFACE)
-        || be_sdk_api::requested::set_edges(started).is_some()
+        || be_sdk_api::requested::set_screen_input(started).is_some()
 }
 
 pub(super) type Published = HashMap<MethodId, Arc<Vec<u8>>>;

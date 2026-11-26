@@ -55,7 +55,7 @@ fn dragging_a_popped_out_bars_grip_lifts_it_out_of_its_window_and_opens_no_menu(
     };
 
     test.click(grip.center());
-    test.run();
+
     test.run();
     let hide = test.desk_rects_of("grip.dock.bar.hide");
     let [hide] = hide[..] else {
@@ -73,7 +73,7 @@ fn dragging_a_popped_out_bars_grip_lifts_it_out_of_its_window_and_opens_no_menu(
         "the menu, taller than the room on either side of its grip, fits the display and scrolls its last row into it: {hide:?}"
     );
     test.key(Key::Escape, Modifiers::NONE);
-    test.run();
+
     test.run();
     assert!(
         test.desk_rects_of("grip.dock.bar.hide").is_empty(),
@@ -120,13 +120,15 @@ fn dragging_a_popped_out_bars_grip_lifts_it_out_of_its_window_and_opens_no_menu(
     );
 
     test.click(landed.center());
-    test.run();
+
     test.run();
     test.click("grip.dock.bar.hide");
-    test.run();
+
     test.run();
     assert!(
         test.desk_rects_of("dock.bar.9.grip").is_empty(),
         "a click on the landed bar's menu reaches it, and the bar hides"
     );
 }
+
+test_editor!(PoppedRoot);

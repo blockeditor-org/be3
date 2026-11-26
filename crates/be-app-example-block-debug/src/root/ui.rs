@@ -14,14 +14,15 @@ const ROW_SPACING: Space = Space::Xs2;
 pub fn BlockDebug(editor: Editor) -> NodeId {
     let head = editor.stored_head(editor.block_id());
     let listed = editor.watch_blocks(BlockQuery::Block(editor.block_id()));
-    editor.block_types_known();
+    let known = editor.block_types_known();
     let roots = create_memo(move || {
+        known.track();
         let types = editor.block_types();
         let info =
             listed.with(|listed| listed.as_ref().ok().and_then(|list| list.first().cloned()));
         vec![
             entries::block(info.as_ref(), types.as_ref()),
-            head.with(|head| entries::content(head, types.as_ref())),
+            head.with(|head| entries::content(head.as_ref().unwrap_or(&Ok(None)), types.as_ref())),
         ]
     });
     let toggled = create_signal(HashSet::<String>::new());

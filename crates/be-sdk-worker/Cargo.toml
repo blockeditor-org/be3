@@ -1,0 +1,14 @@
+[package]
+name = "be-sdk-worker"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-wasm-guest-abi = { path = "../be-wasm-guest-abi" }
+be-wasm-sandbox-api = { path = "../be-wasm-sandbox-api" }
+postcard = { version = "1", features = ["use-std"] }
+serde = { version = "1", features = ["derive"] }
+
+[lints]
+workspace = true

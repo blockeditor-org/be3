@@ -4,7 +4,7 @@ use super::*;
 /// which takes edits.
 #[test]
 fn a_device_restarted_offline_reopens_the_document_it_had_open() {
-    let server = Server::start();
+    let server = server();
     let dev = server.account("Dev");
     let mut phone = HostTest::device(&dev);
     add_to_my_files(&mut phone, "Text");

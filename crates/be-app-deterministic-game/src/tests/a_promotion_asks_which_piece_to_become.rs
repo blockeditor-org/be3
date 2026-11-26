@@ -24,12 +24,10 @@ fn a_promotion_asks_which_piece_to_become() {
     let from = editor.rect_of("game.tile.1.1").center();
     let to = editor.rect_of("game.tile.1.0").center();
     editor.drag(from, to);
-    editor.run();
     assert_eq!(moves(&editor).len(), actions.len());
     editor.snapshot("a_promotion_asks_which_piece_to_become");
 
     editor.click(format!("game.choice.{knight}"));
-    editor.run();
 
     let played = moves(&editor);
     assert_eq!(played.len(), actions.len() + 1);

@@ -30,7 +30,7 @@ fn BarParent(editor: Editor) -> NodeId {
                     block={target}
                     mode=ChildMode::Live
                     own_frame=true
-                    top_bar={TopBar::Phone}
+                    top_bar={TopBar::Shown}
                     on_details={move || heard.set(String::from("Details"))}
                 />
             </Frame>
@@ -43,7 +43,7 @@ fn a_child_block_hears_what_its_childs_bar_asked_for() {
     let mut test = BeuiTest::<BarRoot>::editing(Uuid::new_v4());
     test.run();
     let placement = test.children()[0].clone();
-    assert_eq!(placement.top_bar, TopBar::Phone);
+    assert_eq!(placement.top_bar, TopBar::Shown);
 
     test.child_details(placement.child);
     test.run();
@@ -57,3 +57,5 @@ fn a_child_block_hears_what_its_childs_bar_asked_for() {
         Some("\"Details\"")
     );
 }
+
+test_editor!(BarRoot);

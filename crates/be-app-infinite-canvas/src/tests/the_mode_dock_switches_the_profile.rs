@@ -11,7 +11,7 @@ fn the_mode_dock_switches_the_profile() {
         mode.left() - canvas.left() < 24.0 && mode.top() - canvas.top() < 24.0,
         "the mode dock sits in the top-left corner, at {mode:?} in {canvas:?}"
     );
-    let zoom = editor.rect_of("infinite-canvas.zoom-pill");
+    let zoom = editor.rect_of("editor.zoom_bar");
     assert!(
         mode.right() < zoom.left(),
         "the mode dock keeps clear of the zoom pill"
@@ -21,7 +21,6 @@ fn the_mode_dock_switches_the_profile() {
     assert!(!editor.shown("infinite-canvas.dock.tool.pencil"));
 
     editor.click("infinite-canvas.mode.raster");
-    editor.run();
     assert_eq!(profile(&editor), CanvasProfile::Raster);
     assert!(pressed(&editor, "infinite-canvas.mode.raster"));
     assert!(!pressed(&editor, "infinite-canvas.mode.prototyping"));
@@ -38,7 +37,6 @@ fn the_mode_dock_switches_the_profile() {
     editor.snapshot("the_mode_dock_switches_the_profile");
 
     editor.click("infinite-canvas.mode.vector");
-    editor.run();
     assert_eq!(profile(&editor), CanvasProfile::Vector);
     assert!(editor.shown("infinite-canvas.selection"));
     assert!(!editor.shown("infinite-canvas.raster"));
@@ -56,9 +54,7 @@ fn the_mode_dock_switches_the_profile() {
         "a phone has no room for it beside the zoom pill"
     );
     phone.click("infinite-canvas.mode.menu");
-    phone.run();
     phone.click("infinite-canvas.mode.canvas.profile.raster");
-    phone.run();
     assert_eq!(profile(&phone), CanvasProfile::Raster);
     assert!(phone.shown("infinite-canvas.dock.tool.pencil"));
 }

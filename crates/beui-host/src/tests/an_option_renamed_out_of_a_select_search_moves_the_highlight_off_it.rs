@@ -9,9 +9,9 @@ fn an_option_renamed_out_of_a_select_search_moves_the_highlight_off_it() {
         let label = create_signal("Mango".to_owned());
         rename = Some(label);
         let options = view! {
-            <unstyled::ChoiceOption label="Apple" />
-            <unstyled::ChoiceOption label="Banana" />
-            <unstyled::ChoiceOption label={label} />
+            <unstyled::ChoiceOption value="Apple" label="Apple" />
+            <unstyled::ChoiceOption value="Banana" label="Banana" />
+            <unstyled::ChoiceOption value="Mango" label={label} />
         };
         [view! {
             <Select options selected=None />
@@ -23,7 +23,7 @@ fn an_option_renamed_out_of_a_select_search_moves_the_highlight_off_it() {
 
     let trigger = harness
         .document()
-        .api::<unstyled::SelectApi>(select)
+        .api::<unstyled::SelectApi<&str>>(select)
         .trigger();
     harness.click(harness.center(trigger));
     harness.frame(Vec::new());
@@ -34,9 +34,9 @@ fn an_option_renamed_out_of_a_select_search_moves_the_highlight_off_it() {
     assert_eq!(
         harness
             .document()
-            .api::<unstyled::SelectApi>(select)
+            .api::<unstyled::SelectApi<&str>>(select)
             .highlighted(),
-        Some(2),
+        Some("Mango"),
         "Mango is the second option the search shows"
     );
 
@@ -46,9 +46,9 @@ fn an_option_renamed_out_of_a_select_search_moves_the_highlight_off_it() {
     assert_eq!(
         harness
             .document()
-            .api::<unstyled::SelectApi>(select)
+            .api::<unstyled::SelectApi<&str>>(select)
             .highlighted(),
-        Some(1),
+        Some("Banana"),
         "an option the search no longer shows gives the highlight to the first one it does"
     );
 }

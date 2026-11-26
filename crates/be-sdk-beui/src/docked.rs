@@ -8,11 +8,11 @@ use be_sdk_api::{ChildId, DockTabPath};
 use beui::NodeId;
 use beui::dock::SplitSize;
 use beui::dock::{
-    DockAlign, DockBarControl, DockBarMove, DockBarPlacement, DockBodies, DockCompact,
-    DockDeclaration, DockDeclaredBar, DockDeclaredDialog, DockDeclaredTab, DockDragStage, DockEdge,
-    DockHostEvent, DockHostLink, DockHostSlot, DockHosted, DockMapping, DockMode, DockOutside,
-    DockOutsidePlace, DockRequest, DockSpec, DockSpecBar, DockSpecEntry, DockSpecHome,
-    DockSpecNode, DockSpecPane, DockSpecPlace, DockSpecWindow, DockState, DockVisit,
+    DockAlign, DockBarControl, DockBarMove, DockBarPane, DockBarPlacement, DockBodies, DockCompact,
+    DockDeclaration, DockDeclaredBar, DockDeclaredDialog, DockDeclaredGroup, DockDeclaredTab,
+    DockDragStage, DockEdge, DockHostEvent, DockHostLink, DockHostSlot, DockHosted, DockMapping,
+    DockMode, DockOutside, DockOutsidePlace, DockRequest, DockSpec, DockSpecBar, DockSpecEntry,
+    DockSpecHome, DockSpecNode, DockSpecPane, DockSpecPlace, DockSpecWindow, DockState, DockVisit,
     DockingSnapshot, TabId,
 };
 use beui::dock::{DockMenus, DockTabControl, DockTabMenu, dock_menu};
@@ -33,7 +33,7 @@ const EMPTY_BAR: beui::Vec2 = beui::vec2(1.0, 1.0);
 
 pub(crate) struct DockedTabs {
     link: RefCell<Option<Rc<ProtocolLink>>>,
-    revision: OwnedSignal<u64>,
+    revision: OwnedTrigger,
     slot: RefCell<Option<DockHostSlot>>,
     bars: RefCell<Option<Rc<dyn DockHostLink>>>,
     kept: Rc<Cell<bool>>,
@@ -46,7 +46,7 @@ impl Default for DockedTabs {
     fn default() -> Self {
         Self {
             link: RefCell::default(),
-            revision: OwnedSignal::new(0),
+            revision: OwnedTrigger::new(),
             slot: RefCell::default(),
             bars: RefCell::default(),
             kept: Rc::default(),
@@ -66,6 +66,7 @@ impl DockedTabs {
         editor: Editor,
     ) {
         provide_context(saved::keeper(host.clone(), editor, Rc::clone(&self.kept)));
+        beui::dock::provide_dock_chrome(editor.chrome_shown());
         self.built.set(Some(docked));
         match docked {
             true => {
@@ -103,7 +104,7 @@ impl DockedTabs {
     }
 
     fn bump(&self) {
-        self.revision.handle().update(|revision| *revision += 1);
+        self.revision.notify();
     }
 
     pub(crate) fn link(
@@ -134,7 +135,7 @@ impl DockedTabs {
             empties: RefCell::default(),
             asking: self.asking.handle(),
             bar_sizes: OwnedSignal::new(HashMap::default()),
-            declares: OwnedSignal::new(0),
+            declares: OwnedTrigger::new(),
             declaring: OwnedSignal::new(false),
             saving: saved::Saving::default(),
             menued: RefCell::default(),
@@ -146,23 +147,27 @@ impl DockedTabs {
         let menus = link.menus.handle();
         let sizes = link.bar_sizes.read_only();
         let menued = Rc::downgrade(&link);
-        create_effect(move || {
-            frame.with(|frame| crate::beui_frame::menu_entries(frame));
-            sizes.with(|_| ());
-            menus.with(|menus| {
-                for (_, items) in menus.values() {
-                    items.with(|items| crate::beui_frame::menu_entries(items));
+        create_effect_on(
+            move || {
+                frame.with(|frame| crate::beui_frame::menu_entries(frame));
+                sizes.track();
+                menus.with(|menus| {
+                    for (_, items) in menus.values() {
+                        items.with(|items| crate::beui_frame::menu_entries(items));
+                    }
+                });
+            },
+            move |_, _| {
+                if let Some(link) = menued.upgrade() {
+                    link.send();
                 }
-            });
-            if let Some(link) = menued.upgrade() {
-                untrack(|| link.send());
-            }
-        });
+            },
+        );
         let picking = Rc::downgrade(&link);
         let pushed = link.pushed;
         let picks = link.host.clone();
         create_effect(move || {
-            pushed.get();
+            pushed.track();
             if !docked {
                 return;
             }
@@ -248,12 +253,12 @@ impl DockedTabs {
 
 #[component]
 pub(crate) fn DockedTabBody(tabs: Rc<DockedTabs>, tab: u64) -> NodeId {
-    let revised = tabs.revision.read_only();
+    let revised = tabs.revision.handle();
     let node = create_signal(None);
     let window = beui::styled::use_window();
     let left = Rc::clone(&tabs);
     create_effect(move || {
-        revised.get();
+        revised.track();
         let panel = untrack(|| tabs.panel(TabId::new(tab), window));
         node.set(panel);
     });
@@ -282,7 +287,7 @@ struct ProtocolLink {
     host: EditorHost,
     view: ViewId,
     docked: bool,
-    pushed: ReadSignal<u64>,
+    pushed: Trigger,
     tabs: Weak<DockedTabs>,
     bodies: RefCell<Option<DockBodies>>,
     placings: Cell<u64>,
@@ -294,7 +299,7 @@ struct ProtocolLink {
     empties: RefCell<HashMap<String, u64>>,
     asking: Signal<Option<TabId>>,
     bar_sizes: OwnedSignal<HashMap<TabId, beui::Vec2>>,
-    declares: OwnedSignal<u64>,
+    declares: OwnedTrigger,
     declaring: OwnedSignal<bool>,
     saving: saved::Saving,
     menued: RefCell<Vec<ViewId>>,
@@ -523,7 +528,7 @@ impl ProtocolLink {
 
 #[component]
 fn MeasuredBar(body: NodeId, tab: TabId, sizes: Signal<HashMap<TabId, beui::Vec2>>) -> NodeId {
-    use beui::styled::{Canvas, CanvasItem, Frame, Portal};
+    use beui::styled::{Canvas, CanvasItem, List, Portal, Space};
     let measured = measure(body);
     create_effect(move || {
         let Some(size) = measured.get().map(|measured| measured.size) else {
@@ -538,9 +543,19 @@ fn MeasuredBar(body: NodeId, tab: TabId, sizes: Signal<HashMap<TabId, beui::Vec2
     view! {
         <Canvas>
             <CanvasItem x=0.0 y=0.0 width=BAR_ROOM height=BAR_ROOM clip=false>
-                <Frame align=beui::Align2::START>
-                    <Portal node={Some(body)} />
-                </Frame>
+                <List
+                    direction=beui::Direction::Vertical
+                    align=beui::Align::Start
+                    spacing=Space::None
+                >
+                    <List
+                        direction=beui::Direction::Horizontal
+                        align=beui::Align::Start
+                        spacing=Space::None
+                    >
+                        <Portal node={Some(body)} />
+                    </List>
+                </List>
             </CanvasItem>
         </Canvas>
     }
@@ -558,7 +573,7 @@ impl DockHostLink for ProtocolLink {
     fn declare(&self, declaration: DockDeclaration) {
         *self.declared.borrow_mut() = Some(declaration);
         self.send();
-        self.declares.update(|declares| *declares += 1);
+        self.declares.notify();
         if !self.declaring.get_untracked() {
             self.declaring.set(true);
         }
@@ -569,7 +584,7 @@ impl DockHostLink for ProtocolLink {
         let view = self.view;
         let pushed = self.pushed;
         create_memo(move || {
-            pushed.get();
+            pushed.track();
             let hosted = host.dock_hosted(view)?;
             Some(hosted_from_api(&hosted, &mut |path| own(path)))
         })
@@ -586,7 +601,7 @@ impl DockHostLink for ProtocolLink {
         let view = self.view;
         let pushed = self.pushed;
         create_effect(move || {
-            pushed.get();
+            pushed.track();
             for tab in untrack(|| host.take_dock_closes(view)) {
                 if let Some(tab) = own(&tab) {
                     untrack(|| events.call(DockHostEvent::Close(tab)));
@@ -611,7 +626,7 @@ impl DockHostLink for ProtocolLink {
         let hosts = self.bodies.borrow().as_ref().map(|bodies| bodies.hosts);
         create_effect(move || {
             if let Some(hosts) = hosts {
-                hosts.get();
+                hosts.track();
             }
             let held = hosted.with(|hosted| {
                 hosted
@@ -725,13 +740,22 @@ pub(crate) fn bridge_child_dock(
         });
     }
     let paths = Rc::new(RefCell::new(Paths::default()));
-    let declared = Rc::new(Cell::new(false));
+    let hosted = link.hosted();
     {
         let link = Rc::clone(&link);
         let host = host.clone();
         let paths = Rc::clone(&paths);
+        let declared = RefCell::new(None::<(ChildId, DockDeclaration)>);
+        // Declares what the child declares to the dock, then takes its requests, in one effect
+        // so that the dock hears a declaration before the requests heard with it: effects woken
+        // by one change run in no set order (guides/reactive.md, "When things run"). It tracks
+        // `pushed` for requests and declarations heard, `hosted` for what the root hosts, since
+        // a descendant's restore waits until the root hosts the group it replaces, and `child`
+        // for the child placed. It declares only a declaration that changed, so what the root
+        // hosts changing does not declare it again.
         create_effect(move || {
-            pushed.get();
+            pushed.track();
+            hosted.track();
             let Some(child) = child.get() else {
                 return;
             };
@@ -742,27 +766,36 @@ pub(crate) fn bridge_child_dock(
                 });
                 match converted {
                     Some(converted) => {
-                        link.declare(converted);
-                        declared.set(true);
+                        let fresh = declared
+                            .borrow()
+                            .as_ref()
+                            .is_none_or(|(held, last)| *held != child || *last != converted);
+                        if fresh {
+                            declared.replace(Some((child, converted.clone())));
+                            link.declare(converted);
+                        }
                     }
-                    None if declared.replace(false) => link.withdraw(),
+                    None if declared.take().is_some() => link.withdraw(),
                     None => {}
                 }
-                for (owner, request) in host.take_child_dock_requests(child) {
-                    let request = match owner.is_empty() {
-                        true => request_from_api(&request, &mut paths.borrow_mut()),
-                        false => declaration.as_ref().and_then(|declaration| {
-                            nested_restore(&*link, declaration, &owner, &request, &paths)
-                        }),
+                host.take_child_dock_requests(child, |owner, request| {
+                    let request = match (owner.is_empty(), &declaration) {
+                        (true, _) => Ok(request_from_api(request, &mut paths.borrow_mut())),
+                        (false, Some(declaration)) => {
+                            nested_restore(hosted, declaration, owner, request, &paths)
+                        }
+                        (false, None) => Ok(None),
                     };
-                    if let Some(request) = request {
-                        link.request(request);
+                    match request {
+                        Ok(Some(request)) => link.request(request),
+                        Ok(None) => {}
+                        Err(Waiting) => return false,
                     }
-                }
+                    true
+                });
             });
         });
     }
-    let hosted = link.hosted();
     {
         let host = host.clone();
         let paths = Rc::clone(&paths);
@@ -874,24 +907,49 @@ pub(crate) fn bridge_child_dock(
 fn DockBarBody(
     editor: Editor,
     host: EditorHost,
-    pushed: ReadSignal<u64>,
+    pushed: Trigger,
     shown: (ChildId, DockTabPath),
 ) -> NodeId {
     let (child, path) = shown.clone();
-    let size = create_memo(move || {
-        pushed.get();
-        untrack(|| host.child_dock(child))
-            .and_then(|declaration| declaration.bar(&path).map(|bar| bar.size))
+    // The bar's size as it measured, and whether it runs across (along a top or bottom edge) where
+    // it docks at an edge.
+    let declared = create_memo(move || {
+        pushed.track();
+        let bar = untrack(|| host.child_dock(child))
+            .and_then(|declaration| declaration.bar(&path).cloned());
+        let size = bar
+            .as_ref()
+            .map(|bar| bar.size)
             .filter(|size| size.x > 0.0 && size.y > 0.0)
-            .unwrap_or(EMPTY_BAR)
+            .unwrap_or(EMPTY_BAR);
+        let across = bar.and_then(|bar| match bar.placement {
+            api::DockBarPlacement::Over(at) | api::DockBarPlacement::Beside(at) => Some(matches!(
+                at.edge,
+                api::DockEdge::Top | api::DockEdge::Bottom
+            )),
+            api::DockBarPlacement::Window(_) => None,
+        });
+        (size, across)
     });
-    let width =
-        create_memo(move || beui::styled::Length::Size(beui::styled::Size::Custom(size.get().x)));
-    let height =
-        create_memo(move || beui::styled::Length::Size(beui::styled::Size::Custom(size.get().y)));
     let shown = Some(shown);
+    // Along the edge it docks at, the bar is at most as long as it measured, so a band shorter
+    // than the bar (a phone's) squeezes it and its surface scrolls, rather than cutting it off;
+    // across, and in a window of its own, it is the size it measured.
+    let length = move |extent: f32, squeezed: bool| match squeezed {
+        true => beui::styled::Length::Extent(beui::Extent::at_most(extent)),
+        false => beui::styled::Length::Size(beui::styled::Size::Custom(extent)),
+    };
     view! {
-        <beui::styled::Frame width=width height=height>
+        <beui::styled::Frame
+            width={move || {
+                let (size, across) = declared.get();
+                length(size.x, across == Some(true))
+            }}
+            height={move || {
+                let (size, across) = declared.get();
+                length(size.y, across == Some(false))
+            }}
+        >
             <DockTabBody editor shown />
         </beui::styled::Frame>
     }
@@ -916,7 +974,7 @@ fn DockTabBody(editor: Editor, shown: Option<(ChildId, DockTabPath)>) -> NodeId 
 fn tab_menu(
     editor: Editor,
     host: EditorHost,
-    pushed: ReadSignal<u64>,
+    pushed: Trigger,
     child: Option<ChildId>,
     path: Option<DockTabPath>,
 ) -> Memo<Vec<MenuNode>> {
@@ -928,7 +986,7 @@ fn tab_menu(
     ));
     let shown = child.zip(path);
     create_effect(move || {
-        pushed.get();
+        pushed.track();
         let Some((child, path)) = shown.clone() else {
             return;
         };
@@ -944,25 +1002,34 @@ fn tab_menu(
     create_memo(move || nodes.get())
 }
 
+/// A descendant's restore of a group the root has yet to host.
+struct Waiting;
+
+/// The root's request for what a descendant of the child asked: `None` when it asks for
+/// nothing the root can do, as a restore of a group the child no longer declares.
 fn nested_restore(
-    link: &dyn DockHostLink,
+    hosted: Memo<Option<DockHosted>>,
     declaration: &api::DockDeclaration,
     owner: &[ChildId],
     request: &api::DockRequest,
     paths: &Rc<RefCell<Paths>>,
-) -> Option<DockRequest> {
+) -> Result<Option<DockRequest>, Waiting> {
     let api::DockRequest::Restore(layout) = request else {
-        return request_from_api(request, &mut paths.borrow_mut());
+        return Ok(request_from_api(request, &mut paths.borrow_mut()));
     };
-    let nodes = declaration.nest().ok()?;
-    let group = group_key(&nodes, owner)?;
+    let Some(group) = declaration
+        .nest()
+        .ok()
+        .and_then(|nodes| group_key(&nodes, owner))
+    else {
+        return Ok(None);
+    };
+    let mut state = hosted.get_untracked().ok_or(Waiting)?.state;
+    let found = state.find_group(&group).ok_or(Waiting)?;
     let from = {
         let mut paths = paths.borrow_mut();
         DockState::from_spec(&layout_to_spec(layout, &mut |path| Some(paths.tab(path))))
     };
-    let hosted = untrack(|| link.hosted().get_untracked())?;
-    let mut state = hosted.state;
-    let found = state.find_group(&group)?;
     state.graft(
         found,
         &from,
@@ -970,9 +1037,10 @@ fn nested_restore(
             tab: &|tab| Some(tab),
             key: &|key| Some(key.to_owned()),
             group: &|_| None,
+            pane: None,
         },
     );
-    Some(DockRequest::Restore(state))
+    Ok(Some(DockRequest::Restore(state)))
 }
 
 type PathOf<'a> = &'a dyn Fn(TabId) -> Option<DockTabPath>;
@@ -1066,6 +1134,7 @@ fn spec_node(node: &DockSpecNode, path: PathOf<'_>, empty: EmptyOf<'_>) -> api::
                             key: key.clone(),
                             pinned: *pinned,
                             child: None,
+                            title: String::new(),
                         },
                         root: Box::new(spec_node(root, path, empty)),
                     }),
@@ -1096,6 +1165,27 @@ fn spec_node(node: &DockSpecNode, path: PathOf<'_>, empty: EmptyOf<'_>) -> api::
     }
 }
 
+/// Names each group as the declaration does (`DockDeclaredGroup`), so a group's title reaches the
+/// host as it came from it.
+fn title_groups(node: &mut api::DockNode, title: &dyn Fn(&str) -> Option<String>) {
+    match node {
+        api::DockNode::Split { first, second, .. } => {
+            title_groups(first, title);
+            title_groups(second, title);
+        }
+        api::DockNode::Pane { entries, .. } => {
+            for entry in entries {
+                if let api::DockEntry::Group { group, root } = entry {
+                    if let Some(named) = title(&group.key) {
+                        group.title = named;
+                    }
+                    title_groups(root, title);
+                }
+            }
+        }
+    }
+}
+
 fn spec_nodes(spec: &DockSpec, path: PathOf<'_>, empty: EmptyOf<'_>) -> api::DockNodes {
     api::DockNodes {
         main: spec.main.as_ref().map(|main| spec_node(main, path, empty)),
@@ -1107,6 +1197,7 @@ fn spec_nodes(spec: &DockSpec, path: PathOf<'_>, empty: EmptyOf<'_>) -> api::Doc
                     key: window.key.clone(),
                     rect: window.rect,
                     placed: window.placed.clone(),
+                    hidden: window.hidden,
                 },
                 root: window
                     .root
@@ -1125,7 +1216,16 @@ pub(crate) fn declaration_to_api(
     kind: &dyn Fn(&str) -> String,
 ) -> api::DockDeclaration {
     let spec = &declaration.spec;
-    let nodes = spec_nodes(spec, path, empty);
+    let mut nodes = spec_nodes(spec, path, empty);
+    let title = |key: &str| declaration.group_title(key).map(str::to_owned);
+    if let Some(main) = &mut nodes.main {
+        title_groups(main, &title);
+    }
+    for window in &mut nodes.windows {
+        if let Some(root) = &mut window.root {
+            title_groups(root, &title);
+        }
+    }
     api::DockDeclaration {
         tree: api::DockTree::flatten(&nodes, spec.focus.and_then(path)),
         tabs: declaration
@@ -1142,6 +1242,7 @@ pub(crate) fn declaration_to_api(
                         .unwrap_or_default(),
                     closable: tab.closable,
                     back_closes: tab.back_closes,
+                    unread: tab.unread,
                     menu: Vec::new(),
                 })
             })
@@ -1244,6 +1345,7 @@ fn nodes_spec(nodes: &api::DockNodes, tab: TabOf<'_>) -> DockSpec {
                 key: window.window.key.clone(),
                 rect: window.window.rect,
                 placed: window.window.placed.clone(),
+                hidden: window.window.hidden,
                 root: window.root.as_ref().map(|root| api_node(root, tab)),
             })
             .collect(),
@@ -1276,6 +1378,7 @@ fn declaration_from_api(
             picture: None,
             closable: tab.closable,
             back_closes: tab.back_closes,
+            unread: tab.unread,
             group: None,
         })
         .collect();
@@ -1306,12 +1409,21 @@ fn declaration_from_api(
             pane: bar.pane.as_ref().map(|pane| paths.tab(pane)),
         })
         .collect();
+    let groups = nodes
+        .groups()
+        .into_iter()
+        .filter(|group| !group.title.is_empty())
+        .map(|group| DockDeclaredGroup {
+            key: group.key.clone(),
+            title: group.title.clone(),
+        })
+        .collect();
     Some(DockDeclaration {
         spec,
         tabs,
         dialogs,
         bars,
-        groups: Vec::new(),
+        groups,
         hosts: Vec::new(),
     })
 }
@@ -1321,13 +1433,57 @@ pub struct SavedDockLayout {
     layout: api::DockLayout,
     recent: Vec<u64>,
     history: Vec<(u64, u64, bool)>,
+    bars: Vec<SavedBarPlace>,
+}
+
+/// What `layout`'s bars cannot say: a pane of a dock joined below this one, named through the
+/// tabs hosting it (`via`, with `pane` that dock's own id), and where the bar was among its pane's
+/// bars across layers (`DockSpecBar::slot`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+struct SavedBarPlace {
+    bar: u64,
+    via: Vec<u64>,
+    pane: u64,
+    slot: Option<u64>,
+}
+
+impl SavedBarPlace {
+    fn of(bar: &DockSpecBar) -> Option<Self> {
+        let deeper = bar.pane.as_ref().filter(|pane| !pane.via.is_empty());
+        if deeper.is_none() && bar.slot.is_none() {
+            return None;
+        }
+        Some(Self {
+            bar: bar.bar.value(),
+            via: deeper.map_or_else(Vec::new, |pane| {
+                pane.via.iter().map(|tab| tab.value()).collect()
+            }),
+            pane: deeper.map_or(0, |pane| pane.tab.value()),
+            slot: bar.slot.map(|slot| slot as u64),
+        })
+    }
+
+    fn apply(&self, spec: &mut DockSpec) {
+        let Some(bar) = spec.bars.iter_mut().find(|bar| bar.bar.value() == self.bar) else {
+            return;
+        };
+        if !self.via.is_empty() {
+            bar.pane = Some(DockBarPane {
+                via: self.via.iter().copied().map(TabId::new).collect(),
+                tab: TabId::new(self.pane),
+            });
+        }
+        bar.slot = self.slot.map(|slot| slot as usize);
+    }
 }
 
 impl SavedDockLayout {
     pub fn of(snapshot: &DockingSnapshot<TabId>) -> Self {
         let state = snapshot.state();
+        let spec = state.spec();
         Self {
-            layout: spec_to_layout(&state.spec(), &own_path),
+            bars: spec.bars.iter().filter_map(SavedBarPlace::of).collect(),
+            layout: spec_to_layout(&spec, &own_path),
             recent: state.recent_tabs().iter().map(|tab| tab.value()).collect(),
             history: state
                 .history()
@@ -1338,9 +1494,12 @@ impl SavedDockLayout {
     }
 
     pub fn snapshot(&self) -> DockingSnapshot<TabId> {
-        let spec = layout_to_spec(&self.layout, &mut |path| {
+        let mut spec = layout_to_spec(&self.layout, &mut |path| {
             path.is_own().then(|| TabId::new(path.tab))
         });
+        for place in &self.bars {
+            place.apply(&mut spec);
+        }
         let mut state = DockState::from_spec(&spec);
         state.keep_visits(
             self.recent.iter().copied().map(TabId::new).collect(),
@@ -1367,6 +1526,20 @@ impl SavedDockLayout {
         });
         let mapped = |tab: u64| map(TabId::new(tab)).value();
         Self {
+            bars: self
+                .bars
+                .iter()
+                .map(|place| SavedBarPlace {
+                    bar: mapped(place.bar),
+                    via: place
+                        .via
+                        .iter()
+                        .enumerate()
+                        .map(|(at, &tab)| if at == 0 { mapped(tab) } else { tab })
+                        .collect(),
+                    ..place.clone()
+                })
+                .collect(),
             layout: spec_to_layout(&spec, &own_path),
             recent: self.recent.iter().map(|&tab| mapped(tab)).collect(),
             history: self
@@ -1404,7 +1577,11 @@ fn spec_to_layout(spec: &DockSpec, path: PathOf<'_>) -> api::DockLayout {
                     },
                     placement: placement_to_api(bar.placement),
                     hidden: bar.hidden,
-                    pane: bar.pane.and_then(path),
+                    pane: bar
+                        .pane
+                        .as_ref()
+                        .and_then(DockBarPane::resolved)
+                        .and_then(path),
                 })
             })
             .collect(),
@@ -1487,7 +1664,8 @@ fn layout_to_spec(layout: &api::DockLayout, tab: TabOf<'_>) -> DockSpec {
                     },
                     placement: placement_from_api(&bar.placement),
                     hidden: bar.hidden,
-                    pane: bar.pane.as_ref().and_then(&mut *tab),
+                    pane: bar.pane.as_ref().and_then(&mut *tab).map(DockBarPane::own),
+                    slot: None,
                 })
             })
             .collect(),
@@ -1584,6 +1762,8 @@ fn hosted_to_api(hosted: &DockHosted, path: PathOf<'_>) -> api::DockHosted {
                 })
             })
             .collect(),
+        // The host counts restores (`EditorHost::take_child_dock_requests`).
+        restored: 0,
     }
 }
 

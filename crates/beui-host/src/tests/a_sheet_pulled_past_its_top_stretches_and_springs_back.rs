@@ -41,11 +41,16 @@ fn a_sheet_pulled_past_its_top_stretches_and_springs_back() {
     );
 
     harness.touch(TouchPhase::End, from - vec2(0.0, 200.0));
-    harness.frame(Vec::new());
-    let springing = harness.rect(handle).top();
+    let mut springing = Vec::new();
+    for _ in 0..30 {
+        harness.frame(Vec::new());
+        springing.push(harness.rect(handle).top());
+    }
     assert!(
-        springing > stretched && springing < fitted,
-        "let go, it springs back down rather than jumping, and is at {springing}"
+        springing
+            .iter()
+            .any(|top| *top > stretched + 1.0 && *top < fitted - 1.0),
+        "let go, it springs back down rather than jumping, through {springing:?}"
     );
     harness.settle();
     assert_eq!(

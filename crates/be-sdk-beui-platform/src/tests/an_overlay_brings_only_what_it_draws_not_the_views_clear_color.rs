@@ -50,11 +50,10 @@ fn an_overlay_brings_only_what_it_draws_not_the_views_clear_color() {
         "the view clears to an opaque color, which the host backs it with"
     );
     let painting = surface.painting(shown.id()).expect("the view is painted");
-    let pixels =
-        beui_core::painting::rasterize(&painting.frame, painting.frame.background, |key| {
-            painting.textures.get(&key)
-        })
-        .expect("the painting rasterizes");
+    let pixels = beui_paint_raster::rasterize(&painting.frame, painting.frame.background, |key| {
+        painting.textures.get(&key)
+    })
+    .expect("the painting rasterizes");
     let alpha = |at: Pos2| {
         let [width, _] = pixels.size;
         pixels.rgba[at.y as usize * width as usize + at.x as usize][3]

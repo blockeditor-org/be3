@@ -8,7 +8,7 @@ fn a_press_on_a_scroll_with_nothing_to_scroll_leaves_the_focus_where_it_is() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Scroll>
+                <Scroll style={plain_scroll()}>
                     <List spacing=0.0>
                         <Interactive @test_id="field" focusable=true>
                             <Frame width=60.0 height=20.0 />
@@ -17,7 +17,7 @@ fn a_press_on_a_scroll_with_nothing_to_scroll_leaves_the_focus_where_it_is() {
                     </List>
                 </Scroll>
                 <Frame @test_id="box" height=100.0>
-                    <Scroll>
+                    <Scroll style={plain_scroll()}>
                         <Frame width=60.0 height=400.0 />
                     </Scroll>
                 </Frame>

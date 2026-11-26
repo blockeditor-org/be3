@@ -16,10 +16,21 @@ pub(crate) fn placed_windows() -> ReadSignal<bool> {
     with_document(|document| document.watch_placed_windows())
 }
 
+pub(crate) fn locked() -> ReadSignal<bool> {
+    with_document(|document| document.watch_locked())
+}
+
 pub(crate) fn window_origin(window: WindowId) -> Option<Pos2> {
     with_document(|document| document.context()?.window_origin(window))
 }
 
 pub(crate) fn set_work_area(window: WindowId, area: Option<Rect>) {
     beui_core::current::try_with_document(|document| document.set_work_area(window, area));
+}
+
+/// Clears `window` to `color` from now on, as a `Root` in it would.
+pub(crate) fn clear_window(window: WindowId, color: beui_types::Color32) {
+    beui_core::current::try_with_document(|document| {
+        document.update_appearance(Some(window), |appearance| appearance.clear_color = color)
+    });
 }

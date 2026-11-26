@@ -15,7 +15,7 @@ fn a_show_adds_and_removes_a_menu_item_among_the_items_beside_it() {
                 label="Copy"
                 on_click={move || selected.update(|selected| selected.push("Copy"))}
             />
-            <Show condition={pasteable}>
+            <Show value={pasteable}>
                 <unstyled::MenuItem
                     label="Paste"
                     on_click={move || selected.update(|selected| selected.push("Paste"))}

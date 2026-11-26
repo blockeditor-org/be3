@@ -10,10 +10,10 @@ fn cleanup_reads_do_not_become_dependencies() {
     scope.run(|| {
         let calls = calls.clone();
         create_effect(move || {
-            value.get();
+            value.track();
             calls.set(calls.get() + 1);
             on_cleanup(move || {
-                incidental.get();
+                incidental.track();
             });
         });
     });

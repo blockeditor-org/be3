@@ -7,7 +7,7 @@ fn dragging_a_panes_grip_onto_a_bar_parts_it_where_its_tabs_land() {
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost @node_ref=&dock>
                 <dock::Docking layout>

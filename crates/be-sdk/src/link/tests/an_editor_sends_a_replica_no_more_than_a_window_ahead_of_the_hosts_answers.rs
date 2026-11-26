@@ -29,7 +29,7 @@ fn sent(executor: &Executor, host: &mut Connection) -> Vec<(OpId, u8)> {
             continue;
         };
         if let Some(Call::ReplicaSend { frame, reply, .. }) = Call::accept(host, started) {
-            let Some(FromEditor::Operate(operation)) = FromEditor::from_frame(&frame) else {
+            let Some(FromEditor::Operate { operation, .. }) = FromEditor::from_frame(&frame) else {
                 panic!("the editor sent something other than its operation");
             };
             sent.push((reply.into_op(), operation[0]));

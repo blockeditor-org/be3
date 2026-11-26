@@ -1,5 +1,6 @@
 use be_sdk_beui::beui::TouchPhase;
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use beui::Vec2;
 use uuid::Uuid;
 
@@ -15,18 +16,19 @@ fn a_phone_formats_from_a_bar_above_the_keyboard() {
     editor.hold(None, TextBlock::of("word"));
     editor.run();
 
-    assert!(!editor.shown("text.format.bold"));
+    assert!(
+        editor.shown("text.format.bold"),
+        "the bar is there before the text has the keyboard"
+    );
 
     let surface = editor.point_of("text.surface");
     editor.fingers(TouchPhase::Start, &[(1, surface)]);
     editor.fingers(TouchPhase::End, &[(1, surface)]);
-    editor.run();
     assert!(editor.shown("text.format.done"));
     assert!(editor.shown("text.format.bold"));
     editor.snapshot("a_phone_formats_from_a_bar_above_the_keyboard");
 
     editor.click("text.format.bold");
-    editor.run();
     assert!(text(&editor).contains("**"), "{:?}", text(&editor));
     assert!(
         editor.shown("text.format.bold"),
@@ -34,8 +36,10 @@ fn a_phone_formats_from_a_bar_above_the_keyboard() {
     );
 
     editor.click("text.format.done");
-    editor.run();
-    assert!(!editor.shown("text.format.bold"));
+    assert!(
+        editor.shown("text.format.bold"),
+        "putting the keyboard away leaves the bar where it is"
+    );
 
     assert_eq!(
         editor.menu_entry("text.replace").label,

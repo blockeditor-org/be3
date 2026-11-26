@@ -1,10 +1,10 @@
 use std::cell::RefCell;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::rc::Rc;
 
 use be_block_store::{ChunkerConfig, ContentKey, Hash, Keyring, Manifest, MemoryStore, Vault};
 use be_sdk_api::{BlockCommand, EditorInstanceId, StoredHead};
-use be_sdk_beui::be_block_content::{LiveEdit, Merge, Undo};
+use be_sdk_beui::be_block_content::{Landed, LiveEdit, Merge, Undo};
 use be_sdk_beui::{BlockInfo, BlockParent, BlockQuery, SeededContent};
 use be_sdk_type_guest::api::{
     Announcement, Change, ClientId, CommitId, EditorId, Endpoint, Opening, PublishOutcome,
@@ -19,9 +19,12 @@ use be_sdk_type_guest::api::{
     },
 };
 use be_sdk_type_guest::editor::{EditorMirror, FromEditor, Gesture, ToEditor};
-use be_sdk_type_guest::wire::Wire;
+use be_sdk_type_guest::holds::{Holds, This, Took};
 use be_sdk_type_guest::{Module, Registration};
 use uuid::Uuid;
+
+/// Bytes no content type decodes.
+const UNREADABLE: &[u8] = &[0xff; 7];
 
 const THIS_DEVICE: ClientId = u64::MAX - 1;
 const ELSEWHERE: ClientId = u64::MAX;
@@ -49,9 +52,71 @@ struct Block {
     references: Option<Vec<Uuid>>,
     revision: u64,
     taken: u64,
+    /// The editors' tentative gestures, followed as the host follows them: their edits are
+    /// written only when the layer commits.
+    holds: Holds,
+    /// The held edits, by their serial in `holds`.
+    held: BTreeMap<u64, Vec<u8>>,
+    /// The block's session's order, as the server would number it.
+    order: be_block_session::Sequencer,
+    /// The block's signed log, as the server would number and stamp it: one device, so every
+    /// entry is this account's and verified.
+    log: Vec<be_sdk_type_guest::api::LogItem>,
+    /// The peers joined into the block's session (`ContentStore::join_peer`).
+    peers: Vec<ClientId>,
+    /// How many landings the replica told since `take_landed`, none once it sent a snapshot.
+    landed: Option<usize>,
+    /// What the replica relayed to its peers and submitted since `take_relayed`, in order,
+    /// while it has peers.
+    relayed: Vec<Relayed>,
+}
+
+/// What a replica sent its session: a message relayed to its peers, or a submission to the
+/// order (`ContentStore::take_relayed`), which another store hands its own replica as a
+/// peer's (`ContentStore::receive_relayed`).
+pub enum Relayed {
+    Message(Vec<u8>),
+    Submission {
+        counter: u64,
+        base: u64,
+        barrier: bool,
+        payload: Vec<u8>,
+    },
+}
+
+impl Relayed {
+    /// For a tentative layer told (`SessionMessage::Held`), how many edits it carries.
+    pub fn held_edits(&self) -> Option<usize> {
+        let Self::Message(bytes) = self else {
+            return None;
+        };
+        match be_sdk_type_guest::wire::decode(bytes)? {
+            be_block_session::SessionMessage::Held { operations, .. } => Some(operations.len()),
+            _ => None,
+        }
+    }
 }
 
 impl Block {
+    fn write(&mut self, operation: Vec<u8>) {
+        self.written.push(operation);
+        self.taken += 1;
+        self.revision += 1;
+    }
+
+    /// Writes the held edits `took` counts, in the order they arrived, and lets go of the rest
+    /// it released.
+    fn release(&mut self, took: &Took) {
+        for serial in &took.counted {
+            if let Some(operation) = self.held.remove(serial) {
+                self.write(operation);
+            }
+        }
+        for serial in &took.released {
+            self.held.remove(serial);
+        }
+    }
+
     fn new(content_type: Uuid, head: CommitId) -> Self {
         Self {
             content_type,
@@ -63,21 +128,15 @@ impl Block {
             references: None,
             revision: 1,
             taken: 0,
+            holds: Holds::default(),
+            held: BTreeMap::new(),
+            order: be_block_session::Sequencer::starting(0),
+            log: Vec::new(),
+            peers: Vec::new(),
+            landed: Some(0),
+            relayed: Vec::new(),
         }
     }
-}
-
-/// What has to happen before the server holds an announced edit, as the host tracks it.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Announcing {
-    /// In this device's journal as this sequence.
-    Journal(u64),
-    /// In a commit kept in the outbox.
-    Kept,
-    /// The server holds it.
-    Held(u64),
-    /// Never to be held.
-    Dropped,
 }
 
 struct Inner {
@@ -88,6 +147,24 @@ struct Inner {
     host: Connection,
     clock: Outlets<()>,
     sleeping: Vec<Reply<()>>,
+    /// Whether the server holds appends to signed logs back (`hold_appends`), as one not
+    /// reached yet, and those it holds: each block, entry id, bytes and what goes along.
+    hold_appends: bool,
+    held_appends: Vec<(Option<Uuid>, Uuid, Vec<u8>, be_sdk_type_guest::api::Along)>,
+    /// Why the server refuses appends, while it does (`refuse_appends`).
+    refuse_appends: Option<String>,
+    /// The appends the server refused that the device keeps until let go: each block, entry
+    /// id, bytes and why.
+    not_appended: Vec<(Option<Uuid>, Uuid, Vec<u8>, String)>,
+    /// How many appends were made, which numbers their ids.
+    appends: u64,
+    /// The entries logged since the replicas were last handed them, by replica.
+    logged: Vec<(Replica, Vec<be_sdk_type_guest::api::LogItem>)>,
+    /// Who signed what each account appends, where a test says (`set_log_signer`).
+    signers: HashMap<Uuid, be_sdk_beui::be_block_content::Signer>,
+    /// Whether the server holds submissions back (`hold_submissions`), and those it holds.
+    hold_submissions: bool,
+    held_submissions: Vec<(Option<Uuid>, Call)>,
     now: u64,
     replicas: BTreeMap<OpId, Uuid>,
     /// Each type's blank content, as the module's start listed it.
@@ -103,6 +180,10 @@ struct Inner {
     /// How many operations each attached editor sent its block's replicas: what a replica
     /// opened again under it holds of them (the replicas' `attach`).
     forwarded: BTreeMap<(Uuid, EditorId), u64>,
+    /// The gestures each editor has open on each block and how each began, which detaching it
+    /// ends as the host does when an instance closes: an undo group is committed, a tentative
+    /// gesture cancelled.
+    gestures: BTreeMap<(Uuid, EditorId), BTreeMap<u64, Gesture>>,
     presence: BTreeMap<Uuid, BTreeMap<(ClientId, Uuid), Vec<u8>>>,
     outbox: Vec<(Uuid, EditorId, Vec<u8>)>,
     replies: BTreeMap<OpId, Outcome>,
@@ -112,6 +193,8 @@ struct Inner {
     graph: BTreeMap<Uuid, BlockInfo>,
     created: Vec<Uuid>,
     owner_only: BTreeSet<Uuid>,
+    /// The blocks offered to the account to own (`set_owner_offers`).
+    owner_offers: BTreeSet<Uuid>,
     watched_content: BTreeSet<Uuid>,
     watched_heads: BTreeSet<Uuid>,
     heads_sent: BTreeMap<Uuid, u64>,
@@ -125,10 +208,9 @@ struct Inner {
     /// The commits the server refused, by block: they stay on the device.
     refused: BTreeMap<Uuid, Vec<CommitId>>,
     refusals: u8,
-    /// What edits announce until the server holds them, kept beside the journal or a kept
-    /// commit: a simpler host than be-block-client's (one device, so every rebase is on its own
-    /// commit; every key remembered; guides/type_modules.md, "Announcements").
-    announcing: Vec<(Option<Uuid>, Announcing, Announcement)>,
+    /// What log entries the server took announce, until they are sent: a simpler host than
+    /// be-block-client's (every key remembered; guides/type_modules.md, "Announcements").
+    announcing: Vec<(Option<Uuid>, Announcement)>,
     /// The keys announced, which are not announced again.
     announced: BTreeSet<(Option<Uuid>, String)>,
     notified: Vec<(Option<Uuid>, String, Vec<Uuid>)>,
@@ -136,6 +218,9 @@ struct Inner {
     hold_reads: bool,
     held_reads: Vec<(Option<Uuid>, Call)>,
     known_elsewhere: Option<Rc<dyn Fn(Uuid) -> bool>>,
+    /// The account the editor's host is signed in to, whose unread counts it is told
+    /// (`BlockInfo::unread`).
+    account: Uuid,
 }
 
 impl Default for Inner {
@@ -143,12 +228,22 @@ impl Default for Inner {
         let module = Module::new(every_type());
         let mut inner = Self {
             own: None,
+            account: Uuid::nil(),
             organization: Uuid::nil(),
             executor: module.executor(),
             module,
             host: Connection::new(Side::Host),
             clock: Outlets::default(),
             sleeping: Vec::new(),
+            hold_appends: false,
+            held_appends: Vec::new(),
+            refuse_appends: None,
+            not_appended: Vec::new(),
+            appends: 0,
+            logged: Vec::new(),
+            signers: HashMap::new(),
+            hold_submissions: false,
+            held_submissions: Vec::new(),
             now: 0,
             replicas: BTreeMap::new(),
             blanks: BTreeMap::new(),
@@ -156,13 +251,14 @@ impl Default for Inner {
             manifests: BTreeMap::new(),
             vault: {
                 let keys = Keyring::new();
-                keys.insert(SEALING, ContentKey::from_bytes([7; 32]));
+                keys.insert(SEALING, ContentKey::from_bytes([7; 32]), Uuid::nil());
                 Vault::new(MemoryStore::new(), keys).with_chunker(ChunkerConfig::SMALL)
             },
             next_commit: 0,
             blocks: BTreeMap::new(),
             attached: BTreeMap::new(),
             forwarded: BTreeMap::new(),
+            gestures: BTreeMap::new(),
             presence: BTreeMap::new(),
             outbox: Vec::new(),
             replies: BTreeMap::new(),
@@ -172,6 +268,7 @@ impl Default for Inner {
             graph: BTreeMap::new(),
             created: Vec::new(),
             owner_only: BTreeSet::new(),
+            owner_offers: BTreeSet::new(),
             watched_content: BTreeSet::new(),
             watched_heads: BTreeSet::new(),
             heads_sent: BTreeMap::new(),
@@ -190,7 +287,7 @@ impl Default for Inner {
             held_reads: Vec::new(),
             known_elsewhere: None,
         };
-        if let Some(types) = inner.ask(|host| replicas::start(host, vec![0; 32])) {
+        if let Some(types) = inner.ask(replicas::start) {
             inner.blanks = types
                 .into_iter()
                 .map(|info| (info.content_type, info.blank))
@@ -200,12 +297,16 @@ impl Default for Inner {
     }
 }
 
-fn session() -> SessionState {
+fn session(tag: SessionTag) -> SessionState {
     SessionState {
-        generation: 1,
-        owner: Some(THIS_DEVICE),
-        participants: vec![THIS_DEVICE],
-        clean_at: None,
+        index: 1,
+        after: 0,
+        participants: vec![be_sdk_type_guest::api::Participant {
+            client: THIS_DEVICE,
+            tag: Hash::from_bytes(tag.0),
+            may_edit: true,
+            claimed: None,
+        }],
     }
 }
 
@@ -327,12 +428,24 @@ impl Inner {
                         operations
                             .iter()
                             .filter(|operation| !operation.mine)
-                            .map(|operation| operation.operation.clone()),
+                            .filter_map(|operation| match &operation.landed {
+                                Landed::On { operation, .. }
+                                | Landed::Beneath { operation, .. }
+                                | Landed::Under { operation, .. } => Some(operation.clone()),
+                                Landed::Relaid { .. } => None,
+                            }),
                     );
                 }
                 if let Some(held) = self.blocks.get_mut(&block) {
-                    if matches!(message, ToEditor::Snapshot(_)) {
-                        held.followed.clear();
+                    match &message {
+                        ToEditor::Snapshot(_) => {
+                            held.followed.clear();
+                            held.landed = None;
+                        }
+                        ToEditor::Operations(operations) => {
+                            held.landed = held.landed.map(|landed| landed + operations.len());
+                        }
+                        _ => {}
                     }
                     held.followed.push(message);
                 }
@@ -408,7 +521,9 @@ impl Inner {
                 };
                 let result = loaded
                     .map(be_sdk_type_guest::api::Loaded::of)
-                    .map_err(|error| error.to_string());
+                    .map_err(|error| {
+                        be_sdk_type_guest::api::LoadError::Unreadable(error.to_string())
+                    });
                 reply.send(&mut self.host, &result);
             }
             Call::Load { reply, commit, .. } => {
@@ -420,18 +535,94 @@ impl Inner {
                         bytes: bytes.clone(),
                         parts: Vec::new(),
                     })
-                    .ok_or_else(|| "no such commit".to_owned());
+                    .ok_or_else(|| {
+                        be_sdk_type_guest::api::LoadError::Unreadable("no such commit".to_owned())
+                    });
                 reply.send(&mut self.host, &result);
             }
             call @ Call::ReadPart { .. } if self.hold_reads => self.held_reads.push((block, call)),
             Call::ReadPart { reply, part, range } => {
                 let result = self
                     .vault
-                    .read_part(part.into(), range.offset, range.length)
+                    .read_part(part, range.offset, range.length)
                     .map_err(|error| error.to_string());
                 reply.send(&mut self.host, &result);
             }
-            Call::PutPart { reply, .. } => {
+            Call::Append {
+                reply,
+                bytes,
+                along,
+            } => {
+                self.appends += 1;
+                let id = uuid::Uuid::from_u64_pair(0xa99e_d000, self.appends);
+                let held = self.offline || self.hold_appends;
+                // Refused as the server takes it: the device keeps it until let go.
+                if let (false, Some(why)) = (held, self.refuse_appends.clone()) {
+                    self.not_appended.push((block, id, bytes, why.clone()));
+                    let not = be_sdk_type_guest::api::host::NotAppended { id: Some(id), why };
+                    return reply.send(
+                        &mut self.host,
+                        &Err::<be_sdk_type_guest::api::host::Appended, _>(not),
+                    );
+                }
+                let place = match held {
+                    true => {
+                        self.held_appends.push((block, id, bytes, along));
+                        None
+                    }
+                    false => self
+                        .log_entry(block, id, self.account, bytes, along, None)
+                        .map(|(seq, arrival)| be_sdk_type_guest::api::host::LogPlace {
+                            seq,
+                            arrival,
+                        }),
+                };
+                reply.send(
+                    &mut self.host,
+                    &Ok::<_, be_sdk_type_guest::api::host::NotAppended>(
+                        be_sdk_type_guest::api::host::Appended { id, place },
+                    ),
+                );
+                self.deliver_logged();
+            }
+            Call::ReadLog { reply, from, limit } => {
+                let log = block
+                    .or(self.own)
+                    .and_then(|block| self.blocks.get(&block))
+                    .map(|held| held.log.clone())
+                    .unwrap_or_default();
+                let items = log
+                    .iter()
+                    .skip(from as usize)
+                    .take(limit as usize)
+                    .cloned()
+                    .collect();
+                let kept = self
+                    .held_appends
+                    .iter()
+                    .filter(|(at, ..)| *at == block)
+                    .map(|(_, id, bytes, _)| be_sdk_type_guest::api::KeptEntry {
+                        id: *id,
+                        payload: bytes.clone(),
+                    })
+                    .collect();
+                let page = be_sdk_type_guest::api::LogPage {
+                    size: log.len() as u64,
+                    items,
+                    kept,
+                    refused: self.refused_entries(block),
+                };
+                reply.send(&mut self.host, &Ok(page));
+            }
+            Call::LetGoRefused { reply, id } => {
+                self.not_appended
+                    .retain(|(at, refused, ..)| *at != block || *refused != id);
+                reply.send(&mut self.host, &());
+            }
+            // A writer is ended by the guest dropping it (`Incoming::Canceled`).
+            Call::PartWriterNew { .. } => {}
+            Call::PartWriterWrite { reply, .. } => reply.send(&mut self.host, &()),
+            Call::PartWriterFinish { reply, .. } => {
                 reply.send(
                     &mut self.host,
                     &Err("commits here have no parts".to_owned()),
@@ -456,58 +647,52 @@ impl Inner {
                 }
             }
             Call::SleepUntil { reply, .. } => self.sleeping.push(reply),
-            Call::Append {
-                reply,
-                announcements,
-                ..
-            } => {
+            call @ Call::Submit { .. } if !self.offline && self.hold_submissions => {
+                self.held_submissions.push((block, call));
+            }
+            Call::Submit { reply, submission } => {
+                if let Some(held) = block.and_then(|block| self.blocks.get_mut(&block))
+                    && !held.peers.is_empty()
+                {
+                    held.relayed.push(Relayed::Submission {
+                        counter: submission.counter,
+                        base: submission.base,
+                        barrier: submission.barrier,
+                        payload: submission.payload.clone(),
+                    });
+                }
                 let held = !self.offline;
-                let until = match held {
-                    true => Announcing::Held,
-                    false => Announcing::Journal,
+                let entry = self.number(block, submission, held);
+                let answer = match held {
+                    true => be_sdk_type_guest::api::host::Submitted::Held,
+                    false => be_sdk_type_guest::api::host::Submitted::Kept,
                 };
-                for announced in announcements {
-                    self.announcing.push((
-                        block,
-                        until(announced.sequence),
-                        announced.announcement,
-                    ));
+                reply.send(&mut self.host, &answer);
+                if let Some(replica) = block
+                    .and_then(|block| self.blocks.get(&block))
+                    .and_then(|held| held.replica)
+                {
+                    self.on_replica(replica, |replica, host| {
+                        replica.sequenced(host, vec![entry]);
+                    });
                 }
-                self.send_announcements(block);
-                reply.send(&mut self.host, &held);
             }
-            Call::Announce {
+            Call::Send {
                 reply,
-                announcements,
+                to: Recipients::Peers | Recipients::One(Endpoint::Peer(_)),
+                bytes,
             } => {
-                for made in announcements {
-                    self.announcing.push((block, Announcing::Held(0), made));
-                }
-                self.send_announcements(block);
                 reply.send(&mut self.host, &());
-            }
-            Call::RebaseJournal { reply, base, .. } => {
-                // This device seals every commit here, so what the base holds goes with it.
-                let kept = block.is_some_and(|block| self.kept.contains_key(&block));
-                for (at, until, _) in &mut self.announcing {
-                    if *at == block
-                        && let Announcing::Journal(sequence) = *until
-                    {
-                        *until = match (sequence <= base.sequence, kept) {
-                            (false, _) => Announcing::Dropped,
-                            (true, true) => Announcing::Kept,
-                            (true, false) => Announcing::Held(sequence),
-                        };
-                    }
+                if let Some(held) = block.and_then(|block| self.blocks.get_mut(&block))
+                    && !held.peers.is_empty()
+                {
+                    held.relayed.push(Relayed::Message(bytes));
                 }
-                self.announcing
-                    .retain(|(_, until, _)| *until != Announcing::Dropped);
-                self.send_announcements(block);
-                reply.send(&mut self.host, &());
             }
             Call::Send { reply, .. }
-            | Call::ClaimLease { reply, .. }
-            | Call::ReportClean { reply, .. }
+            | Call::RebaseJournal { reply, .. }
+            | Call::KeepCarried { reply, .. }
+            | Call::Claim { reply }
             | Call::ReportStatus { reply, .. }
             | Call::InStepAt { reply, .. }
             | Call::Conflict { reply, .. }
@@ -515,12 +700,12 @@ impl Inner {
         }
     }
 
-    /// Sends what the server holds the edits of in `block`, as the host does: one notification,
-    /// the newest's `several` for several, each key once.
+    /// Sends what the server holds the entries of in `block`, as the host does: one
+    /// notification, the newest's `several` for several, each key once.
     fn send_announcements(&mut self, block: Option<Uuid>) {
         let mut held = Vec::new();
-        self.announcing.retain(|(at, until, made)| {
-            let sending = *at == block && matches!(until, Announcing::Held(_));
+        self.announcing.retain(|(at, made)| {
+            let sending = *at == block;
             if sending {
                 held.push(made.clone());
             }
@@ -553,6 +738,136 @@ impl Inner {
         ticket.decode(outcome).ok()
     }
 
+    /// Puts an entry `author` wrote in `block`'s log as the server would, numbered and stamped,
+    /// with what goes along with it: what it announces is sent, and what it takes back loses
+    /// its payload. Its replica hears it, with what it took back, on `deliver_logged`. Its place
+    /// and arrival, or none for a block not held.
+    fn log_entry(
+        &mut self,
+        block: Option<Uuid>,
+        id: Uuid,
+        author: Uuid,
+        bytes: Vec<u8>,
+        along: be_sdk_type_guest::api::Along,
+        arrival: Option<i64>,
+    ) -> Option<(u64, i64)> {
+        let key = block.or(self.own)?;
+        let held = self.blocks.get_mut(&key)?;
+        let seq = held.log.len() as u64;
+        // The server's clock, as the test's wall clock reads it now.
+        let arrival = arrival
+            .unwrap_or((beui_core::timer::TEST_WALL_CLOCK.as_millis() as u64 + self.now) as i64);
+        let item = be_sdk_type_guest::api::LogItem {
+            seq,
+            id,
+            author,
+            arrival,
+            payload: Some(bytes),
+            signer: self.signer_of(author),
+            imported: None,
+        };
+        let held = self.blocks.get_mut(&key)?;
+        held.log.push(item.clone());
+        // What it takes back loses its payload, as the server's redaction does.
+        let redacted = along
+            .redacts
+            .and_then(|seq| held.log.get_mut(seq as usize))
+            .filter(|taken| taken.author == author)
+            .map(|taken| {
+                taken.payload = None;
+                taken.signer = be_sdk_beui::be_block_content::Signer::Redacted;
+                taken.clone()
+            });
+        if let Some(replica) = held.replica {
+            self.logged
+                .push((replica, [item].into_iter().chain(redacted).collect()));
+        }
+        if let Some(announcement) = along.announcement {
+            self.announcing.push((block, announcement));
+            if self.held_appends.is_empty() {
+                self.send_announcements(block);
+            }
+        }
+        Some((seq, arrival))
+    }
+
+    /// Who signed what `author` appended, as the host's verdict: a test's `set_log_signer`, or a
+    /// contact's key.
+    fn signer_of(&self, author: Uuid) -> be_sdk_beui::be_block_content::Signer {
+        match self.signers.get(&author) {
+            Some(signer) => *signer,
+            None => be_sdk_beui::be_block_content::Signer::Verified,
+        }
+    }
+
+    /// The entries of `block` the server refused that the device keeps, as a read hands them.
+    fn refused_entries(&self, block: Option<Uuid>) -> Vec<be_sdk_type_guest::api::RefusedEntry> {
+        self.not_appended
+            .iter()
+            .filter(|(at, ..)| *at == block)
+            .map(|(_, id, bytes, why)| be_sdk_type_guest::api::RefusedEntry {
+                id: *id,
+                payload: bytes.clone(),
+                why: why.clone(),
+            })
+            .collect()
+    }
+
+    /// The server takes the appends it held, in order, or refuses them all while it refuses
+    /// appends (`refuse_appends`): the device keeps those, and the replica of each block open
+    /// hears every refused entry it keeps, as a drain tells.
+    /// What they announce goes as one per block, as a drain sends it.
+    fn release_appends(&mut self) {
+        if let Some(why) = self.refuse_appends.clone() {
+            let held = std::mem::take(&mut self.held_appends);
+            let mut blocks = Vec::new();
+            for (block, id, bytes, _) in held {
+                self.not_appended.push((block, id, bytes, why.clone()));
+                if !blocks.contains(&block) {
+                    blocks.push(block);
+                }
+            }
+            for block in blocks {
+                let entries = self.refused_entries(block);
+                if let Some(replica) = block
+                    .or(self.own)
+                    .and_then(|key| self.blocks.get(&key))
+                    .and_then(|held| held.replica)
+                {
+                    self.on_replica(replica, |replica, host| {
+                        replica.refused(host, entries);
+                    });
+                }
+            }
+            return;
+        }
+        let held = std::mem::take(&mut self.held_appends);
+        let mut blocks = Vec::new();
+        for (index, (block, id, bytes, along)) in held.iter().cloned().enumerate() {
+            let author = self.account;
+            // Each but the last is taken as one more the drain holds back.
+            self.held_appends = held[index + 1..].to_vec();
+            self.log_entry(block, id, author, bytes, along, None);
+            if !blocks.contains(&block) {
+                blocks.push(block);
+            }
+        }
+        self.held_appends.clear();
+        for block in blocks {
+            self.send_announcements(block);
+        }
+        self.deliver_logged();
+    }
+
+    /// Hands each replica the entries its log took since this was last called.
+    fn deliver_logged(&mut self) {
+        for (replica, items) in std::mem::take(&mut self.logged) {
+            self.on_replica(replica, |replica, host| {
+                replica.logged(host, items);
+            });
+        }
+    }
+
     fn on_replica(&mut self, replica: Replica, call: impl FnOnce(Replica, &mut Connection)) {
         call(replica, &mut self.host);
         self.run();
@@ -574,6 +889,8 @@ impl Inner {
         };
         let refused_commits = self.refused.get(&block).cloned().unwrap_or_default();
         held.followed.clear();
+        // The replica opens on the head with no journal: the order starts over from it.
+        held.order = be_block_session::Sequencer::starting(0);
         let replica = Replica::new(
             &mut self.host,
             Opening {
@@ -583,10 +900,17 @@ impl Inner {
                 account: self.own.unwrap_or_default(),
                 client: THIS_DEVICE,
                 tag: TAG,
+                origin: self.next_commit + 1,
+                taken_before: 0,
+                doubtful_through: 0,
+                kept_restart: 0,
+                restart_limit: None,
+                kept_through: 0,
+                kept_submitted: 0,
+                kept_submissions: Vec::new(),
                 head,
-                session: session(),
+                session: session(TAG),
                 journal: None,
-                lost_edits: false,
                 journal_kept: false,
                 commits_kept,
                 refused_commits,
@@ -595,6 +919,7 @@ impl Inner {
                 server_head: head,
                 sealed_head: None,
                 epoch: 0,
+                shown: Default::default(),
             },
         );
         if let Some(held) = self.blocks.get_mut(&block) {
@@ -658,19 +983,10 @@ impl Inner {
         client: ClientId,
         message: be_block_session::SessionMessage,
     ) {
-        let bytes = Wire::Session(message).encode();
+        let bytes = be_sdk_type_guest::wire::encode(&message);
         let now = self.now;
         self.on_replica(replica, |replica, host| {
-            replica.message(
-                host,
-                Endpoint::Peer(client),
-                bytes,
-                now,
-                Some(be_sdk_type_guest::api::Delivery {
-                    kind: be_sdk_type_guest::api::RelayKind::Edit,
-                    received: now as i64,
-                }),
-            );
+            replica.message(host, Endpoint::Peer(client), bytes, now);
         });
     }
 
@@ -684,19 +1000,69 @@ impl Inner {
             return;
         };
         self.elsewhere += 1;
-        let id = be_block_session::OpId {
-            client: ELSEWHERE,
+        let submission = be_sdk_type_guest::api::Submission {
+            origin: ELSEWHERE,
             counter: self.elsewhere,
+            base: u64::MAX,
+            barrier: false,
+            payload: be_sdk_type_guest::wire::Submitted {
+                through: 0,
+                entry: be_sdk_type_guest::wire::Entry::Operation(
+                    be_block_session::Payload::Inline(operation),
+                ),
+            }
+            .encode(),
         };
-        self.peer_said(
-            replica,
-            ELSEWHERE,
-            be_block_session::SessionMessage::Submit {
-                id,
-                base: u64::MAX,
-                payload: be_block_session::Payload::Inline(operation),
+        let entry = self.number(Some(block), submission, true);
+        self.on_replica(replica, |replica, host| {
+            replica.sequenced(host, vec![entry]);
+        });
+    }
+
+    /// Numbers `submission` in `block`'s order, as the server would (or this device offline,
+    /// with no time).
+    fn number(
+        &mut self,
+        block: Option<Uuid>,
+        submission: be_sdk_type_guest::api::Submission,
+        online: bool,
+    ) -> be_sdk_type_guest::api::JournalEntry {
+        let now = self.now as i64;
+        let order = match block.and_then(|block| self.blocks.get_mut(&block)) {
+            Some(held) => &mut held.order,
+            None => {
+                return be_sdk_type_guest::api::JournalEntry {
+                    sequence: 0,
+                    origin: submission.origin,
+                    counter: submission.counter,
+                    base: submission.base,
+                    floor: 0,
+                    received: None,
+                    payload: submission.payload,
+                };
+            }
+        };
+        let op = order.number(
+            be_block_session::Submission {
+                id: be_block_session::OpId {
+                    origin: submission.origin,
+                    counter: submission.counter,
+                },
+                base: submission.base,
+                barrier: submission.barrier,
+                payload: submission.payload,
             },
+            online.then_some(now),
         );
+        be_sdk_type_guest::api::JournalEntry {
+            sequence: op.sequence,
+            origin: op.id.origin,
+            counter: op.id.counter,
+            base: op.base,
+            floor: op.floor,
+            received: op.received,
+            payload: op.payload,
+        }
     }
 
     fn reverting(&mut self, block: Uuid, run: impl FnOnce(&mut Self)) {
@@ -710,6 +1076,12 @@ impl Inner {
     }
 
     fn change(&mut self, block: Uuid, change: Change) {
+        if matches!(change, Change::Undo)
+            && let Some(held) = self.blocks.get_mut(&block)
+        {
+            let took = held.holds.undo();
+            held.release(&took);
+        }
         if let Some(replica) = self.blocks.get(&block).and_then(|held| held.replica) {
             self.ask(|host| replica.change(host, change));
         }
@@ -775,7 +1147,18 @@ impl Inner {
     }
 
     fn detach(&mut self, block: Uuid, editor: EditorId) {
+        for (id, begun) in self.gestures.remove(&(block, editor)).unwrap_or_default() {
+            let gesture = match begun {
+                Gesture::BeginTentative => Gesture::Cancel,
+                _ => Gesture::Commit,
+            };
+            self.editor_sent(block, editor, FromEditor::Gesture { id, gesture });
+        }
         self.forwarded.remove(&(block, editor));
+        if let Some(held) = self.blocks.get_mut(&block) {
+            let took = held.holds.detach(editor);
+            held.release(&took);
+        }
         let removed = self
             .attached
             .get_mut(&block)
@@ -793,23 +1176,44 @@ impl Inner {
     fn editor_sent(&mut self, block: Uuid, editor: EditorId, message: FromEditor) {
         let frame = message.encode();
         let attached = self.attach(block, editor);
+        if let FromEditor::Gesture { id, gesture } = &message {
+            let open = self.gestures.entry((block, editor)).or_default();
+            match gesture {
+                Gesture::Begin | Gesture::BeginTentative => {
+                    open.insert(*id, *gesture);
+                }
+                Gesture::Commit | Gesture::Cancel => {
+                    open.remove(id);
+                }
+            }
+        }
         if attached && message == FromEditor::Resend {
             return;
         }
-        if let (FromEditor::Operate(_), Some(deferred)) = (&message, &mut self.deferred) {
+        if let (FromEditor::Operate { .. }, Some(deferred)) = (&message, &mut self.deferred) {
             deferred.push((block, editor, message));
             return;
         }
-        if let FromEditor::Operate(operation) = &message {
+        if let FromEditor::Operate { .. } | FromEditor::Gesture { .. } = &message {
             let Some(held) = self.blocks.get_mut(&block) else {
                 return;
             };
-            if held.replica.is_none() {
+            let operation = match &message {
+                FromEditor::Operate { operation, .. } => Some(operation.clone()),
+                _ => None,
+            };
+            if operation.is_some() && held.replica.is_none() {
                 return;
             }
-            held.written.push(operation.clone());
-            held.taken += 1;
-            held.revision += 1;
+            let took = held.holds.message(editor, Some(&message));
+            match (operation, took.this) {
+                (Some(operation), This::Held(serial)) => {
+                    held.held.insert(serial, operation);
+                }
+                (Some(operation), _) => held.write(operation),
+                (None, _) => {}
+            }
+            held.release(&took);
         }
         if self
             .blocks
@@ -821,17 +1225,20 @@ impl Inner {
         let Some(replica) = self.blocks.get(&block).and_then(|held| held.replica) else {
             return;
         };
-        if let FromEditor::Operate(_) = &message {
+        if let FromEditor::Operate { .. } = &message {
             *self.forwarded.entry((block, editor)).or_default() += 1;
         }
         let send = move |inner: &mut Self| {
             let now = inner.now;
             inner.on_replica(replica, |replica, host| {
-                replica.message(host, Endpoint::Editor(editor), frame, now, None);
+                replica.message(host, Endpoint::Editor(editor), frame, now);
             });
         };
         match message {
-            FromEditor::Gesture(Gesture::Cancel) => self.reverting(block, send),
+            FromEditor::Gesture {
+                gesture: Gesture::Cancel,
+                ..
+            } => self.reverting(block, send),
             _ => send(self),
         }
     }
@@ -873,6 +1280,12 @@ impl ContentStore {
         self.0.borrow_mut().graph.insert(info.id, info);
     }
 
+    /// The blocks whose owners offered them to the account (`BlockQuery::OwnerOffers`), each
+    /// answered from the graph as `add_block` put it there.
+    pub fn set_owner_offers(&self, blocks: impl IntoIterator<Item = Uuid>) {
+        self.0.borrow_mut().owner_offers = blocks.into_iter().collect();
+    }
+
     pub fn block(&self, id: Uuid) -> Option<BlockInfo> {
         self.0.borrow().graph.get(&id).cloned()
     }
@@ -894,6 +1307,37 @@ impl ContentStore {
         block
             .or(self.0.borrow().own)
             .expect("this editor has no block of its own; name the block")
+    }
+
+    /// `bytes` of `content_type` as the plain file its registered type writes it as, named
+    /// after `name` unless the file names itself, as be-host's `file-of-content` answers.
+    pub fn file_of(
+        &self,
+        content_type: Uuid,
+        bytes: Vec<u8>,
+        name: &str,
+    ) -> Result<be_sdk_beui::SavedFile, be_sdk_api::Failure> {
+        use be_sdk_type_guest::api::guest::exports::replicas::Guest as _;
+        let inner = self.0.borrow();
+        let mut asked = inner.module.to_file(content_type, bytes);
+        let std::task::Poll::Ready(file) = asked
+            .as_mut()
+            .poll(&mut std::task::Context::from_waker(std::task::Waker::noop()))
+        else {
+            panic!("a type module makes a file at once");
+        };
+        let file = file
+            .map_err(|failure| be_sdk_api::Failure::Failed(format!("{failure:?}")))?
+            .ok_or_else(|| {
+                be_sdk_api::Failure::Failed("This block has no plain-file form.".to_owned())
+            })?;
+        Ok(be_sdk_beui::SavedFile {
+            name: file.name.unwrap_or_else(|| {
+                be_sdk_beui::be_block_content::plain::export_name(name, &file.extension)
+            }),
+            mime_type: file.media_type,
+            data: file.bytes,
+        })
     }
 
     pub fn register(&self, registrations: impl IntoIterator<Item = Registration>) {
@@ -942,6 +1386,17 @@ impl ContentStore {
             .put(key, C::CONTENT_TYPE, content.encode());
     }
 
+    /// Holds content of type `C` that does not decode in this build, so the block's replica
+    /// cannot open it, as the host's replica cannot open a block stored in a form it cannot
+    /// read: its editors read it as failed (`Unready::Failed`).
+    pub fn hold_unreadable<C: LiveEdit + Merge + Clone + Default>(&self, block: Option<Uuid>) {
+        let key = self.key(block);
+        self.know::<C>();
+        self.0
+            .borrow_mut()
+            .put(key, C::CONTENT_TYPE, UNREADABLE.to_vec());
+    }
+
     /// Like `hold`, but keeps the content's parts after its first (`BlockContent::parts`) in the
     /// store, which a type that loads only its first part reads by range. Held before the block
     /// is open.
@@ -963,6 +1418,144 @@ impl ContentStore {
     /// look at what an editor shows while only some of the parts it asked for were read.
     pub fn hold_reads(&self, hold: bool) {
         self.0.borrow_mut().hold_reads = hold;
+    }
+
+    /// Holds appends to signed logs back, as a server not reached yet: each is answered as kept
+    /// on the device; released, the server takes those it held, in order.
+    pub fn hold_appends(&self, hold: bool) {
+        let mut inner = self.0.borrow_mut();
+        inner.hold_appends = hold;
+        if !hold && !inner.offline {
+            inner.release_appends();
+        }
+    }
+
+    /// Has the server refuse appends to signed logs, saying `why`, until called with none.
+    pub fn refuse_appends(&self, why: Option<&str>) {
+        self.0.borrow_mut().refuse_appends = why.map(str::to_owned);
+    }
+
+    /// Puts an entry `author` wrote in `block`'s signed log, as another device's append the
+    /// server took at `arrival` (by its clock now, for none): its place.
+    pub fn log_entry(
+        &self,
+        block: Option<Uuid>,
+        author: Uuid,
+        bytes: Vec<u8>,
+        arrival: Option<i64>,
+    ) -> u64 {
+        let mut inner = self.0.borrow_mut();
+        inner.appends += 1;
+        let id = uuid::Uuid::from_u64_pair(0xa99e_d000, inner.appends);
+        let along = be_sdk_type_guest::api::Along {
+            announcement: None,
+            redacts: None,
+        };
+        let place = inner.log_entry(block, id, author, bytes, along, arrival);
+        inner.deliver_logged();
+        place.map_or(0, |(seq, _)| seq)
+    }
+
+    /// Puts an entry of history an import brought in `block`'s signed log, as `importer`
+    /// appended it: written by `author` at `original`'s place in the block `from`, verified
+    /// there. Its place here.
+    pub fn log_imported(
+        &self,
+        block: Option<Uuid>,
+        author: Uuid,
+        bytes: Vec<u8>,
+        importer: Uuid,
+        (from, original): (Uuid, u64),
+    ) -> u64 {
+        let seq = self.log_entry(block, importer, bytes, None);
+        let key = self.key(block);
+        let mut inner = self.0.borrow_mut();
+        if let Some(item) = inner
+            .blocks
+            .get_mut(&key)
+            .and_then(|held| held.log.get_mut(seq as usize))
+        {
+            item.author = author;
+            item.imported = Some(be_sdk_type_guest::api::LogImport {
+                block: from,
+                seq: original,
+                importer,
+            });
+        }
+        seq
+    }
+
+    /// `block`'s signed log as the server holds it.
+    pub fn log(&self, block: Option<Uuid>) -> Vec<be_sdk_type_guest::api::LogItem> {
+        let key = self.key(block);
+        self.0
+            .borrow()
+            .blocks
+            .get(&key)
+            .map(|held| held.log.clone())
+            .unwrap_or_default()
+    }
+
+    /// Redacts the entry at `seq` of `block`'s signed log as a manager or the server would,
+    /// with no entry of its author's naming it: its replica hears it at once.
+    pub fn redact_entry(&self, block: Option<Uuid>, seq: u64) {
+        let key = self.key(block);
+        let mut inner = self.0.borrow_mut();
+        let Some(held) = inner.blocks.get_mut(&key) else {
+            return;
+        };
+        let Some(taken) = held.log.get_mut(seq as usize) else {
+            return;
+        };
+        taken.payload = None;
+        taken.signer = be_sdk_beui::be_block_content::Signer::Redacted;
+        let taken = taken.clone();
+        if let Some(replica) = held.replica {
+            inner.logged.push((replica, vec![taken]));
+        }
+        inner.deliver_logged();
+    }
+
+    /// The appends to `block`'s signed log the server holds back, each id and its bytes.
+    pub fn held_appends(&self, block: Option<Uuid>) -> Vec<(Uuid, Vec<u8>)> {
+        let key = self.key(block);
+        let inner = self.0.borrow();
+        inner
+            .held_appends
+            .iter()
+            .filter(|(at, ..)| at.or(inner.own) == Some(key))
+            .map(|(_, id, bytes, _)| (*id, bytes.clone()))
+            .collect()
+    }
+
+    /// The ids of the appends to `block`'s signed log the server refused that the device keeps
+    /// until let go.
+    pub fn refused_appends(&self, block: Option<Uuid>) -> Vec<Uuid> {
+        let inner = self.0.borrow();
+        inner
+            .not_appended
+            .iter()
+            .filter(|(at, ..)| at.or(inner.own) == Some(self.key(block)))
+            .map(|(_, id, ..)| *id)
+            .collect()
+    }
+
+    /// Says who signed what `author` appends to a signed log, as the host would tell.
+    pub fn set_log_signer(&self, author: Uuid, signer: be_sdk_beui::be_block_content::Signer) {
+        self.0.borrow_mut().signers.insert(author, signer);
+    }
+
+    /// Holds submissions back, as a server that has not answered yet; released, it takes those
+    /// it held in order, so a test can look at an edit sent and not yet held by the server.
+    pub fn hold_submissions(&self, hold: bool) {
+        let mut inner = self.0.borrow_mut();
+        inner.hold_submissions = hold;
+        if !hold {
+            for (block, call) in std::mem::take(&mut inner.held_submissions) {
+                inner.act(block, call);
+            }
+            inner.run();
+        }
     }
 
     /// Lets the oldest held part read through; false when none is held.
@@ -1097,6 +1690,110 @@ impl ContentStore {
         }
     }
 
+    /// Joins `client`, which may edit, into the block's session, as the server's membership
+    /// tells a replica: from then on what the replica relays and submits is kept for
+    /// `take_relayed`.
+    pub fn join_peer(&self, block: Option<Uuid>, client: ClientId) {
+        let key = self.key(block);
+        let mut inner = self.0.borrow_mut();
+        let Some(held) = inner.blocks.get_mut(&key) else {
+            return;
+        };
+        held.peers.push(client);
+        let mut state = session(TAG);
+        for peer in &held.peers {
+            state.index += 1;
+            state
+                .participants
+                .push(be_sdk_type_guest::api::Participant {
+                    client: *peer,
+                    tag: Hash::from_bytes(TAG.0),
+                    may_edit: true,
+                    claimed: None,
+                });
+        }
+        if let Some(replica) = held.replica {
+            inner.on_replica(replica, |replica, host| {
+                replica.lease(host, state);
+            });
+        }
+    }
+
+    /// How many landings the block's replica told its editors since the last call (each an
+    /// operation, or what is unsettled laid again), none when it sent them a snapshot since.
+    pub fn take_landed(&self, block: Option<Uuid>) -> Option<usize> {
+        let key = self.key(block);
+        self.0
+            .borrow_mut()
+            .blocks
+            .get_mut(&key)
+            .and_then(|held| std::mem::replace(&mut held.landed, Some(0)))
+    }
+
+    /// What the block's replica relayed to its peers and submitted since the last call, in
+    /// order, while a peer is joined.
+    pub fn take_relayed(&self, block: Option<Uuid>) -> Vec<Relayed> {
+        let key = self.key(block);
+        self.0
+            .borrow_mut()
+            .blocks
+            .get_mut(&key)
+            .map(|held| std::mem::take(&mut held.relayed))
+            .unwrap_or_default()
+    }
+
+    /// Hands the block's replica what a peer's replica sent (`take_relayed`), as relayed from
+    /// `from` and numbered in this block's order, its submissions under `origin` (its own
+    /// replica's would clash, every store numbering alike).
+    pub fn receive_relayed(
+        &self,
+        block: Option<Uuid>,
+        from: ClientId,
+        origin: u64,
+        relayed: Vec<Relayed>,
+    ) {
+        let key = self.key(block);
+        let mut inner = self.0.borrow_mut();
+        let Some(replica) = inner.blocks.get(&key).and_then(|held| held.replica) else {
+            return;
+        };
+        for relayed in relayed {
+            match relayed {
+                Relayed::Message(bytes) => {
+                    let Some(mut message) = be_sdk_type_guest::wire::decode(&bytes) else {
+                        continue;
+                    };
+                    if let be_block_session::SessionMessage::Held {
+                        origin: held_origin,
+                        ..
+                    } = &mut message
+                    {
+                        *held_origin = origin;
+                    }
+                    inner.peer_said(replica, from, message);
+                }
+                Relayed::Submission {
+                    counter,
+                    base,
+                    barrier,
+                    payload,
+                } => {
+                    let submission = be_sdk_type_guest::api::Submission {
+                        origin,
+                        counter,
+                        base,
+                        barrier,
+                        payload,
+                    };
+                    let entry = inner.number(Some(key), submission, true);
+                    inner.on_replica(replica, |replica, host| {
+                        replica.sequenced(host, vec![entry]);
+                    });
+                }
+            }
+        }
+    }
+
     pub fn receive_from_peer(
         &self,
         block: Option<Uuid>,
@@ -1123,6 +1820,10 @@ impl ContentStore {
         self.0.borrow_mut().offline = !online;
         if online {
             self.drain(false);
+            let mut inner = self.0.borrow_mut();
+            if !inner.hold_appends {
+                inner.release_appends();
+            }
         }
     }
 
@@ -1148,21 +1849,25 @@ impl ContentStore {
                 inner.refused.entry(block).or_default().push(commit);
                 commits.push(commit);
             }
-            for (at, until, _) in &mut inner.announcing {
-                if *at == Some(block) && *until == Announcing::Kept {
-                    *until = match refused {
-                        true => Announcing::Dropped,
-                        false => Announcing::Held(0),
-                    };
-                }
-            }
-            inner
-                .announcing
-                .retain(|(_, until, _)| *until != Announcing::Dropped);
-            inner.send_announcements(Some(block));
             if let Some(replica) = inner.blocks.get(&block).and_then(|held| held.replica) {
                 replica.drained(&mut inner.host, refused, commits);
             }
+        }
+        inner.run();
+    }
+
+    /// Detaches every editor attached to the block's replica, as the host does when their
+    /// instances close: the gestures they left open are cancelled.
+    pub fn detach_editors(&self, block: Option<Uuid>) {
+        let key = self.key(block);
+        let mut inner = self.0.borrow_mut();
+        let editors: Vec<EditorId> = inner
+            .attached
+            .get(&key)
+            .map(|held| held.iter().copied().collect())
+            .unwrap_or_default();
+        for editor in editors {
+            inner.detach(key, editor);
         }
         inner.run();
     }
@@ -1226,6 +1931,17 @@ impl ContentStore {
             .reverting(block, |inner| inner.change(block, change));
     }
 
+    /// Starts the editor's replica of `block` afresh, with a snapshot, as the host does when a
+    /// later replica of the block ends (`BlockStore::replica_resumed`): what was queued for the
+    /// replica that ended goes, and the store's replica answers a resend on its behalf.
+    pub(crate) fn resume_content(&self, instance: EditorInstanceId, block: Uuid) {
+        let mut inner = self.0.borrow_mut();
+        inner
+            .outbox
+            .retain(|(of, editor, _)| (*of, *editor) != (block, instance.0));
+        inner.editor_sent(block, instance.0, FromEditor::Resend);
+    }
+
     pub(crate) fn watch_content(&self, instance: EditorInstanceId, block: Uuid, watched: bool) {
         let mut inner = self.0.borrow_mut();
         if inner.own == Some(block) {
@@ -1284,6 +2000,8 @@ impl ContentStore {
             size: 0,
             tree_size: 0,
             out_of_reach: false,
+            unread: 0,
+            log_doubt: None,
         });
         {
             let mut inner = self.0.borrow_mut();
@@ -1468,6 +2186,55 @@ impl ContentStore {
         false
     }
 
+    /// The account the editor's host is signed in to, as be-host's stack knows its own.
+    pub(crate) fn sign_in(&self, account: Uuid) {
+        self.0.borrow_mut().account = account;
+    }
+
+    /// How many things in `block` the account has not read, as be-host counts them for a type
+    /// that counts (guides/blocks/host.md, "Unread counts"): from its head and every
+    /// block of the type's reads kind the store holds, this account's layers of it.
+    fn unread_of(&self, block: Uuid) -> u32 {
+        let mut inner = self.0.borrow_mut();
+        let Some(content_type) = inner.blocks.get(&block).map(|held| held.content_type) else {
+            return 0;
+        };
+        let Some(kind) = inner.module.reads_of(content_type) else {
+            return 0;
+        };
+        let layers: Vec<Uuid> = inner
+            .blocks
+            .iter()
+            .filter(|(_, held)| held.content_type == kind)
+            .map(|(id, _)| *id)
+            .collect();
+        let reads: Vec<Vec<u8>> = layers
+            .into_iter()
+            .filter_map(|layer| Self::head_bytes(&mut inner, layer).map(|(_, bytes)| bytes))
+            .collect();
+        // Its head, as be-host counts it, never its replica: asking an open replica for its
+        // content would step it in the middle of what the test holds back (a part read).
+        let Some(bytes) = inner
+            .blocks
+            .get(&block)
+            .and_then(|held| held.head)
+            .and_then(|head| inner.commits.get(&head).cloned())
+        else {
+            return 0;
+        };
+        let log = inner
+            .blocks
+            .get(&block)
+            .map_or(&[][..], |held| &held.log[..]);
+        let latest = &log[log
+            .len()
+            .saturating_sub(be_sdk_beui::be_block_content::UNREAD_ENTRIES as usize)..];
+        inner
+            .module
+            .unread_of_bytes(content_type, &bytes, &reads, latest, block, inner.account)
+            .unwrap_or_default()
+    }
+
     fn references_of(&self, id: Uuid) -> Vec<Uuid> {
         let inner = self.0.borrow();
         inner
@@ -1491,6 +2258,7 @@ impl ContentStore {
         let known = |id: &Uuid| nodes.iter().find(|node| node.id == *id).cloned();
         let with_references = |mut info: BlockInfo| {
             info.references = self.references_of(info.id);
+            info.unread = self.unread_of(info.id);
             info
         };
         let listed: Vec<BlockInfo> = match query {
@@ -1553,6 +2321,10 @@ impl ContentStore {
             }
             BlockQuery::Block(block) => known(&block).into_iter().collect(),
             BlockQuery::OpenSettings(_) => Vec::new(),
+            BlockQuery::OwnerOffers => {
+                let offered = self.0.borrow().owner_offers.clone();
+                offered.iter().filter_map(known).collect()
+            }
         };
         listed
             .into_iter()

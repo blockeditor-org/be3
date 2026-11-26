@@ -29,8 +29,6 @@ pub(crate) fn ClockButton(
     #[prop(default = Direction::Horizontal)] direction: Prop<Direction>,
 ) -> NodeId {
     let direction = create_memo(move || direction.get());
-    let across = create_memo(move || direction.get() == Direction::Horizontal);
-    let down = create_memo(move || direction.get() == Direction::Vertical);
     let hours = create_memo(move || clock.with(|shown| hour_and_minute(shown).0.to_owned()));
     let minutes = create_memo(move || clock.with(|shown| hour_and_minute(shown).1.to_owned()));
     let unread = notifications.unread();
@@ -39,42 +37,41 @@ pub(crate) fn ClockButton(
         true => unread.get(),
         false => 0,
     });
-    let unread = create_memo(move || count.get() > 0);
     let counted = create_memo(move || count.get().to_string());
-    let label = create_memo(move || match count.get() {
-        0 => clock.get(),
-        1 => format!("{}, 1 new notification", clock.get()),
-        count => format!("{}, {count} new notifications", clock.get()),
-    });
     let screen = container_size();
     let room = create_memo(move || screen.as_ref().map(|screen| screen.get()));
     let beside = create_memo(move || {
         room.get()
             .is_none_or(|room| room.x <= 0.0 || room.x >= BESIDE_WIDTH + 2.0 * SPACING.px())
     });
-    let width = create_memo(move || match offered.get() && beside.get() {
-        true => Size::Custom(BESIDE_WIDTH),
-        false => Size::Custom(CALENDAR_WIDTH),
-    });
     view! {
         <BarPopup
-            label
+            label={move || match count.get() {
+                0 => clock.get(),
+                1 => format!("{}, 1 new notification", clock.get()),
+                count => format!("{}, {count} new notifications", clock.get()),
+            }}
             icon_only=true
-            width
+            width={move || match offered.get() && beside.get() {
+                true => Size::Custom(BESIDE_WIDTH),
+                false => Size::Custom(CALENDAR_WIDTH),
+            }}
             @test_id={"desktop.clock"}
             open={notifications.browsing()}
             leading={view! {
                 <List direction align=Align::Center spacing=COUNT_SPACING>
-                    <Show condition={across}>
+                    <Show
+                        value={move || direction.get() == Direction::Horizontal}
+                        fallback={move || view! {
+                            <List align=Align::Center spacing=Space::None>
+                                <Text>{hours}</Text>
+                                <Text>{minutes}</Text>
+                            </List>
+                        }}
+                    >
                         <Text>{clock}</Text>
                     </Show>
-                    <Show condition={down}>
-                        <List align=Align::Center spacing=Space::None>
-                            <Text>{hours}</Text>
-                            <Text>{minutes}</Text>
-                        </List>
-                    </Show>
-                    <Show condition={unread}>
+                    <Show value={move || count.get() > 0}>
                         <Frame
                             fill=ColorRole::Accent
                             radius=Radius::Full
@@ -110,10 +107,6 @@ fn ClockPanel(
 ) -> NodeId {
     let offered = notifications.offered;
     let listed = notifications.listed();
-    let direction = create_memo(move || match beside.get() {
-        true => Direction::Horizontal,
-        false => Direction::Vertical,
-    });
     let height = create_memo(move || {
         let tall = room.get().map_or(0.0, |room| room.y);
         match tall > 0.0 {
@@ -121,15 +114,23 @@ fn ClockPanel(
             false => LIST_HEIGHT,
         }
     });
-    let history_width = create_memo(move || match beside.get() {
-        true => Length::Size(HISTORY),
-        false => Length::FILL,
-    });
     view! {
-        <List direction={direction} align=Align::Start spacing=SPACING>
+        <List
+            direction={move || match beside.get() {
+                true => Direction::Horizontal,
+                false => Direction::Vertical,
+            }}
+            align=Align::Start
+            spacing=SPACING
+        >
             <DesktopCalendar workspace={workspace} popover={popover} />
-            <Show condition={offered}>
-                <Frame width={history_width}>
+            <Show value={offered}>
+                <Frame
+                    width={move || match beside.get() {
+                        true => Length::Size(HISTORY),
+                        false => Length::FILL,
+                    }}
+                >
                     <NotificationList
                         notifications={notifications}
                         listed={listed}

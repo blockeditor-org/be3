@@ -1,0 +1,1285 @@
+//! The root entry in the browser (plans/host_as_platform_adapter.md, The root guest): the root
+//! is instantiated on the page and stepped inline on its thread, where WebXR and
+//! `requestAnimationFrame` run and from which no worker can be called synchronously. The page
+//! never waits (decisions/the_web_page_never_waits.md), so a frame is not one call as natively:
+//! `Root::frame`, called from `requestAnimationFrame`, steps the root as far as it goes, for a
+//! slice of the thread at most (`SLICE`), and returns, and whatever the root waits on resumes it
+//! later: an instance's worker answering, a compile finishing, the root waking itself, a timer
+//! at the frame's deadline and at its patience past it, or, once its slice ran out, a task of its
+//! own after the page's others. The frame is handed over once the root answers.
+
+use std::{
+    cell::{Cell, RefCell},
+    collections::{HashMap, VecDeque},
+    rc::{Rc, Weak},
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
+use be_wasm_guest_host::Wake;
+use be_wasm_root_api::{
+    FrameDone, FrameRequest, host::LockState, host::Notice, host::PowerAction, host::StatisticRow,
+};
+use be_wasm_sandbox_host::{Loader, Server};
+use js_sys::{Function, Object, Reflect, Uint8Array, WebAssembly};
+use wasm_bindgen::{JsCast, prelude::*};
+use wasm_bindgen_futures::JsFuture;
+
+use crate::{Core, Inline, Password, Progress};
+
+/// What hears a drawn frame, or why the root drew none.
+type Drawn = Box<dyn FnOnce(Result<FrameDone, String>)>;
+
+/// Links a root against the app libraries as an app is linked in its worker: through the bundle's
+/// app.js (`link`), whose gpu shim (be-wasm-gpu-shim) answers the root's be3:gpu on a device of
+/// the page's own, with the root's transport (`host`) answering `be3_host` and its WASI
+/// (`wasi`), which hears the root's memory once it has one (`bind`).
+#[wasm_bindgen(inline_js = r#"
+export async function link_root(appUrl, bytes, module, host, wasi, bind, wake) {
+    const app = await import(appUrl);
+    let memory = null;
+    const guest = {
+        get memory() {
+            return memory;
+        },
+        set memory(bound) {
+            memory = bound;
+            bind(bound);
+        },
+    };
+    const imports = (linked, answer) => {
+        const resolved = { __proto__: null };
+        for (const wanted of WebAssembly.Module.imports(linked)) {
+            const answered = wanted.module === "be3_host" && Object.hasOwn(host, wanted.name)
+                ? host[wanted.name]
+                : answer(wanted);
+            if (answered === undefined) {
+                throw new Error(`the root imports ${wanted.module}.${wanted.name}, which its host does not answer`);
+            }
+            (resolved[wanted.module] ??= { __proto__: null })[wanted.name] = answered;
+        }
+        return resolved;
+    };
+    const initialize = (exports) => {
+        if (typeof exports._initialize === "function") {
+            exports._initialize();
+        } else {
+            exports.__wasm_call_ctors?.();
+        }
+    };
+    const shim = await app.link({ bytes, module, guest, imports, initialize, wake, wasi }, true);
+    if (memory === null) guest.memory = guest.exports.memory;
+    return [guest.exports, shim];
+}
+"#)]
+extern "C" {
+    #[wasm_bindgen(catch)]
+    async fn link_root(
+        app_url: &str,
+        bytes: &JsValue,
+        module: &WebAssembly::Module,
+        host: &Object,
+        wasi: &Object,
+        bind: &Function,
+        wake: &Function,
+    ) -> Result<JsValue, JsValue>;
+}
+
+/// The root guest, run inline on the page. Dropping it stops the root and every instance it
+/// spawned.
+pub struct Root {
+    shared: Rc<Shared>,
+}
+
+struct Shared {
+    id: u64,
+    core: RefCell<Core<PageGuest>>,
+    /// What hears the frame being drawn.
+    drawn: RefCell<Option<Drawn>>,
+    /// Whether a task to resume the root is queued already.
+    queued: Cell<bool>,
+    /// The timer that resumes the root at the moment it waits for: the frame's deadline, or its
+    /// patience past it.
+    timer: RefCell<Option<Timer>>,
+    /// Whether the root is being stepped, during which what rings is the step's to take.
+    stepping: Cell<bool>,
+    /// Resumes a root that used its slice of the page's thread, as a task of its own, after
+    /// whatever input and rendering the page has waiting.
+    after: web_sys::MessageChannel,
+    _resumed: Closure<dyn FnMut(web_sys::MessageEvent)>,
+    /// What the page asks to hear when the root has something to step for between frames
+    /// (`Root::on_wake`).
+    woken: RefCell<Option<Rc<dyn Fn()>>>,
+}
+
+/// The most of the page's thread a root steps for at once: one step at least, and others while
+/// they fit. A root with more to do resumes after a task's turn, so a root busy for long, or one
+/// stuck waking itself, never holds up the page's input and rendering.
+const SLICE: Duration = Duration::from_millis(4);
+
+thread_local! {
+    /// Every root on the page by its number, which its wakes name since they may not hold it:
+    /// a wake is `Send`, and the page's values are not.
+    static ROOTS: RefCell<HashMap<u64, Weak<Shared>>> = RefCell::new(HashMap::new());
+    static NEXT: Cell<u64> = const { Cell::new(0) };
+}
+
+thread_local! {
+    /// Whether a linked root runs on the page: the gpu shim that serves one holds what it serves
+    /// for the page (be-wasm-gpu-shim's state is one per page), so a second waits for the first
+    /// to stop.
+    static LINKED: Cell<bool> = const { Cell::new(false) };
+}
+
+fn root(id: u64) -> Option<Rc<Shared>> {
+    ROOTS.with(|roots| roots.borrow().get(&id).and_then(Weak::upgrade))
+}
+
+/// Something the root `id` waits on may have arrived: queues a microtask that resumes its frame.
+/// This is the first wake after the root waited, so the root takes it before anything else; a
+/// root that keeps stepping resumes as a task of its own instead (`SLICE`). What rings while the
+/// root is stepped is the step's to take, from its own state.
+fn ring(id: u64) {
+    let Some(shared) = root(id) else {
+        return;
+    };
+    if shared.stepping.get() || shared.queued.replace(true) {
+        return;
+    }
+    let held = Rc::downgrade(&shared);
+    let resume = Closure::once_into_js(move || {
+        if let Some(shared) = held.upgrade() {
+            shared.queued.set(false);
+            shared.resume();
+        }
+    });
+    // Queued, never run inline: a wake may come from inside a call into the root's host.
+    let global = js_sys::global();
+    if let Ok(queue) = Reflect::get(&global, &"queueMicrotask".into())
+        && let Ok(queue) = queue.dyn_into::<Function>()
+    {
+        let _ = queue.call1(&global, &resume);
+    }
+}
+
+impl Root {
+    /// Fetches the root guest from `url`, compiles it with `WebAssembly.compile` and starts it on
+    /// the page. The staged apps it spawns by id are found by `apps`. A root that imports more
+    /// than a pure guest (the app libraries, be3:gpu: the real root) is linked as an app is
+    /// (`link_root`), through the app.js beside it, and draws its own surfaces on a device of
+    /// the page's own, which canvases show (`show_surface`, `paint`): one at a time on a page,
+    /// since the gpu shim that serves it is one per page, so another is refused until it is
+    /// dropped. A pure root that imports anything else (a malformed one) is linked too, and fails
+    /// with what app.js says of it.
+    pub async fn load(url: &str, apps: Loader) -> Result<Self, String> {
+        let window = web_sys::window().ok_or("the root runs only on a page")?;
+        let fetched = JsFuture::from(window.fetch_with_str(url))
+            .await
+            .map_err(|error| format!("{url} could not be fetched: {}", describe(&error)))?;
+        let response: web_sys::Response = fetched.unchecked_into();
+        if !response.ok() {
+            return Err(format!("{url} could not be fetched: {}", response.status()));
+        }
+        let bytes = response
+            .array_buffer()
+            .map_err(|error| format!("{url} could not be read: {}", describe(&error)))?;
+        let bytes = JsFuture::from(bytes)
+            .await
+            .map_err(|error| format!("{url} could not be read: {}", describe(&error)))?;
+        let module: WebAssembly::Module = JsFuture::from(WebAssembly::compile(&bytes))
+            .await
+            .map_err(|error| format!("{url} is not a valid module: {}", describe(&error)))?
+            .unchecked_into();
+        if !pure(&module) {
+            let app_js = web_sys::Url::new_with_base("app.js", &absolute(url)?)
+                .map_err(|error| format!("{url} names no app.js: {}", describe(&error)))?
+                .href();
+            // Its staged apps draw, as the real root's children do.
+            let display = true;
+            return Self::begin(apps, display, |wake| {
+                PageGuest::link(&module, &bytes, &app_js, wake)
+            })
+            .await;
+        }
+        Self::start(&module, apps).await
+    }
+
+    /// Starts an instance of `module`, the root guest, a pure guest, on the page.
+    pub async fn start(module: &WebAssembly::Module, apps: Loader) -> Result<Self, String> {
+        Self::begin(apps, false, |wake| PageGuest::start(module, wake)).await
+    }
+
+    /// Starts the root `guest` starts, waking it with the wake it is handed.
+    /// Starts the root `guest` starts, waking it with the wake it is handed; the staged apps it
+    /// spawns draw if `display` (`Server::with_display`).
+    async fn begin<Started: std::future::Future<Output = Result<PageGuest, String>>>(
+        apps: Loader,
+        display: bool,
+        guest: impl FnOnce(Wake) -> Started,
+    ) -> Result<Self, String> {
+        let id = NEXT.with(|next| next.replace(next.get() + 1));
+        let wake: Wake = Arc::new(move || ring(id));
+        let guest = guest(Arc::clone(&wake)).await?;
+        let sandbox = Server::new(wake, apps);
+        let sandbox = match display {
+            true => sandbox.with_display(),
+            false => sandbox,
+        };
+        let core = Core::new(guest, sandbox)?;
+        let after = web_sys::MessageChannel::new().map_err(|error| {
+            format!(
+                "the root's page has no MessageChannel: {}",
+                describe(&error)
+            )
+        })?;
+        let resumed = Closure::<dyn FnMut(web_sys::MessageEvent)>::new(move |_| {
+            if let Some(shared) = root(id) {
+                shared.resume();
+            }
+        });
+        after
+            .port1()
+            .set_onmessage(Some(resumed.as_ref().unchecked_ref()));
+        let shared = Rc::new(Shared {
+            id,
+            core: RefCell::new(core),
+            drawn: RefCell::new(None),
+            queued: Cell::new(false),
+            timer: RefCell::new(None),
+            stepping: Cell::new(false),
+            after,
+            _resumed: resumed,
+            woken: RefCell::new(None),
+        });
+        ROOTS.with(|roots| roots.borrow_mut().insert(id, Rc::downgrade(&shared)));
+        Ok(Self { shared })
+    }
+
+    /// Shows on `canvas` what the root presents to its own surface `surface`
+    /// (`Surface::Root`), under the canvas's `id`, from the next `paint`: a linked root's
+    /// alone, which draws on the page's device. A pure root draws nothing of its own.
+    pub fn show_surface(&self, id: u32, canvas: &web_sys::OffscreenCanvas, surface: u32) {
+        if let Some(shim) = self.shim() {
+            call_shim(&shim, "show", &[id.into(), canvas.into(), surface.into()]);
+        }
+    }
+
+    /// Shows on `canvas` what the app the root spawned as the instance `instance` presents to its
+    /// surface `surface`, as the layer list names it (`Surface::Screen` and
+    /// `Surface::Anchored`), under the canvas's `id`: the canvas moves to the app's worker, which
+    /// draws into it as it presents. Says why it cannot: an instance that stopped, or one of a
+    /// pure root, whose apps draw nothing.
+    pub fn show_app_surface(
+        &self,
+        id: u32,
+        canvas: &web_sys::OffscreenCanvas,
+        instance: u64,
+        surface: u32,
+    ) -> Result<(), String> {
+        self.shared
+            .core
+            .borrow()
+            .sandbox
+            .show(instance, id, canvas, surface)
+    }
+
+    /// Stops showing anything on the canvas `id` of the app the root spawned as `instance`.
+    pub fn forget_app_surface(&self, id: u32, instance: u64) {
+        self.shared.core.borrow().sandbox.forget(instance, id);
+    }
+
+    /// Stops showing anything on the canvas `id` (`show_surface`).
+    pub fn forget_surface(&self, id: u32) {
+        if let Some(shim) = self.shim() {
+            call_shim(&shim, "forget", &[id.into()]);
+        }
+    }
+
+    /// Draws what the root last presented to each surface a canvas shows (`show_surface`)
+    /// onto it. Answers whether any changed, or why the root's gpu failed.
+    pub fn paint(&self) -> Result<bool, String> {
+        let Some(shim) = self.shim() else {
+            return Ok(false);
+        };
+        let painted = call_shim(&shim, "paint", &[]).is_some_and(|painted| painted.is_truthy());
+        match call_shim(&shim, "failure", &[]).and_then(|failure| failure.as_string()) {
+            Some(failure) => Err(format!("the root's gpu failed: {failure}")),
+            None => Ok(painted),
+        }
+    }
+
+    fn shim(&self) -> Option<JsValue> {
+        self.shared.core.borrow().guest.shim.clone()
+    }
+
+    /// Calls `wake` whenever the root has something to step for between frames: an instance it
+    /// spawned sent frames or stopped, a compile finished, it woke itself, or the page answered
+    /// what it waited on. A page that draws only on demand asks `requestAnimationFrame` for a
+    /// frame, which steps the root with what arrived. It is called from a microtask of its own,
+    /// never from inside a call into the root or its host, and never while a frame is drawn,
+    /// whose wakes resume that frame instead; what arrived as a frame ended is heard once it has.
+    /// A timer or a task that resumes a frame already drawn may call it with nothing to step
+    /// for, which costs a page that draws on demand one frame more at most.
+    pub fn on_wake(&self, wake: impl Fn() + 'static) {
+        *self.shared.woken.borrow_mut() = Some(Rc::new(wake));
+    }
+
+    /// How long past a frame's deadline the root itself may take, `STEP_TIMEOUT` unless set.
+    pub fn with_patience(self, patience: Duration) -> Self {
+        self.shared.core.borrow_mut().patience = patience;
+        self
+    }
+
+    /// The fonts the host bundles, which the root's `host.fonts` answers: be-sdk-api's `Fonts`
+    /// in be-wasm-ops' encoding (`be_wasm_ops::encode`), as be-wasm crates use only be-wasm ones;
+    /// none unless set.
+    pub fn with_fonts(self, fonts: Vec<u8>) -> Self {
+        self.shared.core.borrow_mut().fonts = fonts;
+        self
+    }
+
+    /// Whether the page delivers the paste shortcut as a paste itself, as input, from the
+    /// browser's paste event (`host.paste-shortcut`), which a page does, so every page that
+    /// runs a root sets it (be-wasm-root-web-testing's does): false unless set.
+    pub fn with_paste_shortcut(self, delivers: bool) -> Self {
+        self.shared.core.borrow_mut().paste_shortcut = delivers;
+        self
+    }
+
+    /// Asks the root what its own surfaces painted, which it answers as it steps through the
+    /// next frame (`take_paintings`). A root that stopped says why.
+    pub fn ask_paintings(&self) -> Result<(), String> {
+        self.shared.core.borrow_mut().ask_paintings()
+    }
+
+    /// What the root answered `ask_paintings` with, once it did: be3:root's `paintings`.
+    pub fn take_paintings(&self) -> Option<Vec<u8>> {
+        self.shared.core.borrow_mut().take_paintings()
+    }
+
+    /// Hands the root the host's catalog (`host.block-types`): `catalog`, be-sdk-api's `Catalog`,
+    /// and `debug_templates`, its debug templates, each encoded, in place of the one handed
+    /// before, stepped for it at once if it waits on it.
+    pub fn show_block_types(&self, catalog: Vec<u8>, debug_templates: Vec<u8>) {
+        let answered = self
+            .shared
+            .core
+            .borrow_mut()
+            .show_block_types(catalog, debug_templates);
+        if answered {
+            ring(self.shared.id);
+        }
+    }
+
+    /// Shows the person `shown`, the host's notices, oldest first, in place of those shown
+    /// before: the root hears them from its `host.notices`, stepped for them at once if it waits
+    /// on that.
+    pub fn show_notices(&self, shown: Vec<Notice>) {
+        let answered = self.shared.core.borrow_mut().show_notices(shown);
+        if answered {
+            ring(self.shared.id);
+        }
+    }
+
+    /// Whether the root watches the host's statistics now (`host.watch-statistics`): while it
+    /// does, the host measures them and shows them to it (`show_statistics`) as they change.
+    pub fn watching_statistics(&self) -> bool {
+        self.shared.core.borrow().watching_statistics
+    }
+
+    /// Shows the root the host's statistics (`host.statistics`), in place of those shown before:
+    /// its debug panels' rows of the host's frames and steps (`performance`) and memory
+    /// (`memory`), and the file the memory statistics are written to. If the root waits on them
+    /// and they changed, it is stepped for them.
+    pub fn show_statistics(
+        &self,
+        performance: Vec<StatisticRow>,
+        memory: Vec<StatisticRow>,
+        memory_file: Option<String>,
+    ) {
+        let answered =
+            self.shared
+                .core
+                .borrow_mut()
+                .show_statistics(performance, memory, memory_file);
+        if answered {
+            ring(self.shared.id);
+        }
+    }
+
+    /// Shows the root whether the person's changes are saved (`host.saving`), in place of what
+    /// it showed (its `generation` is ignored: the root counts the changes). If the root waits on
+    /// it and it changed, it is stepped for it.
+    pub fn show_saving(&self, shown: be_wasm_root_api::SavingState) {
+        let answered = self.shared.core.borrow_mut().show_saving(shown);
+        if answered {
+            ring(self.shared.id);
+        }
+    }
+
+    /// Shows the root what the block stack shows the person (`host.core`), its generation the
+    /// host's to count. If the root waits on it and it changed, it is stepped for it.
+    pub fn show_core(&self, shown: be_wasm_root_api::CoreView) {
+        let answered = self.shared.core.borrow_mut().show_core(shown);
+        if answered {
+            ring(self.shared.id);
+        }
+    }
+
+    /// Shows the root the host's memory over time (`host.memory-history`): the minutes'
+    /// points, oldest first, and when the latest sample was taken, in seconds since the Unix
+    /// epoch. If the root waits on it and it changed, it is stepped for it.
+    pub fn show_memory_history(&self, points: Vec<be_wasm_root_api::MemoryPoint>, now: u64) {
+        if self
+            .shared
+            .core
+            .borrow_mut()
+            .show_memory_history(points, now)
+        {
+            ring(self.shared.id);
+        }
+    }
+
+    /// What the root asked of the block stack since the last call (`host.ask-core`), oldest
+    /// first, which the host does.
+    pub fn take_core_commands(&self) -> Vec<be_wasm_root_api::CoreCommand> {
+        self.shared.core.borrow_mut().take_core_commands()
+    }
+
+    /// What the root asked to make a secret since the last call (`host.make-secret`), oldest
+    /// first, each by the id `answer_secret` answers it by.
+    pub fn take_secret_requests(&self) -> Vec<(u64, be_wasm_root_api::SecretCommand)> {
+        self.shared.core.borrow_mut().take_secret_requests()
+    }
+
+    /// Answers the request of `id` with the secret it made, handed over once, or with nothing
+    /// if making it failed; one the root no longer waits for drops the secret. If the root
+    /// waited for it, it is stepped for the answer. Answers whether it waited: a secret that
+    /// cannot be had again and that nobody waited for, the host undoes.
+    pub fn answer_secret(&self, id: u64, secret: Option<be_wasm_root_api::CoreSecret>) -> bool {
+        let waited = self.shared.core.borrow_mut().answer_secret(id, secret);
+        if waited {
+            ring(self.shared.id);
+        }
+        waited
+    }
+
+    /// The blocks the root asked the editor of since the last call (`host.editor-of`), each by
+    /// the id `answer_editor` answers it by.
+    pub fn take_editor_asks(&self) -> Vec<(u64, be_wasm_root_api::Shown)> {
+        self.shared.core.borrow_mut().take_editor_asks()
+    }
+
+    /// Answers the root's `host.editor-of` of `id`. If the root waited for it, it is stepped for
+    /// the answer.
+    pub fn answer_editor(&self, id: u64, editor: Result<be_wasm_root_api::EditorApp, String>) {
+        if self.shared.core.borrow_mut().answer_editor(id, editor) {
+            ring(self.shared.id);
+        }
+    }
+
+    /// The blocks the root asked the names of since the last call (`host.block-names`), each
+    /// by the id `answer_names` answers it by.
+    pub fn take_name_asks(&self) -> Vec<(u64, Vec<[u8; 16]>)> {
+        self.shared.core.borrow_mut().take_name_asks()
+    }
+
+    /// Answers the root's `host.block-names` of `id`.
+    pub fn answer_names(&self, id: u64, names: Vec<Option<String>>) {
+        if self.shared.core.borrow_mut().answer_names(id, names) {
+            ring(self.shared.id);
+        }
+    }
+
+    /// The finds taken that the root cancelled since the last call, which need no answer.
+    pub fn take_cancelled_finds(&self) -> Vec<u64> {
+        self.shared.core.borrow_mut().take_cancelled_finds()
+    }
+
+    /// What the root asked quick open to find since the last call (`host.find-blocks`).
+    pub fn take_block_finds(&self) -> Vec<(u64, String)> {
+        self.shared.core.borrow_mut().take_block_finds()
+    }
+
+    /// Answers the root's `host.find-blocks` of `id`.
+    pub fn answer_block_find(&self, id: u64, blocks: Vec<be_wasm_root_api::OpenableBlock>) {
+        if self.shared.core.borrow_mut().answer_block_find(id, blocks) {
+            ring(self.shared.id);
+        }
+    }
+
+    /// The blocks the root asked to open since the last call (`host.open-block`).
+    pub fn take_block_opens(
+        &self,
+    ) -> Vec<(
+        Option<be_wasm_root_api::OpenedIn>,
+        be_wasm_root_api::OpenableBlock,
+    )> {
+        self.shared.core.borrow_mut().take_block_opens()
+    }
+
+    /// The editors the root asked to open since the last call (`host.open-editor`), each
+    /// answered by its id (`answer_opening`).
+    pub fn take_openings(&self) -> Vec<crate::EditorOpening> {
+        self.shared.core.borrow_mut().take_openings()
+    }
+
+    /// Answers the root's `host.open-editor` of `id`. If the root waited for it, it is stepped
+    /// for the answer.
+    pub fn answer_opening(&self, id: u64, opened: Result<be_wasm_root_api::OpenedEditor, String>) {
+        if self.shared.core.borrow_mut().answer_opening(id, opened) {
+            ring(self.shared.id);
+        }
+    }
+
+    /// What the root forwarded of the apps it spawned since the last call (`host.forward`):
+    /// each app's frames, by its instance, in order.
+    pub fn take_forwarded(&self) -> Vec<(u64, Vec<Vec<u8>>)> {
+        self.shared.core.borrow_mut().take_forwarded()
+    }
+
+    /// Sends the app the root spawned as `instance` `frames` through the root
+    /// (`host.forwarded`). If the root waited for them, it is stepped for them.
+    pub fn relay(&self, instance: u64, frames: Vec<Vec<u8>>) {
+        if self.shared.core.borrow_mut().relay(instance, frames) {
+            ring(self.shared.id);
+        }
+    }
+
+    /// The children the root showed of the editors the host opened since the last call
+    /// (`host.show-children`), the latest of each editor's view.
+    pub fn take_shown_children(&self) -> Vec<crate::ShownChildren> {
+        self.shared.core.borrow_mut().take_shown_children()
+    }
+
+    /// What the root told the host's editors (`host.tell-editor`): by the root's instance and
+    /// the editor, each encoded, in order.
+    pub fn take_editor_events(&self) -> Vec<(u64, u64, Vec<u8>)> {
+        self.shared.core.borrow_mut().take_editor_events()
+    }
+
+    /// The panels the root asked the host's editors to show (`host.show-panel`): by the root's
+    /// instance and the editor, each encoded, in order.
+    pub fn take_panel_shows(&self) -> Vec<(u64, u64, Vec<u8>)> {
+        self.shared.core.borrow_mut().take_panel_shows()
+    }
+
+    /// The dock updates the root made for the host's editors since the last call
+    /// (`host.dock`): by the root's instance and the editor, each encoded, in order.
+    pub fn take_dock_updates(&self) -> Vec<(u64, u64, Vec<u8>)> {
+        self.shared.core.borrow_mut().take_dock_updates()
+    }
+
+    /// Where the host's editors the root shows as placed children show their content since the
+    /// last call (`host.place-content`), in order.
+    pub fn take_placed_contents(&self) -> Vec<be_wasm_root_api::PlacedContent> {
+        self.shared.core.borrow_mut().take_placed_contents()
+    }
+
+    /// What the dialogs the root opened told the shell since the last call
+    /// (`host.tell-shell`): by the root's instance and the editor, each encoded, in order.
+    pub fn take_shell_tells(&self) -> Vec<(u64, u64, Vec<u8>)> {
+        self.shared.core.borrow_mut().take_shell_tells()
+    }
+
+    /// The editors the root closed since the last call (`host.close-editor`): by the root's
+    /// instance and the editor, in order.
+    pub fn take_closed_editors(&self) -> Vec<(u64, u64)> {
+        self.shared.core.borrow_mut().take_closed_editors()
+    }
+
+    /// The sizes the root assigned the host's editors it lays out at an intrinsic size since the
+    /// last call (`host.assign-size`): by the root's instance and the editor, in order.
+    pub fn take_assigned_sizes(&self) -> Vec<(u64, u64, be_wasm_root_api::ViewSize)> {
+        self.shared.core.borrow_mut().take_assigned_sizes()
+    }
+
+    /// Stops the root's sandbox instance `instance` for `why`, as an app that broke what its
+    /// host asks of it: the root hears it stopped, and is stepped for that.
+    pub fn stop_instance(&self, instance: u64, why: &str) {
+        self.shared.core.borrow_mut().stop_instance(instance, why);
+        ring(self.shared.id);
+    }
+
+    /// The staged app the root's sandbox instance `instance` runs, while it runs.
+    pub fn app_of(&self, instance: u64) -> Option<String> {
+        self.shared.core.borrow().app_of(instance)
+    }
+
+    /// Shows the root whether the host asks the person to keep display settings that just
+    /// changed (`host.displays`): the question, or none. If the root waits on it and it changed,
+    /// it is stepped for it.
+    pub fn show_displays(&self, asking: Option<be_wasm_root_api::DisplayQuestion>) {
+        let answered = self.shared.core.borrow_mut().show_displays(asking);
+        if answered {
+            ring(self.shared.id);
+        }
+    }
+
+    /// How the root answered the display questions since the last call (`host.answer-display`),
+    /// oldest first: each round and whether it was kept, which the host does if it still asks
+    /// that round.
+    pub fn take_display_answers(&self) -> Vec<(u64, bool)> {
+        self.shared.core.borrow_mut().take_display_answers()
+    }
+
+    /// Shows the root the session's screen lock (`host.lock`), in place of what it showed (its
+    /// `generation` is ignored: the root counts the changes). If the root waits on it and it
+    /// changed, it is stepped for it.
+    pub fn show_lock(&self, shown: LockState) {
+        let answered = self.shared.core.borrow_mut().show_lock(shown);
+        if answered {
+            ring(self.shared.id);
+        }
+    }
+
+    /// Whether the root asked to lock the session (`host.lock-session`) since the last call,
+    /// which the host does if it can.
+    pub fn take_lock_asked(&self) -> bool {
+        self.shared.core.borrow_mut().take_lock_asked()
+    }
+
+    /// The password the root handed over to unlock the session (`host.unlock`) since the last
+    /// call, if it did: one at a time, only while the session is locked, nothing is being
+    /// checked and the host makes no one wait (`retry-at`). The host checks it against the
+    /// platform, drops it, which zeroes it, and shows the lock as it then stands
+    /// (`show_lock`): unlocked, or refused with why, and the wait it imposes after a failure.
+    /// That is all the root hears of it.
+    pub fn take_unlock(&self) -> Option<Password> {
+        self.shared.core.borrow_mut().take_unlock()
+    }
+
+    /// What the root chose on its lock screen besides unlocking (`host.lock-power`) since the
+    /// last call, which the host does if the session is locked and offers it.
+    pub fn take_lock_powers(&self) -> Vec<PowerAction> {
+        self.shared.core.borrow_mut().take_lock_powers()
+    }
+
+    /// How the root answered the host's notices since the last call (`host.answer-notice`), in
+    /// order: each notice's id and the key of the action the person chose, or none where they
+    /// dismissed it. The host does what each asks.
+    pub fn take_answers(&self) -> Vec<(u64, Option<String>)> {
+        self.shared.core.borrow_mut().take_answers()
+    }
+
+    /// What the root copied since the last call (`host.copy`), oldest first: each copy's items,
+    /// richest first, each be-lib-ui-types' `ClipItem` in be-wasm-ops' encoding.
+    pub fn take_copies(&self) -> Vec<Vec<Vec<u8>>> {
+        self.shared.core.borrow_mut().take_copies()
+    }
+
+    /// The pastes the root asked for since the last call (`host.paste`), oldest first: each its
+    /// id and the formats it takes, preferred first, which the page answers (`answer_paste`).
+    pub fn take_pastes(&self) -> Vec<(u64, Vec<String>)> {
+        self.shared.core.borrow_mut().take_pastes()
+    }
+
+    /// Answers the paste `id` with the first of its formats the page's clipboard held, a
+    /// `ClipItem` in be-wasm-ops' encoding, or none: the root is stepped for it at once if it
+    /// waits on it.
+    pub fn answer_paste(&self, id: u64, item: Option<Vec<u8>>) {
+        let answered = self.shared.core.borrow_mut().answer_paste(id, item);
+        if answered {
+            ring(self.shared.id);
+        }
+    }
+
+    /// Hands the root `window`'s input since the last call, in the window's points: `events` is
+    /// be-lib-ui-types' `input::encode`, and `window` the layer list's `WindowId`, by its number
+    /// (`None`: the page's one window). The root takes it in with the frame being drawn, on its
+    /// next resume, or else with the next `frame`, and routes it by the layers it drew last. A
+    /// root that stopped says why.
+    pub fn input(&self, window: Option<u64>, events: Vec<u8>) -> Result<(), String> {
+        self.shared.core.borrow_mut().input(window, events)
+    }
+
+    /// Hands the root files dragged over `window` from outside it, in order with `input`.
+    pub fn drag_files(
+        &self,
+        window: Option<u64>,
+        drag: be_wasm_root_api::input::FileDrag,
+    ) -> Result<(), String> {
+        self.shared.core.borrow_mut().drag_files(window, drag)
+    }
+
+    /// Starts drawing a frame for `request`, called from `requestAnimationFrame`: steps the root
+    /// inline as far as it goes, and resumes it from a task whenever something it waits on
+    /// arrives, waiting for its children until `deadline` and for the root itself up to its
+    /// patience past it. `drawn` hears the frame once the root answers, before this returns if
+    /// it answered inline; a root that trapped, panicked or took longer says why, and draws
+    /// nothing again. Answers false, and starts nothing, while an earlier frame is still being
+    /// drawn.
+    pub fn frame(
+        &self,
+        request: FrameRequest,
+        deadline: Instant,
+        drawn: impl FnOnce(Result<FrameDone, String>) + 'static,
+    ) -> bool {
+        let progress = {
+            let mut core = self.shared.core.borrow_mut();
+            if core.drawing() {
+                return false;
+            }
+            match core.begin(request, deadline) {
+                Ok(()) => {
+                    *self.shared.drawn.borrow_mut() = Some(Box::new(drawn));
+                    self.shared.stepping.set(true);
+                    let progress = core.advance(Some(SLICE));
+                    self.shared.stepping.set(false);
+                    progress
+                }
+                Err(failure) => {
+                    drop(core);
+                    drawn(Err(failure));
+                    return true;
+                }
+            }
+        };
+        self.shared.settle(progress);
+        true
+    }
+
+    /// Whether a frame is being drawn: the root waits for its children, or for its deadline.
+    pub fn drawing(&self) -> bool {
+        self.shared.core.borrow().drawing()
+    }
+}
+
+impl Shared {
+    /// Steps the frame being drawn on from where it waited, if one is.
+    fn resume(&self) {
+        let progress = {
+            let mut core = self.core.borrow_mut();
+            if !core.drawing() {
+                drop(core);
+                // Between frames: the page draws one for what arrived.
+                let woken = self.woken.borrow().clone();
+                if let Some(woken) = woken {
+                    woken();
+                }
+                return;
+            }
+            self.stepping.set(true);
+            let progress = core.advance(Some(SLICE));
+            self.stepping.set(false);
+            progress
+        };
+        self.settle(progress);
+    }
+
+    /// Hands a drawn frame over, or sets the timer for the moment a pending one waits for.
+    fn settle(&self, progress: Progress) {
+        self.timer.borrow_mut().take();
+        match progress {
+            Progress::Drawn(drawn) => {
+                let hears = self.drawn.borrow_mut().take();
+                if let Some(hears) = hears {
+                    hears(drawn);
+                }
+                // What arrived as the frame ended, or a wake of the root's own in the step that
+                // answered it, which `ring` let pass while the root was stepped, waits for the
+                // next frame: the page hears of it (`on_wake`), as natively.
+                let owed = {
+                    let core = self.core.borrow();
+                    core.owes_step() || core.guest.transport.woken.get()
+                };
+                if owed {
+                    ring(self.id);
+                }
+            }
+            Progress::Pending { until } => {
+                let timer = Timer::at(until, self.id);
+                *self.timer.borrow_mut() = timer;
+            }
+            Progress::Yielded => {
+                let _ = self.after.port2().post_message(&JsValue::UNDEFINED);
+            }
+        }
+    }
+}
+
+impl Drop for Shared {
+    fn drop(&mut self) {
+        let _ = ROOTS.try_with(|roots| roots.borrow_mut().remove(&self.id));
+        self.after.port1().set_onmessage(None);
+        self.timer.get_mut().take();
+        self.core.get_mut().guest.stop();
+    }
+}
+
+/// A `setTimeout` that rings a root, cleared when dropped.
+struct Timer {
+    handle: JsValue,
+    _ring: Closure<dyn FnMut()>,
+}
+
+impl Timer {
+    fn at(until: Instant, id: u64) -> Option<Self> {
+        let global = js_sys::global();
+        let set: Function = Reflect::get(&global, &"setTimeout".into())
+            .ok()?
+            .dyn_into()
+            .ok()?;
+        let ring = Closure::<dyn FnMut()>::new(move || ring(id));
+        // Rounded up, and a millisecond over, so the root is never resumed just before the moment
+        // and left without a timer; one resumed early sets another.
+        let left = until.saturating_duration_since(Instant::now());
+        let milliseconds = (left.as_secs_f64() * 1000.0).ceil() + 1.0;
+        let handle = set
+            .call2(&global, ring.as_ref(), &milliseconds.into())
+            .ok()?;
+        Some(Self {
+            handle,
+            _ring: ring,
+        })
+    }
+}
+
+impl Drop for Timer {
+    fn drop(&mut self) {
+        let global = js_sys::global();
+        if let Ok(clear) = Reflect::get(&global, &"clearTimeout".into())
+            && let Ok(clear) = clear.dyn_into::<Function>()
+        {
+            let _ = clear.call1(&global, &self.handle);
+        }
+    }
+}
+
+/// What the root's transport and its host share: its memory, the frames each way, and whether
+/// it woke itself or panicked.
+struct Transport {
+    memory: RefCell<Option<WebAssembly::Memory>>,
+    inbox: RefCell<VecDeque<Vec<u8>>>,
+    outbox: RefCell<Vec<Vec<u8>>>,
+    woken: Cell<bool>,
+    panicked: RefCell<Option<String>>,
+    wake: Wake,
+    /// Its WASI (guides/app_libraries.md, Pure guests): from the zero seed for a pure root (the
+    /// testing root, which wants its runs alike), from the browser's randomness for a linked one,
+    /// which shares no wasi.js with the page's own module.
+    wasi: RefCell<be_wasm_pure_wasi::Wasi>,
+    /// Whether it reads the page's clocks (`clock_time_get`): a linked root, which keeps time as
+    /// an app does. A pure root has none.
+    clocks: bool,
+}
+
+impl Transport {
+    /// `length` bytes of the root's memory at `pointer`.
+    fn read(&self, pointer: u32, length: u32) -> Vec<u8> {
+        let Some(memory) = &*self.memory.borrow() else {
+            return Vec::new();
+        };
+        Uint8Array::new(&memory.buffer())
+            .subarray(pointer, pointer.saturating_add(length))
+            .to_vec()
+    }
+}
+
+/// The root's memory, as be-wasm-pure-wasi reads and writes it.
+struct PageMemory(WebAssembly::Memory);
+
+impl be_wasm_pure_wasi::Memory for PageMemory {
+    fn size(&self) -> usize {
+        Uint8Array::new(&self.0.buffer()).length() as usize
+    }
+
+    fn read(&self, at: u32, length: u32) -> Result<Vec<u8>, String> {
+        let end = at
+            .checked_add(length)
+            .filter(|end| *end as usize <= self.size())
+            .ok_or("the root named bytes outside its memory")?;
+        Ok(Uint8Array::new(&self.0.buffer()).subarray(at, end).to_vec())
+    }
+
+    fn write(&mut self, at: u32, bytes: &[u8]) -> Result<(), String> {
+        let fits = (at as usize)
+            .checked_add(bytes.len())
+            .is_some_and(|end| end <= self.size());
+        if !fits {
+            return Err("the root named bytes outside its memory".to_owned());
+        }
+        Uint8Array::new(&self.0.buffer()).set(&Uint8Array::from(bytes), at);
+        Ok(())
+    }
+}
+
+/// A WASI call's answer to the root, or the exception that stops it.
+type WasiCall = dyn FnMut(JsValue, JsValue, JsValue, JsValue) -> Result<JsValue, JsValue>;
+
+/// The WASI calls a pure guest is answered (be_wasm_pure_wasi::ANSWERED), as functions of the
+/// root's `transport`.
+fn wasi_calls(transport: &Rc<Transport>) -> Vec<(&'static str, Closure<WasiCall>)> {
+    be_wasm_pure_wasi::ANSWERED
+        .into_iter()
+        .map(|name| {
+            let held = Rc::clone(transport);
+            let call =
+                Closure::<WasiCall>::new(move |a: JsValue, b: JsValue, c: JsValue, d: JsValue| {
+                    // Every argument a pure guest's call reads is an i32; the clock's i64 precision,
+                    // a BigInt, is never read.
+                    let words: Vec<u64> = [a, b, c, d]
+                        .iter()
+                        .map(|value| value.as_f64().map_or(0, |word| word as i64 as u32 as u64))
+                        .collect();
+                    // A linked root reads the page's clocks, as an app reads its worker's.
+                    if held.clocks && name == "clock_time_get" {
+                        return Ok(clock_time(&held, words[0], words[2] as u32).into());
+                    }
+                    let answered = match held.memory.borrow().clone() {
+                        Some(memory) => held.wasi.borrow_mut().call(
+                            name,
+                            &words,
+                            &mut PageMemory(memory),
+                            &mut |line| {
+                                web_sys::console::error_1(&format!("the root: {line}").into())
+                            },
+                        ),
+                        None => Err(be_wasm_pure_wasi::Stopped::Fault(
+                            "the root has no memory".to_owned(),
+                        )),
+                    };
+                    match answered {
+                        Ok(errno) => Ok(errno.into()),
+                        Err(stopped) => {
+                            let stopped = stopped.to_string();
+                            *held.panicked.borrow_mut() = Some(stopped.clone());
+                            Err(js_sys::Error::new(&stopped).into())
+                        }
+                    }
+                });
+            (name, call)
+        })
+        .collect()
+}
+
+/// The root guest instantiated on the page: a pure guest (guides/app_libraries.md, Pure guests),
+/// whose only imports are its transport and a pure guest's WASI, which this answers as
+/// be-wasm-guest-host's worker runtime (src/guest.js) answers them in a worker.
+struct PageGuest {
+    exports: Object,
+    transport: Rc<Transport>,
+    /// The gpu shim's module a linked root draws through, on the page's device.
+    shim: Option<JsValue>,
+    /// The transport's imports, which live as long as the instance.
+    _imports: Vec<Box<dyn std::any::Any>>,
+    stopped: bool,
+}
+
+/// The value the transport's `host_receive` answers when it has no frame.
+const NO_MESSAGE: i64 = -1;
+
+impl PageGuest {
+    /// A linked root (`link_root`), with the app.js at `app_js` linking it.
+    async fn link(
+        module: &WebAssembly::Module,
+        bytes: &JsValue,
+        app_js: &str,
+        wake: Wake,
+    ) -> Result<Self, String> {
+        // The real root's WASI draws its randomness from the browser's, as an app's does.
+        // Drawn into an array of its own: the page's memory is shared, which crypto refuses.
+        let drawn = Uint8Array::new_with_length(32);
+        web_sys::window()
+            .and_then(|window| window.crypto().ok())
+            .ok_or("the root's page has no crypto")?
+            .get_random_values_with_array_buffer_view(&drawn)
+            .map_err(|error| format!("the root's page drew no randomness: {}", describe(&error)))?;
+        let mut seed = [0; 32];
+        drawn.copy_to(&mut seed);
+        if LINKED.replace(true) {
+            return Err("a linked root already runs on this page".to_owned());
+        }
+        let linked = Self::linked(module, bytes, app_js, wake, seed).await;
+        if linked.is_err() {
+            LINKED.set(false);
+        }
+        linked
+    }
+
+    /// `link`, once the page has no other linked root.
+    async fn linked(
+        module: &WebAssembly::Module,
+        bytes: &JsValue,
+        app_js: &str,
+        wake: Wake,
+        seed: [u8; 32],
+    ) -> Result<Self, String> {
+        let (transport, host, mut held) = Self::transport(wake, Some(seed));
+        let wasi = Object::new();
+        let calls = wasi_calls(&transport);
+        for (name, call) in &calls {
+            let _ = Reflect::set(&wasi, &(*name).into(), call.as_ref());
+        }
+        let bound = Rc::clone(&transport);
+        let bind = Closure::<dyn FnMut(JsValue)>::new(move |memory: JsValue| {
+            *bound.memory.borrow_mut() = memory.dyn_into::<WebAssembly::Memory>().ok();
+        });
+        let ring = Rc::clone(&transport);
+        let woken = Closure::<dyn FnMut()>::new(move || (ring.wake)());
+        let linked = link_root(
+            app_js,
+            bytes,
+            module,
+            &host,
+            &wasi,
+            bind.as_ref().unchecked_ref(),
+            woken.as_ref().unchecked_ref(),
+        )
+        .await
+        .map_err(|error| format!("the root could not be linked: {}", describe(&error)))?;
+        let linked: js_sys::Array = linked.unchecked_into();
+        if transport.memory.borrow().is_none() {
+            call_shim(&linked.get(1), "stop", &[]);
+            return Err("the root has no memory".to_owned());
+        }
+        held.push(Box::new(calls));
+        held.push(Box::new(bind));
+        held.push(Box::new(woken));
+        let mut guest = Self {
+            exports: linked.get(0).unchecked_into(),
+            transport,
+            shim: Some(linked.get(1)),
+            _imports: held,
+            stopped: false,
+        };
+        if let Err(failure) = guest.call("app_start") {
+            // The shim lets go of what the root bound to it, as for a root that stopped.
+            guest.stopped = true;
+            guest.stop();
+            return Err(failure);
+        }
+        Ok(guest)
+    }
+
+    /// The root's transport, the `be3_host` imports answering it, and the closures they hold. A
+    /// linked root's WASI draws from `seed` and reads the page's clocks; a pure root's (none)
+    /// from the zero seed, with no clocks.
+    fn transport(
+        wake: Wake,
+        seed: Option<[u8; 32]>,
+    ) -> (Rc<Transport>, Object, Vec<Box<dyn std::any::Any>>) {
+        let transport = Rc::new(Transport {
+            memory: RefCell::new(None),
+            inbox: RefCell::new(VecDeque::new()),
+            outbox: RefCell::new(Vec::new()),
+            woken: Cell::new(false),
+            panicked: RefCell::new(None),
+            wake,
+            wasi: RefCell::new(be_wasm_pure_wasi::Wasi::new(seed.unwrap_or([0; 32]))),
+            clocks: seed.is_some(),
+        });
+        let held = Rc::clone(&transport);
+        let send = Closure::<dyn FnMut(u32, u32)>::new(move |pointer, length| {
+            let frame = held.read(pointer, length);
+            held.outbox.borrow_mut().push(frame);
+        });
+        let held = Rc::clone(&transport);
+        let receive = Closure::<dyn FnMut(u32, u32) -> i64>::new(move |pointer: u32, capacity| {
+            let mut inbox = held.inbox.borrow_mut();
+            let Some(frame) = inbox.front() else {
+                return NO_MESSAGE;
+            };
+            let length = frame.len();
+            if length > capacity as usize {
+                return length as i64;
+            }
+            if let Some(memory) = &*held.memory.borrow() {
+                Uint8Array::new(&memory.buffer()).set(&Uint8Array::from(frame.as_slice()), pointer);
+            }
+            inbox.pop_front();
+            length as i64
+        });
+        let held = Rc::clone(&transport);
+        let wake = Closure::<dyn FnMut()>::new(move || {
+            held.woken.set(true);
+            (held.wake)();
+        });
+        let held = Rc::clone(&transport);
+        let panic = Closure::<dyn FnMut(u32, u32)>::new(move |pointer, length| {
+            let message = String::from_utf8_lossy(&held.read(pointer, length)).into_owned();
+            *held.panicked.borrow_mut() = Some(message);
+        });
+        let host = Object::new();
+        for (name, function) in [
+            ("host_send", send.as_ref()),
+            ("host_receive", receive.as_ref()),
+            ("host_wake", wake.as_ref()),
+            ("host_panic", panic.as_ref()),
+        ] {
+            let _ = Reflect::set(&host, &name.into(), function);
+        }
+        let held: Vec<Box<dyn std::any::Any>> = vec![
+            Box::new(send),
+            Box::new(receive),
+            Box::new(wake),
+            Box::new(panic),
+        ];
+        (transport, host, held)
+    }
+
+    /// A pure root, instantiated as it is, answered a pure guest's WASI.
+    async fn start(module: &WebAssembly::Module, wake: Wake) -> Result<Self, String> {
+        let (transport, host, mut held) = Self::transport(wake, None);
+        let wasi = Object::new();
+        let calls = wasi_calls(&transport);
+        for (name, call) in &calls {
+            let _ = Reflect::set(&wasi, &(*name).into(), call.as_ref());
+        }
+        let imports = Object::new();
+        let _ = Reflect::set(&imports, &"be3_host".into(), &host);
+        let _ = Reflect::set(&imports, &be_wasm_pure_wasi::MODULE.into(), &wasi);
+        let instance = JsFuture::from(WebAssembly::instantiate_module(module, &imports))
+            .await
+            .map_err(|error| format!("the root could not be instantiated: {}", describe(&error)))?;
+        let instance: WebAssembly::Instance = instance.unchecked_into();
+        let exports = instance.exports();
+        let memory = Reflect::get(&exports, &"memory".into())
+            .ok()
+            .and_then(|memory| memory.dyn_into::<WebAssembly::Memory>().ok())
+            .ok_or("the root exports no memory")?;
+        *transport.memory.borrow_mut() = Some(memory);
+        held.push(Box::new(calls));
+        let mut guest = Self {
+            exports,
+            transport,
+            shim: None,
+            _imports: held,
+            stopped: false,
+        };
+        // A standalone module's constructors, as guest.js runs them.
+        if guest.has("_initialize") {
+            guest.call("_initialize")?;
+        } else if guest.has("__wasm_call_ctors") {
+            guest.call("__wasm_call_ctors")?;
+        }
+        guest.call("app_start")?;
+        Ok(guest)
+    }
+
+    fn export(&self, name: &str) -> Option<Function> {
+        Reflect::get(&self.exports, &name.into())
+            .ok()?
+            .dyn_into()
+            .ok()
+    }
+
+    fn has(&self, name: &str) -> bool {
+        self.export(name).is_some()
+    }
+
+    /// Runs the export `name` to its end, or says why it trapped or panicked.
+    fn call(&mut self, name: &str) -> Result<(), String> {
+        if self.stopped {
+            return Err("the root stopped".to_owned());
+        }
+        let export = self
+            .export(name)
+            .ok_or_else(|| format!("the root exports no {name}"))?;
+        export
+            .call0(&JsValue::UNDEFINED)
+            .map(drop)
+            .map_err(|error| {
+                self.stopped = true;
+                self.transport
+                    .panicked
+                    .borrow_mut()
+                    .take()
+                    .unwrap_or_else(|| format!("the root trapped: {}", describe(&error)))
+            })
+    }
+
+    fn stop(&mut self) {
+        if !self.stopped && self.has("app_shutdown") {
+            let _ = self.call("app_shutdown");
+        }
+        self.stopped = true;
+        // The shim lets go of its device, canvases, memory and wake, and the page may link
+        // another root.
+        if let Some(shim) = self.shim.take() {
+            call_shim(&shim, "stop", &[]);
+            LINKED.set(false);
+        }
+    }
+}
+
+impl Inline for PageGuest {
+    fn deliver(&mut self, frames: Vec<Vec<u8>>) {
+        self.transport.inbox.borrow_mut().extend(frames);
+    }
+
+    fn step(&mut self) -> Result<(), String> {
+        self.call("app_step")
+    }
+
+    fn take_outbound(&mut self) -> Vec<Vec<u8>> {
+        std::mem::take(&mut *self.transport.outbox.borrow_mut())
+    }
+
+    fn take_wake(&mut self) -> bool {
+        self.transport.woken.replace(false)
+    }
+}
+
+fn describe(error: &JsValue) -> String {
+    error
+        .dyn_ref::<js_sys::Error>()
+        .map(|error| String::from(error.message()))
+        .or_else(|| error.as_string())
+        .unwrap_or_else(|| "the browser gave no reason".to_owned())
+}
+
+/// Whether `module` imports no more than a pure guest does: its transport and WASI.
+fn pure(module: &WebAssembly::Module) -> bool {
+    WebAssembly::Module::imports(module).iter().all(|wanted| {
+        let module = Reflect::get(&wanted, &"module".into())
+            .ok()
+            .and_then(|module| module.as_string());
+        matches!(
+            module.as_deref(),
+            Some("be3_host") | Some(be_wasm_pure_wasi::MODULE)
+        )
+    })
+}
+
+/// `url` made absolute against the page's base address, as `fetch` resolves it.
+fn absolute(url: &str) -> Result<String, String> {
+    let base = web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| document.base_uri().ok().flatten())
+        .ok_or("the root runs only on a page")?;
+    web_sys::Url::new_with_base(url, &base)
+        .map(|url| url.href())
+        .map_err(|error| format!("{url} is no address: {}", describe(&error)))
+}
+
+/// Calls the gpu shim's export `name` with `arguments`: what it answered, or nothing if it has
+/// no such export or threw.
+fn call_shim(shim: &JsValue, name: &str, arguments: &[JsValue]) -> Option<JsValue> {
+    let export: Function = Reflect::get(shim, &name.into()).ok()?.dyn_into().ok()?;
+    export
+        .apply(shim, &arguments.iter().collect::<js_sys::Array>())
+        .ok()
+}
+
+/// WASI's `clock_time_get` for a linked root: the time of the clock `id` (the wall clock, else
+/// the page's monotonic one), in nanoseconds, written at `at` in its memory. Answers the errno.
+fn clock_time(transport: &Transport, id: u64, at: u32) -> i32 {
+    const REALTIME: u64 = 0;
+    let milliseconds = match id {
+        REALTIME => js_sys::Date::now(),
+        _ => Reflect::get(&js_sys::global(), &"performance".into())
+            .ok()
+            .and_then(|performance| performance.dyn_into::<web_sys::Performance>().ok())
+            .map_or(0.0, |performance| performance.now()),
+    };
+    let nanoseconds = (milliseconds * 1_000_000.0) as u64;
+    let Some(memory) = transport.memory.borrow().clone() else {
+        return be_wasm_pure_wasi::EBADF;
+    };
+    match be_wasm_pure_wasi::Memory::write(&mut PageMemory(memory), at, &nanoseconds.to_le_bytes())
+    {
+        Ok(()) => be_wasm_pure_wasi::SUCCESS,
+        Err(_) => be_wasm_pure_wasi::EBADF,
+    }
+}

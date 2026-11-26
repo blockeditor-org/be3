@@ -27,19 +27,20 @@ struct Point {
 #[component]
 pub fn Scatter(data: Data) -> NodeId {
     let axes = axis_fields(data);
-    let missing = create_memo(move || axes.get().is_none());
     let ready = create_memo(move || axes.get().is_some());
     view! {
         <Frame fill=ColorRole::Background>
             <List spacing=Space::None>
-                <Show condition={missing}>
-                    <Frame padding=Space::Lg>
-                        <Text style=TextStyle::CAPTION>
-                            "Choose X and Y fields to use the scatter view."
-                        </Text>
-                    </Frame>
-                </Show>
-                <Show condition={ready}>
+                <Show
+                    value={ready}
+                    fallback={|| view! {
+                        <Frame padding=Space::Lg>
+                            <Text style=TextStyle::CAPTION>
+                                "Choose X and Y fields to use the scatter view."
+                            </Text>
+                        </Frame>
+                    }}
+                >
                     <ListItem grow=1.0>
                         <Plot data={data} axes={axes} />
                     </ListItem>
@@ -51,8 +52,7 @@ pub fn Scatter(data: Data) -> NodeId {
 
 #[component]
 fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeId {
-    let size_held = create_signal(Vec2::ZERO);
-    let size = size_held.read_only();
+    let size = create_signal(Vec2::ZERO);
     let bounds = create_memo(move || {
         let (x_field, y_field) = axes.get()?;
         plot_bounds(&shown_rows(data), x_field.id, y_field.id)
@@ -70,10 +70,6 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
             plot_area(area),
         )
     });
-    let keys = create_memo(move || {
-        placed.with(|placed| placed.iter().map(|point| point.row).collect::<Vec<usize>>())
-    });
-    let empty = create_memo(move || placed.with(Vec::is_empty));
     let plot_height = create_memo(move || plot_area(size.get()).1);
     let plot_width = create_memo(move || plot_area(size.get()).0);
     let rule_top = create_memo(move || AXIS_TOP + plot_height.get());
@@ -147,31 +143,32 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
                 <CanvasItem x=0.0 y=0.0 width={AXIS_LEFT * 2.0} height=LABEL_HEIGHT>
                     <Text style=TextStyle::CAPTION>{y_name}</Text>
                 </CanvasItem>
-                <ForEach keys={keys}>|row: usize|
-                    <Dot placed={placed} data={data} row={row} />
+                <ForEach
+                    value={placed}
+                    key={|point: &Point| point.row}
+                    fallback={|| view! {
+                        <CanvasItem x=AXIS_LEFT y=AXIS_TOP width=260.0 height=LABEL_HEIGHT>
+                            <Text style=TextStyle::CAPTION>"No rows have both fields set"</Text>
+                        </CanvasItem>
+                    }}
+                >|point: ReadSignal<Point>|
+                    <Dot point={point} data={data} />
                 </ForEach>
-                <Show condition={empty}>
-                    <CanvasItem x=AXIS_LEFT y=AXIS_TOP width=260.0 height=LABEL_HEIGHT>
-                        <Text style=TextStyle::CAPTION>"No rows have both fields set"</Text>
-                    </CanvasItem>
-                </Show>
             </Canvas>
         </Interactive>
     };
     let size_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = size_measured.get() {
-            size_held.set(measured.size);
+            size.set(measured.size);
         }
     });
     built
 }
 
 #[component]
-fn Dot(placed: Memo<Vec<Point>>, data: Data, row: usize) -> CanvasItem {
-    let point = create_memo(move || {
-        placed.with(|placed| placed.iter().find(|point| point.row == row).copied())
-    });
+fn Dot(point: ReadSignal<Point>, data: Data) -> CanvasItem {
+    let row = point.get_untracked().row;
     let selected = create_memo(move || {
         data.selected
             .get()
@@ -181,12 +178,12 @@ fn Dot(placed: Memo<Vec<Point>>, data: Data, row: usize) -> CanvasItem {
         true => SELECTED_POINT,
         false => POINT,
     });
-    let x = create_memo(move || point.get().map_or(0.0, |point| point.x - side.get() * 0.5));
-    let y = create_memo(move || point.get().map_or(0.0, |point| point.y - side.get() * 0.5));
-    let color = create_memo(move || match selected.get() {
+    let x = create_memo(move || point.get().x - side.get() * 0.5);
+    let y = create_memo(move || point.get().y - side.get() * 0.5);
+    let color = move || match selected.get() {
         true => ColorRole::Accent,
         false => ColorRole::Text,
-    });
+    };
     view! {
         <CanvasItem x={x} y={y} width={side} height={side}>
             <Frame

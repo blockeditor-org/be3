@@ -14,6 +14,8 @@ pub use be_lib_ui_types::input::{
 pub mod typing;
 
 pub const TOUCH_DRAG_THRESHOLD: f32 = 8.0;
+/// How far a mouse or pen moves while pressed before the press is a drag.
+pub const DRAG_THRESHOLD: f32 = 4.0;
 pub const WHEEL_LATCH_TIMEOUT: Duration = Duration::from_millis(500);
 pub const TOUCH_VELOCITY_WINDOW: f32 = 0.12;
 pub const MAX_TOUCH_VELOCITY: f32 = 4_000.0;
@@ -64,6 +66,12 @@ pub enum PointerId {
     Mouse,
     Touch(TouchId),
     Pen,
+    /// The keyboard carrying a dragged item: never a pointer the cores report.
+    Keyboard,
+    /// A pointer another program or window relays as points, which the cores do not report:
+    /// a dock bar an app's grip carries across the app protocol, or one carried out of the
+    /// window it was popped into.
+    Relayed,
 }
 
 pub const CONTROLLER_TOUCH_DEVICE: u64 = 0x1a5e_0000;
@@ -191,6 +199,8 @@ pub struct PointerPress {
     pub pen: Option<Pen>,
     pub predicted: Option<Pos2>,
     pub time: Instant,
+    /// Which pointer pressed: the mouse, a finger or a pen.
+    pub pointer: PointerId,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -198,6 +208,9 @@ pub struct PointerSample {
     pub pos: Pos2,
     pub window: be_lib_ui_types::window::WindowId,
     pub touch: bool,
+    /// The pointer pressing, whose place `pos` and `window` then are; none while nothing
+    /// presses, when they are the pointer's last place.
+    pub pointer: Option<PointerId>,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]

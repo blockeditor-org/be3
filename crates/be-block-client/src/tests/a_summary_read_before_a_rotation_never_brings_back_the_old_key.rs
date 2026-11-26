@@ -18,8 +18,7 @@ async fn a_summary_read_before_a_rotation_never_brings_back_the_old_key() {
         .await
         .unwrap();
     let public = owner
-        .keys()
-        .contact(leaver.account())
+        .verified_identity(leaver.account())
         .expect("the invitation made them contacts");
     owner
         .share(team, leaver.account(), Access::Edit, &public)

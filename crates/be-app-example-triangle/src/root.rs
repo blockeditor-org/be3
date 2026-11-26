@@ -2,8 +2,8 @@ use be_sdk::wgpu;
 use std::collections::HashMap;
 
 use be_sdk::{
-    App, BlockParent, EditorHost, Frame, Instance, PaintTarget, ShownView, SurfaceRect, TimedInput,
-    View, ViewHandler, ViewRef,
+    App, BlockParent, EditorHost, Frame, Input, Instance, PaintTarget, ShownView, SurfaceRect,
+    TimedInput, View, ViewHandler, ViewRef,
 };
 use be_type_example_triangle::TriangleContent;
 use uuid::Uuid;
@@ -30,6 +30,31 @@ impl Triangle {
 pub(crate) struct TriangleViews {
     painted: HashMap<ViewRef, bool>,
     pipeline: Option<(wgpu::TextureFormat, wgpu::RenderPipeline)>,
+    /// What input each view heard, which tints its background (`Heard::tint`), so a host's
+    /// test sees its input reach the triangle.
+    heard: HashMap<ViewRef, Heard>,
+}
+
+/// What input a view heard: a key, a pointer's press, a touch.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(crate) struct Heard {
+    pub(crate) key: bool,
+    pub(crate) press: bool,
+    pub(crate) touch: bool,
+}
+
+impl Heard {
+    /// The background a view that heard this is cleared to: red for a key, green for a press,
+    /// blue for a touch, added together; none, leaving it clear, for a view that heard none.
+    pub(crate) fn tint(self) -> Option<wgpu::Color> {
+        let channel = |heard: bool| if heard { 0.8 } else { 0.0 };
+        (self != Self::default()).then(|| wgpu::Color {
+            r: channel(self.key),
+            g: channel(self.press),
+            b: channel(self.touch),
+            a: 1.0,
+        })
+    }
 }
 
 impl Instance for Triangle {
@@ -50,10 +75,24 @@ impl Instance for Triangle {
 }
 
 impl ViewHandler for TriangleViews {
-    fn input(&mut self, _region: &ShownView, _event: &TimedInput, _over: Option<ViewRef>) {}
+    fn input(&mut self, region: &ShownView, event: &TimedInput, _over: Option<ViewRef>) {
+        let heard = self.heard.entry(region.id()).or_default();
+        let before = *heard;
+        match event.input {
+            Input::Key(_) => heard.key = true,
+            Input::PointerButton { pressed: true, .. } => heard.press = true,
+            Input::Touch { .. } => heard.touch = true,
+            _ => {}
+        }
+        if *heard != before {
+            self.painted.insert(region.id(), false);
+        }
+    }
 
     fn frame(&mut self, regions: &[ShownView]) -> Vec<Frame> {
         self.painted
+            .retain(|id, _| regions.iter().any(|region| region.id() == *id));
+        self.heard
             .retain(|id, _| regions.iter().any(|region| region.id() == *id));
         regions
             .iter()
@@ -89,7 +128,10 @@ impl ViewHandler for TriangleViews {
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
+                        load: match self.heard.get(&region).and_then(|heard| heard.tint()) {
+                            Some(tint) => wgpu::LoadOp::Clear(tint),
+                            None => wgpu::LoadOp::Load,
+                        },
                         store: wgpu::StoreOp::Store,
                     },
                 })],

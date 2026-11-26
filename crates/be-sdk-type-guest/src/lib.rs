@@ -7,12 +7,14 @@ use std::{
 
 use be_block_commit::MergeResult;
 use be_block_content::{
-    BlockContent, LiveEdit, Loads, Merge, MergeParts, PartReader, Undo, history::History,
+    BlockContent, ChildChange, LiveEdit, Loads, Merge, MergeParts, PartReader, PartRef,
+    SearchDocument, Undo, Unread, history::History,
 };
+use be_block_protocol::{Journal, JournalEntry};
 use be_sdk_type_api::{
-    Change, ChildChange, ClientId, CommitId, Delivery, Description, EditorId, Endpoint, FileChange,
-    Journal, Loaded, Merged, MergedParts, Opening, PartRef, Plain, PlainFile, PublishOutcome,
-    ReorderChild, ReplaceChild, ReplicaId, SearchDocument, SessionState, TypeInfo, Written,
+    BlockPlace, Change, ClientId, CommitId, Description, EditorId, Endpoint, FileChange, Loaded,
+    Merged, MergedParts, Opening, Plain, PlainFile, PublishOutcome, ReplicaId, SessionState,
+    TypeInfo, Written,
     guest::{exports::replicas, host},
     ops::guest::{self as ops, Executor, LocalFuture, Pending, Sender},
     types::Failure,
@@ -21,9 +23,8 @@ use uuid::Uuid;
 
 pub mod editor;
 mod effect;
-#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-mod entropy;
 mod file;
+pub mod holds;
 mod lacking;
 mod record;
 mod replica;
@@ -33,9 +34,7 @@ pub use be_sdk_type_api as api;
 pub use be_wasm_guest_abi as abi;
 pub use file::{BlobFile, DocumentFile, FileForm};
 pub use record::{NoHistory, Recorder};
-pub use replica::{
-    APPEND_INTERVAL, COMMIT_INTERVAL, HEARTBEAT_INTERVAL, JOURNAL_BYTES, QUIET_INTERVAL,
-};
+pub use replica::{COMMIT_INTERVAL, JOURNAL_BYTES, QUIET_INTERVAL, RESTART_STATE_BYTES};
 
 use effect::{Answer, Effect, HeadEvent, RequestId};
 use replica::{AnyReplica, Input, Opened, Replica};
@@ -44,12 +43,10 @@ type FromFileFn = fn(Option<&[u8]>, &str, Vec<u8>, u64) -> Option<Vec<u8>>;
 
 type MergeFn = fn(Option<&[u8]>, Option<&[u8]>, Option<&[u8]>) -> Result<(Vec<u8>, usize), String>;
 
-type MergePartsFn = fn(
-    [Option<Loaded>; 3],
-    Uuid,
-    PartReader,
-)
-    -> std::pin::Pin<Box<dyn Future<Output = Result<(Written, usize), String>>>>;
+/// A merge by parts under way: what it writes, and how many conflicts it left.
+type MergingParts = std::pin::Pin<Box<dyn Future<Output = Result<(Written, usize), String>>>>;
+
+type MergePartsFn = fn([Option<Loaded>; 3], Uuid, PartReader) -> MergingParts;
 
 type SearchTextFn = fn(
     Loaded,
@@ -60,25 +57,58 @@ type SearchTextFn = fn(
     Box<dyn Future<Output = Result<Vec<be_block_content::SearchDocument>, String>>>,
 >;
 
-type ChildFn = fn(Option<&[u8]>, ChildChange) -> Result<Option<Vec<u8>>, String>;
+type ChildFn = fn(Option<&[u8]>, ChildChange, u64) -> Result<Option<Vec<u8>>, String>;
 
 type ToFileFn = fn(&[u8]) -> Result<Option<PlainFile>, String>;
 
-type ReplayFn = fn(Option<&[u8]>, &Journal) -> Result<Vec<u8>, String>;
+type ReplayFn = fn(
+    Option<Vec<u8>>,
+    Journal,
+    PartReader,
+) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, String>>>>;
+
+/// A type's `Unread`: `places` of the account's layers of its reads kind, lowest first, each
+/// block's place in postcard bytes; and `count_unread` of content as a host loads it (`Loaded`)
+/// or of whole content bytes, with a block's place (none: the default place).
+#[derive(Clone, Copy)]
+struct UnreadFns {
+    places: PlacesFn,
+    count: CountFn,
+}
+
+/// The places of the account's layers of a reads kind, as `UnreadFns::places` reads them.
+type PlacesFn = fn(&[Vec<u8>]) -> Result<Vec<(Uuid, Vec<u8>)>, String>;
+
+/// How much of content is unread from a place, as `UnreadFns::count` counts it.
+type CountFn =
+    fn(Content, Option<&[u8]>, &[be_block_content::LogItem], Uuid) -> Result<u32, String>;
+
+/// Content handed to a stateless request: as a host loads a commit, or whole bytes.
+pub enum Content<'a> {
+    Loaded(Loaded),
+    Bytes(&'a [u8]),
+}
 
 pub struct Registration {
     info: TypeInfo,
     open: fn(Opened) -> Box<dyn AnyReplica>,
     plain: fn(Opened) -> Box<dyn AnyReplica>,
     /// The type's default content and its description, which `Module::types` fills
-    /// `info` with once `start` has seeded the module's entropy.
+    /// `info` with once `start` has run.
     blank: fn() -> (Vec<u8>, Description),
     merge: MergeFn,
     merge_parts: Option<MergePartsFn>,
     /// The replica's merge by parts, a `replica::PartsMerge` of the type's content.
     replica_merge: Option<std::rc::Rc<dyn std::any::Any>>,
+    /// The type's fold of its signed log, a `replica::Fold` of its content, if it has a log
+    /// that what its content shows folds (`LogFold::FOLDS`).
+    fold: Option<std::rc::Rc<dyn std::any::Any>>,
+    /// What an entry of the type's signed log changes in its searchable text
+    /// (`LogFold::search`), if it has a log.
+    search_log: Option<fn(&be_block_content::LogItem) -> Option<be_block_content::LogSearch>>,
     describe: fn(&[u8], Uuid) -> Result<Description, String>,
     search_text: SearchTextFn,
+    unread: Option<UnreadFns>,
     replay: ReplayFn,
     child: ChildFn,
     to_file: Option<ToFileFn>,
@@ -99,9 +129,10 @@ impl Registration {
                 plain: Plain::None,
                 first_part: C::LOADS == Loads::FirstPart,
                 merges_parts: false,
-                whole_bytes: C::WHOLE_BYTES,
+                log: false,
                 blank: Vec::new(),
                 blank_description: Description::default(),
+                reads: None,
             },
             open: open::<C, NoHistory>,
             plain: open::<C, NoHistory>,
@@ -112,8 +143,11 @@ impl Registration {
             merge: merge::<C>,
             merge_parts: None,
             replica_merge: None,
+            fold: None,
+            search_log: None,
             describe: describe_bytes::<C>,
             search_text: search_text::<C>,
+            unread: None,
             replay: replica::replay::<C>,
             child: child::<C>,
             to_file: None,
@@ -150,6 +184,29 @@ impl Registration {
         self
     }
 
+    /// Counts what the account has not read (`Unread`), from its layers of `C::Reads`.
+    pub fn unread<C: Unread>(mut self) -> Self {
+        assert_eq!(self.info.content_type, C::CONTENT_TYPE);
+        self.info.reads = Some(<C::Reads as be_block_content::Root>::CONTENT_TYPE);
+        self.unread = Some(UnreadFns {
+            places: places::<C>,
+            count: count_unread::<C>,
+        });
+        self
+    }
+
+    /// Keeps a signed log beside the content (`type-info.log`), folded onto what it shows
+    /// (`LogFold`): its editors append and read the log through their replica.
+    pub fn log<C: be_block_content::LogFold + LiveEdit>(mut self) -> Self {
+        assert_eq!(self.info.content_type, C::CONTENT_TYPE);
+        self.info.log = true;
+        self.search_log = Some(C::search);
+        self.fold = C::FOLDS.then(|| {
+            std::rc::Rc::new(fold::<C> as replica::Fold<C>) as std::rc::Rc<dyn std::any::Any>
+        });
+        self
+    }
+
     pub fn file<C: FileForm + LiveEdit>(mut self) -> Self {
         assert_eq!(self.info.content_type, C::CONTENT_TYPE);
         self.info.plain = Plain::File;
@@ -175,6 +232,10 @@ impl Registration {
     pub fn info(&self) -> &TypeInfo {
         &self.info
     }
+}
+
+fn fold<C: be_block_content::LogFold>(content: &mut C, item: &be_block_content::LogItem) {
+    content.fold(item);
 }
 
 fn open<C, H>(opened: Opened) -> Box<dyn AnyReplica>
@@ -206,7 +267,7 @@ fn merge_parts<C: MergeParts + Default>(
     sides: [Option<Loaded>; 3],
     organization: Uuid,
     parts: PartReader,
-) -> std::pin::Pin<Box<dyn Future<Output = Result<(Written, usize), String>>>> {
+) -> MergingParts {
     Box::pin(async move {
         let [base, ours, theirs] = sides.map(|side| match side {
             Some(loaded) => {
@@ -252,6 +313,48 @@ fn search_text<C: BlockContent>(
     })
 }
 
+fn places<C: Unread>(reads: &[Vec<u8>]) -> Result<Vec<(Uuid, Vec<u8>)>, String> {
+    let layers = reads
+        .iter()
+        .map(|bytes| {
+            be_block_content::be_block_model::Document::<C::Reads>::decode(bytes)
+                .map(|document| document.root())
+                .map_err(|error| error.to_string())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    C::places(&be_block_content::layered(layers))
+        .into_iter()
+        .map(|(block, place)| {
+            postcard::to_stdvec(&place)
+                .map(|bytes| (block, bytes))
+                .map_err(|error| error.to_string())
+        })
+        .collect()
+}
+
+fn count_unread<C: Unread>(
+    content: Content,
+    place: Option<&[u8]>,
+    log: &[be_block_content::LogItem],
+    me: Uuid,
+) -> Result<u32, String> {
+    let content = match content {
+        Content::Loaded(loaded) => {
+            let stored = loaded
+                .into_stored()
+                .ok_or_else(|| "the host loaded parts that form no tree".to_owned())?;
+            C::from_stored(&stored)
+        }
+        Content::Bytes(bytes) => C::decode(bytes),
+    }
+    .map_err(|error| error.to_string())?;
+    let place = match place {
+        Some(bytes) => postcard::from_bytes(bytes).map_err(|error| error.to_string())?,
+        None => C::Place::default(),
+    };
+    Ok(content.count_unread(&place, log, me))
+}
+
 /// Content as a commit writes it: its parts, unchanged ones by their refs, and what it
 /// references and derives.
 pub(crate) fn written<C: BlockContent>(content: &C, organization: Uuid) -> Written {
@@ -272,7 +375,7 @@ pub fn request_parts() -> PartReader {
     let request = ops::request();
     PartReader::new(move |part, offset, length| {
         let range = be_sdk_type_api::ByteRange { offset, length };
-        let read = || host::read_part(part.into(), range);
+        let read = || host::read_part(part, range);
         let pending = match request {
             Some(request) => ops::with_parent(request, read),
             None => read(),
@@ -289,31 +392,19 @@ pub fn request_parts() -> PartReader {
 fn child<C: LiveEdit + Default>(
     bytes: Option<&[u8]>,
     change: ChildChange,
+    client: u64,
 ) -> Result<Option<Vec<u8>>, String> {
     let mut content = match bytes {
         Some(bytes) => C::decode(bytes).map_err(|error| error.to_string())?,
         None => C::default(),
     };
-    let Some(operations) = content.child_operations(be_child(change)) else {
+    let Some(operations) = content.child_operations(change, client) else {
         return Ok(None);
     };
     for operation in &operations {
         content.apply(operation);
     }
     Ok(Some(content.encode()))
-}
-
-pub(crate) fn be_child(change: ChildChange) -> be_block_content::ChildChange {
-    match change {
-        ChildChange::Add(block) => be_block_content::ChildChange::Add(block),
-        ChildChange::Delete(block) => be_block_content::ChildChange::Delete(block),
-        ChildChange::Replace(ReplaceChild { old, new }) => {
-            be_block_content::ChildChange::Replace { old, new }
-        }
-        ChildChange::Reorder(ReorderChild { block, after }) => {
-            be_block_content::ChildChange::Reorder { block, after }
-        }
-    }
 }
 
 pub fn describe<C: BlockContent>(content: &C, organization: Uuid) -> Description {
@@ -429,6 +520,41 @@ impl Module {
         self.with_kind(content_type, |_| ()).is_some()
     }
 
+    /// The settings kind `content_type` counts what is unread from (`Registration::unread`).
+    pub fn reads_of(&self, content_type: Uuid) -> Option<Uuid> {
+        self.with_kind(content_type, |kind| kind.info.reads)?
+    }
+
+    /// `replicas.places` and then `replicas.unread` of whole content bytes, at once, for a host
+    /// in process: none for a type that counts nothing unread, or content that does not decode.
+    pub fn unread_of_bytes(
+        &self,
+        content_type: Uuid,
+        bytes: &[u8],
+        reads: &[Vec<u8>],
+        log: &[be_block_content::LogItem],
+        block: Uuid,
+        account: Uuid,
+    ) -> Option<u32> {
+        let fns = self.with_kind(content_type, |kind| kind.unread)??;
+        let places = (fns.places)(reads).ok()?;
+        let place = places
+            .iter()
+            .find(|(of, _)| *of == block)
+            .map(|(_, place)| place.as_slice());
+        (fns.count)(Content::Bytes(bytes), place, log, account).ok()
+    }
+
+    fn unread_fns(&self, content_type: Uuid) -> Result<UnreadFns, Failure> {
+        match self.with_kind(content_type, |kind| kind.unread) {
+            None => Err(Failure::UnknownType),
+            Some(None) => Err(Failure::Malformed(
+                "this type counts nothing unread".to_owned(),
+            )),
+            Some(Some(fns)) => Ok(fns),
+        }
+    }
+
     fn with_kind<R>(&self, content_type: Uuid, run: impl FnOnce(&Registration) -> R) -> Option<R> {
         self.shared
             .types
@@ -449,18 +575,29 @@ impl Module {
                 account: opening.account,
                 client: opening.client,
                 tag: opening.tag,
+                origin: opening.origin,
+                taken_before: opening.taken_before,
+                doubtful_through: opening.doubtful_through,
+                kept_restart: opening.kept_restart,
+                kept_through: opening.kept_through,
+                kept_submitted: opening.kept_submitted,
+                kept_submissions: opening.kept_submissions.clone(),
                 head: opening.head,
                 session: opening.session.clone(),
                 journal: opening.journal.clone(),
-                sealed_head: opening.sealed_head.clone(),
-                lost_edits: opening.lost_edits,
+                sealed_head: opening.sealed_head,
+                lost_edits: opening.journal.as_ref().is_some_and(|journal| journal.lost),
                 journal_kept: opening.journal_kept,
                 commits_kept: opening.commits_kept,
                 refused_commits: opening.refused_commits.clone(),
                 server_head: opening.server_head,
                 epoch: opening.epoch,
+                shown: opening.shown.clone(),
+                restart_limit: opening.restart_limit,
                 from_file: kind.from_file,
                 parts_merge: kind.replica_merge.clone(),
+                fold: kind.fold.clone(),
+                log: kind.info.log,
                 now,
             })
         });
@@ -477,8 +614,10 @@ impl Module {
         }
         match opened {
             Some(mut opened) => {
+                // The calls the replica before made were made under the epoch before this one.
+                let before_epoch = state.epochs[&replica] - 1;
                 let carried = match state.replicas.get_mut(&replica) {
-                    Some(before) => before.carry(),
+                    Some(before) => before.carry(before_epoch),
                     None => {
                         state.carried_order.retain(|block| *block != opening.block);
                         state.carried.remove(&opening.block).unwrap_or_default()
@@ -531,9 +670,24 @@ impl Module {
 
     fn answered(&self, replica: ReplicaId, epoch: u64, input: Input) {
         let current = self.shared.state.borrow().epochs.get(&replica).copied();
-        if current == Some(epoch) {
-            self.input(replica, input);
+        match current == Some(epoch) {
+            true => self.input(replica, input),
+            // Made by a replica of the block before this one opened: handed on to the editor
+            // it was made for (`AnyReplica::late`).
+            false => self.late(replica, epoch, input),
         }
+    }
+
+    fn late(&self, replica: ReplicaId, epoch: u64, input: Input) {
+        let mut out = Vec::new();
+        {
+            let mut state = self.shared.state.borrow_mut();
+            let now = state.now;
+            if let Some(open) = state.replicas.get_mut(&replica) {
+                open.late(now, epoch, input, &mut out);
+            }
+        }
+        self.run(out);
     }
 
     fn tick(&self, now: u64) {
@@ -606,7 +760,16 @@ impl Module {
             let carried = state
                 .replicas
                 .remove(&id)
-                .map(|mut replica| replica.carry())
+                .map(|mut replica| {
+                    let epoch = state.epochs.get(&id).copied().unwrap_or_default();
+                    // A released replica carries none of what it did for editors (its asks and
+                    // its range reads, `EditorCalls`), though a close releases it with editors
+                    // still attached: their answers go to its id, which no later replica has.
+                    lacking::Carried {
+                        editor_calls: lacking::EditorCalls::default(),
+                        ..replica.carry(epoch)
+                    }
+                })
                 .unwrap_or_default();
             if let Some(block) = state.blocks.remove(&id)
                 && (!carried.entries.is_empty() || !carried.refused.is_empty())
@@ -645,13 +808,8 @@ impl Module {
 
     fn effect(&self, effect: Effect) {
         match effect {
-            Effect::Send {
-                replica,
-                to,
-                kind,
-                bytes,
-            } => {
-                ops::with_parent(replica, || host::send(to, kind, bytes)).detach();
+            Effect::Send { replica, to, bytes } => {
+                ops::with_parent(replica, || host::send(to, bytes)).detach();
             }
             Effect::Publish {
                 replica,
@@ -660,9 +818,21 @@ impl Module {
                 merging,
                 content,
                 sealed_through,
+                journal_state,
+                journal_parts,
+                restarts,
             } => {
+                let journal_parts = journal_parts.into_iter().collect();
                 let pending = ops::with_parent(replica, || {
-                    host::publish(expected, merging, content, sealed_through)
+                    host::publish(
+                        expected,
+                        merging,
+                        content,
+                        sealed_through,
+                        journal_state,
+                        journal_parts,
+                        restarts,
+                    )
                 });
                 self.answer_later(replica, pending, move |result| {
                     Input::Head(match result.and_then(|published| published) {
@@ -704,11 +874,18 @@ impl Module {
                 let pending = ops::with_parent(replica, || host::load(commit, first_part));
                 self.answer_later(replica, pending, move |result| Input::Read {
                     token,
-                    result: result.and_then(|loaded| loaded).and_then(|loaded| {
-                        loaded
-                            .into_stored()
-                            .ok_or_else(|| "the host loaded parts that form no tree".to_owned())
-                    }),
+                    // A call the host did not answer (unsupported, refused, cancelled with the
+                    // replica) never will: no wait would end it.
+                    result: result
+                        .map_err(be_sdk_type_api::LoadError::Unreadable)
+                        .and_then(|loaded| loaded)
+                        .and_then(|loaded| {
+                            loaded.into_stored().ok_or_else(|| {
+                                be_sdk_type_api::LoadError::Unreadable(
+                                    "the host loaded parts that form no tree".to_owned(),
+                                )
+                            })
+                        }),
                 });
             }
             Effect::ReadPart {
@@ -719,7 +896,7 @@ impl Module {
                 length,
             } => {
                 let range = be_sdk_type_api::ByteRange { offset, length };
-                let pending = ops::with_parent(replica, || host::read_part(part.into(), range));
+                let pending = ops::with_parent(replica, || host::read_part(part, range));
                 self.answer_later(replica, pending, move |result| Input::PartRead {
                     token,
                     result: result.and_then(|read| read),
@@ -730,12 +907,53 @@ impl Module {
                 token,
                 bytes,
             } => {
-                let pending = ops::with_parent(replica, || host::put_part(bytes));
-                self.answer_later(replica, pending, move |result| Input::PartPut {
+                // Fed as one write: the replica holds the bytes whole already (an operation, a
+                // journal's state, or an editor's, which an app frame carries whole).
+                let writer = ops::with_parent(replica, host::PartWriter::new);
+                writer.write(bytes).detach();
+                let finished = writer.finish();
+                self.answer_later(replica, finished, move |result| {
+                    // Held until `finish` answers: dropped sooner, the host would cancel `finish`,
+                    // answering canceled though it still puts the part.
+                    drop(writer);
+                    Input::PartPut {
+                        token,
+                        result: result.and_then(|put| put),
+                    }
+                });
+            }
+            Effect::Append {
+                replica,
+                token,
+                bytes,
+                along,
+            } => {
+                let pending = ops::with_parent(replica, || host::append(bytes, along));
+                self.answer_later(replica, pending, move |result| Input::Appended {
                     token,
-                    result: result
-                        .and_then(|put| put)
-                        .map(be_block_content::PartRef::from),
+                    result: match result {
+                        Ok(Ok(appended)) => Ok(be_block_content::LogAppended {
+                            id: appended.id,
+                            place: appended.place.map(|place| (place.seq, place.arrival)),
+                        }),
+                        Ok(Err(not)) => Err(be_block_content::LogNotAppended {
+                            id: not.id,
+                            why: not.why,
+                        }),
+                        Err(why) => Err(be_block_content::LogNotAppended { id: None, why }),
+                    },
+                });
+            }
+            Effect::ReadLog {
+                replica,
+                token,
+                from,
+                limit,
+            } => {
+                let pending = ops::with_parent(replica, || host::read_log(from, limit));
+                self.answer_later(replica, pending, move |result| Input::LogRead {
+                    token,
+                    result: result.and_then(|read| read),
                 });
             }
             Effect::Resume {
@@ -749,58 +967,52 @@ impl Module {
                     result: result.and_then(|resumed| resumed),
                 });
             }
-            Effect::ClaimLease {
-                replica,
-                generation,
-            } => ops::with_parent(replica, || host::claim_lease(generation)).detach(),
-            Effect::Announce {
-                replica,
-                announcements,
-            } => {
-                let announcements = announcements.into_iter().map(announcement).collect();
-                ops::with_parent(replica, || host::announce(announcements)).detach()
+            Effect::Claim { replica } => ops::with_parent(replica, host::claim).detach(),
+            Effect::LetGoRefused { replica, id } => {
+                ops::with_parent(replica, || host::let_go_refused(id)).detach();
             }
-            Effect::ReportClean {
+            Effect::Submit {
                 replica,
-                generation,
-                clean_at,
-            } => ops::with_parent(replica, || host::report_clean(generation, clean_at)).detach(),
-            Effect::Append {
-                replica,
-                generation,
-                entries,
-                relay,
-                from,
-                announcements,
+                submission,
             } => {
-                let announcements = announcements
-                    .into_iter()
-                    .map(|(sequence, made)| be_sdk_type_api::Announced {
-                        sequence,
-                        announcement: announcement(made),
-                    })
-                    .collect();
-                let through = entries
-                    .iter()
-                    .map(|entry| entry.sequence)
-                    .max()
-                    .unwrap_or_default();
-                let pending = ops::with_parent(replica, || {
-                    host::append(generation, entries, relay, announcements)
-                });
-                self.answer_later(replica, pending, move |held| Input::Appended {
-                    from,
-                    through,
-                    held: held == Ok(true),
+                let counter = submission.id.counter;
+                let submission = be_sdk_type_api::Submission {
+                    origin: submission.id.origin,
+                    counter,
+                    base: submission.base,
+                    barrier: submission.barrier,
+                    payload: submission.payload,
+                };
+                let pending = ops::with_parent(replica, || host::submit(submission));
+                self.answer_later(replica, pending, move |submitted| Input::Submitted {
+                    counter,
+                    outcome: match submitted {
+                        Ok(be_sdk_type_api::host::Submitted::Held) => replica::Outcome::Held,
+                        Ok(be_sdk_type_api::host::Submitted::Kept) => replica::Outcome::Kept,
+                        Ok(be_sdk_type_api::host::Submitted::Failed(error)) => {
+                            replica::Outcome::Failed(error)
+                        }
+                        Ok(be_sdk_type_api::host::Submitted::Refused(error)) => {
+                            replica::Outcome::Refused(error)
+                        }
+                        Err(error) => replica::Outcome::Failed(error.to_string()),
+                    },
                 });
             }
+            Effect::KeepCarried {
+                replica,
+                restarts,
+                submissions,
+            } => ops::with_parent(replica, || host::keep_carried(restarts, submissions)).detach(),
             Effect::Rebase {
                 replica,
-                generation,
                 base,
-                entries,
-            } => ops::with_parent(replica, || host::rebase_journal(generation, base, entries))
-                .detach(),
+                restarts,
+                parts,
+            } => {
+                let parts = parts.into_iter().collect();
+                ops::with_parent(replica, || host::rebase_journal(base, restarts, parts)).detach()
+            }
             Effect::Release { replica } => {
                 let closing = self.shared.state.borrow_mut().closing.remove(&replica);
                 ops::end(replica);
@@ -852,17 +1064,7 @@ impl replicas::Guest for Module {
         }
     }
 
-    fn start(&self, entropy: Vec<u8>) -> LocalFuture<Vec<TypeInfo>> {
-        #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-        {
-            let mut seed = [0u8; 32];
-            for (held, byte) in seed.iter_mut().zip(entropy) {
-                *held = byte;
-            }
-            entropy::seed(seed);
-        }
-        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-        let _ = entropy;
+    fn start(&self) -> LocalFuture<Vec<TypeInfo>> {
         if !self.shared.started.replace(true) {
             let module = self.clone();
             ops::spawn(async move {
@@ -927,13 +1129,13 @@ impl replicas::Guest for Module {
         bytes: Option<Vec<u8>>,
         journal: Journal,
     ) -> LocalFuture<Result<Vec<u8>, Failure>> {
-        Box::pin(ready(
-            self.with_kind(content_type, |kind| {
-                (kind.replay)(bytes.as_deref(), &journal)
-            })
-            .ok_or(Failure::UnknownType)
-            .and_then(|replayed| replayed.map_err(Failure::Malformed)),
-        ))
+        let replay = self.with_kind(content_type, |kind| kind.replay);
+        Box::pin(async move {
+            let replay = replay.ok_or(Failure::UnknownType)?;
+            replay(bytes, journal, request_parts())
+                .await
+                .map_err(Failure::Malformed)
+        })
     }
 
     fn describe(
@@ -973,25 +1175,63 @@ impl replicas::Guest for Module {
         indexed: Vec<PartRef>,
     ) -> LocalFuture<Result<Vec<SearchDocument>, Failure>> {
         let search = self.with_kind(content_type, |kind| kind.search_text);
-        let indexed = indexed
-            .into_iter()
-            .map(be_block_content::PartRef::from)
-            .collect();
         Box::pin(async move {
             let search = search.ok_or(Failure::UnknownType)?;
-            let documents = search(content, keys, indexed, request_parts())
+            search(content, keys, indexed, request_parts())
                 .await
-                .map_err(Failure::Malformed)?;
-            Ok(documents
-                .into_iter()
-                .map(|document| SearchDocument {
-                    key: document.key,
-                    source: document.source.map(PartRef::from),
-                    name: document.name,
-                    body: document.body,
-                })
-                .collect())
+                .map_err(Failure::Malformed)
         })
+    }
+
+    fn places(
+        &self,
+        content_type: Uuid,
+        reads: Vec<Vec<u8>>,
+    ) -> LocalFuture<Result<Vec<BlockPlace>, Failure>> {
+        Box::pin(ready(match self.unread_fns(content_type) {
+            Ok(fns) => (fns.places)(&reads)
+                .map(|places| {
+                    places
+                        .into_iter()
+                        .map(|(block, place)| BlockPlace { block, place })
+                        .collect()
+                })
+                .map_err(Failure::Malformed),
+            Err(failure) => Err(failure),
+        }))
+    }
+
+    fn search_log(
+        &self,
+        content_type: Uuid,
+        items: Vec<be_block_content::LogItem>,
+    ) -> LocalFuture<Result<Vec<(u64, be_block_content::LogSearch)>, Failure>> {
+        let search = match self.with_kind(content_type, |kind| kind.search_log) {
+            None => Err(Failure::UnknownType),
+            Some(None) => Err(Failure::Malformed("this type keeps no log".to_owned())),
+            Some(Some(search)) => Ok(search),
+        };
+        Box::pin(ready(search.map(|search| {
+            items
+                .iter()
+                .filter_map(|item| Some((item.seq, search(item)?)))
+                .collect()
+        })))
+    }
+
+    fn unread(
+        &self,
+        content_type: Uuid,
+        content: Loaded,
+        place: Option<Vec<u8>>,
+        log: Vec<be_block_content::LogItem>,
+        account: Uuid,
+    ) -> LocalFuture<Result<u32, Failure>> {
+        Box::pin(ready(match self.unread_fns(content_type) {
+            Ok(fns) => (fns.count)(Content::Loaded(content), place.as_deref(), &log, account)
+                .map_err(Failure::Malformed),
+            Err(failure) => Err(failure),
+        }))
     }
 
     fn claims(
@@ -1040,22 +1280,10 @@ impl replicas::GuestReplica for OpenReplica {
         Box::pin(ready(()))
     }
 
-    fn message(
-        &self,
-        from: Endpoint,
-        bytes: Vec<u8>,
-        at: u64,
-        delivery: Option<Delivery>,
-    ) -> LocalFuture<()> {
+    fn message(&self, from: Endpoint, bytes: Vec<u8>, at: u64) -> LocalFuture<()> {
         self.module.tick(at);
-        self.module.input(
-            self.id,
-            Input::Message {
-                from,
-                bytes,
-                delivery,
-            },
-        );
+        self.module
+            .input(self.id, Input::Message { from, bytes, at });
         Box::pin(ready(()))
     }
 
@@ -1093,12 +1321,47 @@ impl replicas::GuestReplica for OpenReplica {
         Box::pin(ready(()))
     }
 
-    fn lease(&self, session: SessionState, resynchronize: bool) -> LocalFuture<()> {
+    fn sequenced(&self, entries: Vec<JournalEntry>) -> LocalFuture<()> {
+        let ops = entries
+            .into_iter()
+            .map(|entry| be_block_session::SessionOp {
+                id: be_block_session::OpId {
+                    origin: entry.origin,
+                    counter: entry.counter,
+                },
+                sequence: entry.sequence,
+                base: entry.base,
+                floor: entry.floor,
+                received: entry.received,
+                payload: entry.payload,
+            })
+            .collect();
+        self.module.input(self.id, Input::Sequenced(ops));
+        Box::pin(ready(()))
+    }
+
+    fn lease(&self, session: SessionState) -> LocalFuture<()> {
+        self.module.input(self.id, Input::Lease { session });
+        Box::pin(ready(()))
+    }
+
+    fn logged(&self, items: Vec<be_block_content::LogItem>) -> LocalFuture<()> {
+        self.module.input(self.id, Input::Logged(items));
+        Box::pin(ready(()))
+    }
+
+    fn refused(&self, entries: Vec<be_block_content::RefusedEntry>) -> LocalFuture<()> {
+        self.module.input(self.id, Input::Refused(entries));
+        Box::pin(ready(()))
+    }
+
+    fn sealed(&self, commit: CommitId, through: u64, restarts: u64) -> LocalFuture<()> {
         self.module.input(
             self.id,
-            Input::Lease {
-                session,
-                resynchronize,
+            Input::Sealed {
+                head: commit,
+                through,
+                restarts,
             },
         );
         Box::pin(ready(()))
@@ -1159,7 +1422,7 @@ fn apply(
     change: Change,
 ) -> Result<Option<Vec<u8>>, Failure> {
     let applied = match change {
-        Change::Child(change) => (kind.child)(bytes, change),
+        Change::Child(change) => (kind.child)(bytes, change, client),
         Change::FromFile(FileChange { name, bytes: file }) => match kind.from_file {
             Some(from_file) => Ok(from_file(bytes, &name, file, client)),
             None => Ok(None),
@@ -1182,6 +1445,13 @@ impl Serving {
 
     pub fn module(&self) -> &Module {
         &self.module
+    }
+
+    /// Runs `run` in the module's executor, as a call it serves would run: for a guest that
+    /// wraps `Serving` to make calls of its own (a test's module). What it calls goes out at
+    /// the next `step`.
+    pub fn enter<R>(&self, run: impl FnOnce() -> R) -> R {
+        self.executor.enter(run)
     }
 
     pub fn step(&self, inbound: Vec<Vec<u8>>, outbound: &mut Vec<Vec<u8>>) {
@@ -1234,16 +1504,6 @@ macro_rules! be_block_types {
             }
         }
     };
-}
-
-/// An announcement as the host interface carries it.
-fn announcement(made: be_block_content::Announcement) -> be_sdk_type_api::Announcement {
-    be_sdk_type_api::Announcement {
-        key: made.key,
-        text: made.text,
-        several: made.several,
-        mentions: made.mentions,
-    }
 }
 
 #[cfg(test)]

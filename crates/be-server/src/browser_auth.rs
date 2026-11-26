@@ -9,7 +9,10 @@ use be_block_protocol::ErrorCode;
 use tokio::time::Instant;
 use uuid::Uuid;
 
-use crate::{ServerError, Services, address::address_key};
+use crate::{
+    ServerError, Services,
+    address::{address_key, unsigned_key},
+};
 
 /// How long a pending sign-in or a form token lasts.
 pub(crate) const LIFETIME: Duration = Duration::from_secs(600);
@@ -21,6 +24,16 @@ pub(crate) const LIMIT: usize = 65536;
 pub(crate) const PENDING_PER_ADDRESS: usize = 8;
 /// Form tokens one address holds; issuing another lets go of its oldest.
 const FORMS_PER_ADDRESS: usize = 64;
+/// Pending sign-ins one network (see [`unsigned_key`]) holds, past which beginning another lets
+/// go of the network's oldest. A /48 holds 65536 /64s, each with its own
+/// `PENDING_PER_ADDRESS`, so without it one network fills `LIMIT` and pushes out everyone
+/// else's. 256 is 32 addresses' whole share, more than a site's people begin within
+/// `LIFETIME`, and `LIMIT` takes 256 networks to fill.
+pub(crate) const PENDING_PER_NETWORK: usize = 256;
+/// Form tokens one network holds, past which issuing another lets go of the network's oldest:
+/// 16 addresses' whole share, for a site whose people load the portal's pages at once, and
+/// `LIMIT` takes 64 networks to fill.
+const FORMS_PER_NETWORK: usize = 1024;
 /// The fewest seconds a client waits between two polls of a sign-in, at first.
 pub(crate) const POLL_INTERVAL: Duration = Duration::from_secs(3);
 /// What polling too soon adds to a sign-in's interval (RFC 8628).
@@ -40,32 +53,76 @@ impl Default for Sessions {
 }
 
 /// Entries by id, each from an address and lasting `LIFETIME` from when it was made, indexed by
-/// age overall and per address, so making room, expiring and evicting take a few steps each
-/// rather than a pass over every entry.
+/// age overall, per address and per network, so making room, expiring and evicting take a few
+/// steps each rather than a pass over every entry.
 pub(crate) struct Bounded<V> {
     entries: HashMap<String, Held<V>>,
-    by_age: BTreeSet<(Instant, u64, String)>,
-    by_address: HashMap<IpAddr, BTreeSet<(Instant, u64, String)>>,
+    by_age: BTreeSet<Age>,
+    by_address: Group,
+    by_network: Group,
     next: u64,
     limit: usize,
-    per_address: usize,
+}
+
+type Age = (Instant, u64, String);
+
+/// Entries by what one of the limits counts by, each key holding at most `limit`.
+struct Group {
+    held: HashMap<IpAddr, BTreeSet<Age>>,
+    limit: usize,
+    key: fn(IpAddr) -> IpAddr,
+}
+
+impl Group {
+    fn new(limit: usize, key: fn(IpAddr) -> IpAddr) -> Self {
+        Self {
+            held: HashMap::new(),
+            limit,
+            key,
+        }
+    }
+
+    /// The oldest entry counted with `address`'s while they hold the limit.
+    fn over(&self, address: IpAddr) -> Option<String> {
+        let held = self.held.get(&(self.key)(address))?;
+        (held.len() >= self.limit)
+            .then(|| held.first().map(|(_, _, id)| id.clone()))
+            .flatten()
+    }
+
+    fn insert(&mut self, address: IpAddr, entry: Age) {
+        self.held
+            .entry((self.key)(address))
+            .or_default()
+            .insert(entry);
+    }
+
+    fn remove(&mut self, address: IpAddr, entry: &Age) {
+        let key = (self.key)(address);
+        if let Some(of) = self.held.get_mut(&key) {
+            of.remove(entry);
+            if of.is_empty() {
+                self.held.remove(&key);
+            }
+        }
+    }
 }
 
 struct Held<V> {
     value: V,
-    key: IpAddr,
+    address: IpAddr,
     made: (Instant, u64),
 }
 
 impl<V> Bounded<V> {
-    pub(crate) fn new(limit: usize, per_address: usize) -> Self {
+    pub(crate) fn new(limit: usize, per_address: usize, per_network: usize) -> Self {
         Self {
             entries: HashMap::new(),
             by_age: BTreeSet::new(),
-            by_address: HashMap::new(),
+            by_address: Group::new(per_address, address_key),
+            by_network: Group::new(per_network, unsigned_key),
             next: 0,
             limit,
-            per_address,
         }
     }
 
@@ -75,7 +132,8 @@ impl<V> Bounded<V> {
     }
 
     /// Adds an entry from `address`, first letting go of what has expired, of the address's
-    /// oldest while it holds `per_address`, and of the oldest of all while there are `limit`.
+    /// oldest while it holds its limit, of its network's oldest while that holds its own, and of
+    /// the oldest of all while there are `limit`.
     pub(crate) fn insert(&mut self, id: String, value: V, address: IpAddr) {
         let now = Instant::now();
         while let Some((made, _, oldest)) = self.by_age.first().cloned()
@@ -83,15 +141,10 @@ impl<V> Bounded<V> {
         {
             self.remove(&oldest);
         }
-        let key = address_key(address);
-        while self
-            .by_address
-            .get(&key)
-            .is_some_and(|held| held.len() >= self.per_address)
-        {
-            let Some((_, _, oldest)) = self.by_address[&key].first().cloned() else {
-                break;
-            };
+        while let Some(oldest) = self.by_address.over(address) {
+            self.remove(&oldest);
+        }
+        while let Some(oldest) = self.by_network.over(address) {
             self.remove(&oldest);
         }
         while self.entries.len() >= self.limit {
@@ -103,12 +156,18 @@ impl<V> Bounded<V> {
         self.remove(&id);
         let made = (now, self.next);
         self.next += 1;
-        self.by_age.insert((made.0, made.1, id.clone()));
-        self.by_address
-            .entry(key)
-            .or_default()
-            .insert((made.0, made.1, id.clone()));
-        self.entries.insert(id, Held { value, key, made });
+        let entry = (made.0, made.1, id.clone());
+        self.by_age.insert(entry.clone());
+        self.by_address.insert(address, entry.clone());
+        self.by_network.insert(address, entry);
+        self.entries.insert(
+            id,
+            Held {
+                value,
+                address,
+                made,
+            },
+        );
     }
 
     pub(crate) fn get(&self, id: &str) -> Option<&V> {
@@ -123,12 +182,8 @@ impl<V> Bounded<V> {
         let held = self.entries.remove(id)?;
         let entry = (held.made.0, held.made.1, id.to_owned());
         self.by_age.remove(&entry);
-        if let Some(of) = self.by_address.get_mut(&held.key) {
-            of.remove(&entry);
-            if of.is_empty() {
-                self.by_address.remove(&held.key);
-            }
-        }
+        self.by_address.remove(held.address, &entry);
+        self.by_network.remove(held.address, &entry);
         Some(held.value)
     }
 }
@@ -136,9 +191,13 @@ impl<V> Bounded<V> {
 struct Form {
     expires: Instant,
     owner: String,
+    /// The passkey ceremony the page offers, which posting its form spends.
+    ceremony: Option<crate::passkeys::Ceremony>,
 }
 
 struct Pending {
+    /// The hash of the poll secret (`TokenKind::Poll`): a poll is compared by hash, so how long
+    /// a wrong guess takes tells nothing of the secret.
     secret: String,
     denied: bool,
     expires: Instant,
@@ -147,6 +206,8 @@ struct Pending {
     /// The fewest seconds between two polls; polling sooner adds `SLOW_DOWN` to it.
     interval: Duration,
     polled: Option<Instant>,
+    /// Where the device asking connected from, which the approve page shows.
+    address: IpAddr,
 }
 
 /// Where a pending sign-in stands, as a poll finds it.
@@ -168,8 +229,12 @@ fn invalid(message: &str) -> ServerError {
 impl Sessions {
     pub(crate) fn polled_every(interval: Duration) -> Self {
         Self {
-            pending: Mutex::new(Bounded::new(LIMIT, PENDING_PER_ADDRESS)),
-            forms: Mutex::new(Bounded::new(LIMIT, FORMS_PER_ADDRESS)),
+            pending: Mutex::new(Bounded::new(
+                LIMIT,
+                PENDING_PER_ADDRESS,
+                PENDING_PER_NETWORK,
+            )),
+            forms: Mutex::new(Bounded::new(LIMIT, FORMS_PER_ADDRESS, FORMS_PER_NETWORK)),
             interval,
         }
     }
@@ -179,17 +244,18 @@ impl Sessions {
     pub(crate) fn begin(&self, address: IpAddr) -> (String, String, Duration, Duration) {
         let random = Uuid::new_v4().simple().to_string();
         let code = format!("{}-{}-{}", &random[..4], &random[4..8], &random[8..12]);
-        let secret = Uuid::new_v4().to_string();
+        let secret = crate::new_secret();
         self.pending.lock().unwrap().insert(
             code.clone(),
             Pending {
-                secret: secret.clone(),
+                secret: crate::store::hash_token(crate::store::TokenKind::Poll, &secret),
                 denied: false,
                 expires: Instant::now() + LIFETIME,
                 account: None,
                 approved_by: String::new(),
                 interval: self.interval,
                 polled: None,
+                address,
             },
             address,
         );
@@ -202,7 +268,8 @@ impl Sessions {
     pub(crate) fn poll(&self, code: &str, secret: &str) -> Result<Polled, ServerError> {
         let mut pending = self.pending.lock().unwrap();
         let now = Instant::now();
-        let Some(entry) = pending.get_mut(code).filter(|entry| entry.secret == secret) else {
+        let hashed = crate::store::hash_token(crate::store::TokenKind::Poll, secret);
+        let Some(entry) = pending.get_mut(code).filter(|entry| entry.secret == hashed) else {
             return Ok(Polled::Expired);
         };
         if entry.expires <= now {
@@ -234,28 +301,43 @@ impl Sessions {
         Ok(Polled::Approved { account, issuer })
     }
 
-    pub(crate) fn form(&self, owner: &str, address: IpAddr) -> String {
+    /// A page's form token for the session `owner`, holding the passkey ceremony the page
+    /// offers, if it offers one.
+    pub(crate) fn form(
+        &self,
+        owner: &str,
+        address: IpAddr,
+        ceremony: Option<crate::passkeys::Ceremony>,
+    ) -> String {
         let mut forms = self.forms.lock().unwrap();
-        let token = Uuid::new_v4().to_string();
+        let token = crate::new_secret();
         forms.insert(
             token.clone(),
             Form {
                 expires: Instant::now() + LIFETIME,
                 owner: owner.into(),
+                ceremony,
             },
             address,
         );
         token
     }
 
-    pub(crate) fn consume_form(&self, token: &str, owner: &str) -> Result<(), ServerError> {
-        self.forms
+    /// Spends a form token the session `owner` was given, answering the passkey ceremony its
+    /// page began, if it began one.
+    pub(crate) fn consume_form(
+        &self,
+        token: &str,
+        owner: &str,
+    ) -> Result<Option<crate::passkeys::Ceremony>, ServerError> {
+        let form = self
+            .forms
             .lock()
             .unwrap()
             .remove(token)
             .filter(|form| form.expires > Instant::now() && form.owner == owner)
             .ok_or_else(|| invalid("this page expired; reload it and try again"))?;
-        Ok(())
+        Ok(form.ceremony)
     }
 }
 
@@ -304,7 +386,12 @@ pub(crate) async fn decide(
     Ok(())
 }
 
-pub(crate) fn code_status(services: &Services, code: &str) -> Result<(), ServerError> {
+/// Whether `code` may still be approved, and if so, where the device asking connected from and
+/// how long ago it asked.
+pub(crate) fn code_status(
+    services: &Services,
+    code: &str,
+) -> Result<(IpAddr, Duration), ServerError> {
     let pending = services.browser_auth.pending.lock().unwrap();
     match pending.get(&code.trim().to_ascii_lowercase()) {
         None => Err(invalid(
@@ -319,7 +406,10 @@ pub(crate) fn code_status(services: &Services, code: &str) -> Result<(), ServerE
         Some(entry) if entry.account.is_some() => Err(invalid(
             "This sign-in was already approved. Return to be-host.",
         )),
-        Some(_) => Ok(()),
+        Some(entry) => Ok((
+            entry.address,
+            LIFETIME.saturating_sub(entry.expires.saturating_duration_since(Instant::now())),
+        )),
     }
 }
 

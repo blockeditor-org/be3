@@ -20,14 +20,17 @@ impl Editor {
         let world = self.world();
         let core = self.core();
         let area = create_memo(move || {
-            let _ = world.get();
+            world.track();
             fit.get().map(|fit| core.fit_area(fit))
         });
         create_effect(move || {
             let area = area.get();
             untrack(|| editor.keep_fitted_area(area));
         });
-        Fitting { editor, fit }
+        let fitting = Fitting { editor, fit };
+        // What it keeps fitted is what the frame's `editor.zoom-fit` fits.
+        editor.fit_with(move || fitting.fit());
+        fitting
     }
 }
 

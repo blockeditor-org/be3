@@ -1,18 +1,18 @@
 use crate::components::overlay::OverlayPresence;
 use std::cell::RefCell;
 
+use crate::reactive::BuildFn;
 use crate::reactive::Callback;
 use crate::reactive::Get;
+use crate::reactive::Memo;
 use crate::reactive::NodeId;
 use crate::reactive::NodeRef;
 use crate::reactive::OverlayAnchor;
 use crate::reactive::Prop;
-use crate::reactive::RenderFn;
 use crate::reactive::Scope;
 use crate::reactive::Set;
 use crate::reactive::create_effect;
 use crate::reactive::owner_scope;
-use crate::reactive::provide_context;
 use crate::reactive::store;
 use crate::reactive::untrack;
 use crate::types::Color;
@@ -29,7 +29,8 @@ use beui_core_html::overlay::Parts;
 use super::bind;
 
 struct Mounted {
-    scope: Scope,
+    /// Owns the content while it is shown; dropping it disposes the content.
+    _scope: Scope,
 }
 
 pub(crate) fn overlay(
@@ -42,15 +43,14 @@ pub(crate) fn overlay(
     level: Prop<LayerLevel>,
     traps_focus: Prop<bool>,
     shown_in: Prop<Option<WindowId>>,
-    trigger: Option<NodeRef>,
+    trigger: Prop<Option<NodeRef>>,
     pointer: Option<NodeRef>,
     beak: Prop<f32>,
     window: Prop<Option<WindowSpec>>,
-    keep_alive: bool,
     dismissable: Prop<bool>,
     on_dismiss: Callback<Dismiss>,
     presence: OverlayPresence,
-    content: RenderFn<()>,
+    content: BuildFn<NodeId>,
 ) -> NodeId {
     let _ = (shown_in, window, scrim_radius, bounds);
     let host = create("Overlay", "div");
@@ -70,7 +70,6 @@ pub(crate) fn overlay(
             proxy,
             beak: pointing,
         },
-        trigger,
         pointer,
         on_dismiss,
     );
@@ -92,6 +91,8 @@ pub(crate) fn overlay(
     });
     let held = layer.clone();
     bind(beak, move |reach| held.set_beak(reach));
+    let held = layer.clone();
+    bind(trigger, move |trigger| held.set_trigger(trigger));
     let shown = presence.shown();
     let owner = owner_scope().expect("an overlay is built inside a scope");
     let mounted = store(RefCell::new(None::<Mounted>));
@@ -101,42 +102,25 @@ pub(crate) fn overlay(
             let held = mounted.value();
             let mut held = held.borrow_mut();
             if shown {
-                match held.as_ref() {
-                    Some(held) => {
-                        if keep_alive {
-                            held.scope.resume();
-                        }
-                    }
-                    None => {
-                        let scope = owner.run(|| match keep_alive {
-                            true => Scope::detached().pausable(),
-                            false => Scope::detached(),
-                        });
-                        let built = scope.context().run(|| {
-                            provide_context(presence);
-                            provide_context(presence.modality());
-                            content.call(())
-                        });
-                        layered.fill(slot, vec![built]);
-                        *held = Some(Mounted { scope });
-                    }
+                if held.is_none() {
+                    let scope = owner.run(Scope::detached);
+                    let built = scope.context().run(|| {
+                        presence.provide();
+                        content.call()
+                    });
+                    layered.fill(slot, vec![built]);
+                    *held = Some(Mounted { _scope: scope });
                 }
                 layer.show(true);
                 return;
             }
             layer.show(false);
-            match keep_alive {
-                true => {
-                    if let Some(held) = held.as_ref() {
-                        held.scope.pause();
-                    }
-                }
-                false => {
-                    presence.lingering().update(Vec::clear);
-                    layered.fill(slot, Vec::new());
-                    drop(held.take());
-                }
-            }
+            layered.fill(slot, Vec::new());
+            drop(held.take());
+            // What content a `Kept` keeps registered goes on lingering each time it closes.
+            presence
+                .lingering()
+                .update(|lingering| lingering.retain(Memo::is_alive));
         });
     });
     host

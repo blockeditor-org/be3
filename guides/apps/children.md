@@ -31,14 +31,163 @@ not shared yet, or, offline, a block this device has never read
 The host runs a bounded number of children as editors and draws the rest as
 previews, so place only the children that are visible.
 
-A block placed in several places at once shares one editor instance, the one
+Under be-host's own UI, a block placed in several places at once shares one
+editor instance, the one
 under the block's own id that the host's own requests (focus, menus, renaming a
 new block) reach, so a shared instance draws one view for all of them. A
 placement that asks for another editor than the one holding the block (a
 settings page in a tab beside the settings list) gets an instance of its own,
 a twin under a key of its own in be-host's `Editors` (`compositor/editors.rs`;
 `Editors::block` maps it back), closed when that placement goes. Previews are
-never twinned.
+never twinned. Under a root each place gets a live editor of its own instead,
+the rule going forward (below).
+
+## Under a root
+
+Under `--root` (plans/host_as_platform_adapter.md, 4g7b3) the root shows an
+embedded editor's children, not be-host's compositor. be-sdk-root's `Children`
+reads each view's placements from the app's layout commits
+(`Embedded::placed`) and shows each block child placed to run its editor as
+that block's editor, which the host opens and serves as it does the root's
+other editors (`be3:root`'s `host.open-editor`, and `host.close-editor` once no
+place shows it). Each staged app runs once for every child, holding every
+editor of it the root shows, each asked for screens of its own; the app
+showing the session's block is not one of them. Each place gets a live editor
+of its own: a block placed twice is edited in each place, as two editor views
+of one open block each get their own, and what one changes reaches the other
+through the block. Its screen is the size of its place, at its
+placer's raster, composited under the placer's layer (over it when placed
+`Above`), and the placer is hit everywhere but where a child that takes input
+is. The root tells the host through `be3:root`'s `host.show-children` which
+editor shows each child, and the host makes each child's status from that
+editor's manifest and tells the placer, as it does for its own children.
+
+The keyboard follows the same rules as under be-host (Focus, below): the root
+reads each editor's `keyboard-ask` from the placements it settles and, once the
+frame's layers are drawn, moves the keyboard into the child's layer, or out of
+the placer's screen until the child shows (`Children::keyboard`), while
+nothing outside the editor took it meanwhile; a host panel the root draws
+takes it in the layer of the root's own surface drawing it, once drawn. Placers
+hear `child-focused` through `be3:root`'s `host.tell-placer`, and a press outside an
+active child takes it back (`Children::revoke`); an Escape the child leaves to
+its placer does not, so the keyboard stays where it is.
+
+A child that takes its placer's frame (below), the first that could in the
+placer's content view and only once it shows its screen, is asked for a screen
+the size of its placer's, with the placer's frame drawn and its placed rect as
+the frame's `content` (`framing_screen`), and shown over the placer, which is
+asked for its view with no chrome meanwhile (`Children::withdraw_chrome`). It
+is hit everywhere but where its content shows outside its placed rect, so a
+press there reaches the placer and takes the frame back, as Escape in the
+placer does, from every child of that view that could take it.
+
+Docks join as under be-host (Docks across apps, below): the outermost
+`Children` holds one be-sdk-app-host `Docks` for every editor it shows, hears
+what each app's docks say once its placements are in (`Embedded::take_docks`),
+and hands the root's host what the docks have for each editor through
+`be3:root`'s `host.dock`, which the host's `Forwarded` answers the editor's
+dock watch with. A child placed in a dock tab's body is asked for its frame
+`docked`, and stays open while the dock hosting it keeps it, placed or not. The
+bodies of a joined dock's tabs and bars the outermost dock places
+(`ChildContent::DockTab`) are shown as the owning editor's views, each another
+screen of its app placed `Dock`, framed where it holds the editor's content.
+
+A child placed as a preview runs its editor too, asked for its preview view the
+size of its place (`preview_screen`, capped as be-host caps a preview), hit
+nowhere and shown under its placer. The host tells the placer it composites
+it (`ChildPreview::Composited`), so be-sdk-beui leaves a hole for it as for
+any child rather than drawing a picture; one whose editor draws no preview runs no
+app, and its placer draws the block's label (`ChildPreview::Label`). Promoted,
+it keeps its editor, asked for its main view instead. A child placed in a
+preview view is a preview too, and an editor shown only as a preview has no
+dock, as under be-host.
+
+A block a root's editor opens (`open-block`) goes to the editor that handles
+show requests, as under be-host: the nearest of the asking editor and those
+placing it, which the root names in `host.show-children`, whose manifest
+accepts them, else the editor showing the session's block. The root tells
+every app it embeds the host's catalog (`be3:root`'s `host.block-types`),
+which names block types and draws their icons. A child placed by its parent
+without a frame of its own keeps no camera, as under be-host (guides/pan_and_zoom.md,
+Who owns the camera): the root tells the host where its content shows and the
+size it wants (`host.place-content`), and the host hands a pan-and-zoom editor
+its view from them.
+
+A child is drawn where it was placed as under be-host: turned by its
+`rotation` about the middle of its place and faded by its `opacity` (its own
+children with it, since each layer is placed through its placer's transform).
+One placed with an intrinsic size, whose editor does not pan and zoom, is laid
+out at its place's size over the zoom that fits that size in it and drawn at
+that zoom (`child_screen`), and the host tells its editor that size
+(`host.assign-size`, the `resized` event be-host sends). One placed to `fit`
+its content is asked for at most that room, drawn from its place's top left
+clipped to its place, and its placer hears the room its layout said it used
+(`layout-commit.sizes`) as its status's `intrinsic`. A view's occluders give the placer the presses over the children
+placed before them; they hide a child placed below its placer only because
+the placer draws over it there.
+
+What an editor tells the shell reaches the root, which acts on it as be-host
+does: its menus go to the docks and to the status of a child whose frame it
+draws (`shown-child.menu`), an ask for its details goes to the docks or its
+placer, a pick from a child's menu goes to the editor drawing that child's
+frame, and `leave-frame` gives the frame back. A block an editor drags
+(`drag-block`) is carried by the router of the window its press is in
+(be-lib-input-router's `start_drag`) over the views under the pointer that take
+a drag, each told through its host (`host.tell-editor`, `editor-event.drag`),
+dropped on release and put down by Escape.
+
+A picker, a rename form or an Export dialog an editor places is a dialog the
+root opens, like a block's editor, in the editor that runs it (`be3:root`'s
+`shown.dialog`), its placer's own; what it tells the shell that its placer's
+status says (its pick, its answer) the root relays to the host
+(`host.tell-shell`). It is available at once, as under be-host, and registers
+no dock. A creation child is opened the same way, in the template's editor:
+the placer's `commit-child` reaches the host through the root, which makes the
+block once the editor is open, and the child's status says how far it got. An
+artifact's settings open in the editor that exports its source, at its
+settings view, whose edits (`ArtifactEdited`) the root relays too; their commit
+applies the draft to the artifact. A placer commits a dialog in the layout
+that removes it, so a commit still reaches the editor of a child let go of in
+the same settle.
+
+The root hands every view an anchor space (`screen-request.anchor-space`): the
+session's screen anchors anywhere in the window, and a child hands on its
+placer's, moved to its place and scaled by its zoom. So an editor's menus,
+popovers and sheets open as anchored views (guides/apps/framework.md, Anchored
+views), which the root shows over everything the session places, at the rect
+the app reported (`Embedded::anchored`, `Children::anchored_layers`), each a
+placer of the children placed in it, as a popover places a picker, stacked in
+the order they opened across apps. One that asks for the keyboard gives it to
+the child placed in it once that shows, else the screen of the view it hangs
+from keeps it and hands its keys on; that screen takes it back once the view
+closes. A press closes what be-sdk-app-host's `anchored::dismissed_by_press`
+says, as be-host's compositor does, where each view takes presses
+(`frame-report.floating`), told to the app as `input-batch.dismissed`.
+
+Host panels are the root's to draw: be-sdk-root lists each placed
+(`Children::panels`, a `PanelPlace` each) and the root shows a layer of its
+own in each place (`Children::show_panels`), framed and cut out like a
+child's. be-root draws Performance and Menu as be-host does and says the
+others are not drawn yet. Its menu lists every panel and asks the session's
+editor to show one (`host.show-panel`), as be-host asks its shell; it has no
+statistics overlay of its own. Its menu and a Menu panel are built one way
+(`MenuParts`) and follow the host's views as they change; the Performance
+panels share one feed of the host's statistics, watched while any shows.
+
+Program windows are the host's to draw: be-sdk-root shows each placed
+(`child-content.window`) as a `Surface::Host` layer of its window at its place,
+framed and cut out like a panel, whose pixels are the window's logical pixels,
+so its size is the size the host configures the window to (be-host's
+`RootShell`, guides/desktop.md). What the router delivers to that layer the
+root hands its host with its frame (`Embedding::take_host_input`,
+`frame-done.host-input`), in the window's logical pixels, for the host to hand
+the program. The root tells its host each window child placed, hidden too
+(`shown-child.window`), and the host words its status from the window's (its
+title, icon, raises, bell, minimizes, full screen ask, notice), available to
+the shell (the session's editor) alone, as be-host's own shell hears it; a `close-child` of
+one the root relays to its host (`tell-shell`), which closes the window. Web
+views (4g7b3g) are not there yet: a child of another kind the placer hears is
+unavailable.
 
 ## Drawing order
 
@@ -53,7 +202,9 @@ for drawing and for the pointer, but not the children inside it.
 
 - **Passive** (default): the editor keeps every click. Promoting it to
   `ChildMode::Active` (a double-click, an Edit button) hands it input; the
-  host takes that away on a click outside or Escape. A promotion made during a
+  host takes that away on a click outside. An Escape the placer does not
+  handle takes back only the frame the child took over, keeping it active and
+  the keyboard where it is, under be-host as under a root. A promotion made during a
   press that began over the child replays that press in the child from where
   it went down (`be-host/src/compositor/app_view/handoff.rs`); a press already
   released is replayed only within half a second.
@@ -65,8 +216,9 @@ for drawing and for the pointer, but not the children inside it.
   out again. A canvas places a checklist this way, and an image or another
   canvas passive.
 - **Preview**: the host draws the block's preview rather than running its
-  editor (a filmstrip). A block previewed in several places at once is drawn
-  once, at the largest, and each place shows its part.
+  editor (a filmstrip). Under be-host's own UI a block previewed in several
+  places at once is drawn once, at the largest, and each place shows its
+  part; under a root each place opens a preview of its own.
 
 `own_frame=true` gives a child a frame of its own inside its rectangle, where
 it draws its own toolbar and sidebars while the placer keeps its whole frame.
@@ -79,7 +231,11 @@ An Active or Live child takes the frame over: it is handed the frame the
 placer had, draws every chrome band, and draws its content at the rect it was
 placed at. The placer draws no chrome while that lasts and its content takes
 the whole frame; its camera is untouched, so the child's rect stays where it
-was on screen. An editor cannot keep a band while a child has the frame.
+was on screen. Clicking or focusing a child never moves or resizes it, even
+one zoomed to fill the view, and neither does a side panel opening, closing or
+moving around it: a panel covering part of it keeps covering it, and the
+person zooms out to see it. An editor cannot keep a band while a child has the
+frame.
 
 Clicks on the child's chrome belong to the child. A click on the rest of the
 frame, or on the child's content outside its placed rect (which is where the
@@ -108,72 +264,70 @@ showing the tab hands the keyboard to the one shown in its place), and one in an
 empty pane's view focuses that pane, so a press in a child (a joined dock's tab
 body or empty pane included) focuses what holds it and brings its window in
 front; `on_focus` is for anything more. A child that takes a press without the
-keyboard (one being presented) brings nothing forward. The other way,
-`EditorHost::focus_child` gives a child the keyboard, but only while the
-keyboard is already inside the editor's views and no popover or keyboard-taking
-layer is open, so it never steals focus from elsewhere. `ChildBlock` and
-`Subregion` in a dock tab ask for it whenever the dock gives that tab the
-keyboard. `EditorHost::focus_block_child` asks the same for the child that will
-show a block, so an editor that makes a block to type into ("Add notes") asks in
-the frame that makes it, before the child exists.
+keyboard (one being presented) brings nothing forward.
 
-Each editor instance makes at most one gift at a time
-(`be-host-runtime/src/instances/gift.rs`): what it gives the keyboard to (a
-block, a child, then the child's view), the keys held for it and the editor's
-view they were typed into. It moves pending → given → ready → done, and
-`Instances::end_gift` ends it however it ends:
+The other way, an editor asks that a child take the keyboard in the child's
+placement, never by a call: `ChildBlock` and `Subregion` take a `keyboard`
+count, which only grows, and each time it grows above the highest it reached
+the placement carries the editor's next `keyboard-ask` serial (be-sdk-beui's
+`register_child`). A `ChildBlock` or
+`Subregion` in a dock tab adds one each time the dock gives that tab the
+keyboard or brings its window forward, while it shows a child that takes input
+(an active or live block, a dock tab's body, a program window, a host panel) and
+no popover or keyboard-taking layer of the editor's is open. An editor that
+makes a block to type into ("Add notes") places its child with a count of one
+once it places it; a program tab counts its window's raises and calls for
+attention.
 
-- Pending: keys typed into the editor's view are held. A block gift turns
-  into a gift to the child that shows the block at a layout commit, and the
-  placer's views hear which child (`InstanceEvent::KeyboardGift`, kept per
-  instance in be-host's `app_view/gifts.rs` until the child's view is built
-  and takes it with `be_host_runtime::take_gift`).
-- Given: the child's view took the keyboard. It has to be seen with it by the
-  next host pass, or it lost it before it saw it and the gift ends, so keys
-  are never replayed into a view focused much later. Keys typed into it queue
-  behind the held ones.
-- Ready: a text field in it has the keyboard (its view asks for an input
-  method in a frame its app answered after the focus, so an input method left
-  from before does not count), or, for a child with none, its app drew two
-  frames after it had its block's content and the focus (the count starts
-  again if the content is replaced). The child's app hears the held keys, in
-  order and ahead of its own.
-- Ended before that: when the person presses in the editor or takes the
-  keyboard elsewhere, when the child stops being placed in a mode that runs
-  an editor, when the host refused to make the block, when the editor has no
-  view left, when the child's app fails to start, and when its instance or
-  app goes. Nothing else ends it until the child is up: its view built and
-  its app running (`child_up_for_gift`), which takes any time while the host
-  makes the block, the editor places it and a cold start downloads and
-  compiles the child's app. From then the child's view has `GIFT_COMMITS` (8)
-  of the editor instance's own layout commits (those that carry its children
-  or one of its frame reports; other instances of the app do not count) or
-  `GIFT_WAIT` (3 s) on the frame clock, which bounds an editor that commits
-  nothing, to take it. So a child that is up but never shown in a view that
-  takes the keyboard ends the gift on its own. The editor's view hears the
-  held keys if it has the keyboard by the next host pass; otherwise they are
-  dropped.
+The host acts on the layout commit that carries a serial above every one it
+acted on for the editor (be-host-runtime's `Instances::hear_keyboard_asks`,
+which names the child to the compositor with `InstanceEvent::KeyboardAsked`,
+one an editor per commit; a restarted app's editor counts from 1 again). The
+ask ends without moving anything if, at that commit, a view that takes the
+keyboard is open or the keyboard is outside the placer's views and the
+children they show (`ask_at_commit`); an ask still waiting ends when its child
+is no longer placed (`KeyboardAsked(None)`) or its app fails. A
+child whose view is up takes the keyboard at once, if it is inside the
+placer's views or the children they show and no view that takes the keyboard
+is open, so it never steals focus from elsewhere (be-host's
+`focus_when_given`). The view that takes it is the one showing the child's
+content (`asks::acts`): a joined editor's content shows in a dock tab body the
+placer places as a child of its own, beside its bars, so an ask for the joined
+child, its tab or one of its bars lands in that body, never in a bar or the
+main view left placed and shown nowhere. For a child whose view is not up yet (not built, or its
+app has not laid it out), the keyboard leaves the placer's own view at once
+(`keyboard_into_child`; one already in another of its children stays there),
+and the child's view takes it once it is up, while nothing outside the
+editor took it meanwhile. Keys typed in between reach nothing. An app that does not run yet
+still hears which view has the keyboard (`Input::Focus`), so it focuses the
+field once it runs. A window child (a program window) takes the keyboard from
+the host directly.
 
-Only the latest ask stands. A new ask replaces the gift and carries its keys,
-including keys already owed to the child an earlier ask gave the keyboard to,
-to the new child. A window child (a program window) takes the keyboard from
-the host directly, and the keys held for it are dropped, as the editor no
-longer has the keyboard.
+Keys are never held (decisions/keys_are_never_held.md): a key goes to whatever
+has the keyboard when it is routed, and one routed to a child whose app does
+not run yet is dropped, as is everything an app that is not running would hear
+but where the keyboard is.
+Nothing waits for an editor to claim a key or the keyboard.
 
-Keys typed into a view right after a press there wait the same way, as a
-pending gift to nothing yet (`GiftTo::Answer`), until its app has drawn a
-frame after the press (only for a press the app was sent, as it draws no frame
-for one that never reached it), since that frame may carry the ask ("Add
-notes" asks as it is clicked), and go to the view if it asked for nothing.
-Owed keys and the keyboard are kept by view, not by the node that catches its
-input: when the host builds a view's catcher again (a late child placed in a
-new pane), the new one takes over both, unless the keyboard went elsewhere
-meanwhile. A view that is no longer placed leaves nothing behind. A child
-never reads what its placer's view stores (`Placer` names the app with a
-plain string), as a child's effects can outlive the placer's view.
-Held keys skip the child's input method, so a composition (CJK) started before
-the child shows arrives as its committed text. An empty text block given the
-keyboard puts its caret in its text.
+The keyboard is kept by view, not by the node that catches its input: when the
+host builds a view's catcher again (a late child placed in a new pane), the new
+one takes the keyboard back, unless it went elsewhere meanwhile. A child never
+reads what its placer's view stores (`Placer` names the app with a plain
+string), as a child's effects can outlive the placer's view.
+
+A joined editor's content moves from its main view, which stays placed but is
+shown nowhere, into its dock tab view, built after the main view goes. That
+view takes over the keyboard the main view had (`keyboard_follows_content` in
+be-host's `app_view.rs`; the runtime's `content_moved` finds where the content
+moved). A catcher taken down with the keyboard tells its app that view lost it
+(`Input::Focus(false)`), as the catcher would, so the app does not count the
+main view, shown nowhere, as holding the keyboard; one built for the view again
+gives it back.
+
+An empty text block given the keyboard puts its caret in its text. It reads its
+own views' keyboard (`Editor::has_keyboard`), not the document's
+(`use_document_keyboard`): an app's instances share one document, and an
+instance reading the document's would act on a keyboard given to another.
 
 ## Docks across apps
 
@@ -189,26 +343,49 @@ nothing but its `Docking`.
   `use_window()`, so its size, key scopes and the menus it opens are the
   tab's.
 - The root hosts each child's declaration as a pinned group in place of the
-  tab. `be-host-runtime/src/docks.rs` routes docks between instances,
+  tab. `Docks` (`be-sdk-app-host/src/docks.rs`, which be-host-runtime holds one
+  of) routes docks between instances,
   applying a commit's child placements before its dock messages.
 - The tab body holding the editor's content is where the host keeps its
   camera, chrome and frame takeovers, so a joined canvas pans and hands its
   frame to a card as it does alone.
+- A joined editor's tool bar (`DockBar`) shows in the root's band at the size
+  it measured, squeezed along its run where the band is shorter (a phone's),
+  so its surface scrolls instead of being cut off.
+- A joined frame shows no main view of its own, so its dock tab views carry
+  `FrameSpec::phone` too: on a phone it lays out, and opens Rename as a sheet,
+  as an editor on its own does.
 - A child keeps its child id while its body moves between views, and stays
   docked while its placer hosts it, after (`DockHold`), and while the placer
   is off screen, so it is never rebuilt undocked in between.
 - Each docked editor's own layout is saved by be-sdk-beui
   (`docked/saved.rs`) in this device's `DisplaySettings`, keyed by block type
   and dock, and restored whenever the setting changes, so every open
-  instance follows the last one moved. A dock that does not join is wrapped
+  instance follows the last one moved. A joined dock's root takes a restore
+  frames after it is asked, reporting meanwhile the layout of each
+  declaration it heard, so the keeper saves nothing until the root says it
+  has taken every restore the dock asked for (`DockHosted::restored`,
+  `EditorHost::dock_restored`). It stops waiting as soon as the root says
+  so, whatever the root then hosts, and the host never leaves it waiting:
+  it counts as taken a restore that reaches no root, whose root lets the
+  child go or stops being the root (it joins another dock, or the child's
+  declaration is withdrawn from it), or whose root goes away. The root counts a descendant's restore when it grafts it, which
+  waits until it hosts the descendant's group, holding back only that
+  descendant's later requests (and its own descendants'), and drops one for a
+  group the child no longer declares. A dock that does not join is wrapped
   in a `DockHost` and kept under the same key (`DockKeeper`), so a bar moved
   in one place shows there everywhere. An editor that saves its own dock
   (be-sdk-shell's `Workspace`) provides `DockKeeper::none()`.
 
 ## Program windows and host panels
 
-The host's debugging panels (`HostPanel`) are drawn by the host but placed by
-the workspace as dock windows holding `SubregionContent::Host(panel)`.
+The host's debugging panels (`HostPanel`) are drawn by the host (under a
+root, by the root; see Under a root) but placed by the workspace as dock
+windows holding `SubregionContent::Host(panel)`. A host panel takes the
+keyboard as any child that takes input does, from its placer's ask or a press,
+and its placer hears `child-focused` for it: be-host focuses the panel in its
+own document (`drawn_child_takes_asked_keyboard`), and a root moves the keyboard
+into the surface it draws the panel in.
 
 Program windows are placed the same way. On Linux the host is a Wayland
 compositor (guides/desktop/wayland.md); `editor.watch::<WindowsWatch>()` lists

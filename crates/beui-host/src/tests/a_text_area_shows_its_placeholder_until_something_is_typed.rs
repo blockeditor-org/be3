@@ -20,6 +20,7 @@ fn a_text_area_shows_its_placeholder_until_something_is_typed() {
                 @node_ref=&area
                 state={state}
                 placeholder="Write something"
+                scroll={plain_scroll()}
             />
         }
     });

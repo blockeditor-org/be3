@@ -732,6 +732,11 @@ third_party = {
                 "deps": [
                     ":inout-0.2.5",
                 ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "rand_core",
+                ],
                 "named_deps": {
                     "common": ":crypto-common-0.2.2",
                 },
@@ -739,6 +744,11 @@ third_party = {
             "linux-arm64": {
                 "deps": [
                     ":inout-0.2.5",
+                ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "rand_core",
                 ],
                 "named_deps": {
                     "common": ":crypto-common-0.2.2",
@@ -748,6 +758,24 @@ third_party = {
                 "deps": [
                     ":inout-0.2.5",
                 ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "rand_core",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":inout-0.2.5",
+                ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "rand_core",
+                ],
                 "named_deps": {
                     "common": ":crypto-common-0.2.2",
                 },
@@ -755,6 +783,11 @@ third_party = {
             "macos-arm64": {
                 "deps": [
                     ":inout-0.2.5",
+                ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "rand_core",
                 ],
                 "named_deps": {
                     "common": ":crypto-common-0.2.2",
@@ -764,6 +797,11 @@ third_party = {
                 "deps": [
                     ":inout-0.2.5",
                 ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "rand_core",
+                ],
                 "named_deps": {
                     "common": ":crypto-common-0.2.2",
                 },
@@ -772,6 +810,11 @@ third_party = {
                 "deps": [
                     ":inout-0.2.5",
                 ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "rand_core",
+                ],
                 "named_deps": {
                     "common": ":crypto-common-0.2.2",
                 },
@@ -779,6 +822,11 @@ third_party = {
             "windows-x86_64": {
                 "deps": [
                     ":inout-0.2.5",
+                ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "rand_core",
                 ],
                 "named_deps": {
                     "common": ":crypto-common-0.2.2",
@@ -826,6 +874,13 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                    ":cpubits-0.1.1",
+                    ":cpufeatures-0.3.0",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":cipher-0.5.2",
                     ":cpubits-0.1.1",
@@ -890,11 +945,14 @@ third_party = {
                     ":aes-0.9.3",
                     ":cipher-0.5.2",
                     ":ctr-0.10.1",
-                    ":ctutils-0.4.3",
+                    ":ctutils-0.4.8",
                     ":ghash-0.6.0",
                 ],
                 "features": [
                     "aes",
+                    "alloc",
+                    "default",
+                    "getrandom",
                 ],
             },
             "linux-arm64": {
@@ -903,11 +961,14 @@ third_party = {
                     ":aes-0.9.3",
                     ":cipher-0.5.2",
                     ":ctr-0.10.1",
-                    ":ctutils-0.4.3",
+                    ":ctutils-0.4.8",
                     ":ghash-0.6.0",
                 ],
                 "features": [
                     "aes",
+                    "alloc",
+                    "default",
+                    "getrandom",
                 ],
             },
             "linux-x86_64": {
@@ -916,11 +977,30 @@ third_party = {
                     ":aes-0.9.3",
                     ":cipher-0.5.2",
                     ":ctr-0.10.1",
-                    ":ctutils-0.4.3",
+                    ":ctutils-0.4.8",
                     ":ghash-0.6.0",
                 ],
                 "features": [
                     "aes",
+                    "alloc",
+                    "default",
+                    "getrandom",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":aead-0.6.1",
+                    ":aes-0.9.3",
+                    ":cipher-0.5.2",
+                    ":ctr-0.10.1",
+                    ":ctutils-0.4.8",
+                    ":ghash-0.6.0",
+                ],
+                "features": [
+                    "aes",
+                    "alloc",
+                    "default",
+                    "getrandom",
                 ],
             },
             "macos-arm64": {
@@ -929,11 +1009,14 @@ third_party = {
                     ":aes-0.9.3",
                     ":cipher-0.5.2",
                     ":ctr-0.10.1",
-                    ":ctutils-0.4.3",
+                    ":ctutils-0.4.8",
                     ":ghash-0.6.0",
                 ],
                 "features": [
                     "aes",
+                    "alloc",
+                    "default",
+                    "getrandom",
                 ],
             },
             "macos-x86_64": {
@@ -942,11 +1025,14 @@ third_party = {
                     ":aes-0.9.3",
                     ":cipher-0.5.2",
                     ":ctr-0.10.1",
-                    ":ctutils-0.4.3",
+                    ":ctutils-0.4.8",
                     ":ghash-0.6.0",
                 ],
                 "features": [
                     "aes",
+                    "alloc",
+                    "default",
+                    "getrandom",
                 ],
             },
             "windows-arm64": {
@@ -955,11 +1041,14 @@ third_party = {
                     ":aes-0.9.3",
                     ":cipher-0.5.2",
                     ":ctr-0.10.1",
-                    ":ctutils-0.4.3",
+                    ":ctutils-0.4.8",
                     ":ghash-0.6.0",
                 ],
                 "features": [
                     "aes",
+                    "alloc",
+                    "default",
+                    "getrandom",
                 ],
             },
             "windows-x86_64": {
@@ -968,11 +1057,14 @@ third_party = {
                     ":aes-0.9.3",
                     ":cipher-0.5.2",
                     ":ctr-0.10.1",
-                    ":ctutils-0.4.3",
+                    ":ctutils-0.4.8",
                     ":ghash-0.6.0",
                 ],
                 "features": [
                     "aes",
+                    "alloc",
+                    "default",
+                    "getrandom",
                 ],
             },
         },
@@ -980,6 +1072,111 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.11.1",
+    },
+    "aes-kw-0.3.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "NIST 800-38F AES Key Wrap (KW) and Key Wrap with Padding (KWP) modes",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/key-wraps/tree/aes-kw",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/key-wraps",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "aes_kw",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "aes-kw",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":const-oid-0.10.2",
+                ],
+                "features": [
+                    "default",
+                    "oid",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":const-oid-0.10.2",
+                ],
+                "features": [
+                    "default",
+                    "oid",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":const-oid-0.10.2",
+                ],
+                "features": [
+                    "default",
+                    "oid",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":const-oid-0.10.2",
+                ],
+                "features": [
+                    "default",
+                    "oid",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":const-oid-0.10.2",
+                ],
+                "features": [
+                    "default",
+                    "oid",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":const-oid-0.10.2",
+                ],
+                "features": [
+                    "default",
+                    "oid",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":const-oid-0.10.2",
+                ],
+                "features": [
+                    "default",
+                    "oid",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":const-oid-0.10.2",
+                ],
+                "features": [
+                    "default",
+                    "oid",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.3.1",
     },
     "ahash-0.8.12": {
         "build_script": {
@@ -1239,16 +1436,6 @@ third_party = {
                     "alloc",
                 ],
             },
-            "macos-arm64": {
-                "features": [
-                    "alloc",
-                ],
-            },
-            "macos-x86_64": {
-                "features": [
-                    "alloc",
-                ],
-            },
             "windows-arm64": {
                 "features": [
                     "alloc",
@@ -1344,36 +1531,6 @@ third_party = {
         ],
         "version": "0.3.1",
     },
-    "ambient-authority-0.0.2": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Dan Gohman <dev@sunfishcode.online>",
-            "CARGO_PKG_DESCRIPTION": "Ambient Authority",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/sunfishcode/ambient-authority",
-        },
-        "library": {
-            "crate": "ambient_authority",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "ambient-authority",
-        "platforms": {
-            "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
-            "macos-arm64": {},
-            "macos-x86_64": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.0.2",
-    },
     "android_system_properties-0.1.5": {
         "build_script": None,
         "env": {
@@ -1402,6 +1559,39 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.1.5",
+    },
+    "annotate-snippets-0.12.18": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Format diagnostic reports, including highlighting snippets of text",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-lang/annotate-snippets-rs",
+            "CARGO_PKG_RUST_VERSION": "1.88.0",
+        },
+        "library": {
+            "crate": "annotate_snippets",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "annotate-snippets",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":anstyle-1.0.14",
+                    ":unicode-width-0.2.2",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.12.18",
     },
     "anstream-1.0.0": {
         "build_script": None,
@@ -1712,37 +1902,6 @@ third_party = {
         ],
         "version": "0.4.0",
     },
-    "arbitrary-1.4.2": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Rust-Fuzz Project Developers:Nick Fitzgerald <fitzgen@gmail.com>:Manish Goregaokar <manishsmail@gmail.com>:Simonas Kazlauskas <arbitrary@kazlauskas.me>:Brian L. Troutwine <brian@troutwine.us>:Corey Farwell <coreyf@rwell.org>",
-            "CARGO_PKG_DESCRIPTION": "The trait for generating structured data from unstructured data",
-            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/rust-fuzz/arbitrary/",
-            "CARGO_PKG_RUST_VERSION": "1.63.0",
-        },
-        "library": {
-            "crate": "arbitrary",
-            "crate_root": "src/lib.rs",
-            "edition": "2021",
-            "proc_macro": False,
-        },
-        "name": "arbitrary",
-        "platforms": {
-            "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
-            "macos-arm64": {},
-            "macos-x86_64": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "1.4.2",
-    },
     "arboard-3.6.1": {
         "build_script": None,
         "env": {
@@ -1919,6 +2078,39 @@ third_party = {
         ],
         "version": "1.9.4",
     },
+    "archery-1.2.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Diogo Sousa <diogogsousa@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Abstract over the atomicity of reference-counting pointers",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/orium/archery",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/orium/archery",
+            "CARGO_PKG_RUST_VERSION": "1.85.0",
+        },
+        "library": {
+            "crate": "archery",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "archery",
+        "platforms": {
+            "android-arm64": {},
+            "linux-arm64": {},
+            "linux-x86_64": {},
+            "macos-arm64": {},
+            "macos-x86_64": {},
+            "wasi": {},
+            "windows-arm64": {},
+            "windows-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.2.3",
+    },
     "argon2-0.5.3": {
         "build_script": None,
         "env": {
@@ -2048,9 +2240,6 @@ third_party = {
         },
         "profile_flags": [
             "-Cdebuginfo=0",
-            "-Copt-level=2",
-            "-Cdebug-assertions=off",
-            "-Coverflow-checks=off",
         ],
         "version": "0.5.3",
     },
@@ -2138,17 +2327,9 @@ third_party = {
                     "std",
                 ],
             },
-            "wasi": {
-                "features": [
-                    "std",
-                ],
-            },
-            "wasi-guest": {
-                "features": [
-                    "std",
-                ],
-            },
-            "wasm32": {},
+            "wasi": {},
+            "wasi-guest": {},
+            "wasm32-bindgen": {},
             "windows-arm64": {
                 "features": [
                     "default",
@@ -2199,6 +2380,35 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "1.0.1",
+    },
+    "ascii-canvas-4.0.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Niko Matsakis <niko@alum.mit.edu>",
+            "CARGO_PKG_DESCRIPTION": "simple canvas for drawing lines and styled text and emitting to the terminal",
+            "CARGO_PKG_LICENSE": "Apache-2.0/MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/lalrpop/ascii-canvas",
+            "CARGO_PKG_RUST_VERSION": "1.70",
+        },
+        "library": {
+            "crate": "ascii_canvas",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "ascii-canvas",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":term-1.2.1",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "4.0.0",
     },
     "ash-0.38.0+1.3.281": {
         "build_script": {
@@ -2555,6 +2765,24 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":asn1-rs-derive-0.6.0",
+                    ":asn1-rs-impl-0.2.0",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-2.0.18",
+                    ":time-0.3.54",
+                ],
+                "features": [
+                    "datetime",
+                    "default",
+                    "std",
+                    "time",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":asn1-rs-derive-0.6.0",
                     ":asn1-rs-impl-0.2.0",
@@ -3264,7 +3492,7 @@ third_party = {
                 "deps": [
                     ":proc-macro2-1.0.106",
                     ":quote-1.0.45",
-                    ":syn-3.0.3",
+                    ":syn-3.0.10",
                 ],
             },
         },
@@ -3607,6 +3835,334 @@ third_party = {
         ],
         "version": "1.5.1",
     },
+    "axum-0.8.9": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "HTTP routing and request handling library that focuses on ergonomics and modularity",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/tokio-rs/axum",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/tokio-rs/axum",
+            "CARGO_PKG_RUST_VERSION": "1.80",
+        },
+        "library": {
+            "crate": "axum",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "axum",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":axum-core-0.5.6",
+                    ":bytes-1.12.1",
+                    ":futures-util-0.3.32",
+                    ":http-1.5.0",
+                    ":http-body-1.1.0",
+                    ":http-body-util-0.1.5",
+                    ":itoa-1.0.18",
+                    ":matchit-0.8.4",
+                    ":memchr-2.8.3",
+                    ":mime-0.3.18",
+                    ":percent-encoding-2.3.2",
+                    ":pin-project-lite-0.2.17",
+                    ":serde_core-1.0.228",
+                    ":sync_wrapper-1.0.2",
+                    ":tower-0.5.3",
+                    ":tower-layer-0.3.3",
+                    ":tower-service-0.3.3",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":axum-core-0.5.6",
+                    ":bytes-1.12.1",
+                    ":futures-util-0.3.32",
+                    ":http-1.5.0",
+                    ":http-body-1.1.0",
+                    ":http-body-util-0.1.5",
+                    ":itoa-1.0.18",
+                    ":matchit-0.8.4",
+                    ":memchr-2.8.3",
+                    ":mime-0.3.18",
+                    ":percent-encoding-2.3.2",
+                    ":pin-project-lite-0.2.17",
+                    ":serde_core-1.0.228",
+                    ":sync_wrapper-1.0.2",
+                    ":tower-0.5.3",
+                    ":tower-layer-0.3.3",
+                    ":tower-service-0.3.3",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":axum-core-0.5.6",
+                    ":bytes-1.12.1",
+                    ":futures-util-0.3.32",
+                    ":http-1.5.0",
+                    ":http-body-1.1.0",
+                    ":http-body-util-0.1.5",
+                    ":itoa-1.0.18",
+                    ":matchit-0.8.4",
+                    ":memchr-2.8.3",
+                    ":mime-0.3.18",
+                    ":percent-encoding-2.3.2",
+                    ":pin-project-lite-0.2.17",
+                    ":serde_core-1.0.228",
+                    ":sync_wrapper-1.0.2",
+                    ":tower-0.5.3",
+                    ":tower-layer-0.3.3",
+                    ":tower-service-0.3.3",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":axum-core-0.5.6",
+                    ":bytes-1.12.1",
+                    ":futures-util-0.3.32",
+                    ":http-1.5.0",
+                    ":http-body-1.1.0",
+                    ":http-body-util-0.1.5",
+                    ":itoa-1.0.18",
+                    ":matchit-0.8.4",
+                    ":memchr-2.8.3",
+                    ":mime-0.3.18",
+                    ":percent-encoding-2.3.2",
+                    ":pin-project-lite-0.2.17",
+                    ":serde_core-1.0.228",
+                    ":sync_wrapper-1.0.2",
+                    ":tower-0.5.3",
+                    ":tower-layer-0.3.3",
+                    ":tower-service-0.3.3",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":axum-core-0.5.6",
+                    ":bytes-1.12.1",
+                    ":futures-util-0.3.32",
+                    ":http-1.5.0",
+                    ":http-body-1.1.0",
+                    ":http-body-util-0.1.5",
+                    ":itoa-1.0.18",
+                    ":matchit-0.8.4",
+                    ":memchr-2.8.3",
+                    ":mime-0.3.18",
+                    ":percent-encoding-2.3.2",
+                    ":pin-project-lite-0.2.17",
+                    ":serde_core-1.0.228",
+                    ":sync_wrapper-1.0.2",
+                    ":tower-0.5.3",
+                    ":tower-layer-0.3.3",
+                    ":tower-service-0.3.3",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":axum-core-0.5.6",
+                    ":bytes-1.12.1",
+                    ":futures-util-0.3.32",
+                    ":http-1.5.0",
+                    ":http-body-1.1.0",
+                    ":http-body-util-0.1.5",
+                    ":itoa-1.0.18",
+                    ":matchit-0.8.4",
+                    ":memchr-2.8.3",
+                    ":mime-0.3.18",
+                    ":percent-encoding-2.3.2",
+                    ":pin-project-lite-0.2.17",
+                    ":serde_core-1.0.228",
+                    ":sync_wrapper-1.0.2",
+                    ":tower-0.5.3",
+                    ":tower-layer-0.3.3",
+                    ":tower-service-0.3.3",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":axum-core-0.5.6",
+                    ":bytes-1.12.1",
+                    ":futures-util-0.3.32",
+                    ":http-1.5.0",
+                    ":http-body-1.1.0",
+                    ":http-body-util-0.1.5",
+                    ":itoa-1.0.18",
+                    ":matchit-0.8.4",
+                    ":memchr-2.8.3",
+                    ":mime-0.3.18",
+                    ":percent-encoding-2.3.2",
+                    ":pin-project-lite-0.2.17",
+                    ":serde_core-1.0.228",
+                    ":sync_wrapper-1.0.2",
+                    ":tower-0.5.3",
+                    ":tower-layer-0.3.3",
+                    ":tower-service-0.3.3",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":axum-core-0.5.6",
+                    ":bytes-1.12.1",
+                    ":futures-util-0.3.32",
+                    ":http-1.5.0",
+                    ":http-body-1.1.0",
+                    ":http-body-util-0.1.5",
+                    ":itoa-1.0.18",
+                    ":matchit-0.8.4",
+                    ":memchr-2.8.3",
+                    ":mime-0.3.18",
+                    ":percent-encoding-2.3.2",
+                    ":pin-project-lite-0.2.17",
+                    ":serde_core-1.0.228",
+                    ":sync_wrapper-1.0.2",
+                    ":tower-0.5.3",
+                    ":tower-layer-0.3.3",
+                    ":tower-service-0.3.3",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.8.9",
+    },
+    "axum-core-0.5.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Core types and traits for axum",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/tokio-rs/axum",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/tokio-rs/axum",
+            "CARGO_PKG_RUST_VERSION": "1.78",
+        },
+        "library": {
+            "crate": "axum_core",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "axum-core",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":bytes-1.12.1",
+                    ":futures-core-0.3.32",
+                    ":http-1.5.0",
+                    ":http-body-1.1.0",
+                    ":http-body-util-0.1.5",
+                    ":mime-0.3.18",
+                    ":pin-project-lite-0.2.17",
+                    ":sync_wrapper-1.0.2",
+                    ":tower-layer-0.3.3",
+                    ":tower-service-0.3.3",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bytes-1.12.1",
+                    ":futures-core-0.3.32",
+                    ":http-1.5.0",
+                    ":http-body-1.1.0",
+                    ":http-body-util-0.1.5",
+                    ":mime-0.3.18",
+                    ":pin-project-lite-0.2.17",
+                    ":sync_wrapper-1.0.2",
+                    ":tower-layer-0.3.3",
+                    ":tower-service-0.3.3",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bytes-1.12.1",
+                    ":futures-core-0.3.32",
+                    ":http-1.5.0",
+                    ":http-body-1.1.0",
+                    ":http-body-util-0.1.5",
+                    ":mime-0.3.18",
+                    ":pin-project-lite-0.2.17",
+                    ":sync_wrapper-1.0.2",
+                    ":tower-layer-0.3.3",
+                    ":tower-service-0.3.3",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":bytes-1.12.1",
+                    ":futures-core-0.3.32",
+                    ":http-1.5.0",
+                    ":http-body-1.1.0",
+                    ":http-body-util-0.1.5",
+                    ":mime-0.3.18",
+                    ":pin-project-lite-0.2.17",
+                    ":sync_wrapper-1.0.2",
+                    ":tower-layer-0.3.3",
+                    ":tower-service-0.3.3",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bytes-1.12.1",
+                    ":futures-core-0.3.32",
+                    ":http-1.5.0",
+                    ":http-body-1.1.0",
+                    ":http-body-util-0.1.5",
+                    ":mime-0.3.18",
+                    ":pin-project-lite-0.2.17",
+                    ":sync_wrapper-1.0.2",
+                    ":tower-layer-0.3.3",
+                    ":tower-service-0.3.3",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bytes-1.12.1",
+                    ":futures-core-0.3.32",
+                    ":http-1.5.0",
+                    ":http-body-1.1.0",
+                    ":http-body-util-0.1.5",
+                    ":mime-0.3.18",
+                    ":pin-project-lite-0.2.17",
+                    ":sync_wrapper-1.0.2",
+                    ":tower-layer-0.3.3",
+                    ":tower-service-0.3.3",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bytes-1.12.1",
+                    ":futures-core-0.3.32",
+                    ":http-1.5.0",
+                    ":http-body-1.1.0",
+                    ":http-body-util-0.1.5",
+                    ":mime-0.3.18",
+                    ":pin-project-lite-0.2.17",
+                    ":sync_wrapper-1.0.2",
+                    ":tower-layer-0.3.3",
+                    ":tower-service-0.3.3",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bytes-1.12.1",
+                    ":futures-core-0.3.32",
+                    ":http-1.5.0",
+                    ":http-body-1.1.0",
+                    ":http-body-util-0.1.5",
+                    ":mime-0.3.18",
+                    ":pin-project-lite-0.2.17",
+                    ":sync_wrapper-1.0.2",
+                    ":tower-layer-0.3.3",
+                    ":tower-service-0.3.3",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.5.6",
+    },
     "backtrace-0.3.77": {
         "build_script": None,
         "env": {
@@ -3644,6 +4200,215 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.3.77",
+    },
+    "base16ct-0.2.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": 'Pure Rust implementation of Base16 a.k.a hexadecimal (RFC 4648) which avoids\nany usages of data-dependent branches/LUTs and thereby provides portable\n"best effort" constant-time operation and embedded-friendly no_std support\n',
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats/tree/master/base16ct",
+            "CARGO_PKG_RUST_VERSION": "1.60",
+        },
+        "library": {
+            "crate": "base16ct",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "base16ct",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-x86_64-html": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.2.0",
+    },
+    "base16ct-1.0.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": 'Pure Rust implementation of Base16 a.k.a hexadecimal (RFC 4648) which avoids\nany usages of data-dependent branches/LUTs and thereby provides portable\n"best effort" constant-time operation and embedded-friendly no_std support\n',
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/formats/tree/master/base16ct",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "base16ct",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "base16ct",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-x86_64-html": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.0.0",
+    },
+    "base64-0.21.7": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Alice Maz <alice@alicemaz.com>:Marshall Pierce <marshall@mpierce.org>",
+            "CARGO_PKG_DESCRIPTION": "encodes and decodes base64 as bytes or utf8",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/marshallpierce/rust-base64",
+            "CARGO_PKG_RUST_VERSION": "1.48.0",
+        },
+        "library": {
+            "crate": "base64",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "base64",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.21.7",
     },
     "base64-0.22.1": {
         "build_script": None,
@@ -3784,6 +4549,9 @@ third_party = {
             "linux-x86_64-html": {
                 "features": [
                     "alloc",
+                    "default",
+                    "simd-unsafe",
+                    "std",
                 ],
             },
             "macos-arm64": {
@@ -4055,11 +4823,6 @@ third_party = {
                     ":serde-1.0.228",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":serde-1.0.228",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":serde-1.0.228",
@@ -4104,6 +4867,8 @@ third_party = {
                     ":cexpr-0.6.0",
                     ":clang-sys-1.9.1",
                     ":itertools-0.13.0",
+                    ":log-0.4.31",
+                    ":prettyplease-0.2.37",
                     ":proc-macro2-1.0.106",
                     ":quote-1.0.45",
                     ":regex-1.13.1",
@@ -4112,6 +4877,9 @@ third_party = {
                     ":syn-2.0.117",
                 ],
                 "features": [
+                    "default",
+                    "logging",
+                    "prettyplease",
                     "runtime",
                 ],
             },
@@ -4230,6 +4998,19 @@ third_party = {
                     "unicode-normalization",
                 ],
             },
+            "wasi-guest": {
+                "deps": [
+                    ":bitcoin_hashes-0.14.101",
+                    ":serde-1.0.228",
+                    ":unicode-normalization-0.1.25",
+                ],
+                "features": [
+                    "alloc",
+                    "serde",
+                    "std",
+                    "unicode-normalization",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":bitcoin_hashes-0.14.101",
@@ -4262,7 +5043,7 @@ third_party = {
         ],
         "version": "2.2.2",
     },
-    "bit-set-0.9.1": {
+    "bit-set-0.10.0": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "Alexis Beingessner <a.beingessner@gmail.com>",
@@ -4311,7 +5092,7 @@ third_party = {
                     ":bit-vec-0.9.1",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":bit-vec-0.9.1",
                 ],
@@ -4330,7 +5111,61 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "0.9.1",
+        "version": "0.10.0",
+    },
+    "bit-set-0.8.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Alexis Beingessner <a.beingessner@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "A set of bits",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/contain-rs/bit-set",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/contain-rs/bit-set",
+        },
+        "library": {
+            "crate": "bit_set",
+            "crate_root": "src/lib.rs",
+            "edition": "2015",
+            "proc_macro": False,
+        },
+        "name": "bit-set",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":bit-vec-0.8.0",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.8.0",
+    },
+    "bit-vec-0.8.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Alexis Beingessner <a.beingessner@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "A vector of bits",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/contain-rs/bit-vec",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/contain-rs/bit-vec",
+        },
+        "library": {
+            "crate": "bit_vec",
+            "crate_root": "src/lib.rs",
+            "edition": "2015",
+            "proc_macro": False,
+        },
+        "name": "bit-vec",
+        "platforms": {
+            "linux-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.8.0",
     },
     "bit-vec-0.9.1": {
         "build_script": None,
@@ -4357,7 +5192,7 @@ third_party = {
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi": {},
-            "wasm32": {},
+            "wasm32-bindgen": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -4419,6 +5254,11 @@ third_party = {
                     "hex": ":hex-conservative-0.2.3",
                 },
             },
+            "wasi-guest": {
+                "named_deps": {
+                    "hex": ":hex-conservative-0.2.3",
+                },
+            },
             "windows-arm64": {
                 "named_deps": {
                     "hex": ":hex-conservative-0.2.3",
@@ -4474,16 +5314,6 @@ third_party = {
                 ],
             },
             "macos-x86_64": {
-                "features": [
-                    "default",
-                ],
-            },
-            "wasi": {
-                "features": [
-                    "default",
-                ],
-            },
-            "wasi-guest": {
                 "features": [
                     "default",
                 ],
@@ -4552,7 +5382,7 @@ third_party = {
             "wasi": {},
             "wasi-guest": {},
             "wasi-html": {},
-            "wasm32": {},
+            "wasm32-bindgen": {},
             "windows-arm64": {
                 "features": [
                     "std",
@@ -4568,6 +5398,77 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "2.12.1",
+    },
+    "bitmaps-3.2.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Bodil Stokke <bodil@bodil.org>",
+            "CARGO_PKG_DESCRIPTION": "Fixed size boolean arrays",
+            "CARGO_PKG_LICENSE": "MPL-2.0+",
+            "CARGO_PKG_README": "./README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/bodil/bitmaps",
+        },
+        "library": {
+            "crate": "bitmaps",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "bitmaps",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "3.2.1",
     },
     "blake2-0.10.6": {
         "build_script": None,
@@ -4629,9 +5530,6 @@ third_party = {
         },
         "profile_flags": [
             "-Cdebuginfo=0",
-            "-Copt-level=2",
-            "-Cdebug-assertions=off",
-            "-Coverflow-checks=off",
         ],
         "version": "0.10.6",
     },
@@ -4692,7 +5590,7 @@ third_party = {
                     ":generic-array-0.14.7",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":generic-array-0.14.7",
                 ],
@@ -4812,6 +5710,11 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":hybrid-array-0.4.15",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":hybrid-array-0.4.15",
                 ],
@@ -5035,65 +5938,37 @@ third_party = {
         "name": "bumpalo",
         "platforms": {
             "android-arm64": {
-                "deps": [
-                    ":allocator-api2-0.2.21",
-                ],
                 "features": [
-                    "allocator-api2",
                     "default",
                 ],
             },
             "linux-arm64": {
-                "deps": [
-                    ":allocator-api2-0.2.21",
-                ],
                 "features": [
-                    "allocator-api2",
                     "default",
                 ],
             },
             "linux-x86_64": {
-                "deps": [
-                    ":allocator-api2-0.2.21",
-                ],
                 "features": [
-                    "allocator-api2",
                     "default",
                 ],
             },
             "macos-arm64": {
-                "deps": [
-                    ":allocator-api2-0.2.21",
-                ],
                 "features": [
-                    "allocator-api2",
                     "default",
                 ],
             },
             "macos-x86_64": {
-                "deps": [
-                    ":allocator-api2-0.2.21",
-                ],
                 "features": [
-                    "allocator-api2",
                     "default",
                 ],
             },
             "windows-arm64": {
-                "deps": [
-                    ":allocator-api2-0.2.21",
-                ],
                 "features": [
-                    "allocator-api2",
                     "default",
                 ],
             },
             "windows-x86_64": {
-                "deps": [
-                    ":allocator-api2-0.2.21",
-                ],
                 "features": [
-                    "allocator-api2",
                     "default",
                 ],
             },
@@ -5157,8 +6032,14 @@ third_party = {
                 ],
             },
             "linux-x86_64-html": {
+                "deps": [
+                    ":bytemuck_derive-1.10.2",
+                ],
                 "features": [
+                    "bytemuck_derive",
+                    "derive",
                     "extern_crate_alloc",
+                    "min_const_generics",
                 ],
             },
             "macos-arm64": {
@@ -5207,7 +6088,7 @@ third_party = {
                     "min_const_generics",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":bytemuck_derive-1.10.2",
                 ],
@@ -5337,7 +6218,7 @@ third_party = {
             "wasi": {},
             "wasi-guest": {},
             "wasi-html": {},
-            "wasm32": {},
+            "wasm32-bindgen": {},
             "windows-arm64": {
                 "features": [
                     "default",
@@ -5577,6 +6458,72 @@ third_party = {
         ],
         "version": "1.5.1",
     },
+    "calendrical_calculations-0.2.4": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
+            "CARGO_PKG_DESCRIPTION": "Calendrical calculations in Rust",
+            "CARGO_PKG_LICENSE": "Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
+            "CARGO_PKG_RUST_VERSION": "1.82",
+        },
+        "library": {
+            "crate": "calendrical_calculations",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "calendrical_calculations",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":core_maths-0.1.1",
+                    ":displaydoc-0.2.6",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":core_maths-0.1.1",
+                    ":displaydoc-0.2.6",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":core_maths-0.1.1",
+                    ":displaydoc-0.2.6",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":core_maths-0.1.1",
+                    ":displaydoc-0.2.6",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":core_maths-0.1.1",
+                    ":displaydoc-0.2.6",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":core_maths-0.1.1",
+                    ":displaydoc-0.2.6",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":core_maths-0.1.1",
+                    ":displaydoc-0.2.6",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.2.4",
+    },
     "calloop-0.14.4": {
         "build_script": None,
         "env": {
@@ -5704,327 +6651,6 @@ third_party = {
         ],
         "version": "0.4.1",
     },
-    "cap-fs-ext-4.0.3": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "edition": "2021",
-        },
-        "env": {
-            "CARGO_PKG_AUTHORS": "Dan Gohman <dev@sunfishcode.online>:Jakub Konka <kubkon@jakubkonka.com>",
-            "CARGO_PKG_DESCRIPTION": "Extension traits for `Dir`, `File`, etc.",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/cap-std",
-        },
-        "library": {
-            "crate": "cap_fs_ext",
-            "crate_root": "src/lib.rs",
-            "edition": "2021",
-            "proc_macro": False,
-        },
-        "name": "cap-fs-ext",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":cap-primitives-4.0.3",
-                    ":cap-std-4.0.3",
-                    ":io-lifetimes-3.0.1",
-                ],
-                "features": [
-                    "cap-std",
-                    "default",
-                    "std",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":cap-primitives-4.0.3",
-                    ":cap-std-4.0.3",
-                    ":io-lifetimes-3.0.1",
-                ],
-                "features": [
-                    "cap-std",
-                    "default",
-                    "std",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":cap-primitives-4.0.3",
-                    ":cap-std-4.0.3",
-                    ":io-lifetimes-3.0.1",
-                ],
-                "features": [
-                    "cap-std",
-                    "default",
-                    "std",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":cap-primitives-4.0.3",
-                    ":cap-std-4.0.3",
-                    ":io-lifetimes-3.0.1",
-                ],
-                "features": [
-                    "cap-std",
-                    "default",
-                    "std",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":cap-primitives-4.0.3",
-                    ":cap-std-4.0.3",
-                    ":io-lifetimes-3.0.1",
-                ],
-                "features": [
-                    "cap-std",
-                    "default",
-                    "std",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":cap-primitives-4.0.3",
-                    ":cap-std-4.0.3",
-                    ":io-lifetimes-3.0.1",
-                    ":windows-sys-0.61.2",
-                ],
-                "features": [
-                    "cap-std",
-                    "default",
-                    "std",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":cap-primitives-4.0.3",
-                    ":cap-std-4.0.3",
-                    ":io-lifetimes-3.0.1",
-                    ":windows-sys-0.61.2",
-                ],
-                "features": [
-                    "cap-std",
-                    "default",
-                    "std",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "4.0.3",
-    },
-    "cap-primitives-4.0.3": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "edition": "2021",
-        },
-        "env": {
-            "CARGO_PKG_AUTHORS": "Dan Gohman <dev@sunfishcode.online>:Jakub Konka <kubkon@jakubkonka.com>",
-            "CARGO_PKG_DESCRIPTION": "Capability-based primitives",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/cap-std",
-        },
-        "library": {
-            "crate": "cap_primitives",
-            "crate_root": "src/lib.rs",
-            "edition": "2021",
-            "proc_macro": False,
-        },
-        "name": "cap-primitives",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":ambient-authority-0.0.2",
-                    ":fs-set-times-0.20.3",
-                    ":io-extras-0.19.0",
-                    ":io-lifetimes-3.0.1",
-                    ":ipnet-2.12.1",
-                    ":maybe-owned-0.3.4",
-                    ":rustix-1.1.4",
-                    ":rustix-linux-procfs-0.1.1",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":ambient-authority-0.0.2",
-                    ":fs-set-times-0.20.3",
-                    ":io-extras-0.19.0",
-                    ":io-lifetimes-3.0.1",
-                    ":ipnet-2.12.1",
-                    ":maybe-owned-0.3.4",
-                    ":rustix-1.1.4",
-                    ":rustix-linux-procfs-0.1.1",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":ambient-authority-0.0.2",
-                    ":fs-set-times-0.20.3",
-                    ":io-extras-0.19.0",
-                    ":io-lifetimes-3.0.1",
-                    ":ipnet-2.12.1",
-                    ":maybe-owned-0.3.4",
-                    ":rustix-1.1.4",
-                    ":rustix-linux-procfs-0.1.1",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":ambient-authority-0.0.2",
-                    ":fs-set-times-0.20.3",
-                    ":io-extras-0.19.0",
-                    ":io-lifetimes-3.0.1",
-                    ":ipnet-2.12.1",
-                    ":maybe-owned-0.3.4",
-                    ":rustix-1.1.4",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":ambient-authority-0.0.2",
-                    ":fs-set-times-0.20.3",
-                    ":io-extras-0.19.0",
-                    ":io-lifetimes-3.0.1",
-                    ":ipnet-2.12.1",
-                    ":maybe-owned-0.3.4",
-                    ":rustix-1.1.4",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":ambient-authority-0.0.2",
-                    ":fs-set-times-0.20.3",
-                    ":io-extras-0.19.0",
-                    ":io-lifetimes-3.0.1",
-                    ":ipnet-2.12.1",
-                    ":maybe-owned-0.3.4",
-                    ":windows-sys-0.61.2",
-                    ":winx-0.36.4",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":ambient-authority-0.0.2",
-                    ":fs-set-times-0.20.3",
-                    ":io-extras-0.19.0",
-                    ":io-lifetimes-3.0.1",
-                    ":ipnet-2.12.1",
-                    ":maybe-owned-0.3.4",
-                    ":windows-sys-0.61.2",
-                    ":winx-0.36.4",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "4.0.3",
-    },
-    "cap-std-4.0.3": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "edition": "2021",
-        },
-        "env": {
-            "CARGO_PKG_AUTHORS": "Dan Gohman <dev@sunfishcode.online>:Jakub Konka <kubkon@jakubkonka.com>",
-            "CARGO_PKG_DESCRIPTION": "Capability-based version of the Rust standard library",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/cap-std",
-        },
-        "library": {
-            "crate": "cap_std",
-            "crate_root": "src/lib.rs",
-            "edition": "2021",
-            "proc_macro": False,
-        },
-        "name": "cap-std",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":cap-primitives-4.0.3",
-                    ":io-extras-0.19.0",
-                    ":io-lifetimes-3.0.1",
-                    ":rustix-1.1.4",
-                ],
-                "features": [
-                    "default",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":cap-primitives-4.0.3",
-                    ":io-extras-0.19.0",
-                    ":io-lifetimes-3.0.1",
-                    ":rustix-1.1.4",
-                ],
-                "features": [
-                    "default",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":cap-primitives-4.0.3",
-                    ":io-extras-0.19.0",
-                    ":io-lifetimes-3.0.1",
-                    ":rustix-1.1.4",
-                ],
-                "features": [
-                    "default",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":cap-primitives-4.0.3",
-                    ":io-extras-0.19.0",
-                    ":io-lifetimes-3.0.1",
-                    ":rustix-1.1.4",
-                ],
-                "features": [
-                    "default",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":cap-primitives-4.0.3",
-                    ":io-extras-0.19.0",
-                    ":io-lifetimes-3.0.1",
-                    ":rustix-1.1.4",
-                ],
-                "features": [
-                    "default",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":cap-primitives-4.0.3",
-                    ":io-extras-0.19.0",
-                    ":io-lifetimes-3.0.1",
-                ],
-                "features": [
-                    "default",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":cap-primitives-4.0.3",
-                    ":io-extras-0.19.0",
-                    ":io-lifetimes-3.0.1",
-                ],
-                "features": [
-                    "default",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "4.0.3",
-    },
     "caseless-0.2.2": {
         "build_script": None,
         "env": {
@@ -6142,6 +6768,15 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "block-padding",
+                    "default",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+                "features": [
                     "block-padding",
                     "default",
                 ],
@@ -6306,7 +6941,7 @@ third_party = {
             "wasi": {},
             "wasi-guest": {},
             "wasi-html": {},
-            "wasm32": {},
+            "wasm32-bindgen": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -6471,6 +7106,16 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cpufeatures-0.3.0",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "rng",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":cfg-if-1.0.4",
                     ":cpufeatures-0.3.0",
@@ -6846,13 +7491,18 @@ third_party = {
                 "deps": [
                     ":iana-time-zone-0.1.65",
                     ":num-traits-0.2.19",
+                    ":serde-1.0.228",
                 ],
                 "features": [
                     "alloc",
                     "clock",
                     "iana-time-zone",
+                    "js-sys",
                     "now",
+                    "serde",
                     "std",
+                    "wasm-bindgen",
+                    "wasmbind",
                     "winapi",
                     "windows-link",
                 ],
@@ -6861,13 +7511,18 @@ third_party = {
                 "deps": [
                     ":iana-time-zone-0.1.65",
                     ":num-traits-0.2.19",
+                    ":serde-1.0.228",
                 ],
                 "features": [
                     "alloc",
                     "clock",
                     "iana-time-zone",
+                    "js-sys",
                     "now",
+                    "serde",
                     "std",
+                    "wasm-bindgen",
+                    "wasmbind",
                     "winapi",
                     "windows-link",
                 ],
@@ -6876,13 +7531,18 @@ third_party = {
                 "deps": [
                     ":iana-time-zone-0.1.65",
                     ":num-traits-0.2.19",
+                    ":serde-1.0.228",
                 ],
                 "features": [
                     "alloc",
                     "clock",
                     "iana-time-zone",
+                    "js-sys",
                     "now",
+                    "serde",
                     "std",
+                    "wasm-bindgen",
+                    "wasmbind",
                     "winapi",
                     "windows-link",
                 ],
@@ -6891,13 +7551,18 @@ third_party = {
                 "deps": [
                     ":iana-time-zone-0.1.65",
                     ":num-traits-0.2.19",
+                    ":serde-1.0.228",
                 ],
                 "features": [
                     "alloc",
                     "clock",
                     "iana-time-zone",
+                    "js-sys",
                     "now",
+                    "serde",
                     "std",
+                    "wasm-bindgen",
+                    "wasmbind",
                     "winapi",
                     "windows-link",
                 ],
@@ -6906,13 +7571,18 @@ third_party = {
                 "deps": [
                     ":iana-time-zone-0.1.65",
                     ":num-traits-0.2.19",
+                    ":serde-1.0.228",
                 ],
                 "features": [
                     "alloc",
                     "clock",
                     "iana-time-zone",
+                    "js-sys",
                     "now",
+                    "serde",
                     "std",
+                    "wasm-bindgen",
+                    "wasmbind",
                     "winapi",
                     "windows-link",
                 ],
@@ -6921,13 +7591,18 @@ third_party = {
                 "deps": [
                     ":iana-time-zone-0.1.65",
                     ":num-traits-0.2.19",
+                    ":serde-1.0.228",
                 ],
                 "features": [
                     "alloc",
                     "clock",
                     "iana-time-zone",
+                    "js-sys",
                     "now",
+                    "serde",
                     "std",
+                    "wasm-bindgen",
+                    "wasmbind",
                     "winapi",
                     "windows-link",
                 ],
@@ -6935,14 +7610,19 @@ third_party = {
             "windows-arm64": {
                 "deps": [
                     ":num-traits-0.2.19",
+                    ":serde-1.0.228",
                     ":windows-link-0.2.1",
                 ],
                 "features": [
                     "alloc",
                     "clock",
                     "iana-time-zone",
+                    "js-sys",
                     "now",
+                    "serde",
                     "std",
+                    "wasm-bindgen",
+                    "wasmbind",
                     "winapi",
                     "windows-link",
                 ],
@@ -6950,14 +7630,19 @@ third_party = {
             "windows-x86_64": {
                 "deps": [
                     ":num-traits-0.2.19",
+                    ":serde-1.0.228",
                     ":windows-link-0.2.1",
                 ],
                 "features": [
                     "alloc",
                     "clock",
                     "iana-time-zone",
+                    "js-sys",
                     "now",
+                    "serde",
                     "std",
+                    "wasm-bindgen",
+                    "wasmbind",
                     "winapi",
                     "windows-link",
                 ],
@@ -7075,17 +7760,6 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":ciborium-io-0.2.2",
-                    ":ciborium-ll-0.2.2",
-                    ":serde-1.0.228",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":ciborium-io-0.2.2",
@@ -7181,12 +7855,6 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
-                "features": [
-                    "alloc",
-                    "std",
-                ],
-            },
             "windows-arm64": {
                 "features": [
                     "alloc",
@@ -7267,12 +7935,6 @@ third_party = {
                 ],
             },
             "wasi-guest": {
-                "deps": [
-                    ":ciborium-io-0.2.2",
-                    ":half-2.7.1",
-                ],
-            },
-            "wasm32": {
                 "deps": [
                     ":ciborium-io-0.2.2",
                     ":half-2.7.1",
@@ -7472,6 +8134,21 @@ third_party = {
                 },
             },
             "linux-x86_64": {
+                "deps": [
+                    ":block-buffer-0.12.1",
+                    ":inout-0.2.5",
+                ],
+                "features": [
+                    "alloc",
+                    "block-buffer",
+                    "block-padding",
+                    "stream-wrapper",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":block-buffer-0.12.1",
                     ":inout-0.2.5",
@@ -7709,7 +8386,7 @@ third_party = {
                     ":heck-0.5.0",
                     ":proc-macro2-1.0.106",
                     ":quote-1.0.45",
-                    ":syn-3.0.3",
+                    ":syn-3.0.10",
                 ],
                 "features": [
                     "default",
@@ -7990,7 +8667,7 @@ third_party = {
                     ":thiserror-2.0.18",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":thiserror-2.0.18",
                 ],
@@ -8060,7 +8737,7 @@ third_party = {
                     ":unicode-width-0.2.2",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":unicode-width-0.2.2",
                 ],
@@ -8080,6 +8757,110 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.13.1",
+    },
+    "color-0.3.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "A library for representing and manipulating colors",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/color",
+            "CARGO_PKG_RUST_VERSION": "1.82",
+        },
+        "library": {
+            "crate": "color",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "color",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.3.3",
     },
     "color_quant-1.1.0": {
         "build_script": None,
@@ -8401,7 +9182,11 @@ third_party = {
                     "db",
                 ],
             },
-            "linux-x86_64-html": {},
+            "linux-x86_64-html": {
+                "features": [
+                    "db",
+                ],
+            },
             "macos-arm64": {
                 "features": [
                     "db",
@@ -8464,6 +9249,7 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {},
             "macos-arm64": {
                 "features": [
                     "db",
@@ -8559,48 +9345,33 @@ third_party = {
         ],
         "version": "1.1.0",
     },
-    "core-foundation-0.9.4": {
+    "convert_case-0.10.0": {
         "build_script": None,
         "env": {
-            "CARGO_PKG_AUTHORS": "The Servo Project Developers",
-            "CARGO_PKG_DESCRIPTION": "Bindings to Core Foundation for macOS",
-            "CARGO_PKG_HOMEPAGE": "https://github.com/servo/core-foundation-rs",
-            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_REPOSITORY": "https://github.com/servo/core-foundation-rs",
+            "CARGO_PKG_AUTHORS": "rutrum <dave@rutrum.net>",
+            "CARGO_PKG_DESCRIPTION": "Convert strings into any case",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rutrum/convert-case",
         },
         "library": {
-            "crate": "core_foundation",
+            "crate": "convert_case",
             "crate_root": "src/lib.rs",
-            "edition": "2018",
+            "edition": "2021",
             "proc_macro": False,
         },
-        "name": "core-foundation",
+        "name": "convert_case",
         "platforms": {
-            "macos-arm64": {
+            "linux-x86_64": {
                 "deps": [
-                    ":core-foundation-sys-0.8.7",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "link",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":core-foundation-sys-0.8.7",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "link",
+                    ":unicode-segmentation-1.13.3",
                 ],
             },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "0.9.4",
+        "version": "0.10.0",
     },
     "core-foundation-sys-0.8.7": {
         "build_script": None,
@@ -8637,145 +9408,63 @@ third_party = {
         ],
         "version": "0.8.7",
     },
-    "core-graphics-0.22.3": {
+    "core_maths-0.1.1": {
         "build_script": None,
         "env": {
-            "CARGO_PKG_AUTHORS": "The Servo Project Developers",
-            "CARGO_PKG_DESCRIPTION": "Bindings to Core Graphics for macOS",
-            "CARGO_PKG_HOMEPAGE": "https://github.com/servo/core-graphics-rs",
-            "CARGO_PKG_LICENSE": "MIT / Apache-2.0",
+            "CARGO_PKG_AUTHORS": "Robert Bastian <me@robertbastian.dev",
+            "CARGO_PKG_DESCRIPTION": "Extension trait for full float functionality in `#[no_std]` backed by `libm`.",
+            "CARGO_PKG_LICENSE": "MIT",
             "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/servo/core-foundation-rs",
+            "CARGO_PKG_REPOSITORY": "https://github.com/robertbastian/core_maths",
         },
         "library": {
-            "crate": "core_graphics",
+            "crate": "core_maths",
             "crate_root": "src/lib.rs",
             "edition": "2015",
             "proc_macro": False,
         },
-        "name": "core-graphics",
+        "name": "core_maths",
         "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":libm-0.2.16",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":libm-0.2.16",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":libm-0.2.16",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
-                    ":bitflags-1.3.2",
-                    ":core-foundation-0.9.4",
-                    ":core-graphics-types-0.1.3",
-                    ":foreign-types-0.3.2",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
+                    ":libm-0.2.16",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
-                    ":bitflags-1.3.2",
-                    ":core-foundation-0.9.4",
-                    ":core-graphics-types-0.1.3",
-                    ":foreign-types-0.3.2",
-                    ":libc-0.2.186",
+                    ":libm-0.2.16",
                 ],
-                "features": [
-                    "default",
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":libm-0.2.16",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":libm-0.2.16",
                 ],
             },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "0.22.3",
-    },
-    "core-graphics-types-0.1.3": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Servo Project Developers",
-            "CARGO_PKG_DESCRIPTION": "Bindings for some fundamental Core Graphics types",
-            "CARGO_PKG_HOMEPAGE": "https://github.com/servo/core-foundation-rs",
-            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_REPOSITORY": "https://github.com/servo/core-foundation-rs",
-        },
-        "library": {
-            "crate": "core_graphics_types",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "core-graphics-types",
-        "platforms": {
-            "macos-arm64": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":core-foundation-0.9.4",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "link",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":core-foundation-0.9.4",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "link",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.1.3",
-    },
-    "core-text-19.2.0": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Servo Project Developers",
-            "CARGO_PKG_DESCRIPTION": "Bindings to the Core Text framework.",
-            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/servo/core-foundation-rs",
-        },
-        "library": {
-            "crate": "core_text",
-            "crate_root": "src/lib.rs",
-            "edition": "2015",
-            "proc_macro": False,
-        },
-        "name": "core-text",
-        "platforms": {
-            "macos-arm64": {
-                "deps": [
-                    ":core-foundation-0.9.4",
-                    ":core-graphics-0.22.3",
-                    ":foreign-types-0.3.2",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "mountainlion",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":core-foundation-0.9.4",
-                    ":core-graphics-0.22.3",
-                    ":foreign-types-0.3.2",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "mountainlion",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "19.2.0",
+        "version": "0.1.1",
     },
     "coreaudio-rs-0.11.3": {
         "build_script": None,
@@ -8926,6 +9615,9 @@ third_party = {
                     ":ndk-context-0.1.1",
                     ":oboe-0.6.1",
                 ],
+                "features": [
+                    "oboe-shared-stdcxx",
+                ],
             },
             "linux-arm64": {
                 "deps": [
@@ -8975,95 +9667,6 @@ third_party = {
         ],
         "version": "0.15.3",
     },
-    "cpp_demangle-0.5.1": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "edition": "2018",
-        },
-        "env": {
-            "CARGO_PKG_AUTHORS": "Nick Fitzgerald <fitzgen@gmail.com>:Jim Blandy <jimb@red-bean.com>:Kyle Huey <khuey@kylehuey.com>",
-            "CARGO_PKG_DESCRIPTION": "A crate for demangling C++ symbols",
-            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/gimli-rs/cpp_demangle",
-        },
-        "library": {
-            "crate": "cpp_demangle",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "cpp_demangle",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":cfg-if-1.0.4",
-                ],
-                "features": [
-                    "alloc",
-                    "std",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":cfg-if-1.0.4",
-                ],
-                "features": [
-                    "alloc",
-                    "std",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":cfg-if-1.0.4",
-                ],
-                "features": [
-                    "alloc",
-                    "std",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":cfg-if-1.0.4",
-                ],
-                "features": [
-                    "alloc",
-                    "std",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":cfg-if-1.0.4",
-                ],
-                "features": [
-                    "alloc",
-                    "std",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":cfg-if-1.0.4",
-                ],
-                "features": [
-                    "alloc",
-                    "std",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":cfg-if-1.0.4",
-                ],
-                "features": [
-                    "alloc",
-                    "std",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.5.1",
-    },
     "cpubits-0.1.1": {
         "build_script": None,
         "env": {
@@ -9085,6 +9688,7 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "windows-arm64": {},
@@ -9181,1138 +9785,6 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.3.0",
-    },
-    "cranelift-assembler-x64-0.135.1": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "deps": [
-                ":cranelift-assembler-x64-meta-0.135.1",
-            ],
-            "edition": "2024",
-        },
-        "env": {
-            "CARGO_PKG_DESCRIPTION": "A Cranelift-specific x64 assembler",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "cranelift_assembler_x64",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "cranelift-assembler-x64",
-        "platforms": {
-            "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
-            "macos-arm64": {},
-            "macos-x86_64": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-            "-Copt-level=2",
-            "-Cdebug-assertions=off",
-            "-Coverflow-checks=off",
-        ],
-        "version": "0.135.1",
-    },
-    "cranelift-assembler-x64-meta-0.135.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_DESCRIPTION": "Generate a Cranelift-specific assembler for x64 instructions",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "cranelift_assembler_x64_meta",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "cranelift-assembler-x64-meta",
-        "platforms": {
-            "linux-x86_64": {
-                "deps": [
-                    ":cranelift-srcgen-0.135.1",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.135.1",
-    },
-    "cranelift-bforest-0.135.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Cranelift Project Developers",
-            "CARGO_PKG_DESCRIPTION": "A forest of B+-trees",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "cranelift_bforest",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "cranelift-bforest",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":cranelift-entity-0.135.1",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":cranelift-entity-0.135.1",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":cranelift-entity-0.135.1",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":cranelift-entity-0.135.1",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":cranelift-entity-0.135.1",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":cranelift-entity-0.135.1",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":cranelift-entity-0.135.1",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-            "-Copt-level=2",
-            "-Cdebug-assertions=off",
-            "-Coverflow-checks=off",
-        ],
-        "version": "0.135.1",
-    },
-    "cranelift-bitset-0.135.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Cranelift Project Developers",
-            "CARGO_PKG_DESCRIPTION": "Various bitset stuff for use inside Cranelift",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "cranelift_bitset",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "cranelift-bitset",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                ],
-                "features": [
-                    "enable-serde",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                ],
-                "features": [
-                    "enable-serde",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                ],
-                "features": [
-                    "enable-serde",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                ],
-                "features": [
-                    "enable-serde",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                ],
-                "features": [
-                    "enable-serde",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                ],
-                "features": [
-                    "enable-serde",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                ],
-                "features": [
-                    "enable-serde",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-            "-Copt-level=2",
-            "-Cdebug-assertions=off",
-            "-Coverflow-checks=off",
-        ],
-        "version": "0.135.1",
-    },
-    "cranelift-codegen-0.135.1": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "deps": [
-                ":cranelift-codegen-meta-0.135.1",
-                ":cranelift-isle-0.135.1",
-            ],
-            "edition": "2024",
-        },
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Cranelift Project Developers",
-            "CARGO_PKG_DESCRIPTION": "Low-level code generator library",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "cranelift_codegen",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "cranelift-codegen",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":bumpalo-3.20.3",
-                    ":cranelift-assembler-x64-0.135.1",
-                    ":cranelift-bforest-0.135.1",
-                    ":cranelift-bitset-0.135.1",
-                    ":cranelift-codegen-shared-0.135.1",
-                    ":cranelift-control-0.135.1",
-                    ":cranelift-entity-0.135.1",
-                    ":gimli-0.33.0",
-                    ":hashbrown-0.17.1",
-                    ":libm-0.2.16",
-                    ":log-0.4.31",
-                    ":postcard-1.1.3",
-                    ":pulley-interpreter-48.0.1",
-                    ":regalloc2-0.15.2",
-                    ":rustc-hash-2.1.2",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":sha2-0.10.9",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                ],
-                "features": [
-                    "enable-serde",
-                    "gimli",
-                    "host-arch",
-                    "incremental-cache",
-                    "postcard",
-                    "pulley",
-                    "serde",
-                    "serde_derive",
-                    "sha2",
-                    "std",
-                    "timing",
-                    "unwind",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":bumpalo-3.20.3",
-                    ":cranelift-assembler-x64-0.135.1",
-                    ":cranelift-bforest-0.135.1",
-                    ":cranelift-bitset-0.135.1",
-                    ":cranelift-codegen-shared-0.135.1",
-                    ":cranelift-control-0.135.1",
-                    ":cranelift-entity-0.135.1",
-                    ":gimli-0.33.0",
-                    ":hashbrown-0.17.1",
-                    ":libm-0.2.16",
-                    ":log-0.4.31",
-                    ":postcard-1.1.3",
-                    ":pulley-interpreter-48.0.1",
-                    ":regalloc2-0.15.2",
-                    ":rustc-hash-2.1.2",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":sha2-0.10.9",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                ],
-                "features": [
-                    "enable-serde",
-                    "gimli",
-                    "host-arch",
-                    "incremental-cache",
-                    "postcard",
-                    "pulley",
-                    "serde",
-                    "serde_derive",
-                    "sha2",
-                    "std",
-                    "timing",
-                    "unwind",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":bumpalo-3.20.3",
-                    ":cranelift-assembler-x64-0.135.1",
-                    ":cranelift-bforest-0.135.1",
-                    ":cranelift-bitset-0.135.1",
-                    ":cranelift-codegen-shared-0.135.1",
-                    ":cranelift-control-0.135.1",
-                    ":cranelift-entity-0.135.1",
-                    ":gimli-0.33.0",
-                    ":hashbrown-0.17.1",
-                    ":libm-0.2.16",
-                    ":log-0.4.31",
-                    ":postcard-1.1.3",
-                    ":pulley-interpreter-48.0.1",
-                    ":regalloc2-0.15.2",
-                    ":rustc-hash-2.1.2",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":sha2-0.10.9",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                ],
-                "features": [
-                    "enable-serde",
-                    "gimli",
-                    "host-arch",
-                    "incremental-cache",
-                    "postcard",
-                    "pulley",
-                    "serde",
-                    "serde_derive",
-                    "sha2",
-                    "std",
-                    "timing",
-                    "unwind",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":bumpalo-3.20.3",
-                    ":cranelift-assembler-x64-0.135.1",
-                    ":cranelift-bforest-0.135.1",
-                    ":cranelift-bitset-0.135.1",
-                    ":cranelift-codegen-shared-0.135.1",
-                    ":cranelift-control-0.135.1",
-                    ":cranelift-entity-0.135.1",
-                    ":gimli-0.33.0",
-                    ":hashbrown-0.17.1",
-                    ":libm-0.2.16",
-                    ":log-0.4.31",
-                    ":postcard-1.1.3",
-                    ":pulley-interpreter-48.0.1",
-                    ":regalloc2-0.15.2",
-                    ":rustc-hash-2.1.2",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":sha2-0.10.9",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                ],
-                "features": [
-                    "enable-serde",
-                    "gimli",
-                    "host-arch",
-                    "incremental-cache",
-                    "postcard",
-                    "pulley",
-                    "serde",
-                    "serde_derive",
-                    "sha2",
-                    "std",
-                    "timing",
-                    "unwind",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":bumpalo-3.20.3",
-                    ":cranelift-assembler-x64-0.135.1",
-                    ":cranelift-bforest-0.135.1",
-                    ":cranelift-bitset-0.135.1",
-                    ":cranelift-codegen-shared-0.135.1",
-                    ":cranelift-control-0.135.1",
-                    ":cranelift-entity-0.135.1",
-                    ":gimli-0.33.0",
-                    ":hashbrown-0.17.1",
-                    ":libm-0.2.16",
-                    ":log-0.4.31",
-                    ":postcard-1.1.3",
-                    ":pulley-interpreter-48.0.1",
-                    ":regalloc2-0.15.2",
-                    ":rustc-hash-2.1.2",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":sha2-0.10.9",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                ],
-                "features": [
-                    "enable-serde",
-                    "gimli",
-                    "host-arch",
-                    "incremental-cache",
-                    "postcard",
-                    "pulley",
-                    "serde",
-                    "serde_derive",
-                    "sha2",
-                    "std",
-                    "timing",
-                    "unwind",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":bumpalo-3.20.3",
-                    ":cranelift-assembler-x64-0.135.1",
-                    ":cranelift-bforest-0.135.1",
-                    ":cranelift-bitset-0.135.1",
-                    ":cranelift-codegen-shared-0.135.1",
-                    ":cranelift-control-0.135.1",
-                    ":cranelift-entity-0.135.1",
-                    ":gimli-0.33.0",
-                    ":hashbrown-0.17.1",
-                    ":libm-0.2.16",
-                    ":log-0.4.31",
-                    ":postcard-1.1.3",
-                    ":pulley-interpreter-48.0.1",
-                    ":regalloc2-0.15.2",
-                    ":rustc-hash-2.1.2",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":sha2-0.10.9",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                ],
-                "features": [
-                    "enable-serde",
-                    "gimli",
-                    "host-arch",
-                    "incremental-cache",
-                    "postcard",
-                    "pulley",
-                    "serde",
-                    "serde_derive",
-                    "sha2",
-                    "std",
-                    "timing",
-                    "unwind",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":bumpalo-3.20.3",
-                    ":cranelift-assembler-x64-0.135.1",
-                    ":cranelift-bforest-0.135.1",
-                    ":cranelift-bitset-0.135.1",
-                    ":cranelift-codegen-shared-0.135.1",
-                    ":cranelift-control-0.135.1",
-                    ":cranelift-entity-0.135.1",
-                    ":gimli-0.33.0",
-                    ":hashbrown-0.17.1",
-                    ":libm-0.2.16",
-                    ":log-0.4.31",
-                    ":postcard-1.1.3",
-                    ":pulley-interpreter-48.0.1",
-                    ":regalloc2-0.15.2",
-                    ":rustc-hash-2.1.2",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":sha2-0.10.9",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                ],
-                "features": [
-                    "enable-serde",
-                    "gimli",
-                    "host-arch",
-                    "incremental-cache",
-                    "postcard",
-                    "pulley",
-                    "serde",
-                    "serde_derive",
-                    "sha2",
-                    "std",
-                    "timing",
-                    "unwind",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-            "-Copt-level=2",
-            "-Cdebug-assertions=off",
-            "-Coverflow-checks=off",
-        ],
-        "version": "0.135.1",
-    },
-    "cranelift-codegen-meta-0.135.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Cranelift Project Developers",
-            "CARGO_PKG_DESCRIPTION": "Metaprogram for cranelift-codegen code generator library",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "cranelift_codegen_meta",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "cranelift-codegen-meta",
-        "platforms": {
-            "linux-x86_64": {
-                "deps": [
-                    ":cranelift-assembler-x64-meta-0.135.1",
-                    ":cranelift-codegen-shared-0.135.1",
-                    ":cranelift-srcgen-0.135.1",
-                    ":heck-0.5.0",
-                    ":pulley-interpreter-48.0.1",
-                ],
-                "features": [
-                    "pulley",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.135.1",
-    },
-    "cranelift-codegen-shared-0.135.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Cranelift Project Developers",
-            "CARGO_PKG_DESCRIPTION": "For code shared between cranelift-codegen-meta and cranelift-codegen",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "cranelift_codegen_shared",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "cranelift-codegen-shared",
-        "platforms": {
-            "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
-            "macos-arm64": {},
-            "macos-x86_64": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.135.1",
-    },
-    "cranelift-control-0.135.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Cranelift Project Developers",
-            "CARGO_PKG_DESCRIPTION": "White-box fuzz testing framework",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "cranelift_control",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "cranelift-control",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":arbitrary-1.4.2",
-                ],
-                "features": [
-                    "fuzz",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":arbitrary-1.4.2",
-                ],
-                "features": [
-                    "fuzz",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":arbitrary-1.4.2",
-                ],
-                "features": [
-                    "fuzz",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":arbitrary-1.4.2",
-                ],
-                "features": [
-                    "fuzz",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":arbitrary-1.4.2",
-                ],
-                "features": [
-                    "fuzz",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":arbitrary-1.4.2",
-                ],
-                "features": [
-                    "fuzz",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":arbitrary-1.4.2",
-                ],
-                "features": [
-                    "fuzz",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-            "-Copt-level=2",
-            "-Cdebug-assertions=off",
-            "-Coverflow-checks=off",
-        ],
-        "version": "0.135.1",
-    },
-    "cranelift-entity-0.135.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Cranelift Project Developers",
-            "CARGO_PKG_DESCRIPTION": "Data structures using entity references as mapping keys",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "cranelift_entity",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "cranelift-entity",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":cranelift-bitset-0.135.1",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                ],
-                "features": [
-                    "enable-serde",
-                    "serde",
-                    "serde_derive",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":cranelift-bitset-0.135.1",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                ],
-                "features": [
-                    "enable-serde",
-                    "serde",
-                    "serde_derive",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":cranelift-bitset-0.135.1",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                ],
-                "features": [
-                    "enable-serde",
-                    "serde",
-                    "serde_derive",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":cranelift-bitset-0.135.1",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                ],
-                "features": [
-                    "enable-serde",
-                    "serde",
-                    "serde_derive",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":cranelift-bitset-0.135.1",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                ],
-                "features": [
-                    "enable-serde",
-                    "serde",
-                    "serde_derive",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":cranelift-bitset-0.135.1",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                ],
-                "features": [
-                    "enable-serde",
-                    "serde",
-                    "serde_derive",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":cranelift-bitset-0.135.1",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                ],
-                "features": [
-                    "enable-serde",
-                    "serde",
-                    "serde_derive",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-            "-Copt-level=2",
-            "-Cdebug-assertions=off",
-            "-Coverflow-checks=off",
-        ],
-        "version": "0.135.1",
-    },
-    "cranelift-frontend-0.135.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Cranelift Project Developers",
-            "CARGO_PKG_DESCRIPTION": "Cranelift IR builder helper",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "cranelift_frontend",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "cranelift-frontend",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":hashbrown-0.17.1",
-                    ":log-0.4.31",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":hashbrown-0.17.1",
-                    ":log-0.4.31",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":hashbrown-0.17.1",
-                    ":log-0.4.31",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":hashbrown-0.17.1",
-                    ":log-0.4.31",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":hashbrown-0.17.1",
-                    ":log-0.4.31",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":hashbrown-0.17.1",
-                    ":log-0.4.31",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":hashbrown-0.17.1",
-                    ":log-0.4.31",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-            "-Copt-level=2",
-            "-Cdebug-assertions=off",
-            "-Coverflow-checks=off",
-        ],
-        "version": "0.135.1",
-    },
-    "cranelift-isle-0.135.1": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "edition": "2024",
-        },
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Cranelift Project Developers",
-            "CARGO_PKG_DESCRIPTION": "ISLE: Instruction Selection and Lowering Expressions. A domain-specific language for instruction selection in Cranelift.",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime/tree/main/cranelift/isle",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "cranelift_isle",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "cranelift-isle",
-        "platforms": {
-            "linux-x86_64": {
-                "features": [
-                    "default",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.135.1",
-    },
-    "cranelift-native-0.135.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Cranelift Project Developers",
-            "CARGO_PKG_DESCRIPTION": "Support for targeting the host with Cranelift",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "cranelift_native",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "cranelift-native",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":target-lexicon-0.13.5",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":target-lexicon-0.13.5",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":target-lexicon-0.13.5",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":target-lexicon-0.13.5",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":target-lexicon-0.13.5",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":target-lexicon-0.13.5",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":target-lexicon-0.13.5",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-            "-Copt-level=2",
-            "-Cdebug-assertions=off",
-            "-Coverflow-checks=off",
-        ],
-        "version": "0.135.1",
-    },
-    "cranelift-srcgen-0.135.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Wasmtime Project Developers",
-            "CARGO_PKG_DESCRIPTION": "Helper functions for generating Rust and ISLE files",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "cranelift_srcgen",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "cranelift-srcgen",
-        "platforms": {
-            "linux-x86_64": {},
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.135.1",
     },
     "crc-fast-1.10.0": {
         "build_script": None,
@@ -10957,6 +10429,318 @@ third_party = {
         ],
         "version": "0.8.21",
     },
+    "crypto-bigint-0.5.5": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of a big integer library which has been designed from\nthe ground-up for use in cryptographic applications. Provides constant-time,\nno_std-friendly implementations of modern formulas using const generics.\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/crypto-bigint",
+            "CARGO_PKG_RUST_VERSION": "1.65",
+        },
+        "library": {
+            "crate": "crypto_bigint",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "crypto-bigint",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":generic-array-0.14.7",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "generic-array",
+                    "rand_core",
+                    "zeroize",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":generic-array-0.14.7",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "generic-array",
+                    "rand_core",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":generic-array-0.14.7",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "generic-array",
+                    "rand_core",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":generic-array-0.14.7",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "generic-array",
+                    "rand_core",
+                    "zeroize",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":generic-array-0.14.7",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "generic-array",
+                    "rand_core",
+                    "zeroize",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":generic-array-0.14.7",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "generic-array",
+                    "rand_core",
+                    "zeroize",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":generic-array-0.14.7",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "generic-array",
+                    "rand_core",
+                    "zeroize",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":generic-array-0.14.7",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "generic-array",
+                    "rand_core",
+                    "zeroize",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.5.5",
+    },
+    "crypto-bigint-0.7.11": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of a big integer library which has been designed from the ground-up for use\nin cryptographic applications. Provides constant-time, `no_std`/`no_alloc`-friendly implementations\nof modern formulas using const generics. Also includes optional support for heap-backed integers.\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/crypto-bigint",
+            "CARGO_PKG_RUST_VERSION": "1.87",
+        },
+        "library": {
+            "crate": "crypto_bigint",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "crypto-bigint",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":cpubits-0.1.1",
+                    ":ctutils-0.4.8",
+                    ":getrandom-0.4.2",
+                    ":hybrid-array-0.4.15",
+                    ":num-traits-0.2.19",
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "hybrid-array",
+                    "rand_core",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":cpubits-0.1.1",
+                    ":ctutils-0.4.8",
+                    ":getrandom-0.4.2",
+                    ":hybrid-array-0.4.15",
+                    ":num-traits-0.2.19",
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "hybrid-array",
+                    "rand_core",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":cpubits-0.1.1",
+                    ":ctutils-0.4.8",
+                    ":getrandom-0.4.2",
+                    ":hybrid-array-0.4.15",
+                    ":num-traits-0.2.19",
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "hybrid-array",
+                    "rand_core",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":cpubits-0.1.1",
+                    ":ctutils-0.4.8",
+                    ":getrandom-0.4.2",
+                    ":hybrid-array-0.4.15",
+                    ":num-traits-0.2.19",
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "hybrid-array",
+                    "rand_core",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":cpubits-0.1.1",
+                    ":ctutils-0.4.8",
+                    ":getrandom-0.4.2",
+                    ":hybrid-array-0.4.15",
+                    ":num-traits-0.2.19",
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "hybrid-array",
+                    "rand_core",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":cpubits-0.1.1",
+                    ":ctutils-0.4.8",
+                    ":getrandom-0.4.2",
+                    ":hybrid-array-0.4.15",
+                    ":num-traits-0.2.19",
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "hybrid-array",
+                    "rand_core",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":cpubits-0.1.1",
+                    ":ctutils-0.4.8",
+                    ":getrandom-0.4.2",
+                    ":hybrid-array-0.4.15",
+                    ":num-traits-0.2.19",
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "hybrid-array",
+                    "rand_core",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":cpubits-0.1.1",
+                    ":ctutils-0.4.8",
+                    ":getrandom-0.4.2",
+                    ":hybrid-array-0.4.15",
+                    ":num-traits-0.2.19",
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "hybrid-array",
+                    "rand_core",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.7.11",
+    },
     "crypto-common-0.1.7": {
         "build_script": None,
         "env": {
@@ -11070,7 +10854,7 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":generic-array-0.14.7",
                     ":typenum-1.20.1",
@@ -11129,42 +10913,90 @@ third_party = {
         "platforms": {
             "android-arm64": {
                 "deps": [
+                    ":getrandom-0.4.2",
                     ":hybrid-array-0.4.15",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "getrandom",
+                    "rand_core",
                 ],
             },
             "linux-arm64": {
                 "deps": [
+                    ":getrandom-0.4.2",
                     ":hybrid-array-0.4.15",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "getrandom",
+                    "rand_core",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
+                    ":getrandom-0.4.2",
                     ":hybrid-array-0.4.15",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "getrandom",
+                    "rand_core",
                 ],
             },
             "linux-x86_64-html": {
                 "deps": [
+                    ":getrandom-0.4.2",
                     ":hybrid-array-0.4.15",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "getrandom",
+                    "rand_core",
                 ],
             },
             "macos-arm64": {
                 "deps": [
+                    ":getrandom-0.4.2",
                     ":hybrid-array-0.4.15",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "getrandom",
+                    "rand_core",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
+                    ":getrandom-0.4.2",
                     ":hybrid-array-0.4.15",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "getrandom",
+                    "rand_core",
                 ],
             },
             "windows-arm64": {
                 "deps": [
+                    ":getrandom-0.4.2",
                     ":hybrid-array-0.4.15",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "getrandom",
+                    "rand_core",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
+                    ":getrandom-0.4.2",
                     ":hybrid-array-0.4.15",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "getrandom",
+                    "rand_core",
                 ],
             },
         },
@@ -11172,6 +11004,469 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.2.2",
+    },
+    "crypto-glue-0.2.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "William Brown <william@blackhats.net.au>",
+            "CARGO_PKG_DESCRIPTION": "A facade over the RustCrypto ecosystem",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/kanidm/crypto-glue/",
+            "CARGO_PKG_LICENSE": "MPL-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/kanidm/crypto-glue/",
+        },
+        "library": {
+            "crate": "crypto_glue",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "crypto-glue",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":aes-kw-0.3.1",
+                    ":argon2-0.5.3",
+                    ":base64-0.23.1",
+                    ":cbc-0.2.1",
+                    ":cipher-0.5.2",
+                    ":const-oid-0.10.2",
+                    ":crypto-common-0.2.2",
+                    ":cts-0.7.0",
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":ecdsa-0.17.0",
+                    ":elliptic-curve-0.14.3",
+                    ":hex-0.4.3",
+                    ":hkdf-0.13.0",
+                    ":hmac-0.13.0",
+                    ":hybrid-array-0.4.15",
+                    ":kbkdf-0.1.0-rc.1",
+                    ":md5-0.8.1",
+                    ":p256-0.14.0",
+                    ":p384-0.14.0",
+                    ":p521-0.14.0",
+                    ":pbkdf2-0.13.0",
+                    ":pkcs8-0.11.0",
+                    ":rand-0.10.2",
+                    ":rsa-0.10.0-rc.19",
+                    ":sec1-0.8.1",
+                    ":serde-1.0.228",
+                    ":sha1-0.11.0",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":subtle-2.6.1",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                    ":x509-cert-0.3.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":aes-kw-0.3.1",
+                    ":argon2-0.5.3",
+                    ":base64-0.23.1",
+                    ":cbc-0.2.1",
+                    ":cipher-0.5.2",
+                    ":const-oid-0.10.2",
+                    ":crypto-common-0.2.2",
+                    ":cts-0.7.0",
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":ecdsa-0.17.0",
+                    ":elliptic-curve-0.14.3",
+                    ":hex-0.4.3",
+                    ":hkdf-0.13.0",
+                    ":hmac-0.13.0",
+                    ":hybrid-array-0.4.15",
+                    ":kbkdf-0.1.0-rc.1",
+                    ":md5-0.8.1",
+                    ":p256-0.14.0",
+                    ":p384-0.14.0",
+                    ":p521-0.14.0",
+                    ":pbkdf2-0.13.0",
+                    ":pkcs8-0.11.0",
+                    ":rand-0.10.2",
+                    ":rsa-0.10.0-rc.19",
+                    ":sec1-0.8.1",
+                    ":serde-1.0.228",
+                    ":sha1-0.11.0",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":subtle-2.6.1",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                    ":x509-cert-0.3.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":aes-kw-0.3.1",
+                    ":argon2-0.5.3",
+                    ":base64-0.23.1",
+                    ":cbc-0.2.1",
+                    ":cipher-0.5.2",
+                    ":const-oid-0.10.2",
+                    ":crypto-common-0.2.2",
+                    ":cts-0.7.0",
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":ecdsa-0.17.0",
+                    ":elliptic-curve-0.14.3",
+                    ":hex-0.4.3",
+                    ":hkdf-0.13.0",
+                    ":hmac-0.13.0",
+                    ":hybrid-array-0.4.15",
+                    ":kbkdf-0.1.0-rc.1",
+                    ":md5-0.8.1",
+                    ":p256-0.14.0",
+                    ":p384-0.14.0",
+                    ":p521-0.14.0",
+                    ":pbkdf2-0.13.0",
+                    ":pkcs8-0.11.0",
+                    ":rand-0.10.2",
+                    ":rsa-0.10.0-rc.19",
+                    ":sec1-0.8.1",
+                    ":serde-1.0.228",
+                    ":sha1-0.11.0",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":subtle-2.6.1",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                    ":x509-cert-0.3.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":aes-kw-0.3.1",
+                    ":argon2-0.5.3",
+                    ":base64-0.23.1",
+                    ":cbc-0.2.1",
+                    ":cipher-0.5.2",
+                    ":const-oid-0.10.2",
+                    ":crypto-common-0.2.2",
+                    ":cts-0.7.0",
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":ecdsa-0.17.0",
+                    ":elliptic-curve-0.14.3",
+                    ":hex-0.4.3",
+                    ":hkdf-0.13.0",
+                    ":hmac-0.13.0",
+                    ":hybrid-array-0.4.15",
+                    ":kbkdf-0.1.0-rc.1",
+                    ":md5-0.8.1",
+                    ":p256-0.14.0",
+                    ":p384-0.14.0",
+                    ":p521-0.14.0",
+                    ":pbkdf2-0.13.0",
+                    ":pkcs8-0.11.0",
+                    ":rand-0.10.2",
+                    ":rsa-0.10.0-rc.19",
+                    ":sec1-0.8.1",
+                    ":serde-1.0.228",
+                    ":sha1-0.11.0",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":subtle-2.6.1",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                    ":x509-cert-0.3.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":aes-kw-0.3.1",
+                    ":argon2-0.5.3",
+                    ":base64-0.23.1",
+                    ":cbc-0.2.1",
+                    ":cipher-0.5.2",
+                    ":const-oid-0.10.2",
+                    ":crypto-common-0.2.2",
+                    ":cts-0.7.0",
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":ecdsa-0.17.0",
+                    ":elliptic-curve-0.14.3",
+                    ":hex-0.4.3",
+                    ":hkdf-0.13.0",
+                    ":hmac-0.13.0",
+                    ":hybrid-array-0.4.15",
+                    ":kbkdf-0.1.0-rc.1",
+                    ":md5-0.8.1",
+                    ":p256-0.14.0",
+                    ":p384-0.14.0",
+                    ":p521-0.14.0",
+                    ":pbkdf2-0.13.0",
+                    ":pkcs8-0.11.0",
+                    ":rand-0.10.2",
+                    ":rsa-0.10.0-rc.19",
+                    ":sec1-0.8.1",
+                    ":serde-1.0.228",
+                    ":sha1-0.11.0",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":subtle-2.6.1",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                    ":x509-cert-0.3.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":aes-kw-0.3.1",
+                    ":argon2-0.5.3",
+                    ":base64-0.23.1",
+                    ":cbc-0.2.1",
+                    ":cipher-0.5.2",
+                    ":const-oid-0.10.2",
+                    ":crypto-common-0.2.2",
+                    ":cts-0.7.0",
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":ecdsa-0.17.0",
+                    ":elliptic-curve-0.14.3",
+                    ":hex-0.4.3",
+                    ":hkdf-0.13.0",
+                    ":hmac-0.13.0",
+                    ":hybrid-array-0.4.15",
+                    ":kbkdf-0.1.0-rc.1",
+                    ":md5-0.8.1",
+                    ":p256-0.14.0",
+                    ":p384-0.14.0",
+                    ":p521-0.14.0",
+                    ":pbkdf2-0.13.0",
+                    ":pkcs8-0.11.0",
+                    ":rand-0.10.2",
+                    ":rsa-0.10.0-rc.19",
+                    ":sec1-0.8.1",
+                    ":serde-1.0.228",
+                    ":sha1-0.11.0",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":subtle-2.6.1",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                    ":x509-cert-0.3.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":aes-kw-0.3.1",
+                    ":argon2-0.5.3",
+                    ":base64-0.23.1",
+                    ":cbc-0.2.1",
+                    ":cipher-0.5.2",
+                    ":const-oid-0.10.2",
+                    ":crypto-common-0.2.2",
+                    ":cts-0.7.0",
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":ecdsa-0.17.0",
+                    ":elliptic-curve-0.14.3",
+                    ":hex-0.4.3",
+                    ":hkdf-0.13.0",
+                    ":hmac-0.13.0",
+                    ":hybrid-array-0.4.15",
+                    ":kbkdf-0.1.0-rc.1",
+                    ":md5-0.8.1",
+                    ":p256-0.14.0",
+                    ":p384-0.14.0",
+                    ":p521-0.14.0",
+                    ":pbkdf2-0.13.0",
+                    ":pkcs8-0.11.0",
+                    ":rand-0.10.2",
+                    ":rsa-0.10.0-rc.19",
+                    ":sec1-0.8.1",
+                    ":serde-1.0.228",
+                    ":sha1-0.11.0",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":subtle-2.6.1",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                    ":x509-cert-0.3.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":aes-kw-0.3.1",
+                    ":argon2-0.5.3",
+                    ":base64-0.23.1",
+                    ":cbc-0.2.1",
+                    ":cipher-0.5.2",
+                    ":const-oid-0.10.2",
+                    ":crypto-common-0.2.2",
+                    ":cts-0.7.0",
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":ecdsa-0.17.0",
+                    ":elliptic-curve-0.14.3",
+                    ":hex-0.4.3",
+                    ":hkdf-0.13.0",
+                    ":hmac-0.13.0",
+                    ":hybrid-array-0.4.15",
+                    ":kbkdf-0.1.0-rc.1",
+                    ":md5-0.8.1",
+                    ":p256-0.14.0",
+                    ":p384-0.14.0",
+                    ":p521-0.14.0",
+                    ":pbkdf2-0.13.0",
+                    ":pkcs8-0.11.0",
+                    ":rand-0.10.2",
+                    ":rsa-0.10.0-rc.19",
+                    ":sec1-0.8.1",
+                    ":serde-1.0.228",
+                    ":sha1-0.11.0",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":subtle-2.6.1",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                    ":x509-cert-0.3.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.2.2",
+    },
+    "crypto-primes-0.7.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Random prime number generation and primality checking library",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/entropyxyz/crypto-primes",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "crypto_primes",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "crypto-primes",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":crypto-bigint-0.7.11",
+                    ":rand_core-0.10.1",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":crypto-bigint-0.7.11",
+                    ":rand_core-0.10.1",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":crypto-bigint-0.7.11",
+                    ":rand_core-0.10.1",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":crypto-bigint-0.7.11",
+                    ":rand_core-0.10.1",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":crypto-bigint-0.7.11",
+                    ":rand_core-0.10.1",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":crypto-bigint-0.7.11",
+                    ":rand_core-0.10.1",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":crypto-bigint-0.7.11",
+                    ":rand_core-0.10.1",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":crypto-bigint-0.7.11",
+                    ":rand_core-0.10.1",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.7.2",
     },
     "ctr-0.10.1": {
         "build_script": None,
@@ -11206,6 +11501,11 @@ third_party = {
                     ":cipher-0.5.2",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":cipher-0.5.2",
@@ -11232,12 +11532,75 @@ third_party = {
         ],
         "version": "0.10.1",
     },
-    "ctutils-0.4.3": {
+    "cts-0.7.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Generic implementation of the ciphertext stealing block modes of operation",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/block-modes",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "cts",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "cts",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.7.0",
+    },
+    "ctutils-0.4.8": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "RustCrypto Developers",
             "CARGO_PKG_DESCRIPTION": "Constant-time utility library with selection and equality testing support targeting cryptographic\napplications. Supports `const fn` where appropriate. Built on the `cmov` crate which provides\narchitecture-specific predication intrinsics. Heavily inspired by the `subtle` crate.\n",
-            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/utils/tree/master/ctutils",
             "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
             "CARGO_PKG_README": "README.md",
             "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/utils",
@@ -11254,48 +11617,80 @@ third_party = {
             "android-arm64": {
                 "deps": [
                     ":cmov-0.5.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "subtle",
                 ],
             },
             "linux-arm64": {
                 "deps": [
                     ":cmov-0.5.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "subtle",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
                     ":cmov-0.5.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "subtle",
                 ],
             },
             "linux-x86_64-html": {
                 "deps": [
                     ":cmov-0.5.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "subtle",
                 ],
             },
             "macos-arm64": {
                 "deps": [
                     ":cmov-0.5.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "subtle",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
                     ":cmov-0.5.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "subtle",
                 ],
             },
             "windows-arm64": {
                 "deps": [
                     ":cmov-0.5.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "subtle",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
                     ":cmov-0.5.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "subtle",
                 ],
             },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "0.4.3",
+        "version": "0.4.8",
     },
     "cursor-icon-1.2.0": {
         "build_script": None,
@@ -11513,6 +11908,22 @@ third_party = {
                     "zeroize",
                 ],
             },
+            "wasi-guest": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":digest-0.10.7",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "digest",
+                    "precomputed-tables",
+                    "rand_core",
+                    "zeroize",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":cfg-if-1.0.4",
@@ -11553,6 +11964,157 @@ third_party = {
         ],
         "version": "4.1.3",
     },
+    "curve25519-dalek-5.0.0": {
+        "build_script": {
+            "crate_root": "build.rs",
+            "deps": [
+                ":rustc_version-0.4.1",
+            ],
+            "edition": "2024",
+        },
+        "env": {
+            "CARGO_PKG_AUTHORS": "Isis Lovecruft <isis@patternsinthevoid.net>:Henry de Valence <hdevalence@hdevalence.ca>",
+            "CARGO_PKG_DESCRIPTION": "A pure-Rust implementation of group operations on ristretto255 and Curve25519",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/dalek-cryptography/curve25519-dalek",
+            "CARGO_PKG_LICENSE": "BSD-3-Clause",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/dalek-cryptography/curve25519-dalek/tree/main/curve25519-dalek",
+            "CARGO_PKG_RUST_VERSION": "1.85.0",
+        },
+        "library": {
+            "crate": "curve25519_dalek",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "curve25519-dalek",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":digest-0.11.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "digest",
+                    "precomputed-tables",
+                    "zeroize",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":digest-0.11.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "digest",
+                    "precomputed-tables",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cpufeatures-0.3.0",
+                    ":curve25519-dalek-derive-0.1.1",
+                    ":digest-0.11.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "digest",
+                    "precomputed-tables",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cpufeatures-0.3.0",
+                    ":curve25519-dalek-derive-0.1.1",
+                    ":digest-0.11.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "digest",
+                    "precomputed-tables",
+                    "zeroize",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":digest-0.11.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "digest",
+                    "precomputed-tables",
+                    "zeroize",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cpufeatures-0.3.0",
+                    ":curve25519-dalek-derive-0.1.1",
+                    ":digest-0.11.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "digest",
+                    "precomputed-tables",
+                    "zeroize",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":digest-0.11.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "digest",
+                    "precomputed-tables",
+                    "zeroize",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cpufeatures-0.3.0",
+                    ":curve25519-dalek-derive-0.1.1",
+                    ":digest-0.11.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "digest",
+                    "precomputed-tables",
+                    "zeroize",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "5.0.0",
+    },
     "curve25519-dalek-derive-0.1.1": {
         "build_script": None,
         "env": {
@@ -11582,6 +12144,106 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.1.1",
+    },
+    "darling-0.23.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Ted Driggs <ted.driggs@outlook.com>",
+            "CARGO_PKG_DESCRIPTION": "A proc-macro library for reading attributes into structs when\nimplementing custom derives.\n",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/TedDriggs/darling",
+            "CARGO_PKG_RUST_VERSION": "1.88.0",
+        },
+        "library": {
+            "crate": "darling",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "darling",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":darling_core-0.23.0",
+                    ":darling_macro-0.23.0",
+                ],
+                "features": [
+                    "default",
+                    "suggestions",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.23.0",
+    },
+    "darling_core-0.23.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Ted Driggs <ted.driggs@outlook.com>",
+            "CARGO_PKG_DESCRIPTION": "Helper crate for proc-macro library for reading attributes into structs when\nimplementing custom derives. Use https://crates.io/crates/darling in your code.\n",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_REPOSITORY": "https://github.com/TedDriggs/darling",
+            "CARGO_PKG_RUST_VERSION": "1.88.0",
+        },
+        "library": {
+            "crate": "darling_core",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "darling_core",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":ident_case-1.0.1",
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":strsim-0.11.1",
+                    ":syn-2.0.117",
+                ],
+                "features": [
+                    "strsim",
+                    "suggestions",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.23.0",
+    },
+    "darling_macro-0.23.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Ted Driggs <ted.driggs@outlook.com>",
+            "CARGO_PKG_DESCRIPTION": "Internal support for a proc-macro library for reading attributes into structs when\nimplementing custom derives. Use https://crates.io/crates/darling in your code.\n",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_REPOSITORY": "https://github.com/TedDriggs/darling",
+            "CARGO_PKG_RUST_VERSION": "1.88.0",
+        },
+        "library": {
+            "crate": "darling_macro",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": True,
+        },
+        "name": "darling_macro",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":darling_core-0.23.0",
+                    ":quote-1.0.45",
+                    ":syn-2.0.117",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.23.0",
     },
     "dasp_sample-0.11.0": {
         "build_script": None,
@@ -11874,6 +12536,20 @@ third_party = {
                     "zeroize",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":const-oid-0.9.6",
+                    ":pem-rfc7468-0.7.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "oid",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":const-oid-0.9.6",
@@ -12028,6 +12704,24 @@ third_party = {
                     "zeroize",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":der_derive-0.8.0",
+                    ":flagset-0.4.7",
+                    ":pem-rfc7468-1.0.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "derive",
+                    "flagset",
+                    "oid",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":const-oid-0.10.2",
@@ -12162,6 +12856,22 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-bigint-0.4.8",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                ],
+                "features": [
+                    "bigint",
+                    "default",
+                    "num-bigint",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":asn1-rs-0.7.2",
                     ":displaydoc-0.2.6",
@@ -12374,6 +13084,93 @@ third_party = {
         ],
         "version": "0.5.8",
     },
+    "derive_more-2.1.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Jelte Fennema <github-tech@jeltef.nl>",
+            "CARGO_PKG_DESCRIPTION": "Adds #[derive(x)] macros for more traits",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/JelteF/derive_more",
+            "CARGO_PKG_RUST_VERSION": "1.81.0",
+        },
+        "library": {
+            "crate": "derive_more",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "derive_more",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":derive_more-impl-2.1.1",
+                ],
+                "features": [
+                    "as_ref",
+                    "constructor",
+                    "default",
+                    "deref",
+                    "deref_mut",
+                    "display",
+                    "from",
+                    "is_variant",
+                    "std",
+                    "try_unwrap",
+                    "unwrap",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "2.1.1",
+    },
+    "derive_more-impl-2.1.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Jelte Fennema <github-tech@jeltef.nl>",
+            "CARGO_PKG_DESCRIPTION": "Internal implementation of `derive_more` crate",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/JelteF/derive_more",
+            "CARGO_PKG_RUST_VERSION": "1.81.0",
+        },
+        "library": {
+            "crate": "derive_more_impl",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": True,
+        },
+        "name": "derive_more-impl",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":convert_case-0.10.0",
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":syn-2.0.117",
+                    ":unicode-xid-0.2.6",
+                ],
+                "features": [
+                    "as_ref",
+                    "constructor",
+                    "default",
+                    "deref",
+                    "deref_mut",
+                    "display",
+                    "from",
+                    "is_variant",
+                    "try_unwrap",
+                    "unwrap",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "2.1.1",
+    },
     "des-0.9.0": {
         "build_script": None,
         "env": {
@@ -12510,15 +13307,18 @@ third_party = {
             "linux-x86_64-html": {
                 "deps": [
                     ":block-buffer-0.10.4",
+                    ":const-oid-0.9.6",
                     ":crypto-common-0.1.7",
                     ":subtle-2.6.1",
                 ],
                 "features": [
                     "alloc",
                     "block-buffer",
+                    "const-oid",
                     "core-api",
                     "default",
                     "mac",
+                    "oid",
                     "std",
                     "subtle",
                 ],
@@ -12581,16 +13381,19 @@ third_party = {
                 "deps": [
                     ":block-buffer-0.10.4",
                     ":crypto-common-0.1.7",
+                    ":subtle-2.6.1",
                 ],
                 "features": [
                     "alloc",
                     "block-buffer",
                     "core-api",
                     "default",
+                    "mac",
                     "std",
+                    "subtle",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":block-buffer-0.10.4",
                     ":crypto-common-0.1.7",
@@ -12672,7 +13475,7 @@ third_party = {
                 "deps": [
                     ":block-buffer-0.12.1",
                     ":const-oid-0.10.2",
-                    ":ctutils-0.4.3",
+                    ":ctutils-0.4.8",
                 ],
                 "features": [
                     "alloc",
@@ -12689,7 +13492,7 @@ third_party = {
                 "deps": [
                     ":block-buffer-0.12.1",
                     ":const-oid-0.10.2",
-                    ":ctutils-0.4.3",
+                    ":ctutils-0.4.8",
                 ],
                 "features": [
                     "alloc",
@@ -12706,7 +13509,7 @@ third_party = {
                 "deps": [
                     ":block-buffer-0.12.1",
                     ":const-oid-0.10.2",
-                    ":ctutils-0.4.3",
+                    ":ctutils-0.4.8",
                 ],
                 "features": [
                     "alloc",
@@ -12723,7 +13526,7 @@ third_party = {
                 "deps": [
                     ":block-buffer-0.12.1",
                     ":const-oid-0.10.2",
-                    ":ctutils-0.4.3",
+                    ":ctutils-0.4.8",
                 ],
                 "features": [
                     "alloc",
@@ -12740,7 +13543,7 @@ third_party = {
                 "deps": [
                     ":block-buffer-0.12.1",
                     ":const-oid-0.10.2",
-                    ":ctutils-0.4.3",
+                    ":ctutils-0.4.8",
                 ],
                 "features": [
                     "alloc",
@@ -12757,7 +13560,7 @@ third_party = {
                 "deps": [
                     ":block-buffer-0.12.1",
                     ":const-oid-0.10.2",
-                    ":ctutils-0.4.3",
+                    ":ctutils-0.4.8",
                 ],
                 "features": [
                     "alloc",
@@ -12774,7 +13577,7 @@ third_party = {
                 "deps": [
                     ":block-buffer-0.12.1",
                     ":const-oid-0.10.2",
-                    ":ctutils-0.4.3",
+                    ":ctutils-0.4.8",
                 ],
                 "features": [
                     "alloc",
@@ -12791,7 +13594,7 @@ third_party = {
                 "deps": [
                     ":block-buffer-0.12.1",
                     ":const-oid-0.10.2",
-                    ":ctutils-0.4.3",
+                    ":ctutils-0.4.8",
                 ],
                 "features": [
                     "alloc",
@@ -12812,6 +13615,103 @@ third_party = {
             "-Coverflow-checks=off",
         ],
         "version": "0.11.3",
+    },
+    "diplomat-0.16.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Shadaj Laddad <shadaj@users.noreply.github.com>:Manish Goregaokar <manishsmail@gmail.com>:Quinn Okabayashi <QnnOkabayashi@users.noreply.github.com>",
+            "CARGO_PKG_DESCRIPTION": "The diplomat FFI generation macro",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-diplomat/diplomat",
+            "CARGO_PKG_RUST_VERSION": "1.88",
+        },
+        "library": {
+            "crate": "diplomat",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": True,
+        },
+        "name": "diplomat",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":diplomat_core-0.16.1",
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":syn-3.0.10",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.16.1",
+    },
+    "diplomat-runtime-0.16.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Shadaj Laddad <shadaj@users.noreply.github.com>:Manish Goregaokar <manishsmail@gmail.com>:Quinn Okabayashi <QnnOkabayashi@users.noreply.github.com>",
+            "CARGO_PKG_DESCRIPTION": "Common runtime utilities used by diplomat codegen",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-diplomat/diplomat",
+            "CARGO_PKG_RUST_VERSION": "1.88",
+        },
+        "library": {
+            "crate": "diplomat_runtime",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "diplomat-runtime",
+        "platforms": {
+            "android-arm64": {},
+            "linux-arm64": {},
+            "linux-x86_64": {},
+            "macos-arm64": {},
+            "macos-x86_64": {},
+            "windows-arm64": {},
+            "windows-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.16.1",
+    },
+    "diplomat_core-0.16.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Shadaj Laddad <shadaj@users.noreply.github.com>:Manish Goregaokar <manishsmail@gmail.com>:Quinn Okabayashi <QnnOkabayashi@users.noreply.github.com>",
+            "CARGO_PKG_DESCRIPTION": "Shared utilities between Diplomat macros and code generation",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-diplomat/diplomat",
+            "CARGO_PKG_RUST_VERSION": "1.88",
+        },
+        "library": {
+            "crate": "diplomat_core",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "diplomat_core",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":serde-1.0.228",
+                    ":smallvec-1.16.5",
+                    ":strck-1.0.0",
+                    ":syn-3.0.10",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.16.1",
     },
     "directories-next-2.0.0": {
         "build_script": None,
@@ -13583,6 +14483,247 @@ third_party = {
         ],
         "version": "0.1.5",
     },
+    "dyn-clone-1.0.20": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "David Tolnay <dtolnay@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Clone trait that is dyn-compatible",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/dtolnay/dyn-clone",
+            "CARGO_PKG_RUST_VERSION": "1.60",
+        },
+        "library": {
+            "crate": "dyn_clone",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "dyn-clone",
+        "platforms": {
+            "android-arm64": {},
+            "linux-arm64": {},
+            "linux-x86_64": {},
+            "linux-x86_64-html": {},
+            "macos-arm64": {},
+            "macos-x86_64": {},
+            "windows-arm64": {},
+            "windows-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.0.20",
+    },
+    "ecdsa-0.17.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of the Elliptic Curve Digital Signature Algorithm (ECDSA) as specified in\nFIPS 186-4 (Digital Signature Standard), implemented generically over elliptic curves, providing\nRFC6979 deterministic signing support as well as randomized signatures and signature verification\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/signatures/tree/master/ecdsa",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/signatures",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "ecdsa",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "ecdsa",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":elliptic-curve-0.14.3",
+                    ":rfc6979-0.6.0",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "algorithm",
+                    "alloc",
+                    "default",
+                    "der",
+                    "digest",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "spki",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":elliptic-curve-0.14.3",
+                    ":rfc6979-0.6.0",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "algorithm",
+                    "alloc",
+                    "default",
+                    "der",
+                    "digest",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "spki",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":elliptic-curve-0.14.3",
+                    ":rfc6979-0.6.0",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "algorithm",
+                    "alloc",
+                    "default",
+                    "der",
+                    "digest",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "spki",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":elliptic-curve-0.14.3",
+                    ":rfc6979-0.6.0",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "algorithm",
+                    "alloc",
+                    "default",
+                    "der",
+                    "digest",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "spki",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":elliptic-curve-0.14.3",
+                    ":rfc6979-0.6.0",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "algorithm",
+                    "alloc",
+                    "default",
+                    "der",
+                    "digest",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "spki",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":elliptic-curve-0.14.3",
+                    ":rfc6979-0.6.0",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "algorithm",
+                    "alloc",
+                    "default",
+                    "der",
+                    "digest",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "spki",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":elliptic-curve-0.14.3",
+                    ":rfc6979-0.6.0",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "algorithm",
+                    "alloc",
+                    "default",
+                    "der",
+                    "digest",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "spki",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":elliptic-curve-0.14.3",
+                    ":rfc6979-0.6.0",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "algorithm",
+                    "alloc",
+                    "default",
+                    "der",
+                    "digest",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "spki",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.17.0",
+    },
     "ed25519-2.2.3": {
         "build_script": None,
         "env": {
@@ -13664,6 +14805,15 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi-guest": {
+                "deps": [
+                    ":signature-2.2.0",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":signature-2.2.0",
@@ -13687,6 +14837,119 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "2.2.3",
+    },
+    "ed25519-3.0.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Edwards Digital Signature Algorithm (EdDSA) over Curve25519 (as specified in RFC 8032)\nsupport library providing signature type definitions and PKCS#8 private key\ndecoding/encoding support\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/signatures/tree/master/ed25519",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/signatures",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "ed25519",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "ed25519",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":pkcs8-0.11.0",
+                    ":signature-3.0.0",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "pkcs8",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":pkcs8-0.11.0",
+                    ":signature-3.0.0",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "pkcs8",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":pkcs8-0.11.0",
+                    ":signature-3.0.0",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "pkcs8",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":pkcs8-0.11.0",
+                    ":signature-3.0.0",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "pkcs8",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":pkcs8-0.11.0",
+                    ":signature-3.0.0",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "pkcs8",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":pkcs8-0.11.0",
+                    ":signature-3.0.0",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "pkcs8",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":pkcs8-0.11.0",
+                    ":signature-3.0.0",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "pkcs8",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":pkcs8-0.11.0",
+                    ":signature-3.0.0",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "pkcs8",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "3.0.0",
     },
     "ed25519-dalek-2.2.0": {
         "build_script": None,
@@ -13819,6 +15082,22 @@ third_party = {
                     "zeroize",
                 ],
             },
+            "wasi-guest": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":ed25519-2.2.3",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "std",
+                    "zeroize",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":curve25519-dalek-4.1.3",
@@ -13856,6 +15135,183 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "2.2.0",
+    },
+    "ed25519-dalek-3.0.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "isis lovecruft <isis@patternsinthevoid.net>:Tony Arcieri <bascule@gmail.com>:Michael Rosenberg <michael@mrosenberg.pub>",
+            "CARGO_PKG_DESCRIPTION": "Fast and efficient ed25519 EdDSA key generations, signing, and verification in pure Rust.",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/dalek-cryptography/curve25519-dalek",
+            "CARGO_PKG_LICENSE": "BSD-3-Clause",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/dalek-cryptography/curve25519-dalek/tree/main/ed25519-dalek",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "ed25519_dalek",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "ed25519-dalek",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":curve25519-dalek-5.0.0",
+                    ":ed25519-3.0.0",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "pem",
+                    "pkcs8",
+                    "signature",
+                    "zeroize",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":curve25519-dalek-5.0.0",
+                    ":ed25519-3.0.0",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "pem",
+                    "pkcs8",
+                    "signature",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":curve25519-dalek-5.0.0",
+                    ":ed25519-3.0.0",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "pem",
+                    "pkcs8",
+                    "signature",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":curve25519-dalek-5.0.0",
+                    ":ed25519-3.0.0",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "pem",
+                    "pkcs8",
+                    "signature",
+                    "zeroize",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":curve25519-dalek-5.0.0",
+                    ":ed25519-3.0.0",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "pem",
+                    "pkcs8",
+                    "signature",
+                    "zeroize",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":curve25519-dalek-5.0.0",
+                    ":ed25519-3.0.0",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "pem",
+                    "pkcs8",
+                    "signature",
+                    "zeroize",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":curve25519-dalek-5.0.0",
+                    ":ed25519-3.0.0",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "pem",
+                    "pkcs8",
+                    "signature",
+                    "zeroize",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":curve25519-dalek-5.0.0",
+                    ":ed25519-3.0.0",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "pem",
+                    "pkcs8",
+                    "signature",
+                    "zeroize",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "3.0.0",
     },
     "either-1.17.0": {
         "build_script": None,
@@ -13895,6 +15351,12 @@ third_party = {
                     "use_std",
                 ],
             },
+            "linux-x86_64-html": {
+                "features": [
+                    "std",
+                    "use_std",
+                ],
+            },
             "macos-arm64": {
                 "features": [
                     "default",
@@ -13928,6 +15390,534 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "1.17.0",
+    },
+    "elliptic-curve-0.13.8": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "General purpose Elliptic Curve Cryptography (ECC) support, including types\nand traits for representing various elliptic curve forms, scalars, points,\nand public/secret keys composed thereof.\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/traits/tree/master/elliptic-curve",
+            "CARGO_PKG_RUST_VERSION": "1.65",
+        },
+        "library": {
+            "crate": "elliptic_curve",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "elliptic-curve",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":crypto-bigint-0.5.5",
+                    ":digest-0.10.7",
+                    ":ff-0.13.1",
+                    ":generic-array-0.14.7",
+                    ":group-0.13.0",
+                    ":hkdf-0.12.4",
+                    ":rand_core-0.6.4",
+                    ":sec1-0.7.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "digest",
+                    "ecdh",
+                    "ff",
+                    "group",
+                    "hazmat",
+                    "sec1",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":crypto-bigint-0.5.5",
+                    ":digest-0.10.7",
+                    ":ff-0.13.1",
+                    ":generic-array-0.14.7",
+                    ":group-0.13.0",
+                    ":hkdf-0.12.4",
+                    ":rand_core-0.6.4",
+                    ":sec1-0.7.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "digest",
+                    "ecdh",
+                    "ff",
+                    "group",
+                    "hazmat",
+                    "sec1",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":crypto-bigint-0.5.5",
+                    ":digest-0.10.7",
+                    ":ff-0.13.1",
+                    ":generic-array-0.14.7",
+                    ":group-0.13.0",
+                    ":hkdf-0.12.4",
+                    ":rand_core-0.6.4",
+                    ":sec1-0.7.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "digest",
+                    "ecdh",
+                    "ff",
+                    "group",
+                    "hazmat",
+                    "sec1",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":crypto-bigint-0.5.5",
+                    ":digest-0.10.7",
+                    ":ff-0.13.1",
+                    ":generic-array-0.14.7",
+                    ":group-0.13.0",
+                    ":hkdf-0.12.4",
+                    ":rand_core-0.6.4",
+                    ":sec1-0.7.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "digest",
+                    "ecdh",
+                    "ff",
+                    "group",
+                    "hazmat",
+                    "sec1",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":crypto-bigint-0.5.5",
+                    ":digest-0.10.7",
+                    ":ff-0.13.1",
+                    ":generic-array-0.14.7",
+                    ":group-0.13.0",
+                    ":hkdf-0.12.4",
+                    ":rand_core-0.6.4",
+                    ":sec1-0.7.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "digest",
+                    "ecdh",
+                    "ff",
+                    "group",
+                    "hazmat",
+                    "sec1",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":crypto-bigint-0.5.5",
+                    ":digest-0.10.7",
+                    ":ff-0.13.1",
+                    ":generic-array-0.14.7",
+                    ":group-0.13.0",
+                    ":hkdf-0.12.4",
+                    ":rand_core-0.6.4",
+                    ":sec1-0.7.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "digest",
+                    "ecdh",
+                    "ff",
+                    "group",
+                    "hazmat",
+                    "sec1",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":crypto-bigint-0.5.5",
+                    ":digest-0.10.7",
+                    ":ff-0.13.1",
+                    ":generic-array-0.14.7",
+                    ":group-0.13.0",
+                    ":hkdf-0.12.4",
+                    ":rand_core-0.6.4",
+                    ":sec1-0.7.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "digest",
+                    "ecdh",
+                    "ff",
+                    "group",
+                    "hazmat",
+                    "sec1",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":crypto-bigint-0.5.5",
+                    ":digest-0.10.7",
+                    ":ff-0.13.1",
+                    ":generic-array-0.14.7",
+                    ":group-0.13.0",
+                    ":hkdf-0.12.4",
+                    ":rand_core-0.6.4",
+                    ":sec1-0.7.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "digest",
+                    "ecdh",
+                    "ff",
+                    "group",
+                    "hazmat",
+                    "sec1",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.13.8",
+    },
+    "elliptic-curve-0.14.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "General purpose Elliptic Curve Cryptography (ECC) support, including traits and generic types for\nrepresenting various elliptic curve forms, scalars, points, and public/secret keys composed thereof.\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/traits",
+            "CARGO_PKG_RUST_VERSION": "1.87",
+        },
+        "library": {
+            "crate": "elliptic_curve",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "elliptic-curve",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":digest-0.11.3",
+                    ":ff-0.14.0",
+                    ":group-0.14.0",
+                    ":hkdf-0.13.0",
+                    ":pem-rfc7468-1.0.0",
+                    ":pkcs8-0.11.0",
+                    ":rand_core-0.10.1",
+                    ":sec1-0.8.1",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdh",
+                    "ff",
+                    "getrandom",
+                    "group",
+                    "pem",
+                    "pkcs8",
+                    "sec1",
+                    "std",
+                ],
+                "named_deps": {
+                    "array": ":hybrid-array-0.4.15",
+                    "bigint": ":crypto-bigint-0.7.11",
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":digest-0.11.3",
+                    ":ff-0.14.0",
+                    ":group-0.14.0",
+                    ":hkdf-0.13.0",
+                    ":pem-rfc7468-1.0.0",
+                    ":pkcs8-0.11.0",
+                    ":rand_core-0.10.1",
+                    ":sec1-0.8.1",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdh",
+                    "ff",
+                    "getrandom",
+                    "group",
+                    "pem",
+                    "pkcs8",
+                    "sec1",
+                    "std",
+                ],
+                "named_deps": {
+                    "array": ":hybrid-array-0.4.15",
+                    "bigint": ":crypto-bigint-0.7.11",
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":digest-0.11.3",
+                    ":ff-0.14.0",
+                    ":group-0.14.0",
+                    ":hkdf-0.13.0",
+                    ":pem-rfc7468-1.0.0",
+                    ":pkcs8-0.11.0",
+                    ":rand_core-0.10.1",
+                    ":sec1-0.8.1",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdh",
+                    "ff",
+                    "getrandom",
+                    "group",
+                    "pem",
+                    "pkcs8",
+                    "sec1",
+                    "std",
+                ],
+                "named_deps": {
+                    "array": ":hybrid-array-0.4.15",
+                    "bigint": ":crypto-bigint-0.7.11",
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":digest-0.11.3",
+                    ":ff-0.14.0",
+                    ":group-0.14.0",
+                    ":hkdf-0.13.0",
+                    ":pem-rfc7468-1.0.0",
+                    ":pkcs8-0.11.0",
+                    ":rand_core-0.10.1",
+                    ":sec1-0.8.1",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdh",
+                    "ff",
+                    "getrandom",
+                    "group",
+                    "pem",
+                    "pkcs8",
+                    "sec1",
+                    "std",
+                ],
+                "named_deps": {
+                    "array": ":hybrid-array-0.4.15",
+                    "bigint": ":crypto-bigint-0.7.11",
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":digest-0.11.3",
+                    ":ff-0.14.0",
+                    ":group-0.14.0",
+                    ":hkdf-0.13.0",
+                    ":pem-rfc7468-1.0.0",
+                    ":pkcs8-0.11.0",
+                    ":rand_core-0.10.1",
+                    ":sec1-0.8.1",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdh",
+                    "ff",
+                    "getrandom",
+                    "group",
+                    "pem",
+                    "pkcs8",
+                    "sec1",
+                    "std",
+                ],
+                "named_deps": {
+                    "array": ":hybrid-array-0.4.15",
+                    "bigint": ":crypto-bigint-0.7.11",
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":digest-0.11.3",
+                    ":ff-0.14.0",
+                    ":group-0.14.0",
+                    ":hkdf-0.13.0",
+                    ":pem-rfc7468-1.0.0",
+                    ":pkcs8-0.11.0",
+                    ":rand_core-0.10.1",
+                    ":sec1-0.8.1",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdh",
+                    "ff",
+                    "getrandom",
+                    "group",
+                    "pem",
+                    "pkcs8",
+                    "sec1",
+                    "std",
+                ],
+                "named_deps": {
+                    "array": ":hybrid-array-0.4.15",
+                    "bigint": ":crypto-bigint-0.7.11",
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":digest-0.11.3",
+                    ":ff-0.14.0",
+                    ":group-0.14.0",
+                    ":hkdf-0.13.0",
+                    ":pem-rfc7468-1.0.0",
+                    ":pkcs8-0.11.0",
+                    ":rand_core-0.10.1",
+                    ":sec1-0.8.1",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdh",
+                    "ff",
+                    "getrandom",
+                    "group",
+                    "pem",
+                    "pkcs8",
+                    "sec1",
+                    "std",
+                ],
+                "named_deps": {
+                    "array": ":hybrid-array-0.4.15",
+                    "bigint": ":crypto-bigint-0.7.11",
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":digest-0.11.3",
+                    ":ff-0.14.0",
+                    ":group-0.14.0",
+                    ":hkdf-0.13.0",
+                    ":pem-rfc7468-1.0.0",
+                    ":pkcs8-0.11.0",
+                    ":rand_core-0.10.1",
+                    ":sec1-0.8.1",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdh",
+                    "ff",
+                    "getrandom",
+                    "group",
+                    "pem",
+                    "pkcs8",
+                    "sec1",
+                    "std",
+                ],
+                "named_deps": {
+                    "array": ":hybrid-array-0.4.15",
+                    "bigint": ":crypto-bigint-0.7.11",
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.14.3",
     },
     "emojis-0.9.0": {
         "build_script": None,
@@ -14007,6 +15997,35 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.9.0",
+    },
+    "ena-0.14.4": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Niko Matsakis <niko@alum.mit.edu>",
+            "CARGO_PKG_DESCRIPTION": "Union-find, congruence closure, and other unification code. Based on code from rustc.",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/rust-lang/ena",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-lang/ena",
+        },
+        "library": {
+            "crate": "ena",
+            "crate_root": "src/lib.rs",
+            "edition": "2015",
+            "proc_macro": False,
+        },
+        "name": "ena",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":log-0.4.31",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.14.4",
     },
     "encoding_rs-0.8.35": {
         "build_script": None,
@@ -14346,7 +16365,7 @@ third_party = {
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
-            "wasm32": {},
+            "wasm32-bindgen": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -14506,90 +16525,45 @@ third_party = {
                 "deps": [
                     ":num-traits-0.2.19",
                 ],
-                "features": [
-                    "libm",
-                    "std",
-                ],
             },
             "linux-arm64": {
                 "deps": [
                     ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "libm",
-                    "std",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
                     ":num-traits-0.2.19",
                 ],
-                "features": [
-                    "libm",
-                    "std",
-                ],
-            },
-            "linux-x86_64-html": {
-                "deps": [
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "libm",
-                    "std",
-                ],
             },
             "macos-arm64": {
                 "deps": [
                     ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "libm",
-                    "std",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
                     ":num-traits-0.2.19",
                 ],
-                "features": [
-                    "libm",
-                    "std",
-                ],
             },
             "wasi": {
                 "deps": [
                     ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "libm",
-                    "std",
                 ],
             },
             "wasi-guest": {
                 "deps": [
                     ":num-traits-0.2.19",
                 ],
-                "features": [
-                    "libm",
-                    "std",
-                ],
             },
             "windows-arm64": {
                 "deps": [
                     ":num-traits-0.2.19",
                 ],
-                "features": [
-                    "libm",
-                    "std",
-                ],
             },
             "windows-x86_64": {
                 "deps": [
                     ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "libm",
-                    "std",
                 ],
             },
         },
@@ -14983,6 +16957,300 @@ third_party = {
         ],
         "version": "0.3.7",
     },
+    "fearless_simd-1.3.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Raph Levien <raph.levien@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Safer and easier SIMD",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/fearless_simd",
+            "CARGO_PKG_RUST_VERSION": "1.89",
+        },
+        "library": {
+            "crate": "fearless_simd",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "fearless_simd",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "wasi": {
+                "features": [
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.3.0",
+    },
+    "fearless_simd_macros-0.1.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": 'Sergey "Shnatsel" Davidoff <shnatsel@gmail.com>',
+            "CARGO_PKG_DESCRIPTION": "Procedural macros for fearless_simd",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/fearless_simd",
+            "CARGO_PKG_RUST_VERSION": "1.89",
+        },
+        "library": {
+            "crate": "fearless_simd_macros",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": True,
+        },
+        "name": "fearless_simd_macros",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":syn-3.0.10",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.1.0",
+    },
+    "ff-0.13.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Sean Bowe <ewillbefull@gmail.com>:Jack Grigg <thestr4d@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Library for building and interfacing with finite fields",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/zkcrypto/ff",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/zkcrypto/ff",
+            "CARGO_PKG_RUST_VERSION": "1.56",
+        },
+        "library": {
+            "crate": "ff",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "ff",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.13.1",
+    },
+    "ff-0.14.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Sean Bowe <ewillbefull@gmail.com>:Jack Grigg <thestr4d@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Library for building and interfacing with finite fields",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/zkcrypto/ff",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/zkcrypto/ff",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "ff",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "ff",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.14.0",
+    },
     "filedescriptor-0.8.3": {
         "build_script": None,
         "env": {
@@ -15146,6 +17414,31 @@ third_party = {
         ],
         "version": "1.5.0",
     },
+    "fixedbitset-0.5.9": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "bluss",
+            "CARGO_PKG_DESCRIPTION": "FixedBitSet is a simple bitset collection",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/petgraph/fixedbitset",
+            "CARGO_PKG_RUST_VERSION": "1.56",
+        },
+        "library": {
+            "crate": "fixedbitset",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "fixedbitset",
+        "platforms": {
+            "linux-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.5.9",
+    },
     "flagset-0.4.7": {
         "build_script": None,
         "env": {
@@ -15168,6 +17461,7 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "windows-arm64": {},
@@ -15414,40 +17708,6 @@ third_party = {
         ],
         "version": "0.9.0",
     },
-    "float_next_after-1.0.0": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Bronson Brown-deVost <bronsonbdevost@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "A trait for native rust f64/f32 nextafter",
-            "CARGO_PKG_HOMEPAGE": "https://gitlab.com/bronsonbdevost/next_afterf",
-            "CARGO_PKG_LICENSE": "MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://gitlab.com/bronsonbdevost/next_afterf",
-        },
-        "library": {
-            "crate": "float_next_after",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "float_next_after",
-        "platforms": {
-            "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
-            "linux-x86_64-html": {},
-            "macos-arm64": {},
-            "macos-x86_64": {},
-            "wasi": {},
-            "wasi-guest": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "1.0.0",
-    },
     "fnv-1.0.7": {
         "build_script": None,
         "env": {
@@ -15518,35 +17778,6 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "1.0.7",
-    },
-    "foldhash-0.1.5": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Orson Peters <orsonpeters@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "A fast, non-cryptographic, minimally DoS-resistant hashing algorithm.",
-            "CARGO_PKG_LICENSE": "Zlib",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/orlp/foldhash",
-            "CARGO_PKG_RUST_VERSION": "1.60",
-        },
-        "library": {
-            "crate": "foldhash",
-            "crate_root": "src/lib.rs",
-            "edition": "2021",
-            "proc_macro": False,
-        },
-        "name": "foldhash",
-        "platforms": {
-            "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.1.5",
     },
     "foldhash-0.2.0": {
         "build_script": None,
@@ -15620,7 +17851,12 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {},
+            "wasm32-bindgen": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "features": [
                     "default",
@@ -15683,6 +17919,15 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":bytemuck-1.25.0",
@@ -15693,6 +17938,24 @@ third_party = {
                 ],
             },
             "macos-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
                 "deps": [
                     ":bytemuck-1.25.0",
                 ],
@@ -15875,63 +18138,6 @@ third_party = {
         ],
         "version": "0.24.0",
     },
-    "foreign-types-0.3.2": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Steven Fackler <sfackler@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "A framework for Rust wrappers over C APIs",
-            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/sfackler/foreign-types",
-        },
-        "library": {
-            "crate": "foreign_types",
-            "crate_root": "src/lib.rs",
-            "edition": "2015",
-            "proc_macro": False,
-        },
-        "name": "foreign-types",
-        "platforms": {
-            "macos-arm64": {
-                "deps": [
-                    ":foreign-types-shared-0.1.1",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":foreign-types-shared-0.1.1",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.3.2",
-    },
-    "foreign-types-shared-0.1.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Steven Fackler <sfackler@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "An internal crate used by foreign-types",
-            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
-            "CARGO_PKG_REPOSITORY": "https://github.com/sfackler/foreign-types",
-        },
-        "library": {
-            "crate": "foreign_types_shared",
-            "crate_root": "src/lib.rs",
-            "edition": "2015",
-            "proc_macro": False,
-        },
-        "name": "foreign-types-shared",
-        "platforms": {
-            "macos-arm64": {},
-            "macos-x86_64": {},
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.1.1",
-    },
     "form_urlencoded-1.2.2": {
         "build_script": None,
         "env": {
@@ -16035,261 +18241,6 @@ third_party = {
         ],
         "version": "1.2.2",
     },
-    "freetype-0.7.2": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Servo Project Developers",
-            "CARGO_PKG_DESCRIPTION": "Bindings for Freetype used by Servo",
-            "CARGO_PKG_LICENSE": "Apache-2.0 / MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/servo/rust-freetype",
-        },
-        "library": {
-            "crate": "freetype",
-            "crate_root": "src/lib.rs",
-            "edition": "2015",
-            "proc_macro": False,
-        },
-        "name": "freetype",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":freetype-sys-0.20.1",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "freetype-sys",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":freetype-sys-0.20.1",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "freetype-sys",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":freetype-sys-0.20.1",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "freetype-sys",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":freetype-sys-0.20.1",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "freetype-sys",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":freetype-sys-0.20.1",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "freetype-sys",
-                ],
-            },
-            "wasi": {
-                "deps": [
-                    ":freetype-sys-0.20.1",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "freetype-sys",
-                ],
-            },
-            "wasi-guest": {
-                "deps": [
-                    ":freetype-sys-0.20.1",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "freetype-sys",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":freetype-sys-0.20.1",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "freetype-sys",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":freetype-sys-0.20.1",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "freetype-sys",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.7.2",
-    },
-    "freetype-sys-0.20.1": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "deps": [
-                ":cc-1.2.63",
-                ":pkg-config-0.3.33",
-            ],
-            "edition": "2018",
-        },
-        "env": {
-            "CARGO_PKG_AUTHORS": "Coeuvre <coeuvre@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "Low level binding for FreeType font library",
-            "CARGO_PKG_HOMEPAGE": "https://github.com/PistonDevelopers/freetype-sys",
-            "CARGO_PKG_LICENSE": "MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/PistonDevelopers/freetype-sys.git",
-        },
-        "library": {
-            "crate": "freetype_sys",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "links": "freetype",
-        "name": "freetype-sys",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":libc-0.2.186",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":libc-0.2.186",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":libc-0.2.186",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":libc-0.2.186",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":libc-0.2.186",
-                ],
-            },
-            "wasi": {
-                "deps": [
-                    ":libc-0.2.186",
-                ],
-            },
-            "wasi-guest": {
-                "deps": [
-                    ":libc-0.2.186",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":libc-0.2.186",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":libc-0.2.186",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.20.1",
-    },
-    "fs-set-times-0.20.3": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Dan Gohman <dev@sunfishcode.online>",
-            "CARGO_PKG_DESCRIPTION": "Set filesystem timestamps",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/fs-set-times",
-        },
-        "library": {
-            "crate": "fs_set_times",
-            "crate_root": "src/lib.rs",
-            "edition": "2021",
-            "proc_macro": False,
-        },
-        "name": "fs-set-times",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":io-lifetimes-2.0.4",
-                    ":rustix-1.1.4",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":io-lifetimes-2.0.4",
-                    ":rustix-1.1.4",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":io-lifetimes-2.0.4",
-                    ":rustix-1.1.4",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":io-lifetimes-2.0.4",
-                    ":rustix-1.1.4",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":io-lifetimes-2.0.4",
-                    ":rustix-1.1.4",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":io-lifetimes-2.0.4",
-                    ":windows-sys-0.59.0",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":io-lifetimes-2.0.4",
-                    ":windows-sys-0.59.0",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.20.3",
-    },
     "fsevent-sys-4.1.0": {
         "build_script": None,
         "env": {
@@ -16321,6 +18272,37 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "4.1.0",
+    },
+    "fslock-0.2.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "A library to use files as locks",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/brunoczim/fslock",
+        },
+        "library": {
+            "crate": "fslock",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "fslock",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":libc-0.2.186",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.2.1",
     },
     "futures-0.3.32": {
         "build_script": None,
@@ -16687,7 +18669,7 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "features": [
                     "alloc",
                     "default",
@@ -17072,7 +19054,7 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "features": [
                     "alloc",
                     "std",
@@ -17337,7 +19319,7 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":futures-core-0.3.32",
                     ":futures-task-0.3.32",
@@ -17614,49 +19596,61 @@ third_party = {
             "android-arm64": {
                 "deps": [
                     ":typenum-1.20.1",
+                    ":zeroize-1.9.0",
                 ],
                 "features": [
                     "more_lengths",
+                    "zeroize",
                 ],
             },
             "linux-arm64": {
                 "deps": [
                     ":typenum-1.20.1",
+                    ":zeroize-1.9.0",
                 ],
                 "features": [
                     "more_lengths",
+                    "zeroize",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
                     ":typenum-1.20.1",
+                    ":zeroize-1.9.0",
                 ],
                 "features": [
                     "more_lengths",
+                    "zeroize",
                 ],
             },
             "linux-x86_64-html": {
                 "deps": [
                     ":typenum-1.20.1",
+                    ":zeroize-1.9.0",
                 ],
                 "features": [
                     "more_lengths",
+                    "zeroize",
                 ],
             },
             "macos-arm64": {
                 "deps": [
                     ":typenum-1.20.1",
+                    ":zeroize-1.9.0",
                 ],
                 "features": [
                     "more_lengths",
+                    "zeroize",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
                     ":typenum-1.20.1",
+                    ":zeroize-1.9.0",
                 ],
                 "features": [
                     "more_lengths",
+                    "zeroize",
                 ],
             },
             "wasi": {
@@ -17675,7 +19669,7 @@ third_party = {
                     "more_lengths",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":typenum-1.20.1",
                 ],
@@ -17686,17 +19680,21 @@ third_party = {
             "windows-arm64": {
                 "deps": [
                     ":typenum-1.20.1",
+                    ":zeroize-1.9.0",
                 ],
                 "features": [
                     "more_lengths",
+                    "zeroize",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
                     ":typenum-1.20.1",
+                    ":zeroize-1.9.0",
                 ],
                 "features": [
                     "more_lengths",
+                    "zeroize",
                 ],
             },
         },
@@ -18013,6 +20011,7 @@ third_party = {
                 "features": [
                     "std",
                     "sys_rng",
+                    "wasm_js",
                 ],
             },
             "linux-arm64": {
@@ -18024,6 +20023,7 @@ third_party = {
                 "features": [
                     "std",
                     "sys_rng",
+                    "wasm_js",
                 ],
             },
             "linux-x86_64": {
@@ -18035,12 +20035,19 @@ third_party = {
                 "features": [
                     "std",
                     "sys_rng",
+                    "wasm_js",
                 ],
             },
             "linux-x86_64-html": {
                 "deps": [
                     ":cfg-if-1.0.4",
                     ":libc-0.2.186",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "std",
+                    "sys_rng",
+                    "wasm_js",
                 ],
             },
             "macos-arm64": {
@@ -18052,6 +20059,7 @@ third_party = {
                 "features": [
                     "std",
                     "sys_rng",
+                    "wasm_js",
                 ],
             },
             "macos-x86_64": {
@@ -18063,6 +20071,7 @@ third_party = {
                 "features": [
                     "std",
                     "sys_rng",
+                    "wasm_js",
                 ],
             },
             "wasi": {
@@ -18075,11 +20084,6 @@ third_party = {
                     ":cfg-if-1.0.4",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":cfg-if-1.0.4",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":cfg-if-1.0.4",
@@ -18088,6 +20092,7 @@ third_party = {
                 "features": [
                     "std",
                     "sys_rng",
+                    "wasm_js",
                 ],
             },
             "windows-x86_64": {
@@ -18098,6 +20103,7 @@ third_party = {
                 "features": [
                     "std",
                     "sys_rng",
+                    "wasm_js",
                 ],
             },
         },
@@ -18135,6 +20141,11 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":polyval-0.7.3",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":polyval-0.7.3",
                 ],
@@ -18297,120 +20308,6 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.14.2",
-    },
-    "gimli-0.33.0": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_DESCRIPTION": "A library for reading and writing the DWARF debugging format.",
-            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/gimli-rs/gimli",
-            "CARGO_PKG_RUST_VERSION": "1.88",
-        },
-        "library": {
-            "crate": "gimli",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "gimli",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":fnv-1.0.7",
-                    ":hashbrown-0.16.1",
-                    ":indexmap-2.14.0",
-                ],
-                "features": [
-                    "read",
-                    "read-core",
-                    "std",
-                    "write",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":fnv-1.0.7",
-                    ":hashbrown-0.16.1",
-                    ":indexmap-2.14.0",
-                ],
-                "features": [
-                    "read",
-                    "read-core",
-                    "std",
-                    "write",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":fnv-1.0.7",
-                    ":hashbrown-0.16.1",
-                    ":indexmap-2.14.0",
-                ],
-                "features": [
-                    "read",
-                    "read-core",
-                    "std",
-                    "write",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":fnv-1.0.7",
-                    ":hashbrown-0.16.1",
-                    ":indexmap-2.14.0",
-                ],
-                "features": [
-                    "read",
-                    "read-core",
-                    "std",
-                    "write",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":fnv-1.0.7",
-                    ":hashbrown-0.16.1",
-                    ":indexmap-2.14.0",
-                ],
-                "features": [
-                    "read",
-                    "read-core",
-                    "std",
-                    "write",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":fnv-1.0.7",
-                    ":hashbrown-0.16.1",
-                    ":indexmap-2.14.0",
-                ],
-                "features": [
-                    "read",
-                    "read-core",
-                    "std",
-                    "write",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":fnv-1.0.7",
-                    ":hashbrown-0.16.1",
-                    ":indexmap-2.14.0",
-                ],
-                "features": [
-                    "read",
-                    "read-core",
-                    "std",
-                    "write",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.33.0",
     },
     "gimli-0.34.0": {
         "build_script": None,
@@ -18702,18 +20599,18 @@ third_party = {
             "linux-x86_64": {},
             "wasi": {
                 "deps": [
-                    ":js-sys-0.3.99",
+                    ":js-sys-0.3.107",
                     ":slotmap-1.1.1",
-                    ":wasm-bindgen-0.2.122",
-                    ":web-sys-0.3.99",
+                    ":wasm-bindgen-0.2.130",
+                    ":web-sys-0.3.107",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
-                    ":js-sys-0.3.99",
+                    ":js-sys-0.3.107",
                     ":slotmap-1.1.1",
-                    ":wasm-bindgen-0.2.122",
-                    ":web-sys-0.3.99",
+                    ":wasm-bindgen-0.2.130",
+                    ":web-sys-0.3.107",
                 ],
             },
             "windows-arm64": {},
@@ -18853,132 +20750,282 @@ third_party = {
         ],
         "version": "0.28.0",
     },
-    "gpu-descriptor-0.3.2": {
+    "group-0.13.0": {
         "build_script": None,
         "env": {
-            "CARGO_PKG_AUTHORS": "Zakarum <zakarumych@ya.ru>",
-            "CARGO_PKG_DESCRIPTION": "Implementation agnostic descriptor allocator for Vulkan like APIs",
-            "CARGO_PKG_HOMEPAGE": "https://github.com/zakarumych/gpu-descriptor",
-            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_AUTHORS": "Sean Bowe <ewillbefull@gmail.com>:Jack Grigg <jack@z.cash>",
+            "CARGO_PKG_DESCRIPTION": "Elliptic curve group traits and utilities",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/zkcrypto/group",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
             "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/zakarumych/gpu-descriptor",
+            "CARGO_PKG_REPOSITORY": "https://github.com/zkcrypto/group",
         },
         "library": {
-            "crate": "gpu_descriptor",
+            "crate": "group",
             "crate_root": "src/lib.rs",
-            "edition": "2018",
+            "edition": "2021",
             "proc_macro": False,
         },
-        "name": "gpu-descriptor",
+        "name": "group",
         "platforms": {
             "android-arm64": {
                 "deps": [
-                    ":bitflags-2.12.1",
-                    ":gpu-descriptor-types-0.2.0",
-                    ":hashbrown-0.15.5",
+                    ":ff-0.13.1",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
                 ],
                 "features": [
-                    "default",
-                    "std",
+                    "alloc",
                 ],
             },
             "linux-arm64": {
                 "deps": [
-                    ":bitflags-2.12.1",
-                    ":gpu-descriptor-types-0.2.0",
-                    ":hashbrown-0.15.5",
+                    ":ff-0.13.1",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
                 ],
                 "features": [
-                    "default",
-                    "std",
+                    "alloc",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
-                    ":bitflags-2.12.1",
-                    ":gpu-descriptor-types-0.2.0",
-                    ":hashbrown-0.15.5",
+                    ":ff-0.13.1",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
                 ],
                 "features": [
-                    "default",
-                    "std",
+                    "alloc",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":ff-0.13.1",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":ff-0.13.1",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":ff-0.13.1",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
                 ],
             },
             "windows-arm64": {
                 "deps": [
-                    ":bitflags-2.12.1",
-                    ":gpu-descriptor-types-0.2.0",
-                    ":hashbrown-0.15.5",
+                    ":ff-0.13.1",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
                 ],
                 "features": [
-                    "default",
-                    "std",
+                    "alloc",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
-                    ":bitflags-2.12.1",
-                    ":gpu-descriptor-types-0.2.0",
-                    ":hashbrown-0.15.5",
+                    ":ff-0.13.1",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
                 ],
                 "features": [
-                    "default",
-                    "std",
+                    "alloc",
                 ],
             },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "0.3.2",
+        "version": "0.13.0",
     },
-    "gpu-descriptor-types-0.2.0": {
+    "group-0.14.0": {
         "build_script": None,
         "env": {
-            "CARGO_PKG_AUTHORS": "Zakarum <zakarumych@ya.ru>",
-            "CARGO_PKG_DESCRIPTION": "Core types of gpu-descriptor crate",
-            "CARGO_PKG_HOMEPAGE": "https://github.com/zakarumych/gpu-descriptor",
-            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_REPOSITORY": "https://github.com/zakarumych/gpu-descriptor",
+            "CARGO_PKG_AUTHORS": "Sean Bowe <ewillbefull@gmail.com>:Jack Grigg <jack@z.cash>",
+            "CARGO_PKG_DESCRIPTION": "Elliptic curve group traits and utilities",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/zkcrypto/group",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/zkcrypto/group",
+            "CARGO_PKG_RUST_VERSION": "1.85",
         },
         "library": {
-            "crate": "gpu_descriptor_types",
+            "crate": "group",
             "crate_root": "src/lib.rs",
-            "edition": "2018",
+            "edition": "2021",
             "proc_macro": False,
         },
-        "name": "gpu-descriptor-types",
+        "name": "group",
         "platforms": {
             "android-arm64": {
                 "deps": [
-                    ":bitflags-2.12.1",
+                    ":ff-0.14.0",
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
                 ],
             },
             "linux-arm64": {
                 "deps": [
-                    ":bitflags-2.12.1",
+                    ":ff-0.14.0",
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
-                    ":bitflags-2.12.1",
+                    ":ff-0.14.0",
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":ff-0.14.0",
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":ff-0.14.0",
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":ff-0.14.0",
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
                 ],
             },
             "windows-arm64": {
                 "deps": [
-                    ":bitflags-2.12.1",
+                    ":ff-0.14.0",
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
-                    ":bitflags-2.12.1",
+                    ":ff-0.14.0",
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
                 ],
             },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "0.2.0",
+        "version": "0.14.0",
+    },
+    "guillotiere-0.7.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Nicolas Silva <nical@fastmail.com>",
+            "CARGO_PKG_DESCRIPTION": "A dynamic 2D texture atlas allocator with fast deallocation.",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/nical/guillotiere",
+        },
+        "library": {
+            "crate": "guillotiere",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "guillotiere",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":euclid-0.22.14",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":euclid-0.22.14",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":euclid-0.22.14",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":euclid-0.22.14",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":euclid-0.22.14",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":euclid-0.22.14",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":euclid-0.22.14",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":euclid-0.22.14",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":euclid-0.22.14",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.7.0",
     },
     "gvdb-0.10.1": {
         "build_script": None,
@@ -19072,6 +21119,39 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.10.1",
+    },
+    "gzip-header-1.1.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "oyvindln <oyvindln@users.noreply.github.com>",
+            "CARGO_PKG_DESCRIPTION": "A crate for decoding and encoding the header part of gzip files based on the gzip header\n implementation in the flate2 crate.\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/oyvindln/gzip-header",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/oyvindln/gzip-header",
+        },
+        "library": {
+            "crate": "gzip_header",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "gzip-header",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":crc32fast-1.5.0",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.1.0",
     },
     "h2-0.4.20": {
         "build_script": None,
@@ -19330,7 +21410,7 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":cfg-if-1.0.4",
                     ":num-traits-0.2.19",
@@ -19371,249 +21451,6 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "2.7.1",
-    },
-    "harfbuzz-sys-0.5.0": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "deps": [
-                ":cc-1.2.63",
-                ":pkg-config-0.3.33",
-            ],
-            "edition": "2015",
-        },
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Servo Project Developers",
-            "CARGO_PKG_DESCRIPTION": "Rust bindings to the HarfBuzz text shaping engine",
-            "CARGO_PKG_LICENSE": "MIT",
-            "CARGO_PKG_REPOSITORY": "https://github.com/servo/rust-harfbuzz",
-        },
-        "library": {
-            "crate": "harfbuzz_sys",
-            "crate_root": "src/lib.rs",
-            "edition": "2015",
-            "proc_macro": False,
-        },
-        "links": "harfbuzz",
-        "name": "harfbuzz-sys",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":freetype-0.7.2",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "cc",
-                    "pkg-config",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":freetype-0.7.2",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "cc",
-                    "pkg-config",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":freetype-0.7.2",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "cc",
-                    "pkg-config",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":core-graphics-0.22.3",
-                    ":core-text-19.2.0",
-                    ":foreign-types-0.3.2",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "cc",
-                    "pkg-config",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":core-graphics-0.22.3",
-                    ":core-text-19.2.0",
-                    ":foreign-types-0.3.2",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "cc",
-                    "pkg-config",
-                ],
-            },
-            "wasi": {
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "cc",
-                    "pkg-config",
-                ],
-            },
-            "wasi-guest": {
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "cc",
-                    "pkg-config",
-                ],
-            },
-            "windows-arm64": {
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "cc",
-                    "pkg-config",
-                ],
-            },
-            "windows-x86_64": {
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "cc",
-                    "pkg-config",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.5.0",
-    },
-    "harfbuzz_rs-2.0.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Manuel Reinhardt <manuel.rhdt@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "A high-level interface to HarfBuzz, exposing its most important functionality in a safe manner using Rust.",
-            "CARGO_PKG_LICENSE": "MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/manuel-rhdt/harfbuzz_rs",
-        },
-        "library": {
-            "crate": "harfbuzz_rs",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "harfbuzz_rs",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":harfbuzz-sys-0.5.0",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "default",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":harfbuzz-sys-0.5.0",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "default",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":harfbuzz-sys-0.5.0",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "default",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":harfbuzz-sys-0.5.0",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "default",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":harfbuzz-sys-0.5.0",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "default",
-                ],
-            },
-            "wasi": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":harfbuzz-sys-0.5.0",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "default",
-                ],
-            },
-            "wasi-guest": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":harfbuzz-sys-0.5.0",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "default",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":harfbuzz-sys-0.5.0",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "default",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":harfbuzz-sys-0.5.0",
-                ],
-                "features": [
-                    "build-native-freetype",
-                    "build-native-harfbuzz",
-                    "default",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "2.0.1",
     },
     "harfrust-0.12.0": {
         "build_script": None,
@@ -19681,6 +21518,30 @@ third_party = {
                 ],
             },
             "macos-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":bytemuck-1.25.0",
+                    ":read-fonts-0.41.0",
+                    ":smallvec-1.16.5",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":bytemuck-1.25.0",
+                    ":read-fonts-0.41.0",
+                    ":smallvec-1.16.5",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
                 "deps": [
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
@@ -19784,7 +21645,7 @@ third_party = {
                     ":byteorder-1.5.0",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":byteorder-1.5.0",
                 ],
@@ -19910,70 +21771,6 @@ third_party = {
         ],
         "version": "0.14.5",
     },
-    "hashbrown-0.15.5": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Amanieu d'Antras <amanieu@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "A Rust port of Google's SwissTable hash map",
-            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/rust-lang/hashbrown",
-            "CARGO_PKG_RUST_VERSION": "1.65.0",
-        },
-        "library": {
-            "crate": "hashbrown",
-            "crate_root": "src/lib.rs",
-            "edition": "2021",
-            "proc_macro": False,
-        },
-        "name": "hashbrown",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":foldhash-0.1.5",
-                ],
-                "features": [
-                    "default-hasher",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":foldhash-0.1.5",
-                ],
-                "features": [
-                    "default-hasher",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":foldhash-0.1.5",
-                ],
-                "features": [
-                    "default-hasher",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":foldhash-0.1.5",
-                ],
-                "features": [
-                    "default-hasher",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":foldhash-0.1.5",
-                ],
-                "features": [
-                    "default-hasher",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.15.5",
-    },
     "hashbrown-0.16.1": {
         "build_script": None,
         "env": {
@@ -20043,7 +21840,6 @@ third_party = {
                 ],
                 "features": [
                     "default-hasher",
-                    "inline-more",
                 ],
             },
             "macos-x86_64": {
@@ -20052,34 +21848,6 @@ third_party = {
                 ],
                 "features": [
                     "default-hasher",
-                    "inline-more",
-                ],
-            },
-            "wasi": {
-                "deps": [
-                    ":foldhash-0.2.0",
-                ],
-                "features": [
-                    "default-hasher",
-                    "inline-more",
-                ],
-            },
-            "wasi-guest": {
-                "deps": [
-                    ":foldhash-0.2.0",
-                ],
-                "features": [
-                    "default-hasher",
-                    "inline-more",
-                ],
-            },
-            "wasm32": {
-                "deps": [
-                    ":foldhash-0.2.0",
-                ],
-                "features": [
-                    "default-hasher",
-                    "inline-more",
                 ],
             },
             "windows-arm64": {
@@ -20142,6 +21910,7 @@ third_party = {
                 ],
                 "features": [
                     "default-hasher",
+                    "inline-more",
                     "serde",
                 ],
             },
@@ -20152,6 +21921,7 @@ third_party = {
                 ],
                 "features": [
                     "default-hasher",
+                    "inline-more",
                     "serde",
                 ],
             },
@@ -20162,6 +21932,7 @@ third_party = {
                 ],
                 "features": [
                     "default-hasher",
+                    "inline-more",
                     "serde",
                 ],
             },
@@ -20173,6 +21944,7 @@ third_party = {
                 ],
                 "features": [
                     "default-hasher",
+                    "inline-more",
                     "serde",
                 ],
             },
@@ -20183,12 +21955,41 @@ third_party = {
                 ],
                 "features": [
                     "default-hasher",
+                    "inline-more",
                     "serde",
                 ],
             },
-            "wasi": {},
-            "wasi-guest": {},
-            "wasm32": {},
+            "wasi": {
+                "deps": [
+                    ":foldhash-0.2.0",
+                    ":serde_core-1.0.228",
+                ],
+                "features": [
+                    "default-hasher",
+                    "inline-more",
+                    "serde",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":foldhash-0.2.0",
+                ],
+                "features": [
+                    "default-hasher",
+                    "inline-more",
+                ],
+            },
+            "wasm32-bindgen": {
+                "deps": [
+                    ":foldhash-0.2.0",
+                    ":serde_core-1.0.228",
+                ],
+                "features": [
+                    "default-hasher",
+                    "inline-more",
+                    "serde",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":foldhash-0.2.0",
@@ -20196,6 +21997,7 @@ third_party = {
                 ],
                 "features": [
                     "default-hasher",
+                    "inline-more",
                     "serde",
                 ],
             },
@@ -20206,6 +22008,7 @@ third_party = {
                 ],
                 "features": [
                     "default-hasher",
+                    "inline-more",
                     "serde",
                 ],
             },
@@ -20417,7 +22220,7 @@ third_party = {
                     "serde",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":hash32-0.2.1",
                     ":serde-1.0.228",
@@ -20522,6 +22325,13 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "features": [
                     "alloc",
@@ -20605,6 +22415,11 @@ third_party = {
                 ],
             },
             "wasi": {
+                "deps": [
+                    ":arrayvec-0.7.8",
+                ],
+            },
+            "wasi-guest": {
                 "deps": [
                     ":arrayvec-0.7.8",
                 ],
@@ -20744,38 +22559,6 @@ third_party = {
         ],
         "version": "0.8.0",
     },
-    "hexf-parse-0.2.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Kang Seonghoon <public+rust@mearie.org>",
-            "CARGO_PKG_DESCRIPTION": "Parses hexadecimal floats (see also hexf)",
-            "CARGO_PKG_HOMEPAGE": "https://github.com/lifthrasiir/hexf",
-            "CARGO_PKG_LICENSE": "CC0-1.0",
-            "CARGO_PKG_REPOSITORY": "https://github.com/lifthrasiir/hexf",
-        },
-        "library": {
-            "crate": "hexf_parse",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "hexf-parse",
-        "platforms": {
-            "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
-            "macos-arm64": {},
-            "macos-x86_64": {},
-            "wasi": {},
-            "wasm32": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.2.1",
-    },
     "hkdf-0.12.4": {
         "build_script": None,
         "env": {
@@ -20829,6 +22612,11 @@ third_party = {
                     ":hmac-0.12.1",
                 ],
             },
+            "wasi-guest": {
+                "deps": [
+                    ":hmac-0.12.1",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":hmac-0.12.1",
@@ -20844,6 +22632,71 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.12.4",
+    },
+    "hkdf-0.13.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "HMAC-based Extract-and-Expand Key Derivation Function (HKDF)",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/KDFs/",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/KDFs/",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "hkdf",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "hkdf",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":hmac-0.13.0",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":hmac-0.13.0",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":hmac-0.13.0",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":hmac-0.13.0",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":hmac-0.13.0",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":hmac-0.13.0",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":hmac-0.13.0",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":hmac-0.13.0",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.13.0",
     },
     "hmac-0.12.1": {
         "build_script": None,
@@ -20893,6 +22746,11 @@ third_party = {
                 ],
             },
             "wasi": {
+                "deps": [
+                    ":digest-0.10.7",
+                ],
+            },
+            "wasi-guest": {
                 "deps": [
                     ":digest-0.10.7",
                 ],
@@ -20976,6 +22834,32 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.13.0",
+    },
+    "home-0.5.12": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Brian Anderson <andersrb@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Shared definitions of home directories.",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/rust-lang/cargo",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-lang/cargo",
+            "CARGO_PKG_RUST_VERSION": "1.88",
+        },
+        "library": {
+            "crate": "home",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "home",
+        "platforms": {
+            "linux-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.5.12",
     },
     "hound-3.5.1": {
         "build_script": None,
@@ -21430,42 +23314,114 @@ third_party = {
         "platforms": {
             "android-arm64": {
                 "deps": [
+                    ":serde-1.0.228",
+                    ":subtle-2.6.1",
                     ":typenum-1.20.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "serde",
+                    "subtle",
+                    "zeroize",
                 ],
             },
             "linux-arm64": {
                 "deps": [
+                    ":serde-1.0.228",
+                    ":subtle-2.6.1",
                     ":typenum-1.20.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "serde",
+                    "subtle",
+                    "zeroize",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
+                    ":serde-1.0.228",
+                    ":subtle-2.6.1",
                     ":typenum-1.20.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "serde",
+                    "subtle",
+                    "zeroize",
                 ],
             },
             "linux-x86_64-html": {
                 "deps": [
+                    ":serde-1.0.228",
+                    ":subtle-2.6.1",
                     ":typenum-1.20.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "serde",
+                    "subtle",
+                    "zeroize",
                 ],
             },
             "macos-arm64": {
                 "deps": [
+                    ":serde-1.0.228",
+                    ":subtle-2.6.1",
                     ":typenum-1.20.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "serde",
+                    "subtle",
+                    "zeroize",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
+                    ":serde-1.0.228",
+                    ":subtle-2.6.1",
                     ":typenum-1.20.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "serde",
+                    "subtle",
+                    "zeroize",
                 ],
             },
             "windows-arm64": {
                 "deps": [
+                    ":serde-1.0.228",
+                    ":subtle-2.6.1",
                     ":typenum-1.20.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "serde",
+                    "subtle",
+                    "zeroize",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
+                    ":serde-1.0.228",
+                    ":subtle-2.6.1",
                     ":typenum-1.20.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "serde",
+                    "subtle",
+                    "zeroize",
                 ],
             },
         },
@@ -21915,6 +23871,171 @@ third_party = {
         ],
         "version": "0.1.65",
     },
+    "icu_calendar-2.4.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
+            "CARGO_PKG_DESCRIPTION": "Date APIs for Gregorian and non-Gregorian calendars",
+            "CARGO_PKG_HOMEPAGE": "https://icu4x.unicode.org",
+            "CARGO_PKG_LICENSE": "Unicode-3.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
+            "CARGO_PKG_RUST_VERSION": "1.88",
+        },
+        "library": {
+            "crate": "icu_calendar",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "icu_calendar",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":displaydoc-0.2.6",
+                    ":icu_calendar_data-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":displaydoc-0.2.6",
+                    ":icu_calendar_data-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":displaydoc-0.2.6",
+                    ":icu_calendar_data-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":displaydoc-0.2.6",
+                    ":icu_calendar_data-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":displaydoc-0.2.6",
+                    ":icu_calendar_data-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":displaydoc-0.2.6",
+                    ":icu_calendar_data-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":displaydoc-0.2.6",
+                    ":icu_calendar_data-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "2.4.0",
+    },
+    "icu_calendar_data-2.4.0": {
+        "build_script": {
+            "crate_root": "build.rs",
+            "edition": "2024",
+        },
+        "env": {
+            "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
+            "CARGO_PKG_DESCRIPTION": "Data for the icu_calendar crate",
+            "CARGO_PKG_HOMEPAGE": "https://icu4x.unicode.org",
+            "CARGO_PKG_LICENSE": "Unicode-3.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
+            "CARGO_PKG_RUST_VERSION": "1.88",
+        },
+        "library": {
+            "crate": "icu_calendar_data",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "icu_calendar_data",
+        "platforms": {
+            "android-arm64": {},
+            "linux-arm64": {},
+            "linux-x86_64": {},
+            "macos-arm64": {},
+            "macos-x86_64": {},
+            "windows-arm64": {},
+            "windows-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "2.4.0",
+    },
     "icu_collections-2.4.0": {
         "build_script": None,
         "env": {
@@ -22078,6 +24199,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "zerovec",
                 ],
             },
@@ -22090,6 +24212,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "zerovec",
                 ],
             },
@@ -22102,6 +24225,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "zerovec",
                 ],
             },
@@ -22126,6 +24250,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "zerovec",
                 ],
             },
@@ -22138,6 +24263,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "zerovec",
                 ],
             },
@@ -22186,6 +24312,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "zerovec",
                 ],
             },
@@ -22198,9 +24325,161 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "zerovec",
                 ],
             },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "2.4.0",
+    },
+    "icu_locale_fallback-2.4.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
+            "CARGO_PKG_DESCRIPTION": "API for Locale Fallback algorithms",
+            "CARGO_PKG_HOMEPAGE": "https://icu4x.unicode.org",
+            "CARGO_PKG_LICENSE": "Unicode-3.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
+            "CARGO_PKG_RUST_VERSION": "1.88",
+        },
+        "library": {
+            "crate": "icu_locale_fallback",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "icu_locale_fallback",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "2.4.0",
+    },
+    "icu_locale_fallback_data-2.4.0": {
+        "build_script": {
+            "crate_root": "build.rs",
+            "edition": "2024",
+        },
+        "env": {
+            "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
+            "CARGO_PKG_DESCRIPTION": "Data for the icu_locale_fallback crate",
+            "CARGO_PKG_HOMEPAGE": "https://icu4x.unicode.org",
+            "CARGO_PKG_LICENSE": "Unicode-3.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
+            "CARGO_PKG_RUST_VERSION": "1.88",
+        },
+        "library": {
+            "crate": "icu_locale_fallback_data",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "icu_locale_fallback_data",
+        "platforms": {
+            "android-arm64": {},
+            "linux-arm64": {},
+            "linux-x86_64": {},
+            "macos-arm64": {},
+            "macos-x86_64": {},
+            "windows-arm64": {},
+            "windows-x86_64": {},
         },
         "profile_flags": [
             "-Cdebuginfo=0",
@@ -22616,6 +24895,7 @@ third_party = {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":icu_locale_core-2.4.0",
+                    ":stable_deref_trait-1.2.1",
                     ":writeable-0.6.4",
                     ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
@@ -22623,6 +24903,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "baked",
                 ],
             },
@@ -22630,6 +24911,7 @@ third_party = {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":icu_locale_core-2.4.0",
+                    ":stable_deref_trait-1.2.1",
                     ":writeable-0.6.4",
                     ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
@@ -22637,6 +24919,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "baked",
                 ],
             },
@@ -22644,6 +24927,7 @@ third_party = {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":icu_locale_core-2.4.0",
+                    ":stable_deref_trait-1.2.1",
                     ":writeable-0.6.4",
                     ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
@@ -22651,6 +24935,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "baked",
                 ],
             },
@@ -22672,6 +24957,7 @@ third_party = {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":icu_locale_core-2.4.0",
+                    ":stable_deref_trait-1.2.1",
                     ":writeable-0.6.4",
                     ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
@@ -22679,6 +24965,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "baked",
                 ],
             },
@@ -22686,6 +24973,7 @@ third_party = {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":icu_locale_core-2.4.0",
+                    ":stable_deref_trait-1.2.1",
                     ":writeable-0.6.4",
                     ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
@@ -22693,6 +24981,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "baked",
                 ],
             },
@@ -22742,6 +25031,7 @@ third_party = {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":icu_locale_core-2.4.0",
+                    ":stable_deref_trait-1.2.1",
                     ":writeable-0.6.4",
                     ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
@@ -22749,6 +25039,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "baked",
                 ],
             },
@@ -22756,6 +25047,7 @@ third_party = {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":icu_locale_core-2.4.0",
+                    ":stable_deref_trait-1.2.1",
                     ":writeable-0.6.4",
                     ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
@@ -22763,6 +25055,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "baked",
                 ],
             },
@@ -22795,6 +25088,30 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "2.3.0",
+    },
+    "ident_case-1.0.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Ted Driggs <ted.driggs@outlook.com>",
+            "CARGO_PKG_DESCRIPTION": "Utility for applying case rules to Rust identifiers.",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/TedDriggs/ident_case",
+        },
+        "library": {
+            "crate": "ident_case",
+            "crate_root": "src/lib.rs",
+            "edition": "2015",
+            "proc_macro": False,
+        },
+        "name": "ident_case",
+        "platforms": {
+            "linux-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.0.1",
     },
     "idna-1.1.0": {
         "build_script": None,
@@ -23713,6 +26030,230 @@ third_party = {
         ],
         "version": "0.15.0",
     },
+    "imbl-5.0.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Bodil Stokke <bodil@bodil.org>:Joe Neeman <joeneeman@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Immutable collection datatypes",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/jneem/imbl",
+            "CARGO_PKG_LICENSE": "MPL-2.0+",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/jneem/imbl",
+            "CARGO_PKG_RUST_VERSION": "1.77",
+        },
+        "library": {
+            "crate": "imbl",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "imbl",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":archery-1.2.3",
+                    ":bitmaps-3.2.1",
+                    ":imbl-sized-chunks-0.1.3",
+                    ":rand_core-0.9.5",
+                    ":rand_xoshiro-0.7.0",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "serde",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":archery-1.2.3",
+                    ":bitmaps-3.2.1",
+                    ":imbl-sized-chunks-0.1.3",
+                    ":rand_core-0.9.5",
+                    ":rand_xoshiro-0.7.0",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "serde",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":archery-1.2.3",
+                    ":bitmaps-3.2.1",
+                    ":imbl-sized-chunks-0.1.3",
+                    ":rand_core-0.9.5",
+                    ":rand_xoshiro-0.7.0",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "serde",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":archery-1.2.3",
+                    ":bitmaps-3.2.1",
+                    ":imbl-sized-chunks-0.1.3",
+                    ":rand_core-0.9.5",
+                    ":rand_xoshiro-0.7.0",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "serde",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":archery-1.2.3",
+                    ":bitmaps-3.2.1",
+                    ":imbl-sized-chunks-0.1.3",
+                    ":rand_core-0.9.5",
+                    ":rand_xoshiro-0.7.0",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "serde",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":archery-1.2.3",
+                    ":bitmaps-3.2.1",
+                    ":imbl-sized-chunks-0.1.3",
+                    ":rand_core-0.9.5",
+                    ":rand_xoshiro-0.7.0",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "serde",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":archery-1.2.3",
+                    ":bitmaps-3.2.1",
+                    ":imbl-sized-chunks-0.1.3",
+                    ":rand_core-0.9.5",
+                    ":rand_xoshiro-0.7.0",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "serde",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":archery-1.2.3",
+                    ":bitmaps-3.2.1",
+                    ":imbl-sized-chunks-0.1.3",
+                    ":rand_core-0.9.5",
+                    ":rand_xoshiro-0.7.0",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "serde",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "5.0.0",
+    },
+    "imbl-sized-chunks-0.1.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Bodil Stokke <bodil@bodil.org>:Joe Neeman <joeneeman@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Efficient sized chunk datatypes",
+            "CARGO_PKG_LICENSE": "MPL-2.0+",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/jneem/imbl-sized-chunks",
+        },
+        "library": {
+            "crate": "imbl_sized_chunks",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "imbl-sized-chunks",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":bitmaps-3.2.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bitmaps-3.2.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bitmaps-3.2.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bitmaps-3.2.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bitmaps-3.2.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":bitmaps-3.2.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bitmaps-3.2.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bitmaps-3.2.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.1.3",
+    },
     "indexmap-2.14.0": {
         "build_script": None,
         "env": {
@@ -23804,6 +26345,11 @@ third_party = {
                 "deps": [
                     ":equivalent-1.0.2",
                     ":hashbrown-0.17.1",
+                    ":serde_core-1.0.228",
+                ],
+                "features": [
+                    "serde",
+                    "std",
                 ],
             },
             "wasi-guest": {
@@ -23816,13 +26362,14 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":equivalent-1.0.2",
                     ":hashbrown-0.17.1",
+                    ":serde_core-1.0.228",
                 ],
                 "features": [
-                    "default",
+                    "serde",
                     "std",
                 ],
             },
@@ -24051,6 +26598,15 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":block-padding-0.4.2",
+                    ":hybrid-array-0.4.15",
+                ],
+                "features": [
+                    "block-padding",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":block-padding-0.4.2",
                     ":hybrid-array-0.4.15",
@@ -24420,7 +26976,7 @@ third_party = {
                     ":heck-0.5.0",
                     ":proc-macro2-1.0.106",
                     ":quote-1.0.45",
-                    ":syn-3.0.3",
+                    ":syn-3.0.10",
                 ],
             },
         },
@@ -24428,91 +26984,6 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.7.2",
-    },
-    "io-extras-0.19.0": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "edition": "2021",
-        },
-        "env": {
-            "CARGO_PKG_AUTHORS": "Dan Gohman <dev@sunfishcode.online>",
-            "CARGO_PKG_DESCRIPTION": "File/socket handle/descriptor utilities",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/sunfishcode/io-extras",
-            "CARGO_PKG_RUST_VERSION": "1.70",
-        },
-        "library": {
-            "crate": "io_extras",
-            "crate_root": "src/lib.rs",
-            "edition": "2021",
-            "proc_macro": False,
-        },
-        "name": "io-extras",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":io-lifetimes-3.0.1",
-                ],
-                "features": [
-                    "default",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":io-lifetimes-3.0.1",
-                ],
-                "features": [
-                    "default",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":io-lifetimes-3.0.1",
-                ],
-                "features": [
-                    "default",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":io-lifetimes-3.0.1",
-                ],
-                "features": [
-                    "default",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":io-lifetimes-3.0.1",
-                ],
-                "features": [
-                    "default",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":io-lifetimes-3.0.1",
-                    ":windows-sys-0.60.2",
-                ],
-                "features": [
-                    "default",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":io-lifetimes-3.0.1",
-                    ":windows-sys-0.60.2",
-                ],
-                "features": [
-                    "default",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.19.0",
     },
     "io-lifetimes-1.0.11": {
         "build_script": {
@@ -24624,167 +27095,6 @@ third_party = {
         ],
         "version": "1.0.11",
     },
-    "io-lifetimes-2.0.4": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "edition": "2021",
-        },
-        "env": {
-            "CARGO_PKG_AUTHORS": "Dan Gohman <dev@sunfishcode.online>",
-            "CARGO_PKG_DESCRIPTION": "A low-level I/O ownership and borrowing library",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/sunfishcode/io-lifetimes",
-            "CARGO_PKG_RUST_VERSION": "1.63",
-        },
-        "library": {
-            "crate": "io_lifetimes",
-            "crate_root": "src/lib.rs",
-            "edition": "2021",
-            "proc_macro": False,
-        },
-        "name": "io-lifetimes",
-        "platforms": {
-            "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
-            "macos-arm64": {},
-            "macos-x86_64": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "2.0.4",
-    },
-    "io-lifetimes-3.0.1": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "edition": "2021",
-        },
-        "env": {
-            "CARGO_PKG_AUTHORS": "Dan Gohman <dev@sunfishcode.online>",
-            "CARGO_PKG_DESCRIPTION": "A low-level I/O ownership and borrowing library",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/sunfishcode/io-lifetimes",
-            "CARGO_PKG_RUST_VERSION": "1.70",
-        },
-        "library": {
-            "crate": "io_lifetimes",
-            "crate_root": "src/lib.rs",
-            "edition": "2021",
-            "proc_macro": False,
-        },
-        "name": "io-lifetimes",
-        "platforms": {
-            "android-arm64": {
-                "features": [
-                    "default",
-                ],
-            },
-            "linux-arm64": {
-                "features": [
-                    "default",
-                ],
-            },
-            "linux-x86_64": {
-                "features": [
-                    "default",
-                ],
-            },
-            "macos-arm64": {
-                "features": [
-                    "default",
-                ],
-            },
-            "macos-x86_64": {
-                "features": [
-                    "default",
-                ],
-            },
-            "windows-arm64": {
-                "features": [
-                    "default",
-                ],
-            },
-            "windows-x86_64": {
-                "features": [
-                    "default",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "3.0.1",
-    },
-    "ipnet-2.12.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Kris Price <kris@krisprice.nz>",
-            "CARGO_PKG_DESCRIPTION": "Provides types and useful methods for working with IPv4 and IPv6 network addresses, commonly called IP prefixes. The new `IpNet`, `Ipv4Net`, and `Ipv6Net` types build on the existing `IpAddr`, `Ipv4Addr`, and `Ipv6Addr` types already provided in Rust's standard library and align to their design to stay consistent. The module also provides useful traits that extend `Ipv4Addr` and `Ipv6Addr` with methods for `Add`, `Sub`, `BitAnd`, and `BitOr` operations. The module only uses stable feature so it is guaranteed to compile using the stable toolchain.",
-            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/krisprice/ipnet",
-        },
-        "library": {
-            "crate": "ipnet",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "ipnet",
-        "platforms": {
-            "android-arm64": {
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "linux-arm64": {
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "linux-x86_64": {
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "macos-arm64": {
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "macos-x86_64": {
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "windows-arm64": {
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "windows-x86_64": {
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "2.12.1",
-    },
     "is_terminal_polyfill-1.70.2": {
         "build_script": None,
         "env": {
@@ -24881,6 +27191,16 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":either-1.17.0",
+                ],
+                "features": [
+                    "default",
+                    "use_alloc",
+                    "use_std",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":either-1.17.0",
                 ],
@@ -25057,7 +27377,7 @@ third_party = {
             "wasi": {},
             "wasi-guest": {},
             "wasi-html": {},
-            "wasm32": {},
+            "wasm32-bindgen": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -25065,6 +27385,73 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "1.0.18",
+    },
+    "ixdtf-0.6.7": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
+            "CARGO_PKG_DESCRIPTION": "Parser for Internet eXtended DateTime Format",
+            "CARGO_PKG_HOMEPAGE": "https://icu4x.unicode.org",
+            "CARGO_PKG_LICENSE": "Unicode-3.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
+            "CARGO_PKG_RUST_VERSION": "1.82",
+        },
+        "library": {
+            "crate": "ixdtf",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "ixdtf",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "default",
+                    "duration",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "default",
+                    "duration",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "default",
+                    "duration",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "default",
+                    "duration",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "default",
+                    "duration",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "default",
+                    "duration",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "default",
+                    "duration",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.6.7",
     },
     "jetscii-0.5.3": {
         "build_script": {
@@ -25772,7 +28159,7 @@ third_party = {
         ],
         "version": "1.0.0",
     },
-    "js-sys-0.3.99": {
+    "js-sys-0.3.107": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "The wasm-bindgen Developers",
@@ -25781,7 +28168,7 @@ third_party = {
             "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
             "CARGO_PKG_README": "README.md",
             "CARGO_PKG_REPOSITORY": "https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys",
-            "CARGO_PKG_RUST_VERSION": "1.77",
+            "CARGO_PKG_RUST_VERSION": "1.81",
         },
         "library": {
             "crate": "js_sys",
@@ -25795,8 +28182,7 @@ third_party = {
                 "deps": [
                     ":cfg-if-1.0.4",
                     ":futures-util-0.3.32",
-                    ":once_cell-1.21.4",
-                    ":wasm-bindgen-0.2.122",
+                    ":wasm-bindgen-0.2.130",
                 ],
                 "features": [
                     "default",
@@ -25808,8 +28194,7 @@ third_party = {
                 "deps": [
                     ":cfg-if-1.0.4",
                     ":futures-util-0.3.32",
-                    ":once_cell-1.21.4",
-                    ":wasm-bindgen-0.2.122",
+                    ":wasm-bindgen-0.2.130",
                 ],
                 "features": [
                     "default",
@@ -25821,8 +28206,7 @@ third_party = {
                 "deps": [
                     ":cfg-if-1.0.4",
                     ":futures-util-0.3.32",
-                    ":once_cell-1.21.4",
-                    ":wasm-bindgen-0.2.122",
+                    ":wasm-bindgen-0.2.130",
                 ],
                 "features": [
                     "default",
@@ -25830,12 +28214,11 @@ third_party = {
                     "unsafe-eval",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":cfg-if-1.0.4",
                     ":futures-util-0.3.32",
-                    ":once_cell-1.21.4",
-                    ":wasm-bindgen-0.2.122",
+                    ":wasm-bindgen-0.2.130",
                 ],
                 "features": [
                     "default",
@@ -25847,7 +28230,96 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "0.3.99",
+        "version": "0.3.107",
+    },
+    "kbkdf-0.1.0-rc.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Key Derivation Using Pseudorandom Function (KBKDF)",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/KDFs/tree/master/kbkdf",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/KDFs/",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "kbkdf",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "kbkdf",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":digest-0.11.3",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":digest-0.11.3",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":digest-0.11.3",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":digest-0.11.3",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":digest-0.11.3",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":digest-0.11.3",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":digest-0.11.3",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":digest-0.11.3",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.1.0-rc.1",
+    },
+    "keccak-0.1.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of the Keccak sponge function including the keccak-f\nand keccak-p variants\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/sponges/tree/master/keccak",
+        },
+        "library": {
+            "crate": "keccak",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "keccak",
+        "platforms": {
+            "linux-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.1.6",
     },
     "keyboard-types-0.8.3": {
         "build_script": None,
@@ -26199,6 +28671,83 @@ third_party = {
         ],
         "version": "0.13.1",
     },
+    "lalrpop-0.22.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Niko Matsakis <niko@alum.mit.edu>",
+            "CARGO_PKG_DESCRIPTION": "convenient LR(1) parser generator",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/lalrpop/lalrpop",
+            "CARGO_PKG_RUST_VERSION": "1.70",
+        },
+        "library": {
+            "crate": "lalrpop",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "lalrpop",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":ascii-canvas-4.0.0",
+                    ":bit-set-0.8.0",
+                    ":ena-0.14.4",
+                    ":itertools-0.14.0",
+                    ":lalrpop-util-0.22.2",
+                    ":petgraph-0.7.1",
+                    ":regex-1.13.1",
+                    ":regex-syntax-0.8.11",
+                    ":sha3-0.10.9",
+                    ":string_cache-0.8.9",
+                    ":term-1.2.1",
+                    ":unicode-xid-0.2.6",
+                    ":walkdir-2.5.0",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.22.2",
+    },
+    "lalrpop-util-0.22.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Niko Matsakis <niko@alum.mit.edu>",
+            "CARGO_PKG_DESCRIPTION": "Runtime library for parsers generated by LALRPOP",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/lalrpop/lalrpop",
+            "CARGO_PKG_RUST_VERSION": "1.70",
+        },
+        "library": {
+            "crate": "lalrpop_util",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "lalrpop-util",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":regex-automata-0.4.16",
+                    ":rustversion-1.0.22",
+                ],
+                "features": [
+                    "default",
+                    "regex-automata",
+                    "std",
+                    "unicode",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.22.2",
+    },
     "lazy_static-1.5.0": {
         "build_script": None,
         "env": {
@@ -26243,7 +28792,15 @@ third_party = {
                     "spin_no_std",
                 ],
             },
-            "linux-x86_64-html": {},
+            "linux-x86_64-html": {
+                "deps": [
+                    ":spin-0.9.9",
+                ],
+                "features": [
+                    "spin",
+                    "spin_no_std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":spin-0.9.9",
@@ -26286,30 +28843,6 @@ third_party = {
         ],
         "version": "1.5.0",
     },
-    "leb128-0.2.7": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Nick Fitzgerald <fitzgen@gmail.com>:Philip Craig <philipjcraig@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "Read and write DWARF's \"Little Endian Base 128\" (LEB128) variable length integer encoding.",
-            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/gimli-rs/leb128",
-        },
-        "library": {
-            "crate": "leb128",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "leb128",
-        "platforms": {
-            "linux-x86_64": {},
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.2.7",
-    },
     "leb128fmt-0.1.0": {
         "build_script": None,
         "env": {
@@ -26333,6 +28866,8 @@ third_party = {
             "linux-x86_64": {},
             "macos-arm64": {},
             "macos-x86_64": {},
+            "wasi": {},
+            "wasm32-bindgen": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -26441,6 +28976,264 @@ third_party = {
         ],
         "version": "0.10.2",
     },
+    "lexical-7.0.5": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Alex Huszagh <ahuszagh@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Lexical, to- and from-string conversion routines.",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/Alexhuszagh/rust-lexical",
+            "CARGO_PKG_RUST_VERSION": "1.60.0",
+        },
+        "library": {
+            "crate": "lexical",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "lexical",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":lexical-core-1.0.6",
+                ],
+                "features": [
+                    "default",
+                    "format",
+                    "parse-floats",
+                    "parse-integers",
+                    "power-of-two",
+                    "std",
+                    "write-floats",
+                    "write-integers",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "7.0.5",
+    },
+    "lexical-core-1.0.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Alex Huszagh <ahuszagh@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Lexical, to- and from-string conversion routines.",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/Alexhuszagh/rust-lexical",
+            "CARGO_PKG_RUST_VERSION": "1.60.0",
+        },
+        "library": {
+            "crate": "lexical_core",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "lexical-core",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":lexical-parse-float-1.0.6",
+                    ":lexical-parse-integer-1.0.6",
+                    ":lexical-util-1.0.7",
+                    ":lexical-write-float-1.0.6",
+                    ":lexical-write-integer-1.0.6",
+                ],
+                "features": [
+                    "format",
+                    "lexical-parse-float",
+                    "lexical-parse-integer",
+                    "lexical-write-float",
+                    "lexical-write-integer",
+                    "parse-floats",
+                    "parse-integers",
+                    "power-of-two",
+                    "std",
+                    "write-floats",
+                    "write-integers",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.0.6",
+    },
+    "lexical-parse-float-1.0.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Alex Huszagh <ahuszagh@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Efficient parsing of floats from strings.",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/Alexhuszagh/rust-lexical",
+            "CARGO_PKG_RUST_VERSION": "1.60.0",
+        },
+        "library": {
+            "crate": "lexical_parse_float",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "lexical-parse-float",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":lexical-parse-integer-1.0.6",
+                    ":lexical-util-1.0.7",
+                ],
+                "features": [
+                    "format",
+                    "power-of-two",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.0.6",
+    },
+    "lexical-parse-integer-1.0.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Alex Huszagh <ahuszagh@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Efficient parsing of integers from strings.",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/Alexhuszagh/rust-lexical",
+            "CARGO_PKG_RUST_VERSION": "1.60.0",
+        },
+        "library": {
+            "crate": "lexical_parse_integer",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "lexical-parse-integer",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":lexical-util-1.0.7",
+                ],
+                "features": [
+                    "format",
+                    "power-of-two",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.0.6",
+    },
+    "lexical-util-1.0.7": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Alex Huszagh <ahuszagh@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Shared utilities for lexical creates.",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/Alexhuszagh/rust-lexical",
+            "CARGO_PKG_RUST_VERSION": "1.60.0",
+        },
+        "library": {
+            "crate": "lexical_util",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "lexical-util",
+        "platforms": {
+            "linux-x86_64": {
+                "features": [
+                    "format",
+                    "parse-floats",
+                    "parse-integers",
+                    "power-of-two",
+                    "std",
+                    "write-floats",
+                    "write-integers",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.0.7",
+    },
+    "lexical-write-float-1.0.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Alex Huszagh <ahuszagh@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Efficient formatting of floats to strings.",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/Alexhuszagh/rust-lexical",
+            "CARGO_PKG_RUST_VERSION": "1.60.0",
+        },
+        "library": {
+            "crate": "lexical_write_float",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "lexical-write-float",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":lexical-util-1.0.7",
+                    ":lexical-write-integer-1.0.6",
+                ],
+                "features": [
+                    "format",
+                    "power-of-two",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.0.6",
+    },
+    "lexical-write-integer-1.0.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Alex Huszagh <ahuszagh@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Efficient formatting of integers to strings.",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/Alexhuszagh/rust-lexical",
+            "CARGO_PKG_RUST_VERSION": "1.60.0",
+        },
+        "library": {
+            "crate": "lexical_write_integer",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "lexical-write-integer",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":lexical-util-1.0.7",
+                ],
+                "features": [
+                    "format",
+                    "power-of-two",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.0.6",
+    },
     "libc-0.2.186": {
         "build_script": {
             "crate_root": "build.rs",
@@ -26500,18 +29293,6 @@ third_party = {
                 "features": [
                     "default",
                     "extra_traits",
-                    "std",
-                ],
-            },
-            "wasi": {
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "wasi-guest": {
-                "features": [
-                    "default",
                     "std",
                 ],
             },
@@ -26717,13 +29498,8 @@ third_party = {
                     "default",
                 ],
             },
-            "wasi-guest": {
-                "features": [
-                    "arch",
-                    "default",
-                ],
-            },
-            "wasm32": {
+            "wasi-guest": {},
+            "wasm32-bindgen": {
                 "features": [
                     "arch",
                     "default",
@@ -27054,6 +29830,74 @@ third_party = {
         ],
         "version": "0.1.4",
     },
+    "linebender_resource_handle-0.1.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Raw resource handle for immutable blobs with dynamic lifetimes.",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/raw_resource_handle",
+            "CARGO_PKG_RUST_VERSION": "1.70",
+        },
+        "library": {
+            "crate": "linebender_resource_handle",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "linebender_resource_handle",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "wasi": {
+                "features": [
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.1.1",
+    },
     "linux-raw-sys-0.12.1": {
         "build_script": None,
         "env": {
@@ -27232,17 +30076,45 @@ third_party = {
         },
         "name": "litemap",
         "platforms": {
-            "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
+            "android-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "alloc",
+                ],
+            },
             "linux-x86_64-html": {},
-            "macos-arm64": {},
-            "macos-x86_64": {},
+            "macos-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "alloc",
+                ],
+            },
             "wasi": {},
             "wasi-guest": {},
             "wasi-html": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
+            "windows-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "alloc",
+                ],
+            },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
@@ -27354,7 +30226,7 @@ third_party = {
                     "default",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":scopeguard-1.2.0",
                 ],
@@ -27437,7 +30309,7 @@ third_party = {
             },
             "wasi": {},
             "wasi-guest": {},
-            "wasm32": {},
+            "wasm32-bindgen": {},
             "windows-arm64": {
                 "features": [
                     "std",
@@ -27454,120 +30326,33 @@ third_party = {
         ],
         "version": "0.4.31",
     },
-    "lyon_geom-1.0.20": {
+    "logos-0.16.1": {
         "build_script": None,
         "env": {
-            "CARGO_PKG_AUTHORS": "Nicolas Silva <nical@fastmail.com>",
-            "CARGO_PKG_DESCRIPTION": "2D quadratic and cubic bézier arcs and line segment math on top of euclid.",
+            "CARGO_PKG_AUTHORS": "Maciej Hirsz <hello@maciej.codes>:Jérome Eertmans (maintainer) <jeertmans@icloud.com>",
+            "CARGO_PKG_DESCRIPTION": "Create ridiculously fast Lexers",
+            "CARGO_PKG_HOMEPAGE": "https://logos.maciej.codes/",
             "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
             "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/nical/lyon",
+            "CARGO_PKG_REPOSITORY": "https://github.com/maciejhirsz/logos",
+            "CARGO_PKG_RUST_VERSION": "1.80.0",
         },
         "library": {
-            "crate": "lyon_geom",
+            "crate": "logos",
             "crate_root": "src/lib.rs",
-            "edition": "2018",
+            "edition": "2021",
             "proc_macro": False,
         },
-        "name": "lyon_geom",
+        "name": "logos",
         "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":arrayvec-0.7.8",
-                    ":euclid-0.22.14",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":arrayvec-0.7.8",
-                    ":euclid-0.22.14",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
             "linux-x86_64": {
                 "deps": [
-                    ":arrayvec-0.7.8",
-                    ":euclid-0.22.14",
-                    ":num-traits-0.2.19",
+                    ":logos-derive-0.16.1",
                 ],
                 "features": [
-                    "std",
-                ],
-            },
-            "linux-x86_64-html": {
-                "deps": [
-                    ":arrayvec-0.7.8",
-                    ":euclid-0.22.14",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":arrayvec-0.7.8",
-                    ":euclid-0.22.14",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":arrayvec-0.7.8",
-                    ":euclid-0.22.14",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "wasi": {
-                "deps": [
-                    ":arrayvec-0.7.8",
-                    ":euclid-0.22.14",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "wasi-guest": {
-                "deps": [
-                    ":arrayvec-0.7.8",
-                    ":euclid-0.22.14",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":arrayvec-0.7.8",
-                    ":euclid-0.22.14",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":arrayvec-0.7.8",
-                    ":euclid-0.22.14",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
+                    "default",
+                    "export_derive",
+                    "logos-derive",
                     "std",
                 ],
             },
@@ -27575,253 +30360,72 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "1.0.20",
+        "version": "0.16.1",
     },
-    "lyon_path-1.0.19": {
+    "logos-codegen-0.16.1": {
         "build_script": None,
         "env": {
-            "CARGO_PKG_AUTHORS": "Nicolas Silva <nical@fastmail.com>",
-            "CARGO_PKG_DESCRIPTION": "Types and utilities to store, build and iterate over 2D paths.",
+            "CARGO_PKG_AUTHORS": "Maciej Hirsz <hello@maciej.codes>:Jérome Eertmans (maintainer) <jeertmans@icloud.com>",
+            "CARGO_PKG_DESCRIPTION": "Create ridiculously fast Lexers",
+            "CARGO_PKG_HOMEPAGE": "https://logos.maciej.codes/",
             "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
             "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/nical/lyon",
+            "CARGO_PKG_REPOSITORY": "https://github.com/maciejhirsz/logos",
+            "CARGO_PKG_RUST_VERSION": "1.80.0",
         },
         "library": {
-            "crate": "lyon_path",
+            "crate": "logos_codegen",
             "crate_root": "src/lib.rs",
-            "edition": "2018",
+            "edition": "2021",
             "proc_macro": False,
         },
-        "name": "lyon_path",
+        "name": "logos-codegen",
         "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":lyon_geom-1.0.20",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":lyon_geom-1.0.20",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
             "linux-x86_64": {
                 "deps": [
-                    ":lyon_geom-1.0.20",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "linux-x86_64-html": {
-                "deps": [
-                    ":lyon_geom-1.0.20",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":lyon_geom-1.0.20",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":lyon_geom-1.0.20",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "wasi": {
-                "deps": [
-                    ":lyon_geom-1.0.20",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "wasi-guest": {
-                "deps": [
-                    ":lyon_geom-1.0.20",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":lyon_geom-1.0.20",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":lyon_geom-1.0.20",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "std",
+                    ":fnv-1.0.7",
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":regex-automata-0.4.16",
+                    ":regex-syntax-0.8.11",
+                    ":syn-2.0.117",
                 ],
             },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "1.0.19",
+        "version": "0.16.1",
     },
-    "lyon_tessellation-1.0.22": {
+    "logos-derive-0.16.1": {
         "build_script": None,
         "env": {
-            "CARGO_PKG_AUTHORS": "Nicolas Silva <nical@fastmail.com>",
-            "CARGO_PKG_DESCRIPTION": "A low level path tessellation library.",
+            "CARGO_PKG_AUTHORS": "Maciej Hirsz <hello@maciej.codes>:Jérome Eertmans (maintainer) <jeertmans@icloud.com>",
+            "CARGO_PKG_DESCRIPTION": "Create ridiculously fast Lexers",
+            "CARGO_PKG_HOMEPAGE": "https://logos.maciej.codes/",
             "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
             "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/nical/lyon",
+            "CARGO_PKG_REPOSITORY": "https://github.com/maciejhirsz/logos",
+            "CARGO_PKG_RUST_VERSION": "1.80.0",
         },
         "library": {
-            "crate": "lyon_tessellation",
+            "crate": "logos_derive",
             "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
+            "edition": "2021",
+            "proc_macro": True,
         },
-        "name": "lyon_tessellation",
+        "name": "logos-derive",
         "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":float_next_after-1.0.0",
-                    ":lyon_path-1.0.19",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":float_next_after-1.0.0",
-                    ":lyon_path-1.0.19",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
             "linux-x86_64": {
                 "deps": [
-                    ":float_next_after-1.0.0",
-                    ":lyon_path-1.0.19",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "linux-x86_64-html": {
-                "deps": [
-                    ":float_next_after-1.0.0",
-                    ":lyon_path-1.0.19",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":float_next_after-1.0.0",
-                    ":lyon_path-1.0.19",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":float_next_after-1.0.0",
-                    ":lyon_path-1.0.19",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "wasi": {
-                "deps": [
-                    ":float_next_after-1.0.0",
-                    ":lyon_path-1.0.19",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "wasi-guest": {
-                "deps": [
-                    ":float_next_after-1.0.0",
-                    ":lyon_path-1.0.19",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":float_next_after-1.0.0",
-                    ":lyon_path-1.0.19",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":float_next_after-1.0.0",
-                    ":lyon_path-1.0.19",
-                    ":num-traits-0.2.19",
-                ],
-                "features": [
-                    "default",
-                    "std",
+                    ":logos-codegen-0.16.1",
                 ],
             },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "1.0.22",
+        "version": "0.16.1",
     },
     "mach2-0.4.3": {
         "build_script": None,
@@ -27860,38 +30464,6 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.4.3",
-    },
-    "mach2-0.6.0": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_DESCRIPTION": "A Rust interface to the user-space API of the Mach 3.0 kernel that underlies OSX.",
-            "CARGO_PKG_LICENSE": "BSD-2-Clause OR MIT OR Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/JohnTitor/mach2",
-        },
-        "library": {
-            "crate": "mach2",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "mach2",
-        "platforms": {
-            "macos-arm64": {
-                "features": [
-                    "default",
-                ],
-            },
-            "macos-x86_64": {
-                "features": [
-                    "default",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.6.0",
     },
     "matchers-0.2.0": {
         "build_script": None,
@@ -27957,35 +30529,68 @@ third_party = {
         ],
         "version": "0.2.0",
     },
-    "maybe-owned-0.3.4": {
+    "matchit-0.8.4": {
         "build_script": None,
         "env": {
-            "CARGO_PKG_AUTHORS": "Philipp korber <philippkorber@gmail.com>:darkstalker <slayerbeast@gmail.com>:daboross <daboross@daboross.net>:Zac Burns (That3Percent) <that3percent@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "provides a `MaybeOwned` (and `MaybeOwnedMut`) type similar to std's `Cow` but it implements `From<T>` and `From<&'a T>` and does not require `ToOwned`",
-            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_README": "./README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/rustonaut/maybe-owned",
+            "CARGO_PKG_AUTHORS": "Ibraheem Ahmed <ibraheem@ibraheem.ca>",
+            "CARGO_PKG_DESCRIPTION": "A high performance, zero-copy URL router.",
+            "CARGO_PKG_LICENSE": "MIT AND BSD-3-Clause",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/ibraheemdev/matchit",
         },
         "library": {
-            "crate": "maybe_owned",
+            "crate": "matchit",
             "crate_root": "src/lib.rs",
-            "edition": "2015",
+            "edition": "2021",
             "proc_macro": False,
         },
-        "name": "maybe-owned",
+        "name": "matchit",
         "platforms": {
-            "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
-            "macos-arm64": {},
-            "macos-x86_64": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
+            "android-arm64": {
+                "features": [
+                    "default",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "default",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "default",
+                ],
+            },
+            "linux-x86_64-html": {
+                "features": [
+                    "default",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "default",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "default",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "default",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "default",
+                ],
+            },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "0.3.4",
+        "version": "0.8.4",
     },
     "md-5-0.11.0": {
         "build_script": None,
@@ -28099,6 +30704,78 @@ third_party = {
         ],
         "version": "0.11.0",
     },
+    "md5-0.8.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Daniel McKenna <danielmckenna93@gmail.com>:Ivan Ukhov <ivan.ukhov@gmail.com>:Kamal Ahmad <shibe@openmailbox.org>:Konstantin Stepanov <milezv@gmail.com>:Lukas Kalbertodt <lukas.kalbertodt@gmail.com>:Nathan Musoke <nathan.musoke@gmail.com>:Scott Mabin <scott@mabez.dev>:Tony Arcieri <bascule@gmail.com>:Wim de With <register@dewith.io>:Yosef Dinerstein <yosefdi@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "The package provides the MD5 hash function.",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/stainless-steel/md5",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/stainless-steel/md5",
+        },
+        "library": {
+            "crate": "md5",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "md5",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.8.1",
+    },
     "memchr-2.8.3": {
         "build_script": None,
         "env": {
@@ -28181,10 +30858,9 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "features": [
                     "alloc",
-                    "default",
                     "std",
                 ],
             },
@@ -28207,39 +30883,6 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "2.8.3",
-    },
-    "memfd-0.6.5": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Luca Bruno <lucab@lucabruno.net>:Simonas Kazlauskas <memfd@kazlauskas.me>",
-            "CARGO_PKG_DESCRIPTION": "A pure-Rust library to work with Linux memfd and sealing",
-            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/lucab/memfd-rs",
-        },
-        "library": {
-            "crate": "memfd",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "memfd",
-        "platforms": {
-            "linux-arm64": {
-                "deps": [
-                    ":rustix-1.1.4",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":rustix-1.1.4",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.6.5",
     },
     "memmap2-0.9.10": {
         "build_script": None,
@@ -28415,6 +31058,11 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
                 "features": [
                     "std",
                 ],
@@ -29024,7 +31672,7 @@ third_party = {
         ],
         "version": "0.8.1",
     },
-    "naga-29.0.3": {
+    "naga-30.0.2": {
         "build_script": {
             "crate_root": "build.rs",
             "deps": [
@@ -29051,16 +31699,16 @@ third_party = {
             "android-arm64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bitflags-2.12.1",
                     ":cfg-if-1.0.4",
                     ":codespan-reporting-0.13.1",
                     ":half-2.7.1",
-                    ":hashbrown-0.16.1",
-                    ":hexf-parse-0.2.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":libm-0.2.16",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":num-traits-0.2.19",
                     ":once_cell-1.21.4",
                     ":rustc-hash-1.1.0",
@@ -29079,16 +31727,16 @@ third_party = {
             "linux-arm64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bitflags-2.12.1",
                     ":cfg-if-1.0.4",
                     ":codespan-reporting-0.13.1",
                     ":half-2.7.1",
-                    ":hashbrown-0.16.1",
-                    ":hexf-parse-0.2.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":libm-0.2.16",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":num-traits-0.2.19",
                     ":once_cell-1.21.4",
                     ":rustc-hash-1.1.0",
@@ -29107,16 +31755,16 @@ third_party = {
             "linux-x86_64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bitflags-2.12.1",
                     ":cfg-if-1.0.4",
                     ":codespan-reporting-0.13.1",
                     ":half-2.7.1",
-                    ":hashbrown-0.16.1",
-                    ":hexf-parse-0.2.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":libm-0.2.16",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":num-traits-0.2.19",
                     ":once_cell-1.21.4",
                     ":rustc-hash-1.1.0",
@@ -29130,21 +31778,22 @@ third_party = {
                     "hlsl-out",
                     "spv-out",
                     "wgsl-in",
+                    "wgsl-out",
                 ],
             },
             "macos-arm64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bitflags-2.12.1",
                     ":cfg-if-1.0.4",
                     ":codespan-reporting-0.13.1",
                     ":half-2.7.1",
-                    ":hashbrown-0.16.1",
-                    ":hexf-parse-0.2.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":libm-0.2.16",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":num-traits-0.2.19",
                     ":once_cell-1.21.4",
                     ":rustc-hash-1.1.0",
@@ -29160,16 +31809,16 @@ third_party = {
             "macos-x86_64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bitflags-2.12.1",
                     ":cfg-if-1.0.4",
                     ":codespan-reporting-0.13.1",
                     ":half-2.7.1",
-                    ":hashbrown-0.16.1",
-                    ":hexf-parse-0.2.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":libm-0.2.16",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":num-traits-0.2.19",
                     ":once_cell-1.21.4",
                     ":rustc-hash-1.1.0",
@@ -29185,16 +31834,16 @@ third_party = {
             "wasi": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bitflags-2.12.1",
                     ":cfg-if-1.0.4",
                     ":codespan-reporting-0.13.1",
                     ":half-2.7.1",
-                    ":hashbrown-0.16.1",
-                    ":hexf-parse-0.2.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":libm-0.2.16",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":num-traits-0.2.19",
                     ":once_cell-1.21.4",
                     ":rustc-hash-1.1.0",
@@ -29207,19 +31856,19 @@ third_party = {
                     "wgsl-in",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bitflags-2.12.1",
                     ":cfg-if-1.0.4",
                     ":codespan-reporting-0.13.1",
                     ":half-2.7.1",
-                    ":hashbrown-0.16.1",
-                    ":hexf-parse-0.2.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":libm-0.2.16",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":num-traits-0.2.19",
                     ":once_cell-1.21.4",
                     ":rustc-hash-1.1.0",
@@ -29235,16 +31884,16 @@ third_party = {
             "windows-arm64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bitflags-2.12.1",
                     ":cfg-if-1.0.4",
                     ":codespan-reporting-0.13.1",
                     ":half-2.7.1",
-                    ":hashbrown-0.16.1",
-                    ":hexf-parse-0.2.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":libm-0.2.16",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":num-traits-0.2.19",
                     ":once_cell-1.21.4",
                     ":rustc-hash-1.1.0",
@@ -29263,16 +31912,16 @@ third_party = {
             "windows-x86_64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bitflags-2.12.1",
                     ":cfg-if-1.0.4",
                     ":codespan-reporting-0.13.1",
                     ":half-2.7.1",
-                    ":hashbrown-0.16.1",
-                    ":hexf-parse-0.2.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":libm-0.2.16",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":num-traits-0.2.19",
                     ":once_cell-1.21.4",
                     ":rustc-hash-1.1.0",
@@ -29292,7 +31941,141 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "29.0.3",
+        "version": "30.0.2",
+    },
+    "naga-types-30.0.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "gfx-rs developers",
+            "CARGO_PKG_DESCRIPTION": "Common types for naga and wgpu",
+            "CARGO_PKG_HOMEPAGE": "https://wgpu.rs/",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/gfx-rs/wgpu",
+        },
+        "library": {
+            "crate": "naga_types",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "naga-types",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":rustc-hash-1.1.0",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":rustc-hash-1.1.0",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":rustc-hash-1.1.0",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":rustc-hash-1.1.0",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":rustc-hash-1.1.0",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":rustc-hash-1.1.0",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":rustc-hash-1.1.0",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "wasm32-bindgen": {
+                "deps": [
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":rustc-hash-1.1.0",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":rustc-hash-1.1.0",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":rustc-hash-1.1.0",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "30.0.2",
     },
     "ndk-0.8.0": {
         "build_script": None,
@@ -29453,6 +32236,30 @@ third_party = {
         ],
         "version": "0.6.0+11769913",
     },
+    "new_debug_unreachable-1.0.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Matt Brubeck <mbrubeck@limpet.net>:Jonathan Reem <jonathan.reem@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "panic in debug, intrinsics::unreachable() in release (fork of debug_unreachable)",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/mbrubeck/rust-debug-unreachable",
+        },
+        "library": {
+            "crate": "debug_unreachable",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "new_debug_unreachable",
+        "platforms": {
+            "linux-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.0.6",
+    },
     "nix-0.28.0": {
         "build_script": {
             "crate_root": "build.rs",
@@ -29608,6 +32415,17 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":memchr-2.8.3",
+                    ":minimal-lexical-0.2.1",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":memchr-2.8.3",
                     ":minimal-lexical-0.2.1",
@@ -30087,6 +32905,16 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":num-integer-0.1.47",
@@ -30194,6 +33022,25 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":lazy_static-1.5.0",
+                    ":libm-0.2.16",
+                    ":num-integer-0.1.47",
+                    ":num-iter-0.1.46",
+                    ":num-traits-0.2.19",
+                    ":rand-0.8.6",
+                    ":smallvec-1.16.5",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "i128",
+                    "prime",
+                    "rand",
+                    "u64_digit",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":lazy_static-1.5.0",
                     ":libm-0.2.16",
@@ -30407,6 +33254,15 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "i128",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":num-traits-0.2.19",
@@ -30481,6 +33337,12 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":num-integer-0.1.47",
                     ":num-traits-0.2.19",
@@ -30580,6 +33442,7 @@ third_party = {
                 ],
                 "features": [
                     "default",
+                    "i128",
                     "libm",
                     "std",
                 ],
@@ -30617,16 +33480,12 @@ third_party = {
                 ],
             },
             "wasi-guest": {
-                "deps": [
-                    ":libm-0.2.16",
-                ],
                 "features": [
                     "default",
-                    "libm",
                     "std",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":libm-0.2.16",
                 ],
@@ -30762,6 +33621,174 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.3.0",
+    },
+    "oauth2-5.0.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Alex Crichton <alex@alexcrichton.com>:Florin Lipan <florinlipan@gmail.com>:David A. Ramos <ramos@cs.stanford.edu>",
+            "CARGO_PKG_DESCRIPTION": "An extensible, strongly-typed implementation of OAuth2",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/ramosbugs/oauth2-rs",
+            "CARGO_PKG_RUST_VERSION": "1.65",
+        },
+        "library": {
+            "crate": "oauth2",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "oauth2",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":chrono-0.4.45",
+                    ":http-1.5.0",
+                    ":rand-0.8.6",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":serde_path_to_error-0.1.20",
+                    ":sha2-0.10.9",
+                    ":thiserror-1.0.69",
+                    ":ureq-2.12.1",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "ureq",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":chrono-0.4.45",
+                    ":http-1.5.0",
+                    ":rand-0.8.6",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":serde_path_to_error-0.1.20",
+                    ":sha2-0.10.9",
+                    ":thiserror-1.0.69",
+                    ":ureq-2.12.1",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "ureq",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":chrono-0.4.45",
+                    ":http-1.5.0",
+                    ":rand-0.8.6",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":serde_path_to_error-0.1.20",
+                    ":sha2-0.10.9",
+                    ":thiserror-1.0.69",
+                    ":ureq-2.12.1",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "ureq",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":chrono-0.4.45",
+                    ":http-1.5.0",
+                    ":rand-0.8.6",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":serde_path_to_error-0.1.20",
+                    ":sha2-0.10.9",
+                    ":thiserror-1.0.69",
+                    ":ureq-2.12.1",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "ureq",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":chrono-0.4.45",
+                    ":http-1.5.0",
+                    ":rand-0.8.6",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":serde_path_to_error-0.1.20",
+                    ":sha2-0.10.9",
+                    ":thiserror-1.0.69",
+                    ":ureq-2.12.1",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "ureq",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":chrono-0.4.45",
+                    ":http-1.5.0",
+                    ":rand-0.8.6",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":serde_path_to_error-0.1.20",
+                    ":sha2-0.10.9",
+                    ":thiserror-1.0.69",
+                    ":ureq-2.12.1",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "ureq",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":chrono-0.4.45",
+                    ":http-1.5.0",
+                    ":rand-0.8.6",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":serde_path_to_error-0.1.20",
+                    ":sha2-0.10.9",
+                    ":thiserror-1.0.69",
+                    ":ureq-2.12.1",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "ureq",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":chrono-0.4.45",
+                    ":http-1.5.0",
+                    ":rand-0.8.6",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":serde_path_to_error-0.1.20",
+                    ":sha2-0.10.9",
+                    ":thiserror-1.0.69",
+                    ":ureq-2.12.1",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "ureq",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "5.0.0",
     },
     "objc-sys-0.3.5": {
         "build_script": {
@@ -31714,6 +34741,7 @@ third_party = {
                     ":bitflags-2.12.1",
                     ":objc2-0.6.4",
                     ":objc2-core-foundation-0.3.2",
+                    ":objc2-core-graphics-0.3.2",
                     ":objc2-foundation-0.3.2",
                     ":objc2-metal-0.3.2",
                 ],
@@ -31723,6 +34751,7 @@ third_party = {
                     "alloc",
                     "bitflags",
                     "objc2-core-foundation",
+                    "objc2-core-graphics",
                     "objc2-metal",
                     "std",
                 ],
@@ -31732,6 +34761,7 @@ third_party = {
                     ":bitflags-2.12.1",
                     ":objc2-0.6.4",
                     ":objc2-core-foundation-0.3.2",
+                    ":objc2-core-graphics-0.3.2",
                     ":objc2-foundation-0.3.2",
                     ":objc2-metal-0.3.2",
                 ],
@@ -31741,6 +34771,7 @@ third_party = {
                     "alloc",
                     "bitflags",
                     "objc2-core-foundation",
+                    "objc2-core-graphics",
                     "objc2-metal",
                     "std",
                 ],
@@ -31750,179 +34781,6 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.3.2",
-    },
-    "object-0.39.1": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "edition": "2018",
-        },
-        "env": {
-            "CARGO_PKG_DESCRIPTION": "A unified interface for reading and writing object file formats.",
-            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/gimli-rs/object",
-            "CARGO_PKG_RUST_VERSION": "1.65",
-        },
-        "library": {
-            "crate": "object",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "object",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":crc32fast-1.5.0",
-                    ":hashbrown-0.17.1",
-                    ":indexmap-2.14.0",
-                    ":memchr-2.8.3",
-                ],
-                "features": [
-                    "coff",
-                    "elf",
-                    "macho",
-                    "pe",
-                    "read_core",
-                    "std",
-                    "unaligned",
-                    "write",
-                    "write_core",
-                    "write_std",
-                    "xcoff",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":crc32fast-1.5.0",
-                    ":hashbrown-0.17.1",
-                    ":indexmap-2.14.0",
-                    ":memchr-2.8.3",
-                ],
-                "features": [
-                    "coff",
-                    "elf",
-                    "macho",
-                    "pe",
-                    "read_core",
-                    "std",
-                    "unaligned",
-                    "write",
-                    "write_core",
-                    "write_std",
-                    "xcoff",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":crc32fast-1.5.0",
-                    ":hashbrown-0.17.1",
-                    ":indexmap-2.14.0",
-                    ":memchr-2.8.3",
-                ],
-                "features": [
-                    "coff",
-                    "elf",
-                    "macho",
-                    "pe",
-                    "read_core",
-                    "std",
-                    "unaligned",
-                    "write",
-                    "write_core",
-                    "write_std",
-                    "xcoff",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":crc32fast-1.5.0",
-                    ":hashbrown-0.17.1",
-                    ":indexmap-2.14.0",
-                    ":memchr-2.8.3",
-                ],
-                "features": [
-                    "coff",
-                    "elf",
-                    "macho",
-                    "pe",
-                    "read_core",
-                    "std",
-                    "unaligned",
-                    "write",
-                    "write_core",
-                    "write_std",
-                    "xcoff",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":crc32fast-1.5.0",
-                    ":hashbrown-0.17.1",
-                    ":indexmap-2.14.0",
-                    ":memchr-2.8.3",
-                ],
-                "features": [
-                    "coff",
-                    "elf",
-                    "macho",
-                    "pe",
-                    "read_core",
-                    "std",
-                    "unaligned",
-                    "write",
-                    "write_core",
-                    "write_std",
-                    "xcoff",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":crc32fast-1.5.0",
-                    ":hashbrown-0.17.1",
-                    ":indexmap-2.14.0",
-                    ":memchr-2.8.3",
-                ],
-                "features": [
-                    "coff",
-                    "elf",
-                    "macho",
-                    "pe",
-                    "read_core",
-                    "std",
-                    "unaligned",
-                    "write",
-                    "write_core",
-                    "write_std",
-                    "xcoff",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":crc32fast-1.5.0",
-                    ":hashbrown-0.17.1",
-                    ":indexmap-2.14.0",
-                    ":memchr-2.8.3",
-                ],
-                "features": [
-                    "coff",
-                    "elf",
-                    "macho",
-                    "pe",
-                    "read_core",
-                    "std",
-                    "unaligned",
-                    "write",
-                    "write_core",
-                    "write_std",
-                    "xcoff",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.39.1",
     },
     "object-0.40.0": {
         "build_script": None,
@@ -31994,6 +34852,7 @@ third_party = {
                     "jni",
                     "ndk",
                     "ndk-context",
+                    "shared-stdcxx",
                 ],
             },
         },
@@ -32026,7 +34885,11 @@ third_party = {
         },
         "name": "oboe-sys",
         "platforms": {
-            "android-arm64": {},
+            "android-arm64": {
+                "features": [
+                    "shared-stdcxx",
+                ],
+            },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
@@ -32150,6 +35013,24 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                ],
+                "features": [
+                    "crypto",
+                    "default",
+                    "kdf",
+                    "nist_algs",
+                    "pkcs1",
+                    "pkcs12",
+                    "pkcs7",
+                    "pkcs9",
+                    "registry",
+                    "x509",
+                    "x962",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":asn1-rs-0.7.2",
                 ],
@@ -32314,13 +35195,18 @@ third_party = {
             "wasi": {
                 "features": [
                     "alloc",
+                    "default",
                     "race",
                     "std",
                 ],
             },
-            "wasi-guest": {},
-            "wasi-html": {},
-            "wasm32": {
+            "wasi-guest": {
+                "features": [
+                    "alloc",
+                    "race",
+                ],
+            },
+            "wasm32-bindgen": {
                 "features": [
                     "alloc",
                     "race",
@@ -32381,6 +35267,278 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.3.1",
+    },
+    "openidconnect-4.1.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "David A. Ramos <ramos@cs.stanford.edu>",
+            "CARGO_PKG_DESCRIPTION": "OpenID Connect library",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/ramosbugs/openidconnect-rs",
+            "CARGO_PKG_RUST_VERSION": "1.88",
+        },
+        "library": {
+            "crate": "openidconnect",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "openidconnect",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":chrono-0.4.45",
+                    ":dyn-clone-1.0.20",
+                    ":ed25519-dalek-3.0.0",
+                    ":getrandom-0.4.2",
+                    ":hmac-0.12.1",
+                    ":http-1.5.0",
+                    ":itertools-0.14.0",
+                    ":log-0.4.31",
+                    ":oauth2-5.0.0",
+                    ":p256-0.14.0",
+                    ":p384-0.14.0",
+                    ":rand-0.8.6",
+                    ":rsa-0.9.10",
+                    ":serde-1.0.228",
+                    ":serde-value-0.7.0",
+                    ":serde_json-1.0.150",
+                    ":serde_path_to_error-0.1.20",
+                    ":serde_plain-1.0.2",
+                    ":serde_with-3.22.0",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":thiserror-1.0.69",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "ureq",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":chrono-0.4.45",
+                    ":dyn-clone-1.0.20",
+                    ":ed25519-dalek-3.0.0",
+                    ":getrandom-0.4.2",
+                    ":hmac-0.12.1",
+                    ":http-1.5.0",
+                    ":itertools-0.14.0",
+                    ":log-0.4.31",
+                    ":oauth2-5.0.0",
+                    ":p256-0.14.0",
+                    ":p384-0.14.0",
+                    ":rand-0.8.6",
+                    ":rsa-0.9.10",
+                    ":serde-1.0.228",
+                    ":serde-value-0.7.0",
+                    ":serde_json-1.0.150",
+                    ":serde_path_to_error-0.1.20",
+                    ":serde_plain-1.0.2",
+                    ":serde_with-3.22.0",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":thiserror-1.0.69",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "ureq",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":chrono-0.4.45",
+                    ":dyn-clone-1.0.20",
+                    ":ed25519-dalek-3.0.0",
+                    ":getrandom-0.4.2",
+                    ":hmac-0.12.1",
+                    ":http-1.5.0",
+                    ":itertools-0.14.0",
+                    ":log-0.4.31",
+                    ":oauth2-5.0.0",
+                    ":p256-0.14.0",
+                    ":p384-0.14.0",
+                    ":rand-0.8.6",
+                    ":rsa-0.9.10",
+                    ":serde-1.0.228",
+                    ":serde-value-0.7.0",
+                    ":serde_json-1.0.150",
+                    ":serde_path_to_error-0.1.20",
+                    ":serde_plain-1.0.2",
+                    ":serde_with-3.22.0",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":thiserror-1.0.69",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "ureq",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":chrono-0.4.45",
+                    ":dyn-clone-1.0.20",
+                    ":ed25519-dalek-3.0.0",
+                    ":getrandom-0.4.2",
+                    ":hmac-0.12.1",
+                    ":http-1.5.0",
+                    ":itertools-0.14.0",
+                    ":log-0.4.31",
+                    ":oauth2-5.0.0",
+                    ":p256-0.14.0",
+                    ":p384-0.14.0",
+                    ":rand-0.8.6",
+                    ":rsa-0.9.10",
+                    ":serde-1.0.228",
+                    ":serde-value-0.7.0",
+                    ":serde_json-1.0.150",
+                    ":serde_path_to_error-0.1.20",
+                    ":serde_plain-1.0.2",
+                    ":serde_with-3.22.0",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":thiserror-1.0.69",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "ureq",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":chrono-0.4.45",
+                    ":dyn-clone-1.0.20",
+                    ":ed25519-dalek-3.0.0",
+                    ":getrandom-0.4.2",
+                    ":hmac-0.12.1",
+                    ":http-1.5.0",
+                    ":itertools-0.14.0",
+                    ":log-0.4.31",
+                    ":oauth2-5.0.0",
+                    ":p256-0.14.0",
+                    ":p384-0.14.0",
+                    ":rand-0.8.6",
+                    ":rsa-0.9.10",
+                    ":serde-1.0.228",
+                    ":serde-value-0.7.0",
+                    ":serde_json-1.0.150",
+                    ":serde_path_to_error-0.1.20",
+                    ":serde_plain-1.0.2",
+                    ":serde_with-3.22.0",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":thiserror-1.0.69",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "ureq",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":chrono-0.4.45",
+                    ":dyn-clone-1.0.20",
+                    ":ed25519-dalek-3.0.0",
+                    ":getrandom-0.4.2",
+                    ":hmac-0.12.1",
+                    ":http-1.5.0",
+                    ":itertools-0.14.0",
+                    ":log-0.4.31",
+                    ":oauth2-5.0.0",
+                    ":p256-0.14.0",
+                    ":p384-0.14.0",
+                    ":rand-0.8.6",
+                    ":rsa-0.9.10",
+                    ":serde-1.0.228",
+                    ":serde-value-0.7.0",
+                    ":serde_json-1.0.150",
+                    ":serde_path_to_error-0.1.20",
+                    ":serde_plain-1.0.2",
+                    ":serde_with-3.22.0",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":thiserror-1.0.69",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "ureq",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":chrono-0.4.45",
+                    ":dyn-clone-1.0.20",
+                    ":ed25519-dalek-3.0.0",
+                    ":getrandom-0.4.2",
+                    ":hmac-0.12.1",
+                    ":http-1.5.0",
+                    ":itertools-0.14.0",
+                    ":log-0.4.31",
+                    ":oauth2-5.0.0",
+                    ":p256-0.14.0",
+                    ":p384-0.14.0",
+                    ":rand-0.8.6",
+                    ":rsa-0.9.10",
+                    ":serde-1.0.228",
+                    ":serde-value-0.7.0",
+                    ":serde_json-1.0.150",
+                    ":serde_path_to_error-0.1.20",
+                    ":serde_plain-1.0.2",
+                    ":serde_with-3.22.0",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":thiserror-1.0.69",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "ureq",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":chrono-0.4.45",
+                    ":dyn-clone-1.0.20",
+                    ":ed25519-dalek-3.0.0",
+                    ":getrandom-0.4.2",
+                    ":hmac-0.12.1",
+                    ":http-1.5.0",
+                    ":itertools-0.14.0",
+                    ":log-0.4.31",
+                    ":oauth2-5.0.0",
+                    ":p256-0.14.0",
+                    ":p384-0.14.0",
+                    ":rand-0.8.6",
+                    ":rsa-0.9.10",
+                    ":serde-1.0.228",
+                    ":serde-value-0.7.0",
+                    ":serde_json-1.0.150",
+                    ":serde_path_to_error-0.1.20",
+                    ":serde_plain-1.0.2",
+                    ":serde_with-3.22.0",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":thiserror-1.0.69",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "ureq",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "4.1.0",
     },
     "openxr-0.22.0": {
         "build_script": None,
@@ -32503,6 +35661,101 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.14.0",
+    },
+    "ordered-float-2.10.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Jonathan Reem <jonathan.reem@gmail.com>:Matt Brubeck <mbrubeck@limpet.net>",
+            "CARGO_PKG_DESCRIPTION": "Wrappers for total ordering on floats",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/reem/rust-ordered-float",
+        },
+        "library": {
+            "crate": "ordered_float",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "ordered-float",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "2.10.1",
     },
     "ordered-float-5.3.0": {
         "build_script": None,
@@ -32855,6 +36108,833 @@ third_party = {
         ],
         "version": "0.4.1",
     },
+    "p256-0.13.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of the NIST P-256 (a.k.a. secp256r1, prime256v1)\nelliptic curve as defined in SP 800-186, with support for ECDH, ECDSA\nsigning/verification, and general purpose curve arithmetic\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/elliptic-curves/tree/master/p256",
+            "CARGO_PKG_RUST_VERSION": "1.65",
+        },
+        "library": {
+            "crate": "p256",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "p256",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                    ":primeorder-0.13.6",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "ecdh",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                    ":primeorder-0.13.6",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "ecdh",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                    ":primeorder-0.13.6",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "ecdh",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                    ":primeorder-0.13.6",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "ecdh",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                    ":primeorder-0.13.6",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "ecdh",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                    ":primeorder-0.13.6",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "ecdh",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                    ":primeorder-0.13.6",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "ecdh",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                    ":primeorder-0.13.6",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "ecdh",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.13.2",
+    },
+    "p256-0.14.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of the NIST P-256 (a.k.a. secp256r1, prime256v1)\nelliptic curve as defined in SP 800-186, with support for ECDH, ECDSA\nsigning/verification, and general purpose curve arithmetic\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/elliptic-curves/tree/master/p256",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/elliptic-curves",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "p256",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "p256",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdh",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha2",
+                    "sha256",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdh",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha2",
+                    "sha256",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdh",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha2",
+                    "sha256",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdh",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha2",
+                    "sha256",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdh",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha2",
+                    "sha256",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdh",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha2",
+                    "sha256",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdh",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha2",
+                    "sha256",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdh",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha2",
+                    "sha256",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.14.0",
+    },
+    "p384-0.14.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers:Frank Denis <github@pureftpd.org>",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of the NIST P-384 (a.k.a. secp384r1) elliptic curve\nas defined in SP 800-186 with support for ECDH, ECDSA signing/verification,\nand general purpose curve arithmetic support.\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/elliptic-curves/tree/master/p384",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/elliptic-curves",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "p384",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "p384",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha2",
+                    "sha384",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha2",
+                    "sha384",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha2",
+                    "sha384",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha2",
+                    "sha384",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha2",
+                    "sha384",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha2",
+                    "sha384",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha2",
+                    "sha384",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha2",
+                    "sha384",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.14.0",
+    },
+    "p521-0.14.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of the NIST P-521 (a.k.a. secp521r1) elliptic curve as defined in\nSP 800-186, with support for ECDH, ECDSA signing/verification, and general purpose curve arithmetic\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/elliptic-curves/tree/master/p521",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/elliptic-curves",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "p521",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "p521",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha512",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha512",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha512",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha512",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha512",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha512",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha512",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha512",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.14.0",
+    },
     "parking-2.2.1": {
         "build_script": None,
         "env": {
@@ -32954,7 +37034,7 @@ third_party = {
                     "default",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":lock_api-0.4.14",
                     ":parking_lot_core-0.9.12",
@@ -33048,7 +37128,7 @@ third_party = {
                     ":smallvec-1.16.5",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":cfg-if-1.0.4",
                     ":smallvec-1.16.5",
@@ -33193,6 +37273,34 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.5.0",
+    },
+    "paste-1.0.15": {
+        "build_script": {
+            "crate_root": "build.rs",
+            "edition": "2018",
+        },
+        "env": {
+            "CARGO_PKG_AUTHORS": "David Tolnay <dtolnay@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Macros for all your token pasting needs",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/dtolnay/paste",
+            "CARGO_PKG_RUST_VERSION": "1.31",
+        },
+        "library": {
+            "crate": "paste",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": True,
+        },
+        "name": "paste",
+        "platforms": {
+            "linux-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.0.15",
     },
     "path-absolutize-4.0.1": {
         "build_script": None,
@@ -33341,6 +37449,16 @@ third_party = {
                     "hmac",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":digest-0.11.3",
+                    ":hmac-0.13.0",
+                ],
+                "features": [
+                    "default",
+                    "hmac",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":digest-0.11.3",
@@ -33429,6 +37547,14 @@ third_party = {
                     "alloc",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":base64ct-1.8.3",
@@ -33510,6 +37636,14 @@ third_party = {
                     "alloc",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":base64ct-1.8.3",
@@ -33547,6 +37681,146 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "1.0.0",
+    },
+    "peniko-0.6.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Primitive types for styling vector graphics",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/peniko",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "peniko",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "peniko",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":color-0.3.3",
+                    ":kurbo-0.13.1",
+                    ":linebender_resource_handle-0.1.1",
+                    ":smallvec-1.16.5",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":color-0.3.3",
+                    ":kurbo-0.13.1",
+                    ":linebender_resource_handle-0.1.1",
+                    ":smallvec-1.16.5",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":color-0.3.3",
+                    ":kurbo-0.13.1",
+                    ":linebender_resource_handle-0.1.1",
+                    ":smallvec-1.16.5",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":color-0.3.3",
+                    ":kurbo-0.13.1",
+                    ":linebender_resource_handle-0.1.1",
+                    ":smallvec-1.16.5",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":color-0.3.3",
+                    ":kurbo-0.13.1",
+                    ":linebender_resource_handle-0.1.1",
+                    ":smallvec-1.16.5",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":color-0.3.3",
+                    ":kurbo-0.13.1",
+                    ":linebender_resource_handle-0.1.1",
+                    ":smallvec-1.16.5",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":color-0.3.3",
+                    ":kurbo-0.13.1",
+                    ":linebender_resource_handle-0.1.1",
+                    ":smallvec-1.16.5",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":color-0.3.3",
+                    ":kurbo-0.13.1",
+                    ":linebender_resource_handle-0.1.1",
+                    ":smallvec-1.16.5",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":color-0.3.3",
+                    ":kurbo-0.13.1",
+                    ":linebender_resource_handle-0.1.1",
+                    ":smallvec-1.16.5",
+                ],
+                "features": [
+                    "bytemuck",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.6.1",
     },
     "percent-encoding-2.3.2": {
         "build_script": None,
@@ -33626,6 +37900,36 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "2.3.2",
+    },
+    "petgraph-0.7.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "bluss:mitchmindtree",
+            "CARGO_PKG_DESCRIPTION": "Graph data structure library. Provides graph types and graph algorithms.",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/petgraph/petgraph",
+            "CARGO_PKG_RUST_VERSION": "1.64",
+        },
+        "library": {
+            "crate": "petgraph",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "petgraph",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":fixedbitset-0.5.9",
+                    ":indexmap-2.14.0",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.7.1",
     },
     "phf-0.13.1": {
         "build_script": None,
@@ -33929,6 +38233,39 @@ third_party = {
         ],
         "version": "0.13.1",
     },
+    "phf_shared-0.11.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Steven Fackler <sfackler@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Support code shared by PHF libraries",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-phf/rust-phf",
+            "CARGO_PKG_RUST_VERSION": "1.61",
+        },
+        "library": {
+            "crate": "phf_shared",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "phf_shared",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":siphasher-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.11.3",
+    },
     "phf_shared-0.13.1": {
         "build_script": None,
         "env": {
@@ -34209,7 +38546,7 @@ third_party = {
             "wasi": {},
             "wasi-guest": {},
             "wasi-html": {},
-            "wasm32": {},
+            "wasm32-bindgen": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -34326,6 +38663,20 @@ third_party = {
                     "zeroize",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":der-0.7.10",
+                    ":pkcs8-0.10.2",
+                    ":spki-0.7.3",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "pkcs8",
+                    "std",
+                    "zeroize",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":der-0.7.10",
@@ -34387,6 +38738,127 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.7.5",
+    },
+    "pkcs1-0.8.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of Public-Key Cryptography Standards (PKCS) #1:\nRSA Cryptography Specifications Version 2.2 (RFC 8017)\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/formats/tree/master/pkcs1",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "pkcs1",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "pkcs1",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.8.0",
     },
     "pkcs12-0.2.0-pre.0": {
         "build_script": None,
@@ -34558,6 +39030,7 @@ third_party = {
                     ":cbc-0.2.1",
                     ":der-0.8.2",
                     ":pbkdf2-0.13.0",
+                    ":rand_core-0.10.1",
                     ":scrypt-0.12.0",
                     ":sha2-0.11.1",
                     ":spki-0.8.1",
@@ -34565,6 +39038,7 @@ third_party = {
                 "features": [
                     "alloc",
                     "pbes2",
+                    "rand_core",
                 ],
             },
             "linux-arm64": {
@@ -34574,6 +39048,7 @@ third_party = {
                     ":cbc-0.2.1",
                     ":der-0.8.2",
                     ":pbkdf2-0.13.0",
+                    ":rand_core-0.10.1",
                     ":scrypt-0.12.0",
                     ":sha2-0.11.1",
                     ":spki-0.8.1",
@@ -34581,6 +39056,7 @@ third_party = {
                 "features": [
                     "alloc",
                     "pbes2",
+                    "rand_core",
                 ],
             },
             "linux-x86_64": {
@@ -34590,6 +39066,7 @@ third_party = {
                     ":cbc-0.2.1",
                     ":der-0.8.2",
                     ":pbkdf2-0.13.0",
+                    ":rand_core-0.10.1",
                     ":scrypt-0.12.0",
                     ":sha2-0.11.1",
                     ":spki-0.8.1",
@@ -34597,6 +39074,25 @@ third_party = {
                 "features": [
                     "alloc",
                     "pbes2",
+                    "rand_core",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":cbc-0.2.1",
+                    ":der-0.8.2",
+                    ":pbkdf2-0.13.0",
+                    ":rand_core-0.10.1",
+                    ":scrypt-0.12.0",
+                    ":sha2-0.11.1",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pbes2",
+                    "rand_core",
                 ],
             },
             "macos-arm64": {
@@ -34606,6 +39102,7 @@ third_party = {
                     ":cbc-0.2.1",
                     ":der-0.8.2",
                     ":pbkdf2-0.13.0",
+                    ":rand_core-0.10.1",
                     ":scrypt-0.12.0",
                     ":sha2-0.11.1",
                     ":spki-0.8.1",
@@ -34613,6 +39110,7 @@ third_party = {
                 "features": [
                     "alloc",
                     "pbes2",
+                    "rand_core",
                 ],
             },
             "macos-x86_64": {
@@ -34622,6 +39120,7 @@ third_party = {
                     ":cbc-0.2.1",
                     ":der-0.8.2",
                     ":pbkdf2-0.13.0",
+                    ":rand_core-0.10.1",
                     ":scrypt-0.12.0",
                     ":sha2-0.11.1",
                     ":spki-0.8.1",
@@ -34629,6 +39128,7 @@ third_party = {
                 "features": [
                     "alloc",
                     "pbes2",
+                    "rand_core",
                 ],
             },
             "windows-arm64": {
@@ -34638,6 +39138,7 @@ third_party = {
                     ":cbc-0.2.1",
                     ":der-0.8.2",
                     ":pbkdf2-0.13.0",
+                    ":rand_core-0.10.1",
                     ":scrypt-0.12.0",
                     ":sha2-0.11.1",
                     ":spki-0.8.1",
@@ -34645,6 +39146,7 @@ third_party = {
                 "features": [
                     "alloc",
                     "pbes2",
+                    "rand_core",
                 ],
             },
             "windows-x86_64": {
@@ -34654,6 +39156,7 @@ third_party = {
                     ":cbc-0.2.1",
                     ":der-0.8.2",
                     ":pbkdf2-0.13.0",
+                    ":rand_core-0.10.1",
                     ":scrypt-0.12.0",
                     ":sha2-0.11.1",
                     ":spki-0.8.1",
@@ -34661,6 +39164,7 @@ third_party = {
                 "features": [
                     "alloc",
                     "pbes2",
+                    "rand_core",
                 ],
             },
         },
@@ -34710,6 +39214,17 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":der-0.7.10",
+                    ":spki-0.7.3",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":der-0.7.10",
                     ":spki-0.7.3",
@@ -34792,43 +39307,121 @@ third_party = {
             "android-arm64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":pkcs5-0.8.1",
+                    ":rand_core-0.10.1",
                     ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "encryption",
+                    "pem",
+                    "pkcs5",
+                    "std",
                 ],
             },
             "linux-arm64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":pkcs5-0.8.1",
+                    ":rand_core-0.10.1",
                     ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "encryption",
+                    "pem",
+                    "pkcs5",
+                    "std",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":pkcs5-0.8.1",
+                    ":rand_core-0.10.1",
                     ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "encryption",
+                    "pem",
+                    "pkcs5",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":pkcs5-0.8.1",
+                    ":rand_core-0.10.1",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "encryption",
+                    "pem",
+                    "pkcs5",
+                    "std",
                 ],
             },
             "macos-arm64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":pkcs5-0.8.1",
+                    ":rand_core-0.10.1",
                     ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "encryption",
+                    "pem",
+                    "pkcs5",
+                    "std",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":pkcs5-0.8.1",
+                    ":rand_core-0.10.1",
                     ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "encryption",
+                    "pem",
+                    "pkcs5",
+                    "std",
                 ],
             },
             "windows-arm64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":pkcs5-0.8.1",
+                    ":rand_core-0.10.1",
                     ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "encryption",
+                    "pem",
+                    "pkcs5",
+                    "std",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":pkcs5-0.8.1",
+                    ":rand_core-0.10.1",
                     ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "encryption",
+                    "pem",
+                    "pkcs5",
+                    "std",
                 ],
             },
         },
@@ -35077,6 +39670,7 @@ third_party = {
             "linux-x86_64": {},
             "macos-arm64": {},
             "macos-x86_64": {},
+            "wasi-guest": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -35317,6 +39911,16 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":cpubits-0.1.1",
+                    ":cpufeatures-0.3.0",
+                    ":universal-hash-0.6.1",
+                ],
+                "features": [
+                    "hazmat",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":cpubits-0.1.1",
                     ":cpufeatures-0.3.0",
@@ -35652,7 +40256,7 @@ third_party = {
                     "use-std",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":cobs-0.3.0",
                     ":heapless-0.7.17",
@@ -35721,25 +40325,34 @@ third_party = {
         "platforms": {
             "android-arm64": {
                 "deps": [
+                    ":writeable-0.6.4",
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "writeable",
                     "zerovec",
                 ],
             },
             "linux-arm64": {
                 "deps": [
+                    ":writeable-0.6.4",
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "writeable",
                     "zerovec",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
+                    ":writeable-0.6.4",
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "writeable",
                     "zerovec",
                 ],
             },
@@ -35753,17 +40366,23 @@ third_party = {
             },
             "macos-arm64": {
                 "deps": [
+                    ":writeable-0.6.4",
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "writeable",
                     "zerovec",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
+                    ":writeable-0.6.4",
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "writeable",
                     "zerovec",
                 ],
             },
@@ -35793,17 +40412,23 @@ third_party = {
             },
             "windows-arm64": {
                 "deps": [
+                    ":writeable-0.6.4",
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "writeable",
                     "zerovec",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
+                    ":writeable-0.6.4",
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "writeable",
                     "zerovec",
                 ],
             },
@@ -35934,15 +40559,6 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":zerocopy-0.8.50",
-                ],
-                "features": [
-                    "simd",
-                    "std",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":zerocopy-0.8.50",
@@ -35966,6 +40582,29 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.2.21",
+    },
+    "precomputed-hash-0.1.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Emilio Cobos Álvarez <emilio@crisal.io>",
+            "CARGO_PKG_DESCRIPTION": "A library intending to be a base dependency to expose a precomputed hash",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_REPOSITORY": "https://github.com/emilio/precomputed-hash",
+        },
+        "library": {
+            "crate": "precomputed_hash",
+            "crate_root": "src/lib.rs",
+            "edition": "2015",
+            "proc_macro": False,
+        },
+        "name": "precomputed-hash",
+        "platforms": {
+            "linux-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.1.1",
     },
     "presser-0.3.1": {
         "build_script": None,
@@ -35996,6 +40635,349 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.3.1",
+    },
+    "prettyplease-0.2.37": {
+        "build_script": {
+            "crate_root": "build.rs",
+            "edition": "2021",
+        },
+        "env": {
+            "CARGO_PKG_AUTHORS": "David Tolnay <dtolnay@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "A minimal `syn` syntax tree pretty-printer",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/dtolnay/prettyplease",
+            "CARGO_PKG_RUST_VERSION": "1.62",
+        },
+        "library": {
+            "crate": "prettyplease",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "links": "prettyplease02",
+        "name": "prettyplease",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":syn-2.0.117",
+                ],
+                "features": [
+                    "verbatim",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.2.37",
+    },
+    "primefield-0.14.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Generic implementation of prime fields built on `crypto-bigint`, along with macros for writing\nfield element newtypes including ones with formally verified arithmetic using `fiat-crypto`\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/elliptic-curves/tree/master/primefield",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/elliptic-curves",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "primefield",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "primefield",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":ff-0.14.0",
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "named_deps": {
+                    "bigint": ":crypto-bigint-0.7.11",
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":ff-0.14.0",
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "named_deps": {
+                    "bigint": ":crypto-bigint-0.7.11",
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":ff-0.14.0",
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "named_deps": {
+                    "bigint": ":crypto-bigint-0.7.11",
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":ff-0.14.0",
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "named_deps": {
+                    "bigint": ":crypto-bigint-0.7.11",
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":ff-0.14.0",
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "named_deps": {
+                    "bigint": ":crypto-bigint-0.7.11",
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":ff-0.14.0",
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "named_deps": {
+                    "bigint": ":crypto-bigint-0.7.11",
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":ff-0.14.0",
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "named_deps": {
+                    "bigint": ":crypto-bigint-0.7.11",
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":ff-0.14.0",
+                    ":rand_core-0.10.1",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "named_deps": {
+                    "bigint": ":crypto-bigint-0.7.11",
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.14.0",
+    },
+    "primeorder-0.13.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of complete addition formulas for prime order elliptic\ncurves (Renes-Costello-Batina 2015). Generic over field elements and curve\nequation coefficients\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/elliptic-curves/tree/master/primeorder",
+            "CARGO_PKG_RUST_VERSION": "1.65",
+        },
+        "library": {
+            "crate": "primeorder",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "primeorder",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.13.6",
+    },
+    "primeorder-0.14.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of complete addition formulas for prime order elliptic\ncurves (Renes-Costello-Batina 2015). Generic over field elements and curve\nequation coefficients\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/elliptic-curves/tree/master/primeorder",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/elliptic-curves",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "primeorder",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "primeorder",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":wnaf-0.14.1",
+                ],
+                "features": [
+                    "alloc",
+                    "basepoint-table",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":wnaf-0.14.1",
+                ],
+                "features": [
+                    "alloc",
+                    "basepoint-table",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":wnaf-0.14.1",
+                ],
+                "features": [
+                    "alloc",
+                    "basepoint-table",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":wnaf-0.14.1",
+                ],
+                "features": [
+                    "alloc",
+                    "basepoint-table",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":wnaf-0.14.1",
+                ],
+                "features": [
+                    "alloc",
+                    "basepoint-table",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":wnaf-0.14.1",
+                ],
+                "features": [
+                    "alloc",
+                    "basepoint-table",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":wnaf-0.14.1",
+                ],
+                "features": [
+                    "alloc",
+                    "basepoint-table",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":wnaf-0.14.1",
+                ],
+                "features": [
+                    "alloc",
+                    "basepoint-table",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.14.0",
     },
     "proc-macro-crate-3.5.0": {
         "build_script": None,
@@ -36072,6 +41054,7 @@ third_party = {
                 "features": [
                     "default",
                     "proc-macro",
+                    "span-locations",
                 ],
             },
             "macos-arm64": {
@@ -36187,7 +41170,7 @@ third_party = {
             },
             "wasi": {},
             "wasi-guest": {},
-            "wasm32": {},
+            "wasm32-bindgen": {},
             "windows-arm64": {
                 "deps": [
                     ":profiling-procmacros-1.0.18",
@@ -36244,178 +41227,6 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "1.0.18",
-    },
-    "pulley-interpreter-48.0.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Pulley Project Developers",
-            "CARGO_PKG_DESCRIPTION": "The Pulley interpreter, its bytecode definition, encoder, decoder, and etc...",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime/tree/main/pulley",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "pulley_interpreter",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "pulley-interpreter",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":cranelift-bitset-0.135.1",
-                    ":log-0.4.31",
-                    ":pulley-macros-48.0.1",
-                ],
-                "features": [
-                    "decode",
-                    "disas",
-                    "encode",
-                    "interp",
-                    "std",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":cranelift-bitset-0.135.1",
-                    ":log-0.4.31",
-                    ":pulley-macros-48.0.1",
-                ],
-                "features": [
-                    "decode",
-                    "disas",
-                    "encode",
-                    "interp",
-                    "std",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":cranelift-bitset-0.135.1",
-                    ":log-0.4.31",
-                    ":pulley-macros-48.0.1",
-                ],
-                "features": [
-                    "decode",
-                    "disas",
-                    "encode",
-                    "interp",
-                    "std",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":cranelift-bitset-0.135.1",
-                    ":log-0.4.31",
-                    ":pulley-macros-48.0.1",
-                ],
-                "features": [
-                    "decode",
-                    "disas",
-                    "encode",
-                    "interp",
-                    "std",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":cranelift-bitset-0.135.1",
-                    ":log-0.4.31",
-                    ":pulley-macros-48.0.1",
-                ],
-                "features": [
-                    "decode",
-                    "disas",
-                    "encode",
-                    "interp",
-                    "std",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":cranelift-bitset-0.135.1",
-                    ":log-0.4.31",
-                    ":pulley-macros-48.0.1",
-                ],
-                "features": [
-                    "decode",
-                    "disas",
-                    "encode",
-                    "interp",
-                    "std",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":cranelift-bitset-0.135.1",
-                    ":log-0.4.31",
-                    ":pulley-macros-48.0.1",
-                ],
-                "features": [
-                    "decode",
-                    "disas",
-                    "encode",
-                    "interp",
-                    "std",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "48.0.1",
-    },
-    "pulley-macros-48.0.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_DESCRIPTION": "Internal pulley macros",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime/tree/main/pulley/macros",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "pulley_macros",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": True,
-        },
-        "name": "pulley-macros",
-        "platforms": {
-            "linux-x86_64": {
-                "deps": [
-                    ":proc-macro2-1.0.106",
-                    ":quote-1.0.45",
-                    ":syn-2.0.117",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "48.0.1",
     },
     "pulseaudio-0.3.1": {
         "build_script": None,
@@ -36497,6 +41308,39 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.1.29",
+    },
+    "qrcodegen-1.8.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Project Nayuki",
+            "CARGO_PKG_DESCRIPTION": "High-quality QR Code generator library",
+            "CARGO_PKG_HOMEPAGE": "https://www.nayuki.io/page/qr-code-generator-library",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "Readme.markdown",
+            "CARGO_PKG_REPOSITORY": "https://github.com/nayuki/QR-Code-generator",
+        },
+        "library": {
+            "crate": "qrcodegen",
+            "crate_root": "src/lib.rs",
+            "edition": "2015",
+            "proc_macro": False,
+        },
+        "name": "qrcodegen",
+        "platforms": {
+            "android-arm64": {},
+            "linux-arm64": {},
+            "linux-x86_64": {},
+            "macos-arm64": {},
+            "macos-x86_64": {},
+            "wasi": {},
+            "wasi-guest": {},
+            "windows-arm64": {},
+            "windows-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.8.0",
     },
     "quick-error-2.0.1": {
         "build_script": None,
@@ -37334,6 +42178,21 @@ third_party = {
                     "thread_rng",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":chacha20-0.10.1",
+                    ":getrandom-0.4.2",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                    "std_rng",
+                    "sys_rng",
+                    "thread_rng",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":chacha20-0.10.1",
@@ -37689,15 +42548,6 @@ third_party = {
                     "thread_rng",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":rand_core-0.9.5",
-                ],
-                "features": [
-                    "alloc",
-                    "std",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":rand_chacha-0.9.0",
@@ -37733,6 +42583,111 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.9.4",
+    },
+    "rand_chacha-0.10.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The Rand Project Developers:The Rust Project Developers:The CryptoCorrosion Contributors",
+            "CARGO_PKG_DESCRIPTION": "ChaCha random number generator\n",
+            "CARGO_PKG_HOMEPAGE": "https://rust-random.github.io/book",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-random/rand",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "rand_chacha",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "rand_chacha",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":ppv-lite86-0.2.21",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":ppv-lite86-0.2.21",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":ppv-lite86-0.2.21",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":ppv-lite86-0.2.21",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":ppv-lite86-0.2.21",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":ppv-lite86-0.2.21",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":ppv-lite86-0.2.21",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":ppv-lite86-0.2.21",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.10.0",
     },
     "rand_chacha-0.3.1": {
         "build_script": None,
@@ -37927,16 +42882,6 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":ppv-lite86-0.2.21",
-                    ":rand_core-0.9.5",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":ppv-lite86-0.2.21",
@@ -37985,6 +42930,7 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "windows-arm64": {},
@@ -38206,11 +43152,6 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
-                "features": [
-                    "std",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":getrandom-0.3.4",
@@ -38234,6 +43175,71 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.9.5",
+    },
+    "rand_xoshiro-0.7.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The Rand Project Developers",
+            "CARGO_PKG_DESCRIPTION": "Xoshiro, xoroshiro and splitmix64 random number generators",
+            "CARGO_PKG_HOMEPAGE": "https://rust-random.github.io/book",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-random/rngs",
+            "CARGO_PKG_RUST_VERSION": "1.63",
+        },
+        "library": {
+            "crate": "rand_xoshiro",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "rand_xoshiro",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":rand_core-0.9.5",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":rand_core-0.9.5",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":rand_core-0.9.5",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":rand_core-0.9.5",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":rand_core-0.9.5",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":rand_core-0.9.5",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":rand_core-0.9.5",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":rand_core-0.9.5",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.7.0",
     },
     "range-alloc-0.1.5": {
         "build_script": None,
@@ -38326,7 +43332,7 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "features": [
                     "alloc",
                     "std",
@@ -38398,140 +43404,6 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "1.1.0",
-    },
-    "rayon-1.12.0": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_DESCRIPTION": "Simple work-stealing parallelism for Rust",
-            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/rayon-rs/rayon",
-            "CARGO_PKG_RUST_VERSION": "1.80",
-        },
-        "library": {
-            "crate": "rayon",
-            "crate_root": "src/lib.rs",
-            "edition": "2021",
-            "proc_macro": False,
-        },
-        "name": "rayon",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":either-1.17.0",
-                    ":rayon-core-1.13.0",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":either-1.17.0",
-                    ":rayon-core-1.13.0",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":either-1.17.0",
-                    ":rayon-core-1.13.0",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":either-1.17.0",
-                    ":rayon-core-1.13.0",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":either-1.17.0",
-                    ":rayon-core-1.13.0",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":either-1.17.0",
-                    ":rayon-core-1.13.0",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":either-1.17.0",
-                    ":rayon-core-1.13.0",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "1.12.0",
-    },
-    "rayon-core-1.13.0": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "edition": "2021",
-        },
-        "env": {
-            "CARGO_PKG_DESCRIPTION": "Core APIs for Rayon",
-            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/rayon-rs/rayon",
-            "CARGO_PKG_RUST_VERSION": "1.80",
-        },
-        "library": {
-            "crate": "rayon_core",
-            "crate_root": "src/lib.rs",
-            "edition": "2021",
-            "proc_macro": False,
-        },
-        "links": "rayon-core",
-        "name": "rayon-core",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":crossbeam-deque-0.8.7",
-                    ":crossbeam-utils-0.8.21",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":crossbeam-deque-0.8.7",
-                    ":crossbeam-utils-0.8.21",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":crossbeam-deque-0.8.7",
-                    ":crossbeam-utils-0.8.21",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":crossbeam-deque-0.8.7",
-                    ":crossbeam-utils-0.8.21",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":crossbeam-deque-0.8.7",
-                    ":crossbeam-utils-0.8.21",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":crossbeam-deque-0.8.7",
-                    ":crossbeam-utils-0.8.21",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":crossbeam-deque-0.8.7",
-                    ":crossbeam-utils-0.8.21",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "1.13.0",
     },
     "rc2-0.9.0": {
         "build_script": None,
@@ -38642,6 +43514,16 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":font-types-0.12.7",
+                    ":once_cell-1.21.4",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":bytemuck-1.25.0",
@@ -38654,6 +43536,28 @@ third_party = {
                 ],
             },
             "macos-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":font-types-0.12.7",
+                    ":once_cell-1.21.4",
+                ],
+                "features": [
+                    "experimental_font_api",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":font-types-0.12.7",
+                    ":once_cell-1.21.4",
+                ],
+                "features": [
+                    "experimental_font_api",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
                 "deps": [
                     ":bytemuck-1.25.0",
                     ":font-types-0.12.7",
@@ -38691,158 +43595,6 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.41.0",
-    },
-    "regalloc2-0.15.2": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Chris Fallin <chris@cfallin.org>:Mozilla SpiderMonkey Developers",
-            "CARGO_PKG_DESCRIPTION": "Backtracking register allocator inspired from IonMonkey",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/regalloc2",
-        },
-        "library": {
-            "crate": "regalloc2",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "regalloc2",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":allocator-api2-0.2.21",
-                    ":bumpalo-3.20.3",
-                    ":hashbrown-0.17.1",
-                    ":log-0.4.31",
-                    ":rustc-hash-2.1.2",
-                    ":serde-1.0.228",
-                    ":smallvec-1.16.5",
-                ],
-                "features": [
-                    "checker",
-                    "default",
-                    "enable-serde",
-                    "serde",
-                    "std",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":allocator-api2-0.2.21",
-                    ":bumpalo-3.20.3",
-                    ":hashbrown-0.17.1",
-                    ":log-0.4.31",
-                    ":rustc-hash-2.1.2",
-                    ":serde-1.0.228",
-                    ":smallvec-1.16.5",
-                ],
-                "features": [
-                    "checker",
-                    "default",
-                    "enable-serde",
-                    "serde",
-                    "std",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":allocator-api2-0.2.21",
-                    ":bumpalo-3.20.3",
-                    ":hashbrown-0.17.1",
-                    ":log-0.4.31",
-                    ":rustc-hash-2.1.2",
-                    ":serde-1.0.228",
-                    ":smallvec-1.16.5",
-                ],
-                "features": [
-                    "checker",
-                    "default",
-                    "enable-serde",
-                    "serde",
-                    "std",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":allocator-api2-0.2.21",
-                    ":bumpalo-3.20.3",
-                    ":hashbrown-0.17.1",
-                    ":log-0.4.31",
-                    ":rustc-hash-2.1.2",
-                    ":serde-1.0.228",
-                    ":smallvec-1.16.5",
-                ],
-                "features": [
-                    "checker",
-                    "default",
-                    "enable-serde",
-                    "serde",
-                    "std",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":allocator-api2-0.2.21",
-                    ":bumpalo-3.20.3",
-                    ":hashbrown-0.17.1",
-                    ":log-0.4.31",
-                    ":rustc-hash-2.1.2",
-                    ":serde-1.0.228",
-                    ":smallvec-1.16.5",
-                ],
-                "features": [
-                    "checker",
-                    "default",
-                    "enable-serde",
-                    "serde",
-                    "std",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":allocator-api2-0.2.21",
-                    ":bumpalo-3.20.3",
-                    ":hashbrown-0.17.1",
-                    ":log-0.4.31",
-                    ":rustc-hash-2.1.2",
-                    ":serde-1.0.228",
-                    ":smallvec-1.16.5",
-                ],
-                "features": [
-                    "checker",
-                    "default",
-                    "enable-serde",
-                    "serde",
-                    "std",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":allocator-api2-0.2.21",
-                    ":bumpalo-3.20.3",
-                    ":hashbrown-0.17.1",
-                    ":log-0.4.31",
-                    ":rustc-hash-2.1.2",
-                    ":serde-1.0.228",
-                    ":smallvec-1.16.5",
-                ],
-                "features": [
-                    "checker",
-                    "default",
-                    "enable-serde",
-                    "serde",
-                    "std",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-            "-Copt-level=2",
-            "-Cdebug-assertions=off",
-            "-Coverflow-checks=off",
-        ],
-        "version": "0.15.2",
     },
     "regex-1.13.1": {
         "build_script": None,
@@ -39260,6 +44012,8 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
+                    "dfa",
                     "dfa-build",
                     "dfa-onepass",
                     "dfa-search",
@@ -39764,6 +44518,72 @@ third_party = {
         ],
         "version": "1.1.0",
     },
+    "resb-0.1.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
+            "CARGO_PKG_DESCRIPTION": "Utilities for reading and writing ICU resource bundle files",
+            "CARGO_PKG_LICENSE": "Unicode-3.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
+            "CARGO_PKG_RUST_VERSION": "1.82",
+        },
+        "library": {
+            "crate": "resb",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "resb",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":potential_utf-0.1.5",
+                    ":serde_core-1.0.228",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":potential_utf-0.1.5",
+                    ":serde_core-1.0.228",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":potential_utf-0.1.5",
+                    ":serde_core-1.0.228",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":potential_utf-0.1.5",
+                    ":serde_core-1.0.228",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":potential_utf-0.1.5",
+                    ":serde_core-1.0.228",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":potential_utf-0.1.5",
+                    ":serde_core-1.0.228",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":potential_utf-0.1.5",
+                    ":serde_core-1.0.228",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.1.2",
+    },
     "resvg-0.48.1": {
         "build_script": None,
         "env": {
@@ -39891,6 +44711,95 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.48.1",
+    },
+    "rfc6979-0.6.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of RFC6979: Deterministic Usage of the Digital Signature Algorithm (DSA)\nand Elliptic Curve Digital Signature Algorithm (ECDSA)\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/signatures/tree/master/rfc6979",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/signatures",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "rfc6979",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "rfc6979",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":hmac-0.13.0",
+                ],
+                "named_deps": {
+                    "bigint": ":crypto-bigint-0.7.11",
+                },
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":hmac-0.13.0",
+                ],
+                "named_deps": {
+                    "bigint": ":crypto-bigint-0.7.11",
+                },
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":hmac-0.13.0",
+                ],
+                "named_deps": {
+                    "bigint": ":crypto-bigint-0.7.11",
+                },
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":hmac-0.13.0",
+                ],
+                "named_deps": {
+                    "bigint": ":crypto-bigint-0.7.11",
+                },
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":hmac-0.13.0",
+                ],
+                "named_deps": {
+                    "bigint": ":crypto-bigint-0.7.11",
+                },
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":hmac-0.13.0",
+                ],
+                "named_deps": {
+                    "bigint": ":crypto-bigint-0.7.11",
+                },
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":hmac-0.13.0",
+                ],
+                "named_deps": {
+                    "bigint": ":crypto-bigint-0.7.11",
+                },
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":hmac-0.13.0",
+                ],
+                "named_deps": {
+                    "bigint": ":crypto-bigint-0.7.11",
+                },
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.6.0",
     },
     "rfd-0.15.4": {
         "build_script": {
@@ -40617,6 +45526,201 @@ third_party = {
         ],
         "version": "0.21.1",
     },
+    "rsa-0.10.0-rc.19": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers:dignifiedquire <dignifiedquire@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust RSA implementation",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/RSA",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "rsa",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "rsa",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":crypto-bigint-0.7.11",
+                    ":crypto-primes-0.7.2",
+                    ":digest-0.11.3",
+                    ":pkcs1-0.8.0",
+                    ":pkcs8-0.11.0",
+                    ":rand_core-0.10.1",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "encoding",
+                    "sha2",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":crypto-bigint-0.7.11",
+                    ":crypto-primes-0.7.2",
+                    ":digest-0.11.3",
+                    ":pkcs1-0.8.0",
+                    ":pkcs8-0.11.0",
+                    ":rand_core-0.10.1",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "encoding",
+                    "sha2",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":crypto-bigint-0.7.11",
+                    ":crypto-primes-0.7.2",
+                    ":digest-0.11.3",
+                    ":pkcs1-0.8.0",
+                    ":pkcs8-0.11.0",
+                    ":rand_core-0.10.1",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "encoding",
+                    "sha2",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":crypto-bigint-0.7.11",
+                    ":crypto-primes-0.7.2",
+                    ":digest-0.11.3",
+                    ":pkcs1-0.8.0",
+                    ":pkcs8-0.11.0",
+                    ":rand_core-0.10.1",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "encoding",
+                    "sha2",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":crypto-bigint-0.7.11",
+                    ":crypto-primes-0.7.2",
+                    ":digest-0.11.3",
+                    ":pkcs1-0.8.0",
+                    ":pkcs8-0.11.0",
+                    ":rand_core-0.10.1",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "encoding",
+                    "sha2",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":crypto-bigint-0.7.11",
+                    ":crypto-primes-0.7.2",
+                    ":digest-0.11.3",
+                    ":pkcs1-0.8.0",
+                    ":pkcs8-0.11.0",
+                    ":rand_core-0.10.1",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "encoding",
+                    "sha2",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":crypto-bigint-0.7.11",
+                    ":crypto-primes-0.7.2",
+                    ":digest-0.11.3",
+                    ":pkcs1-0.8.0",
+                    ":pkcs8-0.11.0",
+                    ":rand_core-0.10.1",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "encoding",
+                    "sha2",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":crypto-bigint-0.7.11",
+                    ":crypto-primes-0.7.2",
+                    ":digest-0.11.3",
+                    ":pkcs1-0.8.0",
+                    ":pkcs8-0.11.0",
+                    ":rand_core-0.10.1",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "encoding",
+                    "sha2",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+            "-Copt-level=2",
+            "-Cdebug-assertions=off",
+            "-Coverflow-checks=off",
+        ],
+        "version": "0.10.0-rc.19",
+    },
     "rsa-0.9.10": {
         "build_script": None,
         "env": {
@@ -40709,6 +45813,30 @@ third_party = {
                     "getrandom",
                     "pem",
                     "sha2",
+                    "std",
+                    "u64_digit",
+                ],
+                "named_deps": {
+                    "num_bigint": ":num-bigint-dig-0.8.6",
+                },
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":const-oid-0.9.6",
+                    ":digest-0.10.7",
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                    ":pkcs1-0.7.5",
+                    ":pkcs8-0.10.2",
+                    ":rand_core-0.6.4",
+                    ":signature-2.2.0",
+                    ":spki-0.7.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "pem",
                     "std",
                     "u64_digit",
                 ],
@@ -41000,41 +46128,13 @@ third_party = {
         },
         "name": "rustc-demangle",
         "platforms": {
-            "android-arm64": {
-                "features": [
-                    "std",
-                ],
-            },
-            "linux-arm64": {
-                "features": [
-                    "std",
-                ],
-            },
-            "linux-x86_64": {
-                "features": [
-                    "std",
-                ],
-            },
-            "macos-arm64": {
-                "features": [
-                    "std",
-                ],
-            },
-            "macos-x86_64": {
-                "features": [
-                    "std",
-                ],
-            },
-            "windows-arm64": {
-                "features": [
-                    "std",
-                ],
-            },
-            "windows-x86_64": {
-                "features": [
-                    "std",
-                ],
-            },
+            "android-arm64": {},
+            "linux-arm64": {},
+            "linux-x86_64": {},
+            "macos-arm64": {},
+            "macos-x86_64": {},
+            "windows-arm64": {},
+            "windows-x86_64": {},
         },
         "profile_flags": [
             "-Cdebuginfo=0",
@@ -41089,7 +46189,8 @@ third_party = {
                 ],
             },
             "wasi": {},
-            "wasm32": {},
+            "wasi-guest": {},
+            "wasm32-bindgen": {},
             "windows-arm64": {
                 "features": [
                     "default",
@@ -41264,6 +46365,11 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":nom-7.1.3",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":nom-7.1.3",
                 ],
@@ -41476,13 +46582,11 @@ third_party = {
                     "fs",
                     "mm",
                     "net",
-                    "param",
                     "pipe",
                     "process",
                     "shm",
                     "std",
                     "system",
-                    "termios",
                     "time",
                 ],
                 "named_deps": {
@@ -41501,13 +46605,11 @@ third_party = {
                     "fs",
                     "mm",
                     "net",
-                    "param",
                     "pipe",
                     "process",
                     "shm",
                     "std",
                     "system",
-                    "termios",
                     "thread",
                     "time",
                 ],
@@ -41524,13 +46626,11 @@ third_party = {
                     "fs",
                     "mm",
                     "net",
-                    "param",
                     "pipe",
                     "process",
                     "shm",
                     "std",
                     "system",
-                    "termios",
                     "thread",
                     "time",
                 ],
@@ -41547,13 +46647,11 @@ third_party = {
                     "fs",
                     "mm",
                     "net",
-                    "param",
                     "pipe",
                     "process",
                     "shm",
                     "std",
                     "system",
-                    "termios",
                     "time",
                 ],
                 "named_deps": {
@@ -41572,13 +46670,11 @@ third_party = {
                     "fs",
                     "mm",
                     "net",
-                    "param",
                     "pipe",
                     "process",
                     "shm",
                     "std",
                     "system",
-                    "termios",
                     "time",
                 ],
                 "named_deps": {
@@ -41636,60 +46732,6 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "1.1.4",
-    },
-    "rustix-linux-procfs-0.1.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Dan Gohman <dev@sunfishcode.online>",
-            "CARGO_PKG_DESCRIPTION": "Utilities for opening Linux procfs files and directories",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/sunfishcode/rustix-linux-procfs",
-            "CARGO_PKG_RUST_VERSION": "1.63",
-        },
-        "library": {
-            "crate": "rustix_linux_procfs",
-            "crate_root": "src/lib.rs",
-            "edition": "2021",
-            "proc_macro": False,
-        },
-        "name": "rustix-linux-procfs",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":once_cell-1.21.4",
-                    ":rustix-1.1.4",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":once_cell-1.21.4",
-                    ":rustix-1.1.4",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":once_cell-1.21.4",
-                    ":rustix-1.1.4",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.1.1",
     },
     "rustls-0.23.43": {
         "build_script": {
@@ -43572,6 +48614,12 @@ third_party = {
                     ":cipher-0.5.2",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cipher-0.5.2",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":cfg-if-1.0.4",
@@ -43717,7 +48765,7 @@ third_party = {
                 ],
             },
             "wasi": {},
-            "wasm32": {},
+            "wasm32-bindgen": {},
             "windows-arm64": {
                 "features": [
                     "default",
@@ -43772,6 +48820,14 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":pbkdf2-0.13.0",
+                    ":salsa20-0.11.0",
+                    ":sha2-0.11.1",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":cfg-if-1.0.4",
                     ":pbkdf2-0.13.0",
@@ -43866,6 +48922,367 @@ third_party = {
         ],
         "version": "0.12.0",
     },
+    "sec1-0.7.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of SEC1: Elliptic Curve Cryptography encoding formats\nincluding ASN.1 DER-serialized private keys as well as the\nElliptic-Curve-Point-to-Octet-String encoding\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats/tree/master/sec1",
+            "CARGO_PKG_RUST_VERSION": "1.65",
+        },
+        "library": {
+            "crate": "sec1",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "sec1",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":der-0.7.10",
+                    ":generic-array-0.14.7",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "der",
+                    "point",
+                    "std",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":der-0.7.10",
+                    ":generic-array-0.14.7",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "der",
+                    "point",
+                    "std",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":der-0.7.10",
+                    ":generic-array-0.14.7",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "der",
+                    "point",
+                    "std",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":der-0.7.10",
+                    ":generic-array-0.14.7",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "der",
+                    "point",
+                    "std",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":der-0.7.10",
+                    ":generic-array-0.14.7",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "der",
+                    "point",
+                    "std",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":der-0.7.10",
+                    ":generic-array-0.14.7",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "der",
+                    "point",
+                    "std",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":der-0.7.10",
+                    ":generic-array-0.14.7",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "der",
+                    "point",
+                    "std",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":der-0.7.10",
+                    ":generic-array-0.14.7",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "der",
+                    "point",
+                    "std",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.7.3",
+    },
+    "sec1-0.8.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of SEC1: Elliptic Curve Cryptography encoding formats including ASN.1 DER\nencoded private keys as well as the Elliptic-Curve-Point-to-Octet-String encoding\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/formats/tree/master/sec1",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "sec1",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "sec1",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":ctutils-0.4.8",
+                    ":der-0.8.2",
+                    ":hybrid-array-0.4.15",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "ctutils",
+                    "default",
+                    "der",
+                    "pem",
+                    "point",
+                    "std",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":ctutils-0.4.8",
+                    ":der-0.8.2",
+                    ":hybrid-array-0.4.15",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "ctutils",
+                    "default",
+                    "der",
+                    "pem",
+                    "point",
+                    "std",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":ctutils-0.4.8",
+                    ":der-0.8.2",
+                    ":hybrid-array-0.4.15",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "ctutils",
+                    "default",
+                    "der",
+                    "pem",
+                    "point",
+                    "std",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":ctutils-0.4.8",
+                    ":der-0.8.2",
+                    ":hybrid-array-0.4.15",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "ctutils",
+                    "default",
+                    "der",
+                    "pem",
+                    "point",
+                    "std",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":ctutils-0.4.8",
+                    ":der-0.8.2",
+                    ":hybrid-array-0.4.15",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "ctutils",
+                    "default",
+                    "der",
+                    "pem",
+                    "point",
+                    "std",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":ctutils-0.4.8",
+                    ":der-0.8.2",
+                    ":hybrid-array-0.4.15",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "ctutils",
+                    "default",
+                    "der",
+                    "pem",
+                    "point",
+                    "std",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":ctutils-0.4.8",
+                    ":der-0.8.2",
+                    ":hybrid-array-0.4.15",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "ctutils",
+                    "default",
+                    "der",
+                    "pem",
+                    "point",
+                    "std",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":ctutils-0.4.8",
+                    ":der-0.8.2",
+                    ":hybrid-array-0.4.15",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "ctutils",
+                    "default",
+                    "der",
+                    "pem",
+                    "point",
+                    "std",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.8.1",
+    },
     "semver-1.0.28": {
         "build_script": None,
         "env": {
@@ -43886,67 +49303,41 @@ third_party = {
         "platforms": {
             "android-arm64": {
                 "features": [
-                    "serde",
                     "std",
                 ],
-                "named_deps": {
-                    "serde": ":serde_core-1.0.228",
-                },
             },
             "linux-arm64": {
                 "features": [
-                    "serde",
                     "std",
                 ],
-                "named_deps": {
-                    "serde": ":serde_core-1.0.228",
-                },
             },
             "linux-x86_64": {
                 "features": [
                     "default",
-                    "serde",
                     "std",
                 ],
-                "named_deps": {
-                    "serde": ":serde_core-1.0.228",
-                },
             },
             "macos-arm64": {
                 "features": [
-                    "serde",
                     "std",
                 ],
-                "named_deps": {
-                    "serde": ":serde_core-1.0.228",
-                },
             },
             "macos-x86_64": {
                 "features": [
-                    "serde",
                     "std",
                 ],
-                "named_deps": {
-                    "serde": ":serde_core-1.0.228",
-                },
             },
+            "wasi": {},
+            "wasm32-bindgen": {},
             "windows-arm64": {
                 "features": [
-                    "serde",
                     "std",
                 ],
-                "named_deps": {
-                    "serde": ":serde_core-1.0.228",
-                },
             },
             "windows-x86_64": {
                 "features": [
-                    "serde",
                     "std",
                 ],
-                "named_deps": {
-                    "serde": ":serde_core-1.0.228",
-                },
             },
         },
         "profile_flags": [
@@ -44102,7 +49493,7 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":serde_core-1.0.228",
                     ":serde_derive-1.0.228",
@@ -44111,7 +49502,6 @@ third_party = {
                     "alloc",
                     "default",
                     "derive",
-                    "rc",
                     "serde_derive",
                     "std",
                 ],
@@ -44149,6 +49539,77 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "1.0.228",
+    },
+    "serde-value-0.7.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "arcnmx",
+            "CARGO_PKG_DESCRIPTION": "Serialization value trees",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/arcnmx/serde-value",
+        },
+        "library": {
+            "crate": "serde_value",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "serde-value",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":ordered-float-2.10.1",
+                    ":serde-1.0.228",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":ordered-float-2.10.1",
+                    ":serde-1.0.228",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":ordered-float-2.10.1",
+                    ":serde-1.0.228",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":ordered-float-2.10.1",
+                    ":serde-1.0.228",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":ordered-float-2.10.1",
+                    ":serde-1.0.228",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":ordered-float-2.10.1",
+                    ":serde-1.0.228",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":ordered-float-2.10.1",
+                    ":serde-1.0.228",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":ordered-float-2.10.1",
+                    ":serde-1.0.228",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.7.0",
     },
     "serde_bytes-0.11.19": {
         "build_script": None,
@@ -44249,7 +49710,7 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":serde_core-1.0.228",
                 ],
@@ -44282,6 +49743,110 @@ third_party = {
         ],
         "version": "0.11.19",
     },
+    "serde_cbor_2-0.13.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "William Brown <william@blackhats.net.au>:James Hodgkinson <james@terminaloutcomes.com>",
+            "CARGO_PKG_DESCRIPTION": "CBOR support for Serde.",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/kanidm/cbor",
+            "CARGO_PKG_RUST_VERSION": "1.81",
+        },
+        "library": {
+            "crate": "serde_cbor_2",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "serde_cbor_2",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":half-2.7.1",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":half-2.7.1",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":half-2.7.1",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":half-2.7.1",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":half-2.7.1",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":half-2.7.1",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":half-2.7.1",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":half-2.7.1",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.13.0",
+    },
     "serde_core-1.0.228": {
         "build_script": {
             "crate_root": "build.rs",
@@ -44307,6 +49872,7 @@ third_party = {
             "android-arm64": {
                 "features": [
                     "alloc",
+                    "default",
                     "rc",
                     "result",
                     "std",
@@ -44315,6 +49881,7 @@ third_party = {
             "linux-arm64": {
                 "features": [
                     "alloc",
+                    "default",
                     "rc",
                     "result",
                     "std",
@@ -44323,6 +49890,7 @@ third_party = {
             "linux-x86_64": {
                 "features": [
                     "alloc",
+                    "default",
                     "rc",
                     "result",
                     "std",
@@ -44331,6 +49899,7 @@ third_party = {
             "linux-x86_64-html": {
                 "features": [
                     "alloc",
+                    "default",
                     "rc",
                     "result",
                     "std",
@@ -44339,6 +49908,7 @@ third_party = {
             "macos-arm64": {
                 "features": [
                     "alloc",
+                    "default",
                     "rc",
                     "result",
                     "std",
@@ -44347,6 +49917,7 @@ third_party = {
             "macos-x86_64": {
                 "features": [
                     "alloc",
+                    "default",
                     "rc",
                     "result",
                     "std",
@@ -44376,10 +49947,9 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "features": [
                     "alloc",
-                    "rc",
                     "result",
                     "std",
                 ],
@@ -44387,6 +49957,7 @@ third_party = {
             "windows-arm64": {
                 "features": [
                     "alloc",
+                    "default",
                     "rc",
                     "result",
                     "std",
@@ -44395,6 +49966,7 @@ third_party = {
             "windows-x86_64": {
                 "features": [
                     "alloc",
+                    "default",
                     "rc",
                     "result",
                     "std",
@@ -44573,7 +50145,7 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":itoa-1.0.18",
                     ":memchr-2.8.3",
@@ -44615,6 +50187,142 @@ third_party = {
         ],
         "version": "1.0.150",
     },
+    "serde_path_to_error-0.1.20": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "David Tolnay <dtolnay@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Path to the element that failed to deserialize",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/dtolnay/path-to-error",
+            "CARGO_PKG_RUST_VERSION": "1.61",
+        },
+        "library": {
+            "crate": "serde_path_to_error",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "serde_path_to_error",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":itoa-1.0.18",
+                    ":serde_core-1.0.228",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":itoa-1.0.18",
+                    ":serde_core-1.0.228",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":itoa-1.0.18",
+                    ":serde_core-1.0.228",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":itoa-1.0.18",
+                    ":serde_core-1.0.228",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":itoa-1.0.18",
+                    ":serde_core-1.0.228",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":itoa-1.0.18",
+                    ":serde_core-1.0.228",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":itoa-1.0.18",
+                    ":serde_core-1.0.228",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":itoa-1.0.18",
+                    ":serde_core-1.0.228",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.1.20",
+    },
+    "serde_plain-1.0.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Armin Ronacher <armin.ronacher@active-4.com>",
+            "CARGO_PKG_DESCRIPTION": "A restricted plain text serializer for serde",
+            "CARGO_PKG_HOMEPAGE": "https://docs.rs/serde_plain",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/mitsuhiko/serde-plain",
+        },
+        "library": {
+            "crate": "serde_plain",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "serde_plain",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":serde-1.0.228",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":serde-1.0.228",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":serde-1.0.228",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":serde-1.0.228",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":serde-1.0.228",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":serde-1.0.228",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":serde-1.0.228",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":serde-1.0.228",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.0.2",
+    },
     "serde_repr-0.1.21": {
         "build_script": None,
         "env": {
@@ -44637,7 +50345,7 @@ third_party = {
                 "deps": [
                     ":proc-macro2-1.0.106",
                     ":quote-1.0.45",
-                    ":syn-3.0.3",
+                    ":syn-3.0.10",
                 ],
             },
         },
@@ -44714,16 +50422,6 @@ third_party = {
                 ],
             },
             "wasi-guest": {
-                "deps": [
-                    ":serde_core-1.0.228",
-                ],
-                "features": [
-                    "alloc",
-                    "serde",
-                    "std",
-                ],
-            },
-            "wasm32": {
                 "deps": [
                     ":serde_core-1.0.228",
                 ],
@@ -44845,6 +50543,174 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.7.1",
+    },
+    "serde_with-3.22.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Jonas Bushart:Marcin Kaźmierczak",
+            "CARGO_PKG_DESCRIPTION": "Custom de/serialization functions for Rust's serde",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/jonasbb/serde_with/",
+            "CARGO_PKG_RUST_VERSION": "1.88",
+        },
+        "library": {
+            "crate": "serde_with",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "serde_with",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":serde_core-1.0.228",
+                    ":serde_with_macros-3.22.0",
+                ],
+                "features": [
+                    "alloc",
+                    "base64",
+                    "default",
+                    "macros",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":serde_core-1.0.228",
+                    ":serde_with_macros-3.22.0",
+                ],
+                "features": [
+                    "alloc",
+                    "base64",
+                    "default",
+                    "macros",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":serde_core-1.0.228",
+                    ":serde_with_macros-3.22.0",
+                ],
+                "features": [
+                    "alloc",
+                    "base64",
+                    "default",
+                    "macros",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":serde_core-1.0.228",
+                    ":serde_with_macros-3.22.0",
+                ],
+                "features": [
+                    "alloc",
+                    "base64",
+                    "default",
+                    "macros",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":serde_core-1.0.228",
+                    ":serde_with_macros-3.22.0",
+                ],
+                "features": [
+                    "alloc",
+                    "base64",
+                    "default",
+                    "macros",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":serde_core-1.0.228",
+                    ":serde_with_macros-3.22.0",
+                ],
+                "features": [
+                    "alloc",
+                    "base64",
+                    "default",
+                    "macros",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":serde_core-1.0.228",
+                    ":serde_with_macros-3.22.0",
+                ],
+                "features": [
+                    "alloc",
+                    "base64",
+                    "default",
+                    "macros",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":base64-0.22.1",
+                    ":serde_core-1.0.228",
+                    ":serde_with_macros-3.22.0",
+                ],
+                "features": [
+                    "alloc",
+                    "base64",
+                    "default",
+                    "macros",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "3.22.0",
+    },
+    "serde_with_macros-3.22.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Jonas Bushart",
+            "CARGO_PKG_DESCRIPTION": "proc-macro library for serde_with",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/jonasbb/serde_with/",
+            "CARGO_PKG_RUST_VERSION": "1.88",
+        },
+        "library": {
+            "crate": "serde_with_macros",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": True,
+        },
+        "name": "serde_with_macros",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":darling-0.23.0",
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":syn-2.0.117",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "3.22.0",
     },
     "serial2-0.2.38": {
         "build_script": None,
@@ -45201,6 +51067,7 @@ third_party = {
                 ],
                 "features": [
                     "default",
+                    "oid",
                     "std",
                 ],
             },
@@ -45248,7 +51115,7 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":cfg-if-1.0.4",
                     ":digest-0.10.7",
@@ -45413,6 +51280,35 @@ third_party = {
             "-Coverflow-checks=off",
         ],
         "version": "0.11.1",
+    },
+    "sha3-0.10.9": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of SHA-3, a family of Keccak-based hash functions\nincluding the SHAKE family of eXtendable-Output Functions (XOFs), as well as\nthe accelerated variant TurboSHAKE\n",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/hashes",
+        },
+        "library": {
+            "crate": "sha3",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "sha3",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":digest-0.10.7",
+                    ":keccak-0.1.6",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.10.9",
     },
     "sharded-slab-0.1.7": {
         "build_script": None,
@@ -45753,8 +51649,14 @@ third_party = {
                 ],
             },
             "linux-x86_64-html": {
+                "deps": [
+                    ":digest-0.10.7",
+                    ":rand_core-0.6.4",
+                ],
                 "features": [
                     "alloc",
+                    "digest",
+                    "rand_core",
                     "std",
                 ],
             },
@@ -45783,6 +51685,12 @@ third_party = {
                 ],
             },
             "wasi": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
                 "features": [
                     "alloc",
                     "std",
@@ -45817,6 +51725,118 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "2.2.0",
+    },
+    "signature-3.0.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Traits for cryptographic signature algorithms (e.g. ECDSA, Ed25519)",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/traits",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "signature",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "signature",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":digest-0.11.3",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "alloc",
+                    "digest",
+                    "rand_core",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":digest-0.11.3",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "alloc",
+                    "digest",
+                    "rand_core",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":digest-0.11.3",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "alloc",
+                    "digest",
+                    "rand_core",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":digest-0.11.3",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "alloc",
+                    "digest",
+                    "rand_core",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":digest-0.11.3",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "alloc",
+                    "digest",
+                    "rand_core",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":digest-0.11.3",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "alloc",
+                    "digest",
+                    "rand_core",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":digest-0.11.3",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "alloc",
+                    "digest",
+                    "rand_core",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":digest-0.11.3",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "alloc",
+                    "digest",
+                    "rand_core",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "3.0.0",
     },
     "simd-adler32-0.3.9": {
         "build_script": None,
@@ -46106,13 +52126,6 @@ third_party = {
                     "text",
                 ],
             },
-            "wasm32": {
-                "features": [
-                    "default",
-                    "std",
-                    "text",
-                ],
-            },
             "windows-arm64": {
                 "features": [
                     "default",
@@ -46353,6 +52366,15 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":read-fonts-0.41.0",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":bytemuck-1.25.0",
@@ -46363,6 +52385,24 @@ third_party = {
                 ],
             },
             "macos-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":read-fonts-0.41.0",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":read-fonts-0.41.0",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "wasi-guest": {
                 "deps": [
                     ":bytemuck-1.25.0",
                     ":read-fonts-0.41.0",
@@ -46464,7 +52504,7 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "features": [
                     "std",
                 ],
@@ -46522,7 +52562,7 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "features": [
                     "default",
                     "std",
@@ -46554,35 +52594,23 @@ third_party = {
         "name": "smallvec",
         "platforms": {
             "android-arm64": {
-                "deps": [
-                    ":serde-1.0.228",
-                ],
                 "features": [
                     "const_generics",
                     "const_new",
-                    "serde",
                     "union",
                 ],
             },
             "linux-arm64": {
-                "deps": [
-                    ":serde-1.0.228",
-                ],
                 "features": [
                     "const_generics",
                     "const_new",
-                    "serde",
                     "union",
                 ],
             },
             "linux-x86_64": {
-                "deps": [
-                    ":serde-1.0.228",
-                ],
                 "features": [
                     "const_generics",
                     "const_new",
-                    "serde",
                     "union",
                 ],
             },
@@ -46593,24 +52621,16 @@ third_party = {
                 ],
             },
             "macos-arm64": {
-                "deps": [
-                    ":serde-1.0.228",
-                ],
                 "features": [
                     "const_generics",
                     "const_new",
-                    "serde",
                     "union",
                 ],
             },
             "macos-x86_64": {
-                "deps": [
-                    ":serde-1.0.228",
-                ],
                 "features": [
                     "const_generics",
                     "const_new",
-                    "serde",
                     "union",
                 ],
             },
@@ -46626,26 +52646,18 @@ third_party = {
                     "const_new",
                 ],
             },
-            "wasm32": {},
+            "wasm32-bindgen": {},
             "windows-arm64": {
-                "deps": [
-                    ":serde-1.0.228",
-                ],
                 "features": [
                     "const_generics",
                     "const_new",
-                    "serde",
                     "union",
                 ],
             },
             "windows-x86_64": {
-                "deps": [
-                    ":serde-1.0.228",
-                ],
                 "features": [
                     "const_generics",
                     "const_new",
-                    "serde",
                     "union",
                 ],
             },
@@ -47477,6 +53489,18 @@ third_party = {
                     "getrandom",
                 ],
             },
+            "wasi-guest": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":hkdf-0.12.4",
+                    ":rand_core-0.6.4",
+                    ":sha2-0.10.9",
+                ],
+                "features": [
+                    "default",
+                    "getrandom",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":curve25519-dalek-4.1.3",
@@ -47826,6 +53850,16 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":der-0.7.10",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":der-0.7.10",
@@ -47894,64 +53928,121 @@ third_party = {
             "android-arm64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":sha2-0.11.1",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
+                    "fingerprint",
                     "pem",
+                    "sha2",
+                    "std",
                 ],
             },
             "linux-arm64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":sha2-0.11.1",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
+                    "fingerprint",
                     "pem",
+                    "sha2",
+                    "std",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":sha2-0.11.1",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
+                    "fingerprint",
                     "pem",
+                    "sha2",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "digest",
+                    "fingerprint",
+                    "pem",
+                    "sha2",
+                    "std",
                 ],
             },
             "macos-arm64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":sha2-0.11.1",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
+                    "fingerprint",
                     "pem",
+                    "sha2",
+                    "std",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":sha2-0.11.1",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
+                    "fingerprint",
                     "pem",
+                    "sha2",
+                    "std",
                 ],
             },
             "windows-arm64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":sha2-0.11.1",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
+                    "fingerprint",
                     "pem",
+                    "sha2",
+                    "std",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":sha2-0.11.1",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
+                    "fingerprint",
                     "pem",
+                    "sha2",
+                    "std",
                 ],
             },
         },
@@ -47977,18 +54068,46 @@ third_party = {
         },
         "name": "stable_deref_trait",
         "platforms": {
-            "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
+            "android-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "alloc",
+                ],
+            },
             "linux-x86_64-html": {},
-            "macos-arm64": {},
-            "macos-x86_64": {},
+            "macos-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "alloc",
+                ],
+            },
             "wasi": {},
             "wasi-guest": {},
             "wasi-html": {},
-            "wasm32": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
+            "wasm32-bindgen": {},
+            "windows-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "alloc",
+                ],
+            },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
@@ -48020,7 +54139,7 @@ third_party = {
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
-            "wasm32": {},
+            "wasm32-bindgen": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -48138,6 +54257,37 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.1.9",
+    },
+    "strck-1.0.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Quinn Okabayashi <quinnokabayashi@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Checked owned and borrowed strings",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/QnnOkabayashi/strck",
+        },
+        "library": {
+            "crate": "strck",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "strck",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":unicode-ident-1.0.24",
+                ],
+                "features": [
+                    "ident",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.0.0",
     },
     "streaming-iterator-0.1.9": {
         "build_script": None,
@@ -48267,6 +54417,38 @@ third_party = {
         ],
         "version": "0.1.1",
     },
+    "string_cache-0.8.9": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The Servo Project Developers",
+            "CARGO_PKG_DESCRIPTION": "A string interning library for Rust, developed as part of the Servo project.",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/servo/string-cache",
+            "CARGO_PKG_RUST_VERSION": "1.70.0",
+        },
+        "library": {
+            "crate": "string_cache",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "string_cache",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":new_debug_unreachable-1.0.6",
+                    ":parking_lot-0.12.5",
+                    ":phf_shared-0.11.3",
+                    ":precomputed-hash-0.1.1",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.8.9",
+    },
     "strsim-0.11.1": {
         "build_script": None,
         "env": {
@@ -48313,6 +54495,7 @@ third_party = {
         "platforms": {
             "android-arm64": {
                 "features": [
+                    "const-generics",
                     "default",
                     "i128",
                     "std",
@@ -48320,6 +54503,7 @@ third_party = {
             },
             "linux-arm64": {
                 "features": [
+                    "const-generics",
                     "default",
                     "i128",
                     "std",
@@ -48327,6 +54511,7 @@ third_party = {
             },
             "linux-x86_64": {
                 "features": [
+                    "const-generics",
                     "default",
                     "i128",
                     "std",
@@ -48334,6 +54519,7 @@ third_party = {
             },
             "linux-x86_64-html": {
                 "features": [
+                    "const-generics",
                     "default",
                     "i128",
                     "std",
@@ -48341,6 +54527,7 @@ third_party = {
             },
             "macos-arm64": {
                 "features": [
+                    "const-generics",
                     "default",
                     "i128",
                     "std",
@@ -48348,6 +54535,7 @@ third_party = {
             },
             "macos-x86_64": {
                 "features": [
+                    "const-generics",
                     "default",
                     "i128",
                     "std",
@@ -48357,6 +54545,7 @@ third_party = {
             "wasi-guest": {},
             "windows-arm64": {
                 "features": [
+                    "const-generics",
                     "default",
                     "i128",
                     "std",
@@ -48364,6 +54553,7 @@ third_party = {
             },
             "windows-x86_64": {
                 "features": [
+                    "const-generics",
                     "default",
                     "i128",
                     "std",
@@ -49061,7 +55251,7 @@ third_party = {
         ],
         "version": "2.0.117",
     },
-    "syn-3.0.3": {
+    "syn-3.0.10": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "David Tolnay <dtolnay@gmail.com>",
@@ -49103,7 +55293,7 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "3.0.3",
+        "version": "3.0.10",
     },
     "sync_wrapper-1.0.2": {
         "build_script": None,
@@ -49228,7 +55418,7 @@ third_party = {
                 "deps": [
                     ":proc-macro2-1.0.106",
                     ":quote-1.0.45",
-                    ":syn-3.0.3",
+                    ":syn-3.0.10",
                 ],
                 "features": [
                     "default",
@@ -49240,67 +55430,6 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.14.0",
-    },
-    "target-lexicon-0.13.5": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "edition": "2018",
-        },
-        "env": {
-            "CARGO_PKG_AUTHORS": "Dan Gohman <sunfish@mozilla.com>",
-            "CARGO_PKG_DESCRIPTION": "LLVM target triple types",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/target-lexicon",
-        },
-        "library": {
-            "crate": "target_lexicon",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "target-lexicon",
-        "platforms": {
-            "android-arm64": {
-                "features": [
-                    "default",
-                ],
-            },
-            "linux-arm64": {
-                "features": [
-                    "default",
-                ],
-            },
-            "linux-x86_64": {
-                "features": [
-                    "default",
-                ],
-            },
-            "macos-arm64": {
-                "features": [
-                    "default",
-                ],
-            },
-            "macos-x86_64": {
-                "features": [
-                    "default",
-                ],
-            },
-            "windows-arm64": {
-                "features": [
-                    "default",
-                ],
-            },
-            "windows-x86_64": {
-                "features": [
-                    "default",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.13.5",
     },
     "tempfile-3.27.0": {
         "build_script": None,
@@ -49411,44 +55540,286 @@ third_party = {
         ],
         "version": "3.27.0",
     },
-    "termcolor-1.4.1": {
+    "temporal_capi-0.2.6": {
         "build_script": None,
         "env": {
-            "CARGO_PKG_AUTHORS": "Andrew Gallant <jamslam@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "A simple cross platform library for writing colored text to a terminal.\n",
-            "CARGO_PKG_HOMEPAGE": "https://github.com/BurntSushi/termcolor",
-            "CARGO_PKG_LICENSE": "Unlicense OR MIT",
+            "CARGO_PKG_AUTHORS": "boa-dev",
+            "CARGO_PKG_DESCRIPTION": "C interface to temporal_rs",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
             "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/BurntSushi/termcolor",
+            "CARGO_PKG_REPOSITORY": "https://github.com/boa-dev/temporal",
+            "CARGO_PKG_RUST_VERSION": "1.86.0",
         },
         "library": {
-            "crate": "termcolor",
+            "crate": "temporal_capi",
             "crate_root": "src/lib.rs",
-            "edition": "2018",
+            "edition": "2021",
             "proc_macro": False,
         },
-        "name": "termcolor",
+        "name": "temporal_capi",
         "platforms": {
-            "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
-            "macos-arm64": {},
-            "macos-x86_64": {},
+            "android-arm64": {
+                "deps": [
+                    ":diplomat-0.16.1",
+                    ":diplomat-runtime-0.16.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":num-traits-0.2.19",
+                    ":temporal_rs-0.2.6",
+                    ":timezone_provider-0.2.6",
+                    ":writeable-0.6.4",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":diplomat-0.16.1",
+                    ":diplomat-runtime-0.16.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":num-traits-0.2.19",
+                    ":temporal_rs-0.2.6",
+                    ":timezone_provider-0.2.6",
+                    ":writeable-0.6.4",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":diplomat-0.16.1",
+                    ":diplomat-runtime-0.16.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":num-traits-0.2.19",
+                    ":temporal_rs-0.2.6",
+                    ":timezone_provider-0.2.6",
+                    ":writeable-0.6.4",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":diplomat-0.16.1",
+                    ":diplomat-runtime-0.16.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":num-traits-0.2.19",
+                    ":temporal_rs-0.2.6",
+                    ":timezone_provider-0.2.6",
+                    ":writeable-0.6.4",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":diplomat-0.16.1",
+                    ":diplomat-runtime-0.16.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":num-traits-0.2.19",
+                    ":temporal_rs-0.2.6",
+                    ":timezone_provider-0.2.6",
+                    ":writeable-0.6.4",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
-                    ":winapi-util-0.1.11",
+                    ":diplomat-0.16.1",
+                    ":diplomat-runtime-0.16.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":num-traits-0.2.19",
+                    ":temporal_rs-0.2.6",
+                    ":timezone_provider-0.2.6",
+                    ":writeable-0.6.4",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
-                    ":winapi-util-0.1.11",
+                    ":diplomat-0.16.1",
+                    ":diplomat-runtime-0.16.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":num-traits-0.2.19",
+                    ":temporal_rs-0.2.6",
+                    ":timezone_provider-0.2.6",
+                    ":writeable-0.6.4",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
                 ],
             },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "1.4.1",
+        "version": "0.2.6",
+    },
+    "temporal_rs-0.2.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "boa-dev",
+            "CARGO_PKG_DESCRIPTION": "Temporal in Rust is an implementation of the TC39 Temporal Builtin Proposal in Rust.",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/boa-dev/temporal",
+            "CARGO_PKG_RUST_VERSION": "1.86.0",
+        },
+        "library": {
+            "crate": "temporal_rs",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "temporal_rs",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":core_maths-0.1.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":ixdtf-0.6.7",
+                    ":num-traits-0.2.19",
+                    ":timezone_provider-0.2.6",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":core_maths-0.1.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":ixdtf-0.6.7",
+                    ":num-traits-0.2.19",
+                    ":timezone_provider-0.2.6",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":core_maths-0.1.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":ixdtf-0.6.7",
+                    ":num-traits-0.2.19",
+                    ":timezone_provider-0.2.6",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":core_maths-0.1.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":ixdtf-0.6.7",
+                    ":num-traits-0.2.19",
+                    ":timezone_provider-0.2.6",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":core_maths-0.1.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":ixdtf-0.6.7",
+                    ":num-traits-0.2.19",
+                    ":timezone_provider-0.2.6",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":core_maths-0.1.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":ixdtf-0.6.7",
+                    ":num-traits-0.2.19",
+                    ":timezone_provider-0.2.6",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":core_maths-0.1.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":ixdtf-0.6.7",
+                    ":num-traits-0.2.19",
+                    ":timezone_provider-0.2.6",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.2.6",
+    },
+    "term-1.2.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The Rust Project Developers:Steven Allen",
+            "CARGO_PKG_DESCRIPTION": "A terminal formatting library\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/Stebalien/term",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/Stebalien/term",
+            "CARGO_PKG_RUST_VERSION": "1.63",
+        },
+        "library": {
+            "crate": "term",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "term",
+        "platforms": {
+            "linux-x86_64": {
+                "features": [
+                    "default",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.2.1",
     },
     "text-size-1.1.1": {
         "build_script": None,
@@ -49640,7 +56011,7 @@ third_party = {
                     ":thiserror-impl-2.0.18",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":thiserror-impl-2.0.18",
                 ],
@@ -50246,6 +56617,107 @@ third_party = {
         ],
         "version": "0.2.32",
     },
+    "timezone_provider-0.2.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "boa-dev",
+            "CARGO_PKG_DESCRIPTION": "Time zone data providers",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/boa-dev/temporal",
+            "CARGO_PKG_RUST_VERSION": "1.86.0",
+        },
+        "library": {
+            "crate": "timezone_provider",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "timezone_provider",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":tinystr-0.8.5",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":tinystr-0.8.5",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":tinystr-0.8.5",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":tinystr-0.8.5",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":tinystr-0.8.5",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":tinystr-0.8.5",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":tinystr-0.8.5",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.2.6",
+    },
     "tiny-skia-0.12.0": {
         "build_script": None,
         "env": {
@@ -50512,6 +56984,8 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "zerovec",
                 ],
             },
@@ -50521,6 +56995,8 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "zerovec",
                 ],
             },
@@ -50530,6 +57006,8 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "zerovec",
                 ],
             },
@@ -50548,6 +57026,8 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "zerovec",
                 ],
             },
@@ -50557,6 +57037,8 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "zerovec",
                 ],
             },
@@ -50593,6 +57075,8 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "zerovec",
                 ],
             },
@@ -50602,6 +57086,8 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "zerovec",
                 ],
             },
@@ -50799,7 +57285,6 @@ third_party = {
                     "bytes",
                     "default",
                     "fs",
-                    "io-std",
                     "io-util",
                     "libc",
                     "macros",
@@ -50830,7 +57315,6 @@ third_party = {
                     "bytes",
                     "default",
                     "fs",
-                    "io-std",
                     "io-util",
                     "libc",
                     "macros",
@@ -50925,7 +57409,6 @@ third_party = {
                     "bytes",
                     "default",
                     "fs",
-                    "io-std",
                     "io-util",
                     "libc",
                     "macros",
@@ -50956,7 +57439,6 @@ third_party = {
                     "bytes",
                     "default",
                     "fs",
-                    "io-std",
                     "io-util",
                     "libc",
                     "macros",
@@ -50995,7 +57477,6 @@ third_party = {
                     "bytes",
                     "default",
                     "fs",
-                    "io-std",
                     "io-util",
                     "libc",
                     "macros",
@@ -51026,7 +57507,6 @@ third_party = {
                     "bytes",
                     "default",
                     "fs",
-                    "io-std",
                     "io-util",
                     "libc",
                     "macros",
@@ -51663,23 +58143,6 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":serde_core-1.0.228",
-                    ":serde_spanned-1.1.1",
-                    ":toml_datetime-0.7.5+spec-1.1.0",
-                    ":toml_parser-1.1.3+spec-1.1.0",
-                    ":toml_writer-1.1.2+spec-1.1.0",
-                    ":winnow-0.7.15",
-                ],
-                "features": [
-                    "default",
-                    "display",
-                    "parse",
-                    "serde",
-                    "std",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":serde_core-1.0.228",
@@ -51797,16 +58260,6 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":serde_core-1.0.228",
-                ],
-                "features": [
-                    "alloc",
-                    "serde",
-                    "std",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":serde_core-1.0.228",
@@ -51886,13 +58339,6 @@ third_party = {
                 ],
             },
             "wasi-guest": {
-                "features": [
-                    "alloc",
-                    "default",
-                    "std",
-                ],
-            },
-            "wasm32": {
                 "features": [
                     "alloc",
                     "default",
@@ -52020,20 +58466,6 @@ third_party = {
                     "parse",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":indexmap-2.14.0",
-                    ":toml_datetime-1.1.1+spec-1.1.0",
-                    ":toml_parser-1.1.3+spec-1.1.0",
-                    ":toml_writer-1.1.2+spec-1.1.0",
-                    ":winnow-1.0.3",
-                ],
-                "features": [
-                    "default",
-                    "display",
-                    "parse",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":indexmap-2.14.0",
@@ -52145,16 +58577,6 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":winnow-1.0.3",
-                ],
-                "features": [
-                    "alloc",
-                    "default",
-                    "std",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":winnow-1.0.3",
@@ -52240,13 +58662,6 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
-                "features": [
-                    "alloc",
-                    "default",
-                    "std",
-                ],
-            },
             "windows-arm64": {
                 "features": [
                     "alloc",
@@ -52288,50 +58703,138 @@ third_party = {
         "platforms": {
             "android-arm64": {
                 "deps": [
+                    ":futures-core-0.3.32",
+                    ":futures-util-0.3.32",
+                    ":pin-project-lite-0.2.17",
+                    ":sync_wrapper-1.0.2",
                     ":tower-layer-0.3.3",
                     ":tower-service-0.3.3",
+                ],
+                "features": [
+                    "futures-core",
+                    "futures-util",
+                    "pin-project-lite",
+                    "sync_wrapper",
+                    "util",
                 ],
             },
             "linux-arm64": {
                 "deps": [
+                    ":futures-core-0.3.32",
+                    ":futures-util-0.3.32",
+                    ":pin-project-lite-0.2.17",
+                    ":sync_wrapper-1.0.2",
                     ":tower-layer-0.3.3",
                     ":tower-service-0.3.3",
+                ],
+                "features": [
+                    "futures-core",
+                    "futures-util",
+                    "pin-project-lite",
+                    "sync_wrapper",
+                    "util",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
+                    ":futures-core-0.3.32",
+                    ":futures-util-0.3.32",
+                    ":pin-project-lite-0.2.17",
+                    ":sync_wrapper-1.0.2",
                     ":tower-layer-0.3.3",
                     ":tower-service-0.3.3",
+                ],
+                "features": [
+                    "futures-core",
+                    "futures-util",
+                    "pin-project-lite",
+                    "sync_wrapper",
+                    "util",
                 ],
             },
             "linux-x86_64-html": {
                 "deps": [
+                    ":futures-core-0.3.32",
+                    ":futures-util-0.3.32",
+                    ":pin-project-lite-0.2.17",
+                    ":sync_wrapper-1.0.2",
                     ":tower-layer-0.3.3",
                     ":tower-service-0.3.3",
+                ],
+                "features": [
+                    "futures-core",
+                    "futures-util",
+                    "pin-project-lite",
+                    "sync_wrapper",
+                    "util",
                 ],
             },
             "macos-arm64": {
                 "deps": [
+                    ":futures-core-0.3.32",
+                    ":futures-util-0.3.32",
+                    ":pin-project-lite-0.2.17",
+                    ":sync_wrapper-1.0.2",
                     ":tower-layer-0.3.3",
                     ":tower-service-0.3.3",
+                ],
+                "features": [
+                    "futures-core",
+                    "futures-util",
+                    "pin-project-lite",
+                    "sync_wrapper",
+                    "util",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
+                    ":futures-core-0.3.32",
+                    ":futures-util-0.3.32",
+                    ":pin-project-lite-0.2.17",
+                    ":sync_wrapper-1.0.2",
                     ":tower-layer-0.3.3",
                     ":tower-service-0.3.3",
+                ],
+                "features": [
+                    "futures-core",
+                    "futures-util",
+                    "pin-project-lite",
+                    "sync_wrapper",
+                    "util",
                 ],
             },
             "windows-arm64": {
                 "deps": [
+                    ":futures-core-0.3.32",
+                    ":futures-util-0.3.32",
+                    ":pin-project-lite-0.2.17",
+                    ":sync_wrapper-1.0.2",
                     ":tower-layer-0.3.3",
                     ":tower-service-0.3.3",
+                ],
+                "features": [
+                    "futures-core",
+                    "futures-util",
+                    "pin-project-lite",
+                    "sync_wrapper",
+                    "util",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
+                    ":futures-core-0.3.32",
+                    ":futures-util-0.3.32",
+                    ":pin-project-lite-0.2.17",
+                    ":sync_wrapper-1.0.2",
                     ":tower-layer-0.3.3",
                     ":tower-service-0.3.3",
+                ],
+                "features": [
+                    "futures-core",
+                    "futures-util",
+                    "pin-project-lite",
+                    "sync_wrapper",
+                    "util",
                 ],
             },
         },
@@ -52339,6 +58842,183 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.5.3",
+    },
+    "tower-http-0.6.11": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Tower Maintainers <team@tower-rs.com>",
+            "CARGO_PKG_DESCRIPTION": "Tower middleware and utilities for HTTP clients and servers",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/tower-rs/tower-http",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/tower-rs/tower-http",
+            "CARGO_PKG_RUST_VERSION": "1.64",
+        },
+        "library": {
+            "crate": "tower_http",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "tower-http",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":bytes-1.12.1",
+                    ":http-1.5.0",
+                    ":http-body-1.1.0",
+                    ":http-body-util-0.1.5",
+                    ":pin-project-lite-0.2.17",
+                    ":tokio-1.52.3",
+                    ":tower-layer-0.3.3",
+                    ":tower-service-0.3.3",
+                ],
+                "features": [
+                    "default",
+                    "limit",
+                    "set-header",
+                    "timeout",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":bytes-1.12.1",
+                    ":http-1.5.0",
+                    ":http-body-1.1.0",
+                    ":http-body-util-0.1.5",
+                    ":pin-project-lite-0.2.17",
+                    ":tokio-1.52.3",
+                    ":tower-layer-0.3.3",
+                    ":tower-service-0.3.3",
+                ],
+                "features": [
+                    "default",
+                    "limit",
+                    "set-header",
+                    "timeout",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":bytes-1.12.1",
+                    ":http-1.5.0",
+                    ":http-body-1.1.0",
+                    ":http-body-util-0.1.5",
+                    ":pin-project-lite-0.2.17",
+                    ":tokio-1.52.3",
+                    ":tower-layer-0.3.3",
+                    ":tower-service-0.3.3",
+                ],
+                "features": [
+                    "default",
+                    "limit",
+                    "set-header",
+                    "timeout",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":bytes-1.12.1",
+                    ":http-1.5.0",
+                    ":http-body-1.1.0",
+                    ":http-body-util-0.1.5",
+                    ":pin-project-lite-0.2.17",
+                    ":tokio-1.52.3",
+                    ":tower-layer-0.3.3",
+                    ":tower-service-0.3.3",
+                ],
+                "features": [
+                    "default",
+                    "limit",
+                    "set-header",
+                    "timeout",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":bytes-1.12.1",
+                    ":http-1.5.0",
+                    ":http-body-1.1.0",
+                    ":http-body-util-0.1.5",
+                    ":pin-project-lite-0.2.17",
+                    ":tokio-1.52.3",
+                    ":tower-layer-0.3.3",
+                    ":tower-service-0.3.3",
+                ],
+                "features": [
+                    "default",
+                    "limit",
+                    "set-header",
+                    "timeout",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":bytes-1.12.1",
+                    ":http-1.5.0",
+                    ":http-body-1.1.0",
+                    ":http-body-util-0.1.5",
+                    ":pin-project-lite-0.2.17",
+                    ":tokio-1.52.3",
+                    ":tower-layer-0.3.3",
+                    ":tower-service-0.3.3",
+                ],
+                "features": [
+                    "default",
+                    "limit",
+                    "set-header",
+                    "timeout",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":bytes-1.12.1",
+                    ":http-1.5.0",
+                    ":http-body-1.1.0",
+                    ":http-body-util-0.1.5",
+                    ":pin-project-lite-0.2.17",
+                    ":tokio-1.52.3",
+                    ":tower-layer-0.3.3",
+                    ":tower-service-0.3.3",
+                ],
+                "features": [
+                    "default",
+                    "limit",
+                    "set-header",
+                    "timeout",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":bytes-1.12.1",
+                    ":http-1.5.0",
+                    ":http-body-1.1.0",
+                    ":http-body-util-0.1.5",
+                    ":pin-project-lite-0.2.17",
+                    ":tokio-1.52.3",
+                    ":tower-layer-0.3.3",
+                    ":tower-service-0.3.3",
+                ],
+                "features": [
+                    "default",
+                    "limit",
+                    "set-header",
+                    "timeout",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.6.11",
     },
     "tower-layer-0.3.3": {
         "build_script": None,
@@ -52511,6 +59191,19 @@ third_party = {
                     "tracing-attributes",
                 ],
             },
+            "wasi": {
+                "deps": [
+                    ":pin-project-lite-0.2.17",
+                    ":tracing-attributes-0.1.31",
+                    ":tracing-core-0.1.36",
+                ],
+                "features": [
+                    "attributes",
+                    "default",
+                    "std",
+                    "tracing-attributes",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":log-0.4.31",
@@ -52654,6 +59347,15 @@ third_party = {
                 ],
                 "features": [
                     "default",
+                    "once_cell",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":once_cell-1.21.4",
+                ],
+                "features": [
                     "once_cell",
                     "std",
                 ],
@@ -53818,20 +60520,9 @@ third_party = {
         },
         "name": "ttf-parser",
         "platforms": {
-            "android-arm64": {
-                "features": [
-                    "apple-layout",
-                    "default",
-                    "glyph-names",
-                    "opentype-layout",
-                    "std",
-                    "variable-fonts",
-                ],
-            },
             "linux-arm64": {
                 "features": [
                     "apple-layout",
-                    "default",
                     "glyph-names",
                     "gvar-alloc",
                     "opentype-layout",
@@ -53842,59 +60533,8 @@ third_party = {
             "linux-x86_64": {
                 "features": [
                     "apple-layout",
-                    "default",
                     "glyph-names",
                     "gvar-alloc",
-                    "opentype-layout",
-                    "std",
-                    "variable-fonts",
-                ],
-            },
-            "linux-x86_64-html": {
-                "features": [
-                    "apple-layout",
-                    "default",
-                    "glyph-names",
-                    "opentype-layout",
-                    "std",
-                    "variable-fonts",
-                ],
-            },
-            "macos-arm64": {
-                "features": [
-                    "apple-layout",
-                    "default",
-                    "glyph-names",
-                    "opentype-layout",
-                    "std",
-                    "variable-fonts",
-                ],
-            },
-            "macos-x86_64": {
-                "features": [
-                    "apple-layout",
-                    "default",
-                    "glyph-names",
-                    "opentype-layout",
-                    "std",
-                    "variable-fonts",
-                ],
-            },
-            "windows-arm64": {
-                "features": [
-                    "apple-layout",
-                    "default",
-                    "glyph-names",
-                    "opentype-layout",
-                    "std",
-                    "variable-fonts",
-                ],
-            },
-            "windows-x86_64": {
-                "features": [
-                    "apple-layout",
-                    "default",
-                    "glyph-names",
                     "opentype-layout",
                     "std",
                     "variable-fonts",
@@ -54318,7 +60958,7 @@ third_party = {
             },
             "wasi": {},
             "wasi-guest": {},
-            "wasm32": {},
+            "wasm32-bindgen": {},
             "windows-arm64": {
                 "features": [
                     "const-generics",
@@ -54507,7 +61147,7 @@ third_party = {
             "wasi": {},
             "wasi-guest": {},
             "wasi-html": {},
-            "wasm32": {},
+            "wasm32-bindgen": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -54515,6 +61155,41 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "1.0.24",
+    },
+    "unicode-linebreak-0.1.5": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Axel Forsman <axelsfor@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Implementation of the Unicode Line Breaking Algorithm",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/axelf4/unicode-linebreak",
+            "CARGO_PKG_LICENSE": "Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/axelf4/unicode-linebreak",
+            "CARGO_PKG_RUST_VERSION": "1.56",
+        },
+        "library": {
+            "crate": "unicode_linebreak",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "unicode-linebreak",
+        "platforms": {
+            "android-arm64": {},
+            "linux-arm64": {},
+            "linux-x86_64": {},
+            "linux-x86_64-html": {},
+            "macos-arm64": {},
+            "macos-x86_64": {},
+            "wasi": {},
+            "wasi-guest": {},
+            "windows-arm64": {},
+            "windows-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.1.5",
     },
     "unicode-normalization-0.1.25": {
         "build_script": None,
@@ -54713,8 +61388,6 @@ third_party = {
             "linux-x86_64": {},
             "macos-arm64": {},
             "macos-x86_64": {},
-            "wasi": {},
-            "wasi-guest": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -54742,6 +61415,7 @@ third_party = {
         },
         "name": "unicode-segmentation",
         "platforms": {
+            "linux-x86_64": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -54835,7 +61509,7 @@ third_party = {
                     "default",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "features": [
                     "cjk",
                     "default",
@@ -54996,7 +61670,7 @@ third_party = {
         "platforms": {
             "android-arm64": {
                 "deps": [
-                    ":ctutils-0.4.3",
+                    ":ctutils-0.4.8",
                 ],
                 "named_deps": {
                     "common": ":crypto-common-0.2.2",
@@ -55004,7 +61678,7 @@ third_party = {
             },
             "linux-arm64": {
                 "deps": [
-                    ":ctutils-0.4.3",
+                    ":ctutils-0.4.8",
                 ],
                 "named_deps": {
                     "common": ":crypto-common-0.2.2",
@@ -55012,7 +61686,15 @@ third_party = {
             },
             "linux-x86_64": {
                 "deps": [
-                    ":ctutils-0.4.3",
+                    ":ctutils-0.4.8",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":ctutils-0.4.8",
                 ],
                 "named_deps": {
                     "common": ":crypto-common-0.2.2",
@@ -55020,7 +61702,7 @@ third_party = {
             },
             "macos-arm64": {
                 "deps": [
-                    ":ctutils-0.4.3",
+                    ":ctutils-0.4.8",
                 ],
                 "named_deps": {
                     "common": ":crypto-common-0.2.2",
@@ -55028,7 +61710,7 @@ third_party = {
             },
             "macos-x86_64": {
                 "deps": [
-                    ":ctutils-0.4.3",
+                    ":ctutils-0.4.8",
                 ],
                 "named_deps": {
                     "common": ":crypto-common-0.2.2",
@@ -55036,7 +61718,7 @@ third_party = {
             },
             "windows-arm64": {
                 "deps": [
-                    ":ctutils-0.4.3",
+                    ":ctutils-0.4.8",
                 ],
                 "named_deps": {
                     "common": ":crypto-common-0.2.2",
@@ -55044,7 +61726,7 @@ third_party = {
             },
             "windows-x86_64": {
                 "deps": [
-                    ":ctutils-0.4.3",
+                    ":ctutils-0.4.8",
                 ],
                 "named_deps": {
                     "common": ":crypto-common-0.2.2",
@@ -55297,9 +61979,12 @@ third_party = {
                     ":form_urlencoded-1.2.2",
                     ":idna-1.1.0",
                     ":percent-encoding-2.3.2",
+                    ":serde-1.0.228",
+                    ":serde_derive-1.0.228",
                 ],
                 "features": [
                     "default",
+                    "serde",
                     "std",
                 ],
             },
@@ -55336,9 +62021,12 @@ third_party = {
                     ":form_urlencoded-1.2.2",
                     ":idna-1.1.0",
                     ":percent-encoding-2.3.2",
+                    ":serde-1.0.228",
+                    ":serde_derive-1.0.228",
                 ],
                 "features": [
                     "default",
+                    "serde",
                     "std",
                 ],
             },
@@ -55347,9 +62035,12 @@ third_party = {
                     ":form_urlencoded-1.2.2",
                     ":idna-1.1.0",
                     ":percent-encoding-2.3.2",
+                    ":serde-1.0.228",
+                    ":serde_derive-1.0.228",
                 ],
                 "features": [
                     "default",
+                    "serde",
                     "std",
                 ],
             },
@@ -55358,9 +62049,12 @@ third_party = {
                     ":form_urlencoded-1.2.2",
                     ":idna-1.1.0",
                     ":percent-encoding-2.3.2",
+                    ":serde-1.0.228",
+                    ":serde_derive-1.0.228",
                 ],
                 "features": [
                     "default",
+                    "serde",
                     "std",
                 ],
             },
@@ -55369,9 +62063,12 @@ third_party = {
                     ":form_urlencoded-1.2.2",
                     ":idna-1.1.0",
                     ":percent-encoding-2.3.2",
+                    ":serde-1.0.228",
+                    ":serde_derive-1.0.228",
                 ],
                 "features": [
                     "default",
+                    "serde",
                     "std",
                 ],
             },
@@ -55380,9 +62077,12 @@ third_party = {
                     ":form_urlencoded-1.2.2",
                     ":idna-1.1.0",
                     ":percent-encoding-2.3.2",
+                    ":serde-1.0.228",
+                    ":serde_derive-1.0.228",
                 ],
                 "features": [
                     "default",
+                    "serde",
                     "std",
                 ],
             },
@@ -55862,6 +62562,7 @@ third_party = {
                     "serde",
                     "std",
                     "v4",
+                    "v7",
                 ],
             },
             "macos-arm64": {
@@ -55928,23 +62629,6 @@ third_party = {
                     "serde",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":serde_core-1.0.228",
-                ],
-                "features": [
-                    "default",
-                    "rng",
-                    "rng-getrandom",
-                    "serde",
-                    "std",
-                    "uuid-rng-internal-lib",
-                    "v4",
-                ],
-                "named_deps": {
-                    "uuid_rng_internal_lib": ":uuid-rng-internal-1.29.1",
-                },
-            },
             "windows-arm64": {
                 "deps": [
                     ":getrandom-0.4.2",
@@ -55979,35 +62663,116 @@ third_party = {
         ],
         "version": "1.29.1",
     },
-    "uuid-rng-internal-1.29.1": {
-        "build_script": None,
+    "v8-152.2.0": {
+        "build_script": {
+            "crate_root": "build.rs",
+            "deps": [
+                ":bindgen-0.72.1",
+                ":fslock-0.2.1",
+                ":gzip-header-1.1.0",
+                ":home-0.5.12",
+                ":miniz_oxide-0.8.9",
+                ":which-6.0.3",
+            ],
+            "edition": "2024",
+        },
         "env": {
-            "CARGO_PKG_AUTHORS": "uuid-rs contributors",
-            "CARGO_PKG_DESCRIPTION": "Private implementation details of the uuid crate.",
-            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
-            "CARGO_PKG_REPOSITORY": "https://github.com/uuid-rs/uuid",
+            "CARGO_PKG_AUTHORS": "the Deno authors",
+            "CARGO_PKG_DESCRIPTION": "Rust bindings to V8",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/denoland/rusty_v8",
         },
         "library": {
-            "crate": "uuid_rng_internal",
+            "crate": "v8",
             "crate_root": "src/lib.rs",
-            "edition": "2021",
+            "edition": "2024",
             "proc_macro": False,
         },
-        "name": "uuid-rng-internal",
+        "name": "v8",
         "platforms": {
-            "wasm32": {
+            "android-arm64": {
                 "deps": [
-                    ":getrandom-0.4.2",
+                    ":bitflags-2.12.1",
+                    ":paste-1.0.15",
+                    ":temporal_capi-0.2.6",
                 ],
                 "features": [
-                    "getrandom",
+                    "default",
+                    "use_custom_libcxx",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":paste-1.0.15",
+                    ":temporal_capi-0.2.6",
+                ],
+                "features": [
+                    "default",
+                    "use_custom_libcxx",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":paste-1.0.15",
+                    ":temporal_capi-0.2.6",
+                ],
+                "features": [
+                    "default",
+                    "use_custom_libcxx",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":paste-1.0.15",
+                    ":temporal_capi-0.2.6",
+                ],
+                "features": [
+                    "default",
+                    "use_custom_libcxx",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":paste-1.0.15",
+                    ":temporal_capi-0.2.6",
+                ],
+                "features": [
+                    "default",
+                    "use_custom_libcxx",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":paste-1.0.15",
+                    ":temporal_capi-0.2.6",
+                ],
+                "features": [
+                    "default",
+                    "use_custom_libcxx",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":paste-1.0.15",
+                    ":temporal_capi-0.2.6",
+                ],
+                "features": [
+                    "default",
+                    "use_custom_libcxx",
                 ],
             },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "1.29.1",
+        "version": "152.2.0",
     },
     "vcpkg-0.2.15": {
         "build_script": None,
@@ -56032,6 +62797,581 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.2.15",
+    },
+    "vello_common-0.4.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Core data structures and utilities shared across the Vello rendering, including geometry processing and tiling logic.",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/vello",
+            "CARGO_PKG_RUST_VERSION": "1.89",
+        },
+        "library": {
+            "crate": "vello_common",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "vello_common",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":guillotiere-0.7.0",
+                    ":log-0.4.31",
+                    ":peniko-0.6.1",
+                    ":smallvec-1.16.5",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":guillotiere-0.7.0",
+                    ":log-0.4.31",
+                    ":peniko-0.6.1",
+                    ":smallvec-1.16.5",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":guillotiere-0.7.0",
+                    ":log-0.4.31",
+                    ":peniko-0.6.1",
+                    ":smallvec-1.16.5",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":guillotiere-0.7.0",
+                    ":log-0.4.31",
+                    ":peniko-0.6.1",
+                    ":smallvec-1.16.5",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":guillotiere-0.7.0",
+                    ":log-0.4.31",
+                    ":peniko-0.6.1",
+                    ":smallvec-1.16.5",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":guillotiere-0.7.0",
+                    ":log-0.4.31",
+                    ":peniko-0.6.1",
+                    ":smallvec-1.16.5",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":guillotiere-0.7.0",
+                    ":log-0.4.31",
+                    ":peniko-0.6.1",
+                    ":smallvec-1.16.5",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":guillotiere-0.7.0",
+                    ":log-0.4.31",
+                    ":peniko-0.6.1",
+                    ":smallvec-1.16.5",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":guillotiere-0.7.0",
+                    ":log-0.4.31",
+                    ":peniko-0.6.1",
+                    ":smallvec-1.16.5",
+                    ":thiserror-2.0.18",
+                ],
+                "features": [
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.4.0",
+    },
+    "vello_cpu-0.4.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "A CPU-based renderer for Vello, optimized for SIMD and multithreaded execution.",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/vello",
+            "CARGO_PKG_RUST_VERSION": "1.89",
+        },
+        "library": {
+            "crate": "vello_cpu",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "vello_cpu",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":hashbrown-0.17.1",
+                    ":vello_common-0.4.0",
+                ],
+                "features": [
+                    "f32_pipeline",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":hashbrown-0.17.1",
+                    ":vello_common-0.4.0",
+                ],
+                "features": [
+                    "f32_pipeline",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":hashbrown-0.17.1",
+                    ":vello_common-0.4.0",
+                ],
+                "features": [
+                    "f32_pipeline",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":hashbrown-0.17.1",
+                    ":vello_common-0.4.0",
+                ],
+                "features": [
+                    "f32_pipeline",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":hashbrown-0.17.1",
+                    ":vello_common-0.4.0",
+                ],
+                "features": [
+                    "f32_pipeline",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":hashbrown-0.17.1",
+                    ":vello_common-0.4.0",
+                ],
+                "features": [
+                    "f32_pipeline",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":hashbrown-0.17.1",
+                    ":vello_common-0.4.0",
+                ],
+                "features": [
+                    "f32_pipeline",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":fearless_simd-1.3.0",
+                    ":fearless_simd_macros-0.1.0",
+                    ":hashbrown-0.17.1",
+                    ":vello_common-0.4.0",
+                ],
+                "features": [
+                    "f32_pipeline",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.4.0",
+    },
+    "vello_gpu-0.4.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "A GPU renderer for Vello with CPU-side preprocessing.",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/vello",
+            "CARGO_PKG_RUST_VERSION": "1.89",
+        },
+        "library": {
+            "crate": "vello_gpu",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "vello_gpu",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":hashbrown-0.17.1",
+                    ":log-0.4.31",
+                    ":thiserror-2.0.18",
+                    ":vello_common-0.4.0",
+                    ":vello_gpu_shaders-0.4.0",
+                    ":wgpu-30.0.2",
+                ],
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu",
+                    "wgpu_external_texture",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":hashbrown-0.17.1",
+                    ":log-0.4.31",
+                    ":thiserror-2.0.18",
+                    ":vello_common-0.4.0",
+                    ":vello_gpu_shaders-0.4.0",
+                    ":wgpu-30.0.2",
+                ],
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu",
+                    "wgpu_external_texture",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":hashbrown-0.17.1",
+                    ":log-0.4.31",
+                    ":thiserror-2.0.18",
+                    ":vello_common-0.4.0",
+                    ":vello_gpu_shaders-0.4.0",
+                    ":wgpu-30.0.2",
+                ],
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu",
+                    "wgpu_external_texture",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":hashbrown-0.17.1",
+                    ":log-0.4.31",
+                    ":thiserror-2.0.18",
+                    ":vello_common-0.4.0",
+                    ":vello_gpu_shaders-0.4.0",
+                    ":wgpu-30.0.2",
+                ],
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu",
+                    "wgpu_external_texture",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":hashbrown-0.17.1",
+                    ":log-0.4.31",
+                    ":thiserror-2.0.18",
+                    ":vello_common-0.4.0",
+                    ":vello_gpu_shaders-0.4.0",
+                    ":wgpu-30.0.2",
+                ],
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu",
+                    "wgpu_external_texture",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":hashbrown-0.17.1",
+                    ":log-0.4.31",
+                    ":thiserror-2.0.18",
+                    ":vello_common-0.4.0",
+                    ":vello_gpu_shaders-0.4.0",
+                    ":wgpu-30.0.2",
+                ],
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu",
+                    "wgpu_external_texture",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":hashbrown-0.17.1",
+                    ":log-0.4.31",
+                    ":thiserror-2.0.18",
+                    ":vello_common-0.4.0",
+                    ":vello_gpu_shaders-0.4.0",
+                    ":wgpu-30.0.2",
+                ],
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu",
+                    "wgpu_external_texture",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":hashbrown-0.17.1",
+                    ":log-0.4.31",
+                    ":thiserror-2.0.18",
+                    ":vello_common-0.4.0",
+                    ":vello_gpu_shaders-0.4.0",
+                    ":wgpu-30.0.2",
+                ],
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu",
+                    "wgpu_external_texture",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bytemuck-1.25.0",
+                    ":hashbrown-0.17.1",
+                    ":log-0.4.31",
+                    ":thiserror-2.0.18",
+                    ":vello_common-0.4.0",
+                    ":vello_gpu_shaders-0.4.0",
+                    ":wgpu-30.0.2",
+                ],
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu",
+                    "wgpu_external_texture",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.4.0",
+    },
+    "vello_gpu_shaders-0.4.0": {
+        "build_script": {
+            "crate_root": "build.rs",
+            "deps": [
+                ":naga-30.0.2",
+                ":wesl-0.4.0",
+                ":wesl-macros-0.4.0",
+                ":wgsl-parse-0.4.0",
+                ":wgsl-types-0.4.0",
+            ],
+            "edition": "2024",
+        },
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Provide WESL shaders linked to WGSL and GLSL for the `vello_gpu` backends.",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/linebender/vello",
+            "CARGO_PKG_RUST_VERSION": "1.89",
+        },
+        "library": {
+            "crate": "vello_gpu_shaders",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "vello_gpu_shaders",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu_external_texture",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu_external_texture",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu_external_texture",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu_external_texture",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu_external_texture",
+                ],
+            },
+            "wasi": {
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu_external_texture",
+                ],
+            },
+            "wasi-guest": {
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu_external_texture",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu_external_texture",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "blurred_rounded_rect",
+                    "full_image_support",
+                    "gradient_sweep",
+                    "wgpu_external_texture",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.4.0",
     },
     "version_check-0.9.5": {
         "build_script": None,
@@ -56222,7 +63562,7 @@ third_party = {
         ],
         "version": "0.11.1+wasi-snapshot-preview1",
     },
-    "wasm-bindgen-0.2.122": {
+    "wasm-bindgen-0.2.130": {
         "build_script": {
             "crate_root": "build.rs",
             "edition": "2021",
@@ -56237,7 +63577,7 @@ third_party = {
             "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
             "CARGO_PKG_README": "README.md",
             "CARGO_PKG_REPOSITORY": "https://github.com/wasm-bindgen/wasm-bindgen",
-            "CARGO_PKG_RUST_VERSION": "1.77",
+            "CARGO_PKG_RUST_VERSION": "1.81",
         },
         "library": {
             "crate": "wasm_bindgen",
@@ -56250,9 +63590,8 @@ third_party = {
             "wasi": {
                 "deps": [
                     ":cfg-if-1.0.4",
-                    ":once_cell-1.21.4",
-                    ":wasm-bindgen-macro-0.2.122",
-                    ":wasm-bindgen-shared-0.2.122",
+                    ":wasm-bindgen-macro-0.2.130",
+                    ":wasm-bindgen-shared-0.2.130",
                 ],
                 "features": [
                     "default",
@@ -56262,9 +63601,8 @@ third_party = {
             "wasi-guest": {
                 "deps": [
                     ":cfg-if-1.0.4",
-                    ":once_cell-1.21.4",
-                    ":wasm-bindgen-macro-0.2.122",
-                    ":wasm-bindgen-shared-0.2.122",
+                    ":wasm-bindgen-macro-0.2.130",
+                    ":wasm-bindgen-shared-0.2.130",
                 ],
                 "features": [
                     "default",
@@ -56274,21 +63612,19 @@ third_party = {
             "wasi-html": {
                 "deps": [
                     ":cfg-if-1.0.4",
-                    ":once_cell-1.21.4",
-                    ":wasm-bindgen-macro-0.2.122",
-                    ":wasm-bindgen-shared-0.2.122",
+                    ":wasm-bindgen-macro-0.2.130",
+                    ":wasm-bindgen-shared-0.2.130",
                 ],
                 "features": [
                     "default",
                     "std",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":cfg-if-1.0.4",
-                    ":once_cell-1.21.4",
-                    ":wasm-bindgen-macro-0.2.122",
-                    ":wasm-bindgen-shared-0.2.122",
+                    ":wasm-bindgen-macro-0.2.130",
+                    ":wasm-bindgen-shared-0.2.130",
                 ],
                 "features": [
                     "default",
@@ -56299,9 +63635,9 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "0.2.122",
+        "version": "0.2.130",
     },
-    "wasm-bindgen-futures-0.4.72": {
+    "wasm-bindgen-futures-0.4.80": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "The wasm-bindgen Developers",
@@ -56310,7 +63646,7 @@ third_party = {
             "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
             "CARGO_PKG_README": "README.md",
             "CARGO_PKG_REPOSITORY": "https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/futures",
-            "CARGO_PKG_RUST_VERSION": "1.77",
+            "CARGO_PKG_RUST_VERSION": "1.81",
         },
         "library": {
             "crate": "wasm_bindgen_futures",
@@ -56322,8 +63658,8 @@ third_party = {
         "platforms": {
             "wasi": {
                 "deps": [
-                    ":js-sys-0.3.99",
-                    ":wasm-bindgen-0.2.122",
+                    ":js-sys-0.3.107",
+                    ":wasm-bindgen-0.2.130",
                 ],
                 "features": [
                     "default",
@@ -56332,18 +63668,18 @@ third_party = {
             },
             "wasi-html": {
                 "deps": [
-                    ":js-sys-0.3.99",
-                    ":wasm-bindgen-0.2.122",
+                    ":js-sys-0.3.107",
+                    ":wasm-bindgen-0.2.130",
                 ],
                 "features": [
                     "default",
                     "std",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
-                    ":js-sys-0.3.99",
-                    ":wasm-bindgen-0.2.122",
+                    ":js-sys-0.3.107",
+                    ":wasm-bindgen-0.2.130",
                 ],
                 "features": [
                     "default",
@@ -56354,9 +63690,9 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "0.4.72",
+        "version": "0.4.80",
     },
-    "wasm-bindgen-macro-0.2.122": {
+    "wasm-bindgen-macro-0.2.130": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "The wasm-bindgen Developers",
@@ -56365,7 +63701,7 @@ third_party = {
             "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
             "CARGO_PKG_README": "README.md",
             "CARGO_PKG_REPOSITORY": "https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/macro",
-            "CARGO_PKG_RUST_VERSION": "1.77",
+            "CARGO_PKG_RUST_VERSION": "1.81",
         },
         "library": {
             "crate": "wasm_bindgen_macro",
@@ -56378,24 +63714,24 @@ third_party = {
             "linux-x86_64": {
                 "deps": [
                     ":quote-1.0.45",
-                    ":wasm-bindgen-macro-support-0.2.122",
+                    ":wasm-bindgen-macro-support-0.2.130",
                 ],
             },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "0.2.122",
+        "version": "0.2.130",
     },
-    "wasm-bindgen-macro-support-0.2.122": {
+    "wasm-bindgen-macro-support-0.2.130": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "The wasm-bindgen Developers",
             "CARGO_PKG_DESCRIPTION": "Implementation APIs for the `#[wasm_bindgen]` attribute",
             "CARGO_PKG_HOMEPAGE": "https://wasm-bindgen.github.io/wasm-bindgen/",
             "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_REPOSITORY": "https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/macro-support",
-            "CARGO_PKG_RUST_VERSION": "1.77",
+            "CARGO_PKG_REPOSITORY": "https://github.com/wasm-bindgen/wasm-bindgen/tree/main/crates/macro-support",
+            "CARGO_PKG_RUST_VERSION": "1.81",
         },
         "library": {
             "crate": "wasm_bindgen_macro_support",
@@ -56410,17 +63746,17 @@ third_party = {
                     ":bumpalo-3.20.3",
                     ":proc-macro2-1.0.106",
                     ":quote-1.0.45",
-                    ":syn-2.0.117",
-                    ":wasm-bindgen-shared-0.2.122",
+                    ":syn-3.0.10",
+                    ":wasm-bindgen-shared-0.2.130",
                 ],
             },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "0.2.122",
+        "version": "0.2.130",
     },
-    "wasm-bindgen-shared-0.2.122": {
+    "wasm-bindgen-shared-0.2.130": {
         "build_script": {
             "crate_root": "build.rs",
             "edition": "2021",
@@ -56431,7 +63767,7 @@ third_party = {
             "CARGO_PKG_HOMEPAGE": "https://wasm-bindgen.github.io/wasm-bindgen/",
             "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
             "CARGO_PKG_REPOSITORY": "https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/shared",
-            "CARGO_PKG_RUST_VERSION": "1.77",
+            "CARGO_PKG_RUST_VERSION": "1.81",
         },
         "library": {
             "crate": "wasm_bindgen_shared",
@@ -56462,7 +63798,7 @@ third_party = {
                     ":unicode-ident-1.0.24",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":unicode-ident-1.0.24",
                 ],
@@ -56471,104 +63807,7 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "0.2.122",
-    },
-    "wasm-encoder-0.254.0": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Nick Fitzgerald <fitzgen@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "A low-level WebAssembly encoder.\n",
-            "CARGO_PKG_HOMEPAGE": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasm-encoder",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasm-encoder",
-            "CARGO_PKG_RUST_VERSION": "1.85.0",
-        },
-        "library": {
-            "crate": "wasm_encoder",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "wasm-encoder",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":leb128fmt-0.1.0",
-                ],
-                "features": [
-                    "component-model",
-                    "default",
-                    "std",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":leb128fmt-0.1.0",
-                ],
-                "features": [
-                    "component-model",
-                    "default",
-                    "std",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":leb128fmt-0.1.0",
-                    ":wasmparser-0.254.0",
-                ],
-                "features": [
-                    "component-model",
-                    "default",
-                    "std",
-                    "wasmparser",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":leb128fmt-0.1.0",
-                ],
-                "features": [
-                    "component-model",
-                    "default",
-                    "std",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":leb128fmt-0.1.0",
-                ],
-                "features": [
-                    "component-model",
-                    "default",
-                    "std",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":leb128fmt-0.1.0",
-                ],
-                "features": [
-                    "component-model",
-                    "default",
-                    "std",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":leb128fmt-0.1.0",
-                ],
-                "features": [
-                    "component-model",
-                    "default",
-                    "std",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.254.0",
+        "version": "0.2.130",
     },
     "wasm-encoder-0.257.1": {
         "build_script": None,
@@ -56595,6 +63834,7 @@ third_party = {
                 ],
                 "features": [
                     "component-model",
+                    "default",
                     "std",
                 ],
             },
@@ -56604,6 +63844,7 @@ third_party = {
                 ],
                 "features": [
                     "component-model",
+                    "default",
                     "std",
                 ],
             },
@@ -56613,6 +63854,7 @@ third_party = {
                 ],
                 "features": [
                     "component-model",
+                    "default",
                     "std",
                 ],
             },
@@ -56622,6 +63864,7 @@ third_party = {
                 ],
                 "features": [
                     "component-model",
+                    "default",
                     "std",
                 ],
             },
@@ -56631,6 +63874,27 @@ third_party = {
                 ],
                 "features": [
                     "component-model",
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":leb128fmt-0.1.0",
+                ],
+                "features": [
+                    "component-model",
+                    "default",
+                    "std",
+                ],
+            },
+            "wasm32-bindgen": {
+                "deps": [
+                    ":leb128fmt-0.1.0",
+                ],
+                "features": [
+                    "component-model",
+                    "default",
                     "std",
                 ],
             },
@@ -56640,6 +63904,7 @@ third_party = {
                 ],
                 "features": [
                     "component-model",
+                    "default",
                     "std",
                 ],
             },
@@ -56649,6 +63914,7 @@ third_party = {
                 ],
                 "features": [
                     "component-model",
+                    "default",
                     "std",
                 ],
             },
@@ -56657,37 +63923,6 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.257.1",
-    },
-    "wasm-metadata-0.254.0": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_DESCRIPTION": "Read and manipulate WebAssembly metadata",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasm-metadata",
-            "CARGO_PKG_RUST_VERSION": "1.85.0",
-        },
-        "library": {
-            "crate": "wasm_metadata",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "wasm-metadata",
-        "platforms": {
-            "linux-x86_64": {
-                "deps": [
-                    ":anyhow-1.0.104",
-                    ":indexmap-2.14.0",
-                    ":wasm-encoder-0.254.0",
-                    ":wasmparser-0.254.0",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.254.0",
     },
     "wasmi-1.1.0": {
         "build_script": None,
@@ -56717,6 +63952,7 @@ third_party = {
                     ":wat-1.257.1",
                 ],
                 "features": [
+                    "simd",
                     "std",
                     "wat",
                 ],
@@ -56731,6 +63967,7 @@ third_party = {
                     ":wat-1.257.1",
                 ],
                 "features": [
+                    "simd",
                     "std",
                     "wat",
                 ],
@@ -56745,6 +63982,7 @@ third_party = {
                     ":wat-1.257.1",
                 ],
                 "features": [
+                    "simd",
                     "std",
                     "wat",
                 ],
@@ -56759,6 +63997,7 @@ third_party = {
                     ":wat-1.257.1",
                 ],
                 "features": [
+                    "simd",
                     "std",
                     "wat",
                 ],
@@ -56773,6 +64012,7 @@ third_party = {
                     ":wat-1.257.1",
                 ],
                 "features": [
+                    "simd",
                     "std",
                     "wat",
                 ],
@@ -56786,6 +64026,7 @@ third_party = {
                     ":wasmparser-0.239.0",
                 ],
                 "features": [
+                    "simd",
                     "std",
                 ],
             },
@@ -56799,6 +64040,7 @@ third_party = {
                     ":wat-1.257.1",
                 ],
                 "features": [
+                    "simd",
                     "std",
                     "wat",
                 ],
@@ -56813,6 +64055,7 @@ third_party = {
                     ":wat-1.257.1",
                 ],
                 "features": [
+                    "simd",
                     "std",
                     "wat",
                 ],
@@ -56910,6 +64153,7 @@ third_party = {
                     ":libm-0.2.16",
                 ],
                 "features": [
+                    "simd",
                     "std",
                 ],
             },
@@ -56918,6 +64162,7 @@ third_party = {
                     ":libm-0.2.16",
                 ],
                 "features": [
+                    "simd",
                     "std",
                 ],
             },
@@ -56926,6 +64171,7 @@ third_party = {
                     ":libm-0.2.16",
                 ],
                 "features": [
+                    "simd",
                     "std",
                 ],
             },
@@ -56934,6 +64180,7 @@ third_party = {
                     ":libm-0.2.16",
                 ],
                 "features": [
+                    "simd",
                     "std",
                 ],
             },
@@ -56942,6 +64189,7 @@ third_party = {
                     ":libm-0.2.16",
                 ],
                 "features": [
+                    "simd",
                     "std",
                 ],
             },
@@ -56950,6 +64198,7 @@ third_party = {
                     ":libm-0.2.16",
                 ],
                 "features": [
+                    "simd",
                     "std",
                 ],
             },
@@ -56958,6 +64207,7 @@ third_party = {
                     ":libm-0.2.16",
                 ],
                 "features": [
+                    "simd",
                     "std",
                 ],
             },
@@ -56966,6 +64216,7 @@ third_party = {
                     ":libm-0.2.16",
                 ],
                 "features": [
+                    "simd",
                     "std",
                 ],
             },
@@ -56997,40 +64248,64 @@ third_party = {
                 "deps": [
                     ":wasmi_core-1.1.0",
                 ],
+                "features": [
+                    "simd",
+                ],
             },
             "linux-arm64": {
                 "deps": [
                     ":wasmi_core-1.1.0",
+                ],
+                "features": [
+                    "simd",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
                     ":wasmi_core-1.1.0",
                 ],
+                "features": [
+                    "simd",
+                ],
             },
             "macos-arm64": {
                 "deps": [
                     ":wasmi_core-1.1.0",
+                ],
+                "features": [
+                    "simd",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
                     ":wasmi_core-1.1.0",
                 ],
+                "features": [
+                    "simd",
+                ],
             },
             "wasi-guest": {
                 "deps": [
                     ":wasmi_core-1.1.0",
+                ],
+                "features": [
+                    "simd",
                 ],
             },
             "windows-arm64": {
                 "deps": [
                     ":wasmi_core-1.1.0",
                 ],
+                "features": [
+                    "simd",
+                ],
             },
             "windows-x86_64": {
                 "deps": [
                     ":wasmi_core-1.1.0",
+                ],
+                "features": [
+                    "simd",
                 ],
             },
         },
@@ -57067,6 +64342,7 @@ third_party = {
                 ],
                 "features": [
                     "features",
+                    "simd",
                     "std",
                     "validate",
                 ],
@@ -57077,6 +64353,7 @@ third_party = {
                 ],
                 "features": [
                     "features",
+                    "simd",
                     "std",
                     "validate",
                 ],
@@ -57087,6 +64364,7 @@ third_party = {
                 ],
                 "features": [
                     "features",
+                    "simd",
                     "std",
                     "validate",
                 ],
@@ -57097,6 +64375,7 @@ third_party = {
                 ],
                 "features": [
                     "features",
+                    "simd",
                     "std",
                     "validate",
                 ],
@@ -57107,6 +64386,7 @@ third_party = {
                 ],
                 "features": [
                     "features",
+                    "simd",
                     "std",
                     "validate",
                 ],
@@ -57117,6 +64397,7 @@ third_party = {
                 ],
                 "features": [
                     "features",
+                    "simd",
                     "std",
                     "validate",
                 ],
@@ -57127,6 +64408,7 @@ third_party = {
                 ],
                 "features": [
                     "features",
+                    "simd",
                     "std",
                     "validate",
                 ],
@@ -57137,6 +64419,7 @@ third_party = {
                 ],
                 "features": [
                     "features",
+                    "simd",
                     "std",
                     "validate",
                 ],
@@ -57144,13 +64427,10 @@ third_party = {
         },
         "profile_flags": [
             "-Cdebuginfo=0",
-            "-Copt-level=2",
-            "-Cdebug-assertions=off",
-            "-Coverflow-checks=off",
         ],
         "version": "0.239.0",
     },
-    "wasmparser-0.254.0": {
+    "wasmparser-0.257.1": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "Yury Delendik <ydelendik@mozilla.com>",
@@ -57172,12 +64452,16 @@ third_party = {
             "android-arm64": {
                 "deps": [
                     ":bitflags-2.12.1",
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
                     ":semver-1.0.28",
                     ":serde-1.0.228",
                 ],
                 "features": [
                     "component-model",
+                    "default",
                     "features",
+                    "hash-collections",
                     "serde",
                     "simd",
                     "std",
@@ -57187,12 +64471,16 @@ third_party = {
             "linux-arm64": {
                 "deps": [
                     ":bitflags-2.12.1",
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
                     ":semver-1.0.28",
                     ":serde-1.0.228",
                 ],
                 "features": [
                     "component-model",
+                    "default",
                     "features",
+                    "hash-collections",
                     "serde",
                     "simd",
                     "std",
@@ -57209,6 +64497,7 @@ third_party = {
                 ],
                 "features": [
                     "component-model",
+                    "default",
                     "features",
                     "hash-collections",
                     "serde",
@@ -57220,12 +64509,16 @@ third_party = {
             "macos-arm64": {
                 "deps": [
                     ":bitflags-2.12.1",
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
                     ":semver-1.0.28",
                     ":serde-1.0.228",
                 ],
                 "features": [
                     "component-model",
+                    "default",
                     "features",
+                    "hash-collections",
                     "serde",
                     "simd",
                     "std",
@@ -57235,12 +64528,54 @@ third_party = {
             "macos-x86_64": {
                 "deps": [
                     ":bitflags-2.12.1",
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
                     ":semver-1.0.28",
                     ":serde-1.0.228",
                 ],
                 "features": [
                     "component-model",
+                    "default",
                     "features",
+                    "hash-collections",
+                    "serde",
+                    "simd",
+                    "std",
+                    "validate",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":semver-1.0.28",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "component-model",
+                    "default",
+                    "features",
+                    "hash-collections",
+                    "serde",
+                    "simd",
+                    "std",
+                    "validate",
+                ],
+            },
+            "wasm32-bindgen": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":semver-1.0.28",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "component-model",
+                    "default",
+                    "features",
+                    "hash-collections",
                     "serde",
                     "simd",
                     "std",
@@ -57250,12 +64585,16 @@ third_party = {
             "windows-arm64": {
                 "deps": [
                     ":bitflags-2.12.1",
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
                     ":semver-1.0.28",
                     ":serde-1.0.228",
                 ],
                 "features": [
                     "component-model",
+                    "default",
                     "features",
+                    "hash-collections",
                     "serde",
                     "simd",
                     "std",
@@ -57265,12 +64604,16 @@ third_party = {
             "windows-x86_64": {
                 "deps": [
                     ":bitflags-2.12.1",
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
                     ":semver-1.0.28",
                     ":serde-1.0.228",
                 ],
                 "features": [
                     "component-model",
+                    "default",
                     "features",
+                    "hash-collections",
                     "serde",
                     "simd",
                     "std",
@@ -57280,2041 +64623,8 @@ third_party = {
         },
         "profile_flags": [
             "-Cdebuginfo=0",
-            "-Copt-level=2",
-            "-Cdebug-assertions=off",
-            "-Coverflow-checks=off",
         ],
-        "version": "0.254.0",
-    },
-    "wasmprinter-0.254.0": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Alex Crichton <alex@alexcrichton.com>",
-            "CARGO_PKG_DESCRIPTION": "Rust converter from the WebAssembly binary format to the text format.\n",
-            "CARGO_PKG_HOMEPAGE": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasmprinter",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasmprinter",
-            "CARGO_PKG_RUST_VERSION": "1.85.0",
-        },
-        "library": {
-            "crate": "wasmprinter",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "wasmprinter",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":anyhow-1.0.104",
-                    ":termcolor-1.4.1",
-                    ":wasmparser-0.254.0",
-                ],
-                "features": [
-                    "component-model",
-                    "default",
-                    "validate",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":anyhow-1.0.104",
-                    ":termcolor-1.4.1",
-                    ":wasmparser-0.254.0",
-                ],
-                "features": [
-                    "component-model",
-                    "default",
-                    "validate",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":anyhow-1.0.104",
-                    ":termcolor-1.4.1",
-                    ":wasmparser-0.254.0",
-                ],
-                "features": [
-                    "component-model",
-                    "default",
-                    "validate",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":anyhow-1.0.104",
-                    ":termcolor-1.4.1",
-                    ":wasmparser-0.254.0",
-                ],
-                "features": [
-                    "component-model",
-                    "default",
-                    "validate",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":anyhow-1.0.104",
-                    ":termcolor-1.4.1",
-                    ":wasmparser-0.254.0",
-                ],
-                "features": [
-                    "component-model",
-                    "default",
-                    "validate",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":anyhow-1.0.104",
-                    ":termcolor-1.4.1",
-                    ":wasmparser-0.254.0",
-                ],
-                "features": [
-                    "component-model",
-                    "default",
-                    "validate",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":anyhow-1.0.104",
-                    ":termcolor-1.4.1",
-                    ":wasmparser-0.254.0",
-                ],
-                "features": [
-                    "component-model",
-                    "default",
-                    "validate",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.254.0",
-    },
-    "wasmtime-48.0.1": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "deps": [
-                ":cc-1.2.63",
-            ],
-            "edition": "2024",
-            "named_deps": {
-                "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48.0.1",
-            },
-        },
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Wasmtime Project Developers",
-            "CARGO_PKG_DESCRIPTION": "High-level API to expose the Wasmtime runtime",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "wasmtime",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "wasmtime",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":async-trait-0.1.92",
-                    ":bitflags-2.12.1",
-                    ":bumpalo-3.20.3",
-                    ":encoding_rs-0.8.35",
-                    ":libc-0.2.186",
-                    ":log-0.4.31",
-                    ":object-0.39.1",
-                    ":once_cell-1.21.4",
-                    ":postcard-1.1.3",
-                    ":pulley-interpreter-48.0.1",
-                    ":rayon-1.12.0",
-                    ":rustix-1.1.4",
-                    ":semver-1.0.28",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                    ":wasmparser-0.254.0",
-                    ":wasmtime-environ-48.0.1",
-                    ":wat-1.257.1",
-                ],
-                "features": [
-                    "async",
-                    "cache",
-                    "component-model",
-                    "cranelift",
-                    "demangle",
-                    "gc",
-                    "gc-drc",
-                    "once_cell",
-                    "parallel-compilation",
-                    "runtime",
-                    "std",
-                    "threads",
-                    "wasmtime-jit-icache-coherence",
-                    "wat",
-                ],
-                "named_deps": {
-                    "wasmtime_cache": ":wasmtime-internal-cache-48.0.1",
-                    "wasmtime_component_macro": ":wasmtime-internal-component-macro-48.0.1",
-                    "wasmtime_component_util": ":wasmtime-internal-component-util-48.0.1",
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                    "wasmtime_cranelift": ":wasmtime-internal-cranelift-48.0.1",
-                    "wasmtime_fiber": ":wasmtime-internal-fiber-48.0.1",
-                    "wasmtime_jit_icache_coherence": ":wasmtime-internal-jit-icache-coherence-48.0.1",
-                    "wasmtime_unwinder": ":wasmtime-internal-unwinder-48.0.1",
-                    "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48.0.1",
-                },
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":async-trait-0.1.92",
-                    ":bitflags-2.12.1",
-                    ":bumpalo-3.20.3",
-                    ":encoding_rs-0.8.35",
-                    ":libc-0.2.186",
-                    ":log-0.4.31",
-                    ":memfd-0.6.5",
-                    ":object-0.39.1",
-                    ":once_cell-1.21.4",
-                    ":postcard-1.1.3",
-                    ":pulley-interpreter-48.0.1",
-                    ":rayon-1.12.0",
-                    ":rustix-1.1.4",
-                    ":semver-1.0.28",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                    ":wasmparser-0.254.0",
-                    ":wasmtime-environ-48.0.1",
-                    ":wat-1.257.1",
-                ],
-                "features": [
-                    "async",
-                    "cache",
-                    "component-model",
-                    "cranelift",
-                    "demangle",
-                    "gc",
-                    "gc-drc",
-                    "once_cell",
-                    "parallel-compilation",
-                    "runtime",
-                    "std",
-                    "threads",
-                    "wasmtime-jit-icache-coherence",
-                    "wat",
-                ],
-                "named_deps": {
-                    "wasmtime_cache": ":wasmtime-internal-cache-48.0.1",
-                    "wasmtime_component_macro": ":wasmtime-internal-component-macro-48.0.1",
-                    "wasmtime_component_util": ":wasmtime-internal-component-util-48.0.1",
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                    "wasmtime_cranelift": ":wasmtime-internal-cranelift-48.0.1",
-                    "wasmtime_fiber": ":wasmtime-internal-fiber-48.0.1",
-                    "wasmtime_jit_icache_coherence": ":wasmtime-internal-jit-icache-coherence-48.0.1",
-                    "wasmtime_unwinder": ":wasmtime-internal-unwinder-48.0.1",
-                    "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48.0.1",
-                },
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":async-trait-0.1.92",
-                    ":bitflags-2.12.1",
-                    ":bumpalo-3.20.3",
-                    ":encoding_rs-0.8.35",
-                    ":libc-0.2.186",
-                    ":log-0.4.31",
-                    ":memfd-0.6.5",
-                    ":object-0.39.1",
-                    ":once_cell-1.21.4",
-                    ":postcard-1.1.3",
-                    ":pulley-interpreter-48.0.1",
-                    ":rayon-1.12.0",
-                    ":rustix-1.1.4",
-                    ":semver-1.0.28",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                    ":wasmparser-0.254.0",
-                    ":wasmtime-environ-48.0.1",
-                    ":wat-1.257.1",
-                ],
-                "features": [
-                    "async",
-                    "cache",
-                    "component-model",
-                    "cranelift",
-                    "demangle",
-                    "gc",
-                    "gc-drc",
-                    "once_cell",
-                    "parallel-compilation",
-                    "runtime",
-                    "std",
-                    "threads",
-                    "wasmtime-jit-icache-coherence",
-                    "wat",
-                ],
-                "named_deps": {
-                    "wasmtime_cache": ":wasmtime-internal-cache-48.0.1",
-                    "wasmtime_component_macro": ":wasmtime-internal-component-macro-48.0.1",
-                    "wasmtime_component_util": ":wasmtime-internal-component-util-48.0.1",
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                    "wasmtime_cranelift": ":wasmtime-internal-cranelift-48.0.1",
-                    "wasmtime_fiber": ":wasmtime-internal-fiber-48.0.1",
-                    "wasmtime_jit_icache_coherence": ":wasmtime-internal-jit-icache-coherence-48.0.1",
-                    "wasmtime_unwinder": ":wasmtime-internal-unwinder-48.0.1",
-                    "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48.0.1",
-                },
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":async-trait-0.1.92",
-                    ":bitflags-2.12.1",
-                    ":bumpalo-3.20.3",
-                    ":encoding_rs-0.8.35",
-                    ":libc-0.2.186",
-                    ":log-0.4.31",
-                    ":mach2-0.6.0",
-                    ":object-0.39.1",
-                    ":once_cell-1.21.4",
-                    ":postcard-1.1.3",
-                    ":pulley-interpreter-48.0.1",
-                    ":rayon-1.12.0",
-                    ":rustix-1.1.4",
-                    ":semver-1.0.28",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                    ":wasmparser-0.254.0",
-                    ":wasmtime-environ-48.0.1",
-                    ":wat-1.257.1",
-                ],
-                "features": [
-                    "async",
-                    "cache",
-                    "component-model",
-                    "cranelift",
-                    "demangle",
-                    "gc",
-                    "gc-drc",
-                    "once_cell",
-                    "parallel-compilation",
-                    "runtime",
-                    "std",
-                    "threads",
-                    "wasmtime-jit-icache-coherence",
-                    "wat",
-                ],
-                "named_deps": {
-                    "wasmtime_cache": ":wasmtime-internal-cache-48.0.1",
-                    "wasmtime_component_macro": ":wasmtime-internal-component-macro-48.0.1",
-                    "wasmtime_component_util": ":wasmtime-internal-component-util-48.0.1",
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                    "wasmtime_cranelift": ":wasmtime-internal-cranelift-48.0.1",
-                    "wasmtime_fiber": ":wasmtime-internal-fiber-48.0.1",
-                    "wasmtime_jit_icache_coherence": ":wasmtime-internal-jit-icache-coherence-48.0.1",
-                    "wasmtime_unwinder": ":wasmtime-internal-unwinder-48.0.1",
-                    "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48.0.1",
-                },
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":async-trait-0.1.92",
-                    ":bitflags-2.12.1",
-                    ":bumpalo-3.20.3",
-                    ":encoding_rs-0.8.35",
-                    ":libc-0.2.186",
-                    ":log-0.4.31",
-                    ":mach2-0.6.0",
-                    ":object-0.39.1",
-                    ":once_cell-1.21.4",
-                    ":postcard-1.1.3",
-                    ":pulley-interpreter-48.0.1",
-                    ":rayon-1.12.0",
-                    ":rustix-1.1.4",
-                    ":semver-1.0.28",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                    ":wasmparser-0.254.0",
-                    ":wasmtime-environ-48.0.1",
-                    ":wat-1.257.1",
-                ],
-                "features": [
-                    "async",
-                    "cache",
-                    "component-model",
-                    "cranelift",
-                    "demangle",
-                    "gc",
-                    "gc-drc",
-                    "once_cell",
-                    "parallel-compilation",
-                    "runtime",
-                    "std",
-                    "threads",
-                    "wasmtime-jit-icache-coherence",
-                    "wat",
-                ],
-                "named_deps": {
-                    "wasmtime_cache": ":wasmtime-internal-cache-48.0.1",
-                    "wasmtime_component_macro": ":wasmtime-internal-component-macro-48.0.1",
-                    "wasmtime_component_util": ":wasmtime-internal-component-util-48.0.1",
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                    "wasmtime_cranelift": ":wasmtime-internal-cranelift-48.0.1",
-                    "wasmtime_fiber": ":wasmtime-internal-fiber-48.0.1",
-                    "wasmtime_jit_icache_coherence": ":wasmtime-internal-jit-icache-coherence-48.0.1",
-                    "wasmtime_unwinder": ":wasmtime-internal-unwinder-48.0.1",
-                    "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48.0.1",
-                },
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":async-trait-0.1.92",
-                    ":bitflags-2.12.1",
-                    ":bumpalo-3.20.3",
-                    ":encoding_rs-0.8.35",
-                    ":libc-0.2.186",
-                    ":log-0.4.31",
-                    ":object-0.39.1",
-                    ":once_cell-1.21.4",
-                    ":postcard-1.1.3",
-                    ":pulley-interpreter-48.0.1",
-                    ":rayon-1.12.0",
-                    ":semver-1.0.28",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                    ":wasmparser-0.254.0",
-                    ":wasmtime-environ-48.0.1",
-                    ":wat-1.257.1",
-                    ":windows-sys-0.61.2",
-                ],
-                "features": [
-                    "async",
-                    "cache",
-                    "component-model",
-                    "cranelift",
-                    "demangle",
-                    "gc",
-                    "gc-drc",
-                    "once_cell",
-                    "parallel-compilation",
-                    "runtime",
-                    "std",
-                    "threads",
-                    "wasmtime-jit-icache-coherence",
-                    "wat",
-                ],
-                "named_deps": {
-                    "wasmtime_cache": ":wasmtime-internal-cache-48.0.1",
-                    "wasmtime_component_macro": ":wasmtime-internal-component-macro-48.0.1",
-                    "wasmtime_component_util": ":wasmtime-internal-component-util-48.0.1",
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                    "wasmtime_cranelift": ":wasmtime-internal-cranelift-48.0.1",
-                    "wasmtime_fiber": ":wasmtime-internal-fiber-48.0.1",
-                    "wasmtime_jit_icache_coherence": ":wasmtime-internal-jit-icache-coherence-48.0.1",
-                    "wasmtime_unwinder": ":wasmtime-internal-unwinder-48.0.1",
-                    "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48.0.1",
-                },
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":async-trait-0.1.92",
-                    ":bitflags-2.12.1",
-                    ":bumpalo-3.20.3",
-                    ":encoding_rs-0.8.35",
-                    ":libc-0.2.186",
-                    ":log-0.4.31",
-                    ":object-0.39.1",
-                    ":once_cell-1.21.4",
-                    ":postcard-1.1.3",
-                    ":pulley-interpreter-48.0.1",
-                    ":rayon-1.12.0",
-                    ":semver-1.0.28",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                    ":wasmparser-0.254.0",
-                    ":wasmtime-environ-48.0.1",
-                    ":wat-1.257.1",
-                    ":windows-sys-0.61.2",
-                ],
-                "features": [
-                    "async",
-                    "cache",
-                    "component-model",
-                    "cranelift",
-                    "demangle",
-                    "gc",
-                    "gc-drc",
-                    "once_cell",
-                    "parallel-compilation",
-                    "runtime",
-                    "std",
-                    "threads",
-                    "wasmtime-jit-icache-coherence",
-                    "wat",
-                ],
-                "named_deps": {
-                    "wasmtime_cache": ":wasmtime-internal-cache-48.0.1",
-                    "wasmtime_component_macro": ":wasmtime-internal-component-macro-48.0.1",
-                    "wasmtime_component_util": ":wasmtime-internal-component-util-48.0.1",
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                    "wasmtime_cranelift": ":wasmtime-internal-cranelift-48.0.1",
-                    "wasmtime_fiber": ":wasmtime-internal-fiber-48.0.1",
-                    "wasmtime_jit_icache_coherence": ":wasmtime-internal-jit-icache-coherence-48.0.1",
-                    "wasmtime_unwinder": ":wasmtime-internal-unwinder-48.0.1",
-                    "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48.0.1",
-                },
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-            "-Copt-level=2",
-            "-Cdebug-assertions=off",
-            "-Coverflow-checks=off",
-        ],
-        "version": "48.0.1",
-    },
-    "wasmtime-environ-48.0.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Wasmtime Project Developers",
-            "CARGO_PKG_DESCRIPTION": "Standalone environment support for WebAssembly code in Cranelift",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "wasmtime_environ",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "wasmtime-environ",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":anyhow-1.0.104",
-                    ":cpp_demangle-0.5.1",
-                    ":cranelift-bforest-0.135.1",
-                    ":cranelift-bitset-0.135.1",
-                    ":cranelift-entity-0.135.1",
-                    ":gimli-0.33.0",
-                    ":hashbrown-0.17.1",
-                    ":indexmap-2.14.0",
-                    ":log-0.4.31",
-                    ":object-0.39.1",
-                    ":postcard-1.1.3",
-                    ":rustc-demangle-0.1.28",
-                    ":semver-1.0.28",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":sha2-0.10.9",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                    ":wasm-encoder-0.254.0",
-                    ":wasmparser-0.254.0",
-                    ":wasmprinter-0.254.0",
-                ],
-                "features": [
-                    "compile",
-                    "component-model",
-                    "demangle",
-                    "gc",
-                    "gc-copying",
-                    "gc-drc",
-                    "gc-null",
-                    "stack-switching",
-                    "std",
-                    "threads",
-                ],
-                "named_deps": {
-                    "wasmtime_component_util": ":wasmtime-internal-component-util-48.0.1",
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":anyhow-1.0.104",
-                    ":cpp_demangle-0.5.1",
-                    ":cranelift-bforest-0.135.1",
-                    ":cranelift-bitset-0.135.1",
-                    ":cranelift-entity-0.135.1",
-                    ":gimli-0.33.0",
-                    ":hashbrown-0.17.1",
-                    ":indexmap-2.14.0",
-                    ":log-0.4.31",
-                    ":object-0.39.1",
-                    ":postcard-1.1.3",
-                    ":rustc-demangle-0.1.28",
-                    ":semver-1.0.28",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":sha2-0.10.9",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                    ":wasm-encoder-0.254.0",
-                    ":wasmparser-0.254.0",
-                    ":wasmprinter-0.254.0",
-                ],
-                "features": [
-                    "compile",
-                    "component-model",
-                    "demangle",
-                    "gc",
-                    "gc-copying",
-                    "gc-drc",
-                    "gc-null",
-                    "stack-switching",
-                    "std",
-                    "threads",
-                ],
-                "named_deps": {
-                    "wasmtime_component_util": ":wasmtime-internal-component-util-48.0.1",
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":anyhow-1.0.104",
-                    ":cpp_demangle-0.5.1",
-                    ":cranelift-bforest-0.135.1",
-                    ":cranelift-bitset-0.135.1",
-                    ":cranelift-entity-0.135.1",
-                    ":gimli-0.33.0",
-                    ":hashbrown-0.17.1",
-                    ":indexmap-2.14.0",
-                    ":log-0.4.31",
-                    ":object-0.39.1",
-                    ":postcard-1.1.3",
-                    ":rustc-demangle-0.1.28",
-                    ":semver-1.0.28",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":sha2-0.10.9",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                    ":wasm-encoder-0.254.0",
-                    ":wasmparser-0.254.0",
-                    ":wasmprinter-0.254.0",
-                ],
-                "features": [
-                    "compile",
-                    "component-model",
-                    "demangle",
-                    "gc",
-                    "gc-copying",
-                    "gc-drc",
-                    "gc-null",
-                    "stack-switching",
-                    "std",
-                    "threads",
-                ],
-                "named_deps": {
-                    "wasmtime_component_util": ":wasmtime-internal-component-util-48.0.1",
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":anyhow-1.0.104",
-                    ":cpp_demangle-0.5.1",
-                    ":cranelift-bforest-0.135.1",
-                    ":cranelift-bitset-0.135.1",
-                    ":cranelift-entity-0.135.1",
-                    ":gimli-0.33.0",
-                    ":hashbrown-0.17.1",
-                    ":indexmap-2.14.0",
-                    ":log-0.4.31",
-                    ":object-0.39.1",
-                    ":postcard-1.1.3",
-                    ":rustc-demangle-0.1.28",
-                    ":semver-1.0.28",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":sha2-0.10.9",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                    ":wasm-encoder-0.254.0",
-                    ":wasmparser-0.254.0",
-                    ":wasmprinter-0.254.0",
-                ],
-                "features": [
-                    "compile",
-                    "component-model",
-                    "demangle",
-                    "gc",
-                    "gc-copying",
-                    "gc-drc",
-                    "gc-null",
-                    "stack-switching",
-                    "std",
-                    "threads",
-                ],
-                "named_deps": {
-                    "wasmtime_component_util": ":wasmtime-internal-component-util-48.0.1",
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":anyhow-1.0.104",
-                    ":cpp_demangle-0.5.1",
-                    ":cranelift-bforest-0.135.1",
-                    ":cranelift-bitset-0.135.1",
-                    ":cranelift-entity-0.135.1",
-                    ":gimli-0.33.0",
-                    ":hashbrown-0.17.1",
-                    ":indexmap-2.14.0",
-                    ":log-0.4.31",
-                    ":object-0.39.1",
-                    ":postcard-1.1.3",
-                    ":rustc-demangle-0.1.28",
-                    ":semver-1.0.28",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":sha2-0.10.9",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                    ":wasm-encoder-0.254.0",
-                    ":wasmparser-0.254.0",
-                    ":wasmprinter-0.254.0",
-                ],
-                "features": [
-                    "compile",
-                    "component-model",
-                    "demangle",
-                    "gc",
-                    "gc-copying",
-                    "gc-drc",
-                    "gc-null",
-                    "stack-switching",
-                    "std",
-                    "threads",
-                ],
-                "named_deps": {
-                    "wasmtime_component_util": ":wasmtime-internal-component-util-48.0.1",
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":anyhow-1.0.104",
-                    ":cpp_demangle-0.5.1",
-                    ":cranelift-bforest-0.135.1",
-                    ":cranelift-bitset-0.135.1",
-                    ":cranelift-entity-0.135.1",
-                    ":gimli-0.33.0",
-                    ":hashbrown-0.17.1",
-                    ":indexmap-2.14.0",
-                    ":log-0.4.31",
-                    ":object-0.39.1",
-                    ":postcard-1.1.3",
-                    ":rustc-demangle-0.1.28",
-                    ":semver-1.0.28",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":sha2-0.10.9",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                    ":wasm-encoder-0.254.0",
-                    ":wasmparser-0.254.0",
-                    ":wasmprinter-0.254.0",
-                ],
-                "features": [
-                    "compile",
-                    "component-model",
-                    "demangle",
-                    "gc",
-                    "gc-copying",
-                    "gc-drc",
-                    "gc-null",
-                    "stack-switching",
-                    "std",
-                    "threads",
-                ],
-                "named_deps": {
-                    "wasmtime_component_util": ":wasmtime-internal-component-util-48.0.1",
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":anyhow-1.0.104",
-                    ":cpp_demangle-0.5.1",
-                    ":cranelift-bforest-0.135.1",
-                    ":cranelift-bitset-0.135.1",
-                    ":cranelift-entity-0.135.1",
-                    ":gimli-0.33.0",
-                    ":hashbrown-0.17.1",
-                    ":indexmap-2.14.0",
-                    ":log-0.4.31",
-                    ":object-0.39.1",
-                    ":postcard-1.1.3",
-                    ":rustc-demangle-0.1.28",
-                    ":semver-1.0.28",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":sha2-0.10.9",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                    ":wasm-encoder-0.254.0",
-                    ":wasmparser-0.254.0",
-                    ":wasmprinter-0.254.0",
-                ],
-                "features": [
-                    "compile",
-                    "component-model",
-                    "demangle",
-                    "gc",
-                    "gc-copying",
-                    "gc-drc",
-                    "gc-null",
-                    "stack-switching",
-                    "std",
-                    "threads",
-                ],
-                "named_deps": {
-                    "wasmtime_component_util": ":wasmtime-internal-component-util-48.0.1",
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-            "-Copt-level=2",
-            "-Cdebug-assertions=off",
-            "-Coverflow-checks=off",
-        ],
-        "version": "48.0.1",
-    },
-    "wasmtime-internal-cache-48.0.1": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "edition": "2024",
-        },
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Wasmtime Project Developers",
-            "CARGO_PKG_DESCRIPTION": "INTERNAL: Support for automatic module caching with Wasmtime",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "wasmtime_internal_cache",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "wasmtime-internal-cache",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":base64-0.22.1",
-                    ":directories-next-2.0.0",
-                    ":log-0.4.31",
-                    ":postcard-1.1.3",
-                    ":rustix-1.1.4",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":sha2-0.10.9",
-                    ":toml-0.9.12+spec-1.1.0",
-                    ":wasmtime-environ-48.0.1",
-                    ":zstd-0.13.3",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":base64-0.22.1",
-                    ":directories-next-2.0.0",
-                    ":log-0.4.31",
-                    ":postcard-1.1.3",
-                    ":rustix-1.1.4",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":sha2-0.10.9",
-                    ":toml-0.9.12+spec-1.1.0",
-                    ":wasmtime-environ-48.0.1",
-                    ":zstd-0.13.3",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":base64-0.22.1",
-                    ":directories-next-2.0.0",
-                    ":log-0.4.31",
-                    ":postcard-1.1.3",
-                    ":rustix-1.1.4",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":sha2-0.10.9",
-                    ":toml-0.9.12+spec-1.1.0",
-                    ":wasmtime-environ-48.0.1",
-                    ":zstd-0.13.3",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":base64-0.22.1",
-                    ":directories-next-2.0.0",
-                    ":log-0.4.31",
-                    ":postcard-1.1.3",
-                    ":rustix-1.1.4",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":sha2-0.10.9",
-                    ":toml-0.9.12+spec-1.1.0",
-                    ":wasmtime-environ-48.0.1",
-                    ":zstd-0.13.3",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":base64-0.22.1",
-                    ":directories-next-2.0.0",
-                    ":log-0.4.31",
-                    ":postcard-1.1.3",
-                    ":rustix-1.1.4",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":sha2-0.10.9",
-                    ":toml-0.9.12+spec-1.1.0",
-                    ":wasmtime-environ-48.0.1",
-                    ":zstd-0.13.3",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":base64-0.22.1",
-                    ":directories-next-2.0.0",
-                    ":log-0.4.31",
-                    ":postcard-1.1.3",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":sha2-0.10.9",
-                    ":toml-0.9.12+spec-1.1.0",
-                    ":wasmtime-environ-48.0.1",
-                    ":windows-sys-0.61.2",
-                    ":zstd-0.13.3",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":base64-0.22.1",
-                    ":directories-next-2.0.0",
-                    ":log-0.4.31",
-                    ":postcard-1.1.3",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":sha2-0.10.9",
-                    ":toml-0.9.12+spec-1.1.0",
-                    ":wasmtime-environ-48.0.1",
-                    ":windows-sys-0.61.2",
-                    ":zstd-0.13.3",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "48.0.1",
-    },
-    "wasmtime-internal-component-macro-48.0.1": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "edition": "2024",
-        },
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Wasmtime Project Developers",
-            "CARGO_PKG_DESCRIPTION": "INTERNAL: Macros for deriving component interface types from Rust types",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "wasmtime_internal_component_macro",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": True,
-        },
-        "name": "wasmtime-internal-component-macro",
-        "platforms": {
-            "linux-x86_64": {
-                "deps": [
-                    ":anyhow-1.0.104",
-                    ":proc-macro2-1.0.106",
-                    ":quote-1.0.45",
-                    ":syn-2.0.117",
-                    ":wit-parser-0.254.0",
-                ],
-                "features": [
-                    "async",
-                ],
-                "named_deps": {
-                    "wasmtime_component_util": ":wasmtime-internal-component-util-48.0.1",
-                    "wasmtime_wit_bindgen": ":wasmtime-internal-wit-bindgen-48.0.1",
-                },
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "48.0.1",
-    },
-    "wasmtime-internal-component-util-48.0.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Wasmtime Project Developers",
-            "CARGO_PKG_DESCRIPTION": "INTERNAL: Utility types and functions to support the component model in Wasmtime",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "wasmtime_internal_component_util",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "wasmtime-internal-component-util",
-        "platforms": {
-            "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
-            "macos-arm64": {},
-            "macos-x86_64": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "48.0.1",
-    },
-    "wasmtime-internal-core-48.0.1": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "edition": "2024",
-        },
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Wasmtime Project Developers",
-            "CARGO_PKG_DESCRIPTION": "INTERNAL: Wasmtime's core utilities and helpers with minimal dependencies",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "wasmtime_internal_core",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "wasmtime-internal-core",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":hashbrown-0.17.1",
-                    ":libm-0.2.16",
-                    ":serde-1.0.228",
-                ],
-                "features": [
-                    "serde",
-                    "std",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":hashbrown-0.17.1",
-                    ":libm-0.2.16",
-                    ":serde-1.0.228",
-                ],
-                "features": [
-                    "serde",
-                    "std",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":hashbrown-0.17.1",
-                    ":libm-0.2.16",
-                    ":serde-1.0.228",
-                ],
-                "features": [
-                    "serde",
-                    "std",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":hashbrown-0.17.1",
-                    ":libm-0.2.16",
-                    ":serde-1.0.228",
-                ],
-                "features": [
-                    "serde",
-                    "std",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":hashbrown-0.17.1",
-                    ":libm-0.2.16",
-                    ":serde-1.0.228",
-                ],
-                "features": [
-                    "serde",
-                    "std",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":hashbrown-0.17.1",
-                    ":libm-0.2.16",
-                    ":serde-1.0.228",
-                ],
-                "features": [
-                    "serde",
-                    "std",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":hashbrown-0.17.1",
-                    ":libm-0.2.16",
-                    ":serde-1.0.228",
-                ],
-                "features": [
-                    "serde",
-                    "std",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-            "-Copt-level=2",
-            "-Cdebug-assertions=off",
-            "-Coverflow-checks=off",
-        ],
-        "version": "48.0.1",
-    },
-    "wasmtime-internal-cranelift-48.0.1": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "edition": "2024",
-        },
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Wasmtime Project Developers",
-            "CARGO_PKG_DESCRIPTION": "INTERNAL: Integration between Cranelift and Wasmtime",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "wasmtime_internal_cranelift",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "wasmtime-internal-cranelift",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":cranelift-control-0.135.1",
-                    ":cranelift-entity-0.135.1",
-                    ":cranelift-frontend-0.135.1",
-                    ":cranelift-native-0.135.1",
-                    ":gimli-0.33.0",
-                    ":itertools-0.14.0",
-                    ":log-0.4.31",
-                    ":object-0.39.1",
-                    ":pulley-interpreter-48.0.1",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                    ":thiserror-2.0.18",
-                    ":wasmparser-0.254.0",
-                    ":wasmtime-environ-48.0.1",
-                ],
-                "features": [
-                    "pulley",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                    "wasmtime_unwinder": ":wasmtime-internal-unwinder-48.0.1",
-                    "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48.0.1",
-                },
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":cranelift-control-0.135.1",
-                    ":cranelift-entity-0.135.1",
-                    ":cranelift-frontend-0.135.1",
-                    ":cranelift-native-0.135.1",
-                    ":gimli-0.33.0",
-                    ":itertools-0.14.0",
-                    ":log-0.4.31",
-                    ":object-0.39.1",
-                    ":pulley-interpreter-48.0.1",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                    ":thiserror-2.0.18",
-                    ":wasmparser-0.254.0",
-                    ":wasmtime-environ-48.0.1",
-                ],
-                "features": [
-                    "pulley",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                    "wasmtime_unwinder": ":wasmtime-internal-unwinder-48.0.1",
-                    "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48.0.1",
-                },
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":cranelift-control-0.135.1",
-                    ":cranelift-entity-0.135.1",
-                    ":cranelift-frontend-0.135.1",
-                    ":cranelift-native-0.135.1",
-                    ":gimli-0.33.0",
-                    ":itertools-0.14.0",
-                    ":log-0.4.31",
-                    ":object-0.39.1",
-                    ":pulley-interpreter-48.0.1",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                    ":thiserror-2.0.18",
-                    ":wasmparser-0.254.0",
-                    ":wasmtime-environ-48.0.1",
-                ],
-                "features": [
-                    "pulley",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                    "wasmtime_unwinder": ":wasmtime-internal-unwinder-48.0.1",
-                    "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48.0.1",
-                },
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":cranelift-control-0.135.1",
-                    ":cranelift-entity-0.135.1",
-                    ":cranelift-frontend-0.135.1",
-                    ":cranelift-native-0.135.1",
-                    ":gimli-0.33.0",
-                    ":itertools-0.14.0",
-                    ":log-0.4.31",
-                    ":object-0.39.1",
-                    ":pulley-interpreter-48.0.1",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                    ":thiserror-2.0.18",
-                    ":wasmparser-0.254.0",
-                    ":wasmtime-environ-48.0.1",
-                ],
-                "features": [
-                    "pulley",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                    "wasmtime_unwinder": ":wasmtime-internal-unwinder-48.0.1",
-                    "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48.0.1",
-                },
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":cranelift-control-0.135.1",
-                    ":cranelift-entity-0.135.1",
-                    ":cranelift-frontend-0.135.1",
-                    ":cranelift-native-0.135.1",
-                    ":gimli-0.33.0",
-                    ":itertools-0.14.0",
-                    ":log-0.4.31",
-                    ":object-0.39.1",
-                    ":pulley-interpreter-48.0.1",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                    ":thiserror-2.0.18",
-                    ":wasmparser-0.254.0",
-                    ":wasmtime-environ-48.0.1",
-                ],
-                "features": [
-                    "pulley",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                    "wasmtime_unwinder": ":wasmtime-internal-unwinder-48.0.1",
-                    "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48.0.1",
-                },
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":cranelift-control-0.135.1",
-                    ":cranelift-entity-0.135.1",
-                    ":cranelift-frontend-0.135.1",
-                    ":cranelift-native-0.135.1",
-                    ":gimli-0.33.0",
-                    ":itertools-0.14.0",
-                    ":log-0.4.31",
-                    ":object-0.39.1",
-                    ":pulley-interpreter-48.0.1",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                    ":thiserror-2.0.18",
-                    ":wasmparser-0.254.0",
-                    ":wasmtime-environ-48.0.1",
-                ],
-                "features": [
-                    "pulley",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                    "wasmtime_unwinder": ":wasmtime-internal-unwinder-48.0.1",
-                    "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48.0.1",
-                },
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":cranelift-control-0.135.1",
-                    ":cranelift-entity-0.135.1",
-                    ":cranelift-frontend-0.135.1",
-                    ":cranelift-native-0.135.1",
-                    ":gimli-0.33.0",
-                    ":itertools-0.14.0",
-                    ":log-0.4.31",
-                    ":object-0.39.1",
-                    ":pulley-interpreter-48.0.1",
-                    ":smallvec-1.16.5",
-                    ":target-lexicon-0.13.5",
-                    ":thiserror-2.0.18",
-                    ":wasmparser-0.254.0",
-                    ":wasmtime-environ-48.0.1",
-                ],
-                "features": [
-                    "pulley",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                    "wasmtime_unwinder": ":wasmtime-internal-unwinder-48.0.1",
-                    "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48.0.1",
-                },
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-            "-Copt-level=2",
-            "-Cdebug-assertions=off",
-            "-Coverflow-checks=off",
-        ],
-        "version": "48.0.1",
-    },
-    "wasmtime-internal-fiber-48.0.1": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "deps": [
-                ":cc-1.2.63",
-            ],
-            "edition": "2024",
-            "named_deps": {
-                "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48.0.1",
-            },
-        },
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Wasmtime Project Developers",
-            "CARGO_PKG_DESCRIPTION": "INTERNAL: Fiber support for Wasmtime",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "wasmtime_internal_fiber",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "wasmtime-internal-fiber",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":libc-0.2.186",
-                    ":rustix-1.1.4",
-                    ":wasmtime-environ-48.0.1",
-                ],
-                "features": [
-                    "std",
-                ],
-                "named_deps": {
-                    "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48.0.1",
-                },
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":libc-0.2.186",
-                    ":rustix-1.1.4",
-                    ":wasmtime-environ-48.0.1",
-                ],
-                "features": [
-                    "std",
-                ],
-                "named_deps": {
-                    "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48.0.1",
-                },
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":libc-0.2.186",
-                    ":rustix-1.1.4",
-                    ":wasmtime-environ-48.0.1",
-                ],
-                "features": [
-                    "std",
-                ],
-                "named_deps": {
-                    "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48.0.1",
-                },
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":libc-0.2.186",
-                    ":rustix-1.1.4",
-                    ":wasmtime-environ-48.0.1",
-                ],
-                "features": [
-                    "std",
-                ],
-                "named_deps": {
-                    "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48.0.1",
-                },
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":libc-0.2.186",
-                    ":rustix-1.1.4",
-                    ":wasmtime-environ-48.0.1",
-                ],
-                "features": [
-                    "std",
-                ],
-                "named_deps": {
-                    "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48.0.1",
-                },
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":wasmtime-environ-48.0.1",
-                    ":windows-sys-0.61.2",
-                ],
-                "features": [
-                    "std",
-                ],
-                "named_deps": {
-                    "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48.0.1",
-                },
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":wasmtime-environ-48.0.1",
-                    ":windows-sys-0.61.2",
-                ],
-                "features": [
-                    "std",
-                ],
-                "named_deps": {
-                    "wasmtime_versioned_export_macros": ":wasmtime-internal-versioned-export-macros-48.0.1",
-                },
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "48.0.1",
-    },
-    "wasmtime-internal-jit-icache-coherence-48.0.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Wasmtime Project Developers",
-            "CARGO_PKG_DESCRIPTION": "INTERNAL: Utilities for JIT icache maintenance",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "wasmtime_internal_jit_icache_coherence",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "wasmtime-internal-jit-icache-coherence",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":libc-0.2.186",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":libc-0.2.186",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":libc-0.2.186",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":libc-0.2.186",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":libc-0.2.186",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":windows-sys-0.61.2",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":windows-sys-0.61.2",
-                ],
-                "named_deps": {
-                    "wasmtime_core": ":wasmtime-internal-core-48.0.1",
-                },
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "48.0.1",
-    },
-    "wasmtime-internal-unwinder-48.0.1": {
-        "build_script": {
-            "crate_root": "build.rs",
-            "edition": "2024",
-        },
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Wasmtime Project Developers",
-            "CARGO_PKG_DESCRIPTION": "INTERNAL: Wasmtime's unwind format and unwinder",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "wasmtime_internal_unwinder",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "wasmtime-internal-unwinder",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":log-0.4.31",
-                    ":object-0.39.1",
-                    ":wasmtime-environ-48.0.1",
-                ],
-                "features": [
-                    "cranelift",
-                    "default",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":log-0.4.31",
-                    ":object-0.39.1",
-                    ":wasmtime-environ-48.0.1",
-                ],
-                "features": [
-                    "cranelift",
-                    "default",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":log-0.4.31",
-                    ":object-0.39.1",
-                    ":wasmtime-environ-48.0.1",
-                ],
-                "features": [
-                    "cranelift",
-                    "default",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":log-0.4.31",
-                    ":object-0.39.1",
-                    ":wasmtime-environ-48.0.1",
-                ],
-                "features": [
-                    "cranelift",
-                    "default",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":log-0.4.31",
-                    ":object-0.39.1",
-                    ":wasmtime-environ-48.0.1",
-                ],
-                "features": [
-                    "cranelift",
-                    "default",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":log-0.4.31",
-                    ":object-0.39.1",
-                    ":wasmtime-environ-48.0.1",
-                ],
-                "features": [
-                    "cranelift",
-                    "default",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":cranelift-codegen-0.135.1",
-                    ":log-0.4.31",
-                    ":object-0.39.1",
-                    ":wasmtime-environ-48.0.1",
-                ],
-                "features": [
-                    "cranelift",
-                    "default",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "48.0.1",
-    },
-    "wasmtime-internal-versioned-export-macros-48.0.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Wasmtime Project Developers",
-            "CARGO_PKG_DESCRIPTION": "INTERNAL: Macros for defining versioned exports in Wasmtime",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "wasmtime_internal_versioned_export_macros",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": True,
-        },
-        "name": "wasmtime-internal-versioned-export-macros",
-        "platforms": {
-            "linux-x86_64": {
-                "deps": [
-                    ":proc-macro2-1.0.106",
-                    ":quote-1.0.45",
-                    ":syn-2.0.117",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "48.0.1",
-    },
-    "wasmtime-internal-wit-bindgen-48.0.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Wasmtime Project Developers",
-            "CARGO_PKG_DESCRIPTION": "INTERNAL: `*.wit` support for the `wasmtime` crate's macros",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "wasmtime_internal_wit_bindgen",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "wasmtime-internal-wit-bindgen",
-        "platforms": {
-            "linux-x86_64": {
-                "deps": [
-                    ":anyhow-1.0.104",
-                    ":bitflags-2.12.1",
-                    ":heck-0.5.0",
-                    ":indexmap-2.14.0",
-                    ":wit-component-0.254.0",
-                    ":wit-parser-0.254.0",
-                ],
-                "features": [
-                    "async",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "48.0.1",
-    },
-    "wasmtime-wasi-48.0.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Wasmtime Project Developers",
-            "CARGO_PKG_DESCRIPTION": "WASI implementation in Rust",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "wasmtime_wasi",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "wasmtime-wasi",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":async-trait-0.1.92",
-                    ":bitflags-2.12.1",
-                    ":bytes-1.12.1",
-                    ":cap-primitives-4.0.3",
-                    ":futures-0.3.32",
-                    ":rand-0.10.2",
-                    ":rustix-1.1.4",
-                    ":thiserror-2.0.18",
-                    ":tokio-1.52.3",
-                    ":tracing-0.1.44",
-                    ":url-2.5.8",
-                    ":wasmtime-48.0.1",
-                    ":wasmtime-wasi-io-48.0.1",
-                    ":wiggle-48.0.1",
-                ],
-                "features": [
-                    "p1",
-                    "p2",
-                ],
-                "named_deps": {
-                    "cap_fs_ext_avoid_using_this": ":cap-fs-ext-4.0.3",
-                },
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":async-trait-0.1.92",
-                    ":bitflags-2.12.1",
-                    ":bytes-1.12.1",
-                    ":cap-primitives-4.0.3",
-                    ":futures-0.3.32",
-                    ":rand-0.10.2",
-                    ":rustix-1.1.4",
-                    ":thiserror-2.0.18",
-                    ":tokio-1.52.3",
-                    ":tracing-0.1.44",
-                    ":url-2.5.8",
-                    ":wasmtime-48.0.1",
-                    ":wasmtime-wasi-io-48.0.1",
-                    ":wiggle-48.0.1",
-                ],
-                "features": [
-                    "p1",
-                    "p2",
-                ],
-                "named_deps": {
-                    "cap_fs_ext_avoid_using_this": ":cap-fs-ext-4.0.3",
-                },
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":async-trait-0.1.92",
-                    ":bitflags-2.12.1",
-                    ":bytes-1.12.1",
-                    ":cap-primitives-4.0.3",
-                    ":futures-0.3.32",
-                    ":rand-0.10.2",
-                    ":rustix-1.1.4",
-                    ":thiserror-2.0.18",
-                    ":tokio-1.52.3",
-                    ":tracing-0.1.44",
-                    ":url-2.5.8",
-                    ":wasmtime-48.0.1",
-                    ":wasmtime-wasi-io-48.0.1",
-                    ":wiggle-48.0.1",
-                ],
-                "features": [
-                    "p1",
-                    "p2",
-                ],
-                "named_deps": {
-                    "cap_fs_ext_avoid_using_this": ":cap-fs-ext-4.0.3",
-                },
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":async-trait-0.1.92",
-                    ":bitflags-2.12.1",
-                    ":bytes-1.12.1",
-                    ":cap-primitives-4.0.3",
-                    ":futures-0.3.32",
-                    ":rand-0.10.2",
-                    ":rustix-1.1.4",
-                    ":thiserror-2.0.18",
-                    ":tokio-1.52.3",
-                    ":tracing-0.1.44",
-                    ":url-2.5.8",
-                    ":wasmtime-48.0.1",
-                    ":wasmtime-wasi-io-48.0.1",
-                    ":wiggle-48.0.1",
-                ],
-                "features": [
-                    "p1",
-                    "p2",
-                ],
-                "named_deps": {
-                    "cap_fs_ext_avoid_using_this": ":cap-fs-ext-4.0.3",
-                },
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":async-trait-0.1.92",
-                    ":bitflags-2.12.1",
-                    ":bytes-1.12.1",
-                    ":cap-primitives-4.0.3",
-                    ":futures-0.3.32",
-                    ":rand-0.10.2",
-                    ":rustix-1.1.4",
-                    ":thiserror-2.0.18",
-                    ":tokio-1.52.3",
-                    ":tracing-0.1.44",
-                    ":url-2.5.8",
-                    ":wasmtime-48.0.1",
-                    ":wasmtime-wasi-io-48.0.1",
-                    ":wiggle-48.0.1",
-                ],
-                "features": [
-                    "p1",
-                    "p2",
-                ],
-                "named_deps": {
-                    "cap_fs_ext_avoid_using_this": ":cap-fs-ext-4.0.3",
-                },
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":async-trait-0.1.92",
-                    ":bitflags-2.12.1",
-                    ":bytes-1.12.1",
-                    ":cap-primitives-4.0.3",
-                    ":futures-0.3.32",
-                    ":rand-0.10.2",
-                    ":rustix-1.1.4",
-                    ":thiserror-2.0.18",
-                    ":tokio-1.52.3",
-                    ":tracing-0.1.44",
-                    ":url-2.5.8",
-                    ":wasmtime-48.0.1",
-                    ":wasmtime-wasi-io-48.0.1",
-                    ":wiggle-48.0.1",
-                    ":windows-sys-0.61.2",
-                ],
-                "features": [
-                    "p1",
-                    "p2",
-                ],
-                "named_deps": {
-                    "cap_fs_ext_avoid_using_this": ":cap-fs-ext-4.0.3",
-                },
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":async-trait-0.1.92",
-                    ":bitflags-2.12.1",
-                    ":bytes-1.12.1",
-                    ":cap-primitives-4.0.3",
-                    ":futures-0.3.32",
-                    ":rand-0.10.2",
-                    ":rustix-1.1.4",
-                    ":thiserror-2.0.18",
-                    ":tokio-1.52.3",
-                    ":tracing-0.1.44",
-                    ":url-2.5.8",
-                    ":wasmtime-48.0.1",
-                    ":wasmtime-wasi-io-48.0.1",
-                    ":wiggle-48.0.1",
-                    ":windows-sys-0.61.2",
-                ],
-                "features": [
-                    "p1",
-                    "p2",
-                ],
-                "named_deps": {
-                    "cap_fs_ext_avoid_using_this": ":cap-fs-ext-4.0.3",
-                },
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "48.0.1",
-    },
-    "wasmtime-wasi-io-48.0.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Wasmtime Project Developers",
-            "CARGO_PKG_DESCRIPTION": "wasi-io common traits to be shared among other wasi implementations",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "wasmtime_wasi_io",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "wasmtime-wasi-io",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":async-trait-0.1.92",
-                    ":bytes-1.12.1",
-                    ":futures-0.3.32",
-                    ":tracing-0.1.44",
-                    ":wasmtime-48.0.1",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":async-trait-0.1.92",
-                    ":bytes-1.12.1",
-                    ":futures-0.3.32",
-                    ":tracing-0.1.44",
-                    ":wasmtime-48.0.1",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":async-trait-0.1.92",
-                    ":bytes-1.12.1",
-                    ":futures-0.3.32",
-                    ":tracing-0.1.44",
-                    ":wasmtime-48.0.1",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":async-trait-0.1.92",
-                    ":bytes-1.12.1",
-                    ":futures-0.3.32",
-                    ":tracing-0.1.44",
-                    ":wasmtime-48.0.1",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":async-trait-0.1.92",
-                    ":bytes-1.12.1",
-                    ":futures-0.3.32",
-                    ":tracing-0.1.44",
-                    ":wasmtime-48.0.1",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":async-trait-0.1.92",
-                    ":bytes-1.12.1",
-                    ":futures-0.3.32",
-                    ":tracing-0.1.44",
-                    ":wasmtime-48.0.1",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":async-trait-0.1.92",
-                    ":bytes-1.12.1",
-                    ":futures-0.3.32",
-                    ":tracing-0.1.44",
-                    ":wasmtime-48.0.1",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "48.0.1",
+        "version": "0.257.1",
     },
     "wast-257.0.1": {
         "build_script": None,
@@ -59431,35 +64741,6 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "257.0.1",
-    },
-    "wast-35.0.2": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Alex Crichton <alex@alexcrichton.com>",
-            "CARGO_PKG_DESCRIPTION": "Customizable Rust parsers for the WebAssembly Text formats WAT and WAST\n",
-            "CARGO_PKG_HOMEPAGE": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wast",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wast",
-        },
-        "library": {
-            "crate": "wast",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "wast",
-        "platforms": {
-            "linux-x86_64": {
-                "deps": [
-                    ":leb128-0.2.7",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "35.0.2",
     },
     "wat-1.257.1": {
         "build_script": None,
@@ -60495,7 +65776,7 @@ third_party = {
         ],
         "version": "0.31.11",
     },
-    "web-sys-0.3.99": {
+    "web-sys-0.3.107": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "The wasm-bindgen Developers",
@@ -60504,7 +65785,7 @@ third_party = {
             "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
             "CARGO_PKG_README": "README.md",
             "CARGO_PKG_REPOSITORY": "https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/web-sys",
-            "CARGO_PKG_RUST_VERSION": "1.77",
+            "CARGO_PKG_RUST_VERSION": "1.81",
         },
         "library": {
             "crate": "web_sys",
@@ -60516,8 +65797,8 @@ third_party = {
         "platforms": {
             "wasi": {
                 "deps": [
-                    ":js-sys-0.3.99",
-                    ":wasm-bindgen-0.2.122",
+                    ":js-sys-0.3.107",
+                    ":wasm-bindgen-0.2.130",
                 ],
                 "features": [
                     "AbortController",
@@ -60527,12 +65808,14 @@ third_party = {
                     "BinaryType",
                     "Blob",
                     "BlobPropertyBag",
+                    "CanvasRenderingContext2d",
                     "CharacterData",
                     "Clipboard",
                     "ClipboardEvent",
                     "CloseEvent",
                     "Comment",
                     "CompositionEvent",
+                    "Crypto",
                     "CssStyleDeclaration",
                     "DataTransfer",
                     "Document",
@@ -60569,7 +65852,9 @@ third_party = {
                     "KeyboardEvent",
                     "Location",
                     "MediaQueryList",
+                    "MessageChannel",
                     "MessageEvent",
+                    "MessagePort",
                     "MouseEvent",
                     "Navigator",
                     "Node",
@@ -60582,6 +65867,7 @@ third_party = {
                     "OesTextureHalfFloatLinear",
                     "OesVertexArrayObject",
                     "OffscreenCanvas",
+                    "OffscreenCanvasRenderingContext2d",
                     "OvrMultiview2",
                     "Performance",
                     "PointerEvent",
@@ -60645,8 +65931,8 @@ third_party = {
             },
             "wasi-guest": {
                 "deps": [
-                    ":js-sys-0.3.99",
-                    ":wasm-bindgen-0.2.122",
+                    ":js-sys-0.3.107",
+                    ":wasm-bindgen-0.2.130",
                 ],
                 "features": [
                     "CharacterData",
@@ -60676,8 +65962,8 @@ third_party = {
             },
             "wasi-html": {
                 "deps": [
-                    ":js-sys-0.3.99",
-                    ":wasm-bindgen-0.2.122",
+                    ":js-sys-0.3.107",
+                    ":wasm-bindgen-0.2.130",
                 ],
                 "features": [
                     "AbstractRange",
@@ -60689,6 +65975,9 @@ third_party = {
                     "Clipboard",
                     "ClipboardEvent",
                     "Comment",
+                    "CredentialCreationOptions",
+                    "CredentialRequestOptions",
+                    "CredentialsContainer",
                     "CssStyleDeclaration",
                     "DataTransfer",
                     "Document",
@@ -60714,6 +66003,7 @@ third_party = {
                     "InputEvent",
                     "KeyboardEvent",
                     "KeyboardEventInit",
+                    "Location",
                     "MediaQueryList",
                     "MouseEvent",
                     "MutationObserver",
@@ -60731,6 +66021,7 @@ third_party = {
                     "TextMetrics",
                     "UiEvent",
                     "Url",
+                    "UrlSearchParams",
                     "WheelEvent",
                     "Window",
                     "console",
@@ -60738,10 +66029,10 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
-                    ":js-sys-0.3.99",
-                    ":wasm-bindgen-0.2.122",
+                    ":js-sys-0.3.107",
+                    ":wasm-bindgen-0.2.130",
                 ],
                 "features": [
                     "AngleInstancedArrays",
@@ -60764,6 +66055,7 @@ third_party = {
                     "HtmlVideoElement",
                     "ImageBitmap",
                     "ImageData",
+                    "MediaQueryList",
                     "Navigator",
                     "Node",
                     "NodeList",
@@ -60819,7 +66111,579 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "0.3.99",
+        "version": "0.3.107",
+    },
+    "webauthn-attestation-ca-0.6.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "William Brown <william@blackhats.net.au>:Michael Farrell <micolous+git@gmail.com>:James Hodgkinson <james@terminaloutcomes.com>",
+            "CARGO_PKG_DESCRIPTION": "Webauthn Attestation CA Descriptions",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/kanidm/webauthn-rs",
+            "CARGO_PKG_LICENSE": "MPL-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/kanidm/webauthn-rs",
+            "CARGO_PKG_RUST_VERSION": "1.89",
+        },
+        "library": {
+            "crate": "webauthn_attestation_ca",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "webauthn-attestation-ca",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":crypto-glue-0.2.2",
+                    ":serde-1.0.228",
+                    ":serde_with-3.22.0",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":crypto-glue-0.2.2",
+                    ":serde-1.0.228",
+                    ":serde_with-3.22.0",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":crypto-glue-0.2.2",
+                    ":serde-1.0.228",
+                    ":serde_with-3.22.0",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":crypto-glue-0.2.2",
+                    ":serde-1.0.228",
+                    ":serde_with-3.22.0",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":crypto-glue-0.2.2",
+                    ":serde-1.0.228",
+                    ":serde_with-3.22.0",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":crypto-glue-0.2.2",
+                    ":serde-1.0.228",
+                    ":serde_with-3.22.0",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":crypto-glue-0.2.2",
+                    ":serde-1.0.228",
+                    ":serde_with-3.22.0",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":crypto-glue-0.2.2",
+                    ":serde-1.0.228",
+                    ":serde_with-3.22.0",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.6.2",
+    },
+    "webauthn-rs-0.6.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "William Brown <william@blackhats.net.au>:Michael Farrell <micolous+git@gmail.com>:James Hodgkinson <james@terminaloutcomes.com>",
+            "CARGO_PKG_DESCRIPTION": "Webauthn Framework for Rust Web Servers",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/kanidm/webauthn-rs",
+            "CARGO_PKG_LICENSE": "MPL-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/kanidm/webauthn-rs",
+            "CARGO_PKG_RUST_VERSION": "1.89",
+        },
+        "library": {
+            "crate": "webauthn_rs",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "webauthn-rs",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":serde-1.0.228",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-rs-core-0.6.2",
+                ],
+                "features": [
+                    "conditional-ui",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":serde-1.0.228",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-rs-core-0.6.2",
+                ],
+                "features": [
+                    "conditional-ui",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":serde-1.0.228",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-rs-core-0.6.2",
+                ],
+                "features": [
+                    "conditional-ui",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":serde-1.0.228",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-rs-core-0.6.2",
+                ],
+                "features": [
+                    "conditional-ui",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":serde-1.0.228",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-rs-core-0.6.2",
+                ],
+                "features": [
+                    "conditional-ui",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":serde-1.0.228",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-rs-core-0.6.2",
+                ],
+                "features": [
+                    "conditional-ui",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":serde-1.0.228",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-rs-core-0.6.2",
+                ],
+                "features": [
+                    "conditional-ui",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":serde-1.0.228",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-rs-core-0.6.2",
+                ],
+                "features": [
+                    "conditional-ui",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.6.2",
+    },
+    "webauthn-rs-core-0.6.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "William Brown <william@blackhats.net.au>:Michael Farrell <micolous+git@gmail.com>:James Hodgkinson <james@terminaloutcomes.com>",
+            "CARGO_PKG_DESCRIPTION": "Webauthn Cryptographic Operation Handling",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/kanidm/webauthn-rs",
+            "CARGO_PKG_LICENSE": "MPL-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/kanidm/webauthn-rs",
+            "CARGO_PKG_RUST_VERSION": "1.89",
+        },
+        "library": {
+            "crate": "webauthn_rs_core",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "webauthn-rs-core",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":crypto-glue-0.2.2",
+                    ":der-parser-10.0.0",
+                    ":hex-0.4.3",
+                    ":nom-7.1.3",
+                    ":rand-0.10.2",
+                    ":rand_chacha-0.10.0",
+                    ":serde-1.0.228",
+                    ":serde_cbor_2-0.13.0",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":thiserror-1.0.69",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-attestation-ca-0.6.2",
+                    ":webauthn-rs-proto-0.6.2",
+                    ":x509-parser-0.18.1",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":crypto-glue-0.2.2",
+                    ":der-parser-10.0.0",
+                    ":hex-0.4.3",
+                    ":nom-7.1.3",
+                    ":rand-0.10.2",
+                    ":rand_chacha-0.10.0",
+                    ":serde-1.0.228",
+                    ":serde_cbor_2-0.13.0",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":thiserror-1.0.69",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-attestation-ca-0.6.2",
+                    ":webauthn-rs-proto-0.6.2",
+                    ":x509-parser-0.18.1",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":crypto-glue-0.2.2",
+                    ":der-parser-10.0.0",
+                    ":hex-0.4.3",
+                    ":nom-7.1.3",
+                    ":rand-0.10.2",
+                    ":rand_chacha-0.10.0",
+                    ":serde-1.0.228",
+                    ":serde_cbor_2-0.13.0",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":thiserror-1.0.69",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-attestation-ca-0.6.2",
+                    ":webauthn-rs-proto-0.6.2",
+                    ":x509-parser-0.18.1",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":crypto-glue-0.2.2",
+                    ":der-parser-10.0.0",
+                    ":hex-0.4.3",
+                    ":nom-7.1.3",
+                    ":rand-0.10.2",
+                    ":rand_chacha-0.10.0",
+                    ":serde-1.0.228",
+                    ":serde_cbor_2-0.13.0",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":thiserror-1.0.69",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-attestation-ca-0.6.2",
+                    ":webauthn-rs-proto-0.6.2",
+                    ":x509-parser-0.18.1",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":crypto-glue-0.2.2",
+                    ":der-parser-10.0.0",
+                    ":hex-0.4.3",
+                    ":nom-7.1.3",
+                    ":rand-0.10.2",
+                    ":rand_chacha-0.10.0",
+                    ":serde-1.0.228",
+                    ":serde_cbor_2-0.13.0",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":thiserror-1.0.69",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-attestation-ca-0.6.2",
+                    ":webauthn-rs-proto-0.6.2",
+                    ":x509-parser-0.18.1",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":crypto-glue-0.2.2",
+                    ":der-parser-10.0.0",
+                    ":hex-0.4.3",
+                    ":nom-7.1.3",
+                    ":rand-0.10.2",
+                    ":rand_chacha-0.10.0",
+                    ":serde-1.0.228",
+                    ":serde_cbor_2-0.13.0",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":thiserror-1.0.69",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-attestation-ca-0.6.2",
+                    ":webauthn-rs-proto-0.6.2",
+                    ":x509-parser-0.18.1",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":crypto-glue-0.2.2",
+                    ":der-parser-10.0.0",
+                    ":hex-0.4.3",
+                    ":nom-7.1.3",
+                    ":rand-0.10.2",
+                    ":rand_chacha-0.10.0",
+                    ":serde-1.0.228",
+                    ":serde_cbor_2-0.13.0",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":thiserror-1.0.69",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-attestation-ca-0.6.2",
+                    ":webauthn-rs-proto-0.6.2",
+                    ":x509-parser-0.18.1",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":crypto-glue-0.2.2",
+                    ":der-parser-10.0.0",
+                    ":hex-0.4.3",
+                    ":nom-7.1.3",
+                    ":rand-0.10.2",
+                    ":rand_chacha-0.10.0",
+                    ":serde-1.0.228",
+                    ":serde_cbor_2-0.13.0",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":thiserror-1.0.69",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-attestation-ca-0.6.2",
+                    ":webauthn-rs-proto-0.6.2",
+                    ":x509-parser-0.18.1",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.6.2",
+    },
+    "webauthn-rs-proto-0.6.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "William Brown <william@blackhats.net.au>:Michael Farrell <micolous+git@gmail.com>:James Hodgkinson <james@terminaloutcomes.com>",
+            "CARGO_PKG_DESCRIPTION": "Webauthn Specification Bindings",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/kanidm/webauthn-rs",
+            "CARGO_PKG_LICENSE": "MPL-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/kanidm/webauthn-rs",
+            "CARGO_PKG_RUST_VERSION": "1.89",
+        },
+        "library": {
+            "crate": "webauthn_rs_proto",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "webauthn-rs-proto",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "default",
+                    "origin",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "default",
+                    "origin",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "default",
+                    "origin",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "default",
+                    "origin",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "default",
+                    "origin",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "default",
+                    "origin",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "default",
+                    "origin",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "default",
+                    "origin",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.6.2",
     },
     "webpki-roots-0.26.11": {
         "build_script": None,
@@ -61034,7 +66898,76 @@ third_party = {
         ],
         "version": "0.1.12",
     },
-    "wgpu-29.0.3": {
+    "wesl-0.4.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "The WESL compiler",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/wgsl-tooling-wg/wesl-rs",
+            "CARGO_PKG_RUST_VERSION": "1.87.0",
+        },
+        "library": {
+            "crate": "wesl",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "wesl",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":annotate-snippets-0.12.18",
+                    ":derive_more-2.1.1",
+                    ":half-2.7.1",
+                    ":itertools-0.14.0",
+                    ":num-traits-0.2.19",
+                    ":thiserror-2.0.18",
+                    ":wesl-macros-0.4.0",
+                    ":wgsl-parse-0.4.0",
+                    ":wgsl-types-0.4.0",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.4.0",
+    },
+    "wesl-macros-0.4.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Macros for the WESL compiler",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_REPOSITORY": "https://github.com/wgsl-tooling-wg/wesl-rs",
+            "CARGO_PKG_RUST_VERSION": "1.87.0",
+        },
+        "library": {
+            "crate": "wesl_macros",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": True,
+        },
+        "name": "wesl-macros",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":itertools-0.14.0",
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":syn-2.0.117",
+                ],
+                "features": [
+                    "query",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.4.0",
+    },
+    "wgpu-30.0.2": {
         "build_script": {
             "crate_root": "build.rs",
             "deps": [
@@ -61066,16 +66999,16 @@ third_party = {
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":log-0.4.31",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
                     ":smallvec-1.16.5",
                     ":static_assertions-1.1.0",
-                    ":wgpu-core-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "custom",
@@ -61100,16 +67033,16 @@ third_party = {
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":log-0.4.31",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
                     ":smallvec-1.16.5",
                     ":static_assertions-1.1.0",
-                    ":wgpu-core-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "custom",
@@ -61134,16 +67067,16 @@ third_party = {
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":log-0.4.31",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
                     ":smallvec-1.16.5",
                     ":static_assertions-1.1.0",
-                    ":wgpu-core-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "custom",
@@ -61168,16 +67101,16 @@ third_party = {
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":log-0.4.31",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
                     ":smallvec-1.16.5",
                     ":static_assertions-1.1.0",
-                    ":wgpu-core-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "custom",
@@ -61202,16 +67135,16 @@ third_party = {
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":log-0.4.31",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
                     ":smallvec-1.16.5",
                     ":static_assertions-1.1.0",
-                    ":wgpu-core-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "custom",
@@ -61236,19 +67169,19 @@ third_party = {
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
-                    ":js-sys-0.3.99",
+                    ":hashbrown-0.17.1",
+                    ":js-sys-0.3.107",
                     ":log-0.4.31",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
                     ":smallvec-1.16.5",
                     ":static_assertions-1.1.0",
-                    ":wasm-bindgen-0.2.122",
-                    ":wasm-bindgen-futures-0.4.72",
-                    ":web-sys-0.3.99",
-                    ":wgpu-core-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wasm-bindgen-0.2.130",
+                    ":wasm-bindgen-futures-0.4.80",
+                    ":web-sys-0.3.107",
+                    ":wgpu-core-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "std",
@@ -61266,15 +67199,15 @@ third_party = {
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
-                    ":js-sys-0.3.99",
+                    ":hashbrown-0.17.1",
+                    ":js-sys-0.3.107",
                     ":log-0.4.31",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
                     ":static_assertions-1.1.0",
-                    ":wasm-bindgen-0.2.122",
-                    ":web-sys-0.3.99",
-                    ":wgpu-types-29.0.3",
+                    ":wasm-bindgen-0.2.130",
+                    ":web-sys-0.3.107",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "custom",
@@ -61283,26 +67216,26 @@ third_party = {
                     "wgsl",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":arrayvec-0.7.8",
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
-                    ":js-sys-0.3.99",
+                    ":hashbrown-0.17.1",
+                    ":js-sys-0.3.107",
                     ":log-0.4.31",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
                     ":smallvec-1.16.5",
                     ":static_assertions-1.1.0",
-                    ":wasm-bindgen-0.2.122",
-                    ":wasm-bindgen-futures-0.4.72",
-                    ":web-sys-0.3.99",
-                    ":wgpu-core-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wasm-bindgen-0.2.130",
+                    ":wasm-bindgen-futures-0.4.80",
+                    ":web-sys-0.3.107",
+                    ":wgpu-core-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "std",
@@ -61320,16 +67253,16 @@ third_party = {
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":log-0.4.31",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
                     ":smallvec-1.16.5",
                     ":static_assertions-1.1.0",
-                    ":wgpu-core-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "custom",
@@ -61354,16 +67287,16 @@ third_party = {
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":log-0.4.31",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
                     ":smallvec-1.16.5",
                     ":static_assertions-1.1.0",
-                    ":wgpu-core-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "custom",
@@ -61385,9 +67318,9 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "29.0.3",
+        "version": "30.0.2",
     },
-    "wgpu-core-29.0.3": {
+    "wgpu-core-30.0.2": {
         "build_script": {
             "crate_root": "build.rs",
             "deps": [
@@ -61414,15 +67347,16 @@ third_party = {
             "android-arm64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bit-vec-0.9.1",
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":once_cell-1.21.4",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
@@ -61430,10 +67364,10 @@ third_party = {
                     ":rustc-hash-1.1.0",
                     ":smallvec-1.16.5",
                     ":thiserror-2.0.18",
-                    ":wgpu-core-deps-windows-linux-android-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-deps-windows-linux-android-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "default",
@@ -61452,15 +67386,16 @@ third_party = {
             "linux-arm64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bit-vec-0.9.1",
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":once_cell-1.21.4",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
@@ -61468,10 +67403,10 @@ third_party = {
                     ":rustc-hash-1.1.0",
                     ":smallvec-1.16.5",
                     ":thiserror-2.0.18",
-                    ":wgpu-core-deps-windows-linux-android-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-deps-windows-linux-android-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "default",
@@ -61490,15 +67425,16 @@ third_party = {
             "linux-x86_64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bit-vec-0.9.1",
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":once_cell-1.21.4",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
@@ -61506,10 +67442,10 @@ third_party = {
                     ":rustc-hash-1.1.0",
                     ":smallvec-1.16.5",
                     ":thiserror-2.0.18",
-                    ":wgpu-core-deps-windows-linux-android-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-deps-windows-linux-android-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "default",
@@ -61528,15 +67464,16 @@ third_party = {
             "macos-arm64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bit-vec-0.9.1",
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":once_cell-1.21.4",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
@@ -61544,10 +67481,10 @@ third_party = {
                     ":rustc-hash-1.1.0",
                     ":smallvec-1.16.5",
                     ":thiserror-2.0.18",
-                    ":wgpu-core-deps-apple-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-deps-apple-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "default",
@@ -61566,15 +67503,16 @@ third_party = {
             "macos-x86_64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bit-vec-0.9.1",
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":once_cell-1.21.4",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
@@ -61582,10 +67520,10 @@ third_party = {
                     ":rustc-hash-1.1.0",
                     ":smallvec-1.16.5",
                     ":thiserror-2.0.18",
-                    ":wgpu-core-deps-apple-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-deps-apple-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "default",
@@ -61604,15 +67542,16 @@ third_party = {
             "wasi": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bit-vec-0.9.1",
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":once_cell-1.21.4",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
@@ -61620,10 +67559,10 @@ third_party = {
                     ":rustc-hash-1.1.0",
                     ":smallvec-1.16.5",
                     ":thiserror-2.0.18",
-                    ":wgpu-core-deps-wasm-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-deps-wasm-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "default",
@@ -61633,18 +67572,19 @@ third_party = {
                     "wgsl",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bit-vec-0.9.1",
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":once_cell-1.21.4",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
@@ -61652,10 +67592,10 @@ third_party = {
                     ":rustc-hash-1.1.0",
                     ":smallvec-1.16.5",
                     ":thiserror-2.0.18",
-                    ":wgpu-core-deps-wasm-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-deps-wasm-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "default",
@@ -61668,15 +67608,16 @@ third_party = {
             "windows-arm64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bit-vec-0.9.1",
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":once_cell-1.21.4",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
@@ -61684,10 +67625,10 @@ third_party = {
                     ":rustc-hash-1.1.0",
                     ":smallvec-1.16.5",
                     ":thiserror-2.0.18",
-                    ":wgpu-core-deps-windows-linux-android-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-deps-windows-linux-android-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "default",
@@ -61706,15 +67647,16 @@ third_party = {
             "windows-x86_64": {
                 "deps": [
                     ":arrayvec-0.7.8",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bit-vec-0.9.1",
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":document-features-0.2.12",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":indexmap-2.14.0",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":once_cell-1.21.4",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
@@ -61722,10 +67664,10 @@ third_party = {
                     ":rustc-hash-1.1.0",
                     ":smallvec-1.16.5",
                     ":thiserror-2.0.18",
-                    ":wgpu-core-deps-windows-linux-android-29.0.3",
-                    ":wgpu-hal-29.0.3",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-core-deps-windows-linux-android-30.0.2",
+                    ":wgpu-hal-30.0.2",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "default",
@@ -61745,9 +67687,9 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "29.0.3",
+        "version": "30.0.2",
     },
-    "wgpu-core-deps-apple-29.0.3": {
+    "wgpu-core-deps-apple-30.0.2": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "gfx-rs developers",
@@ -61768,7 +67710,7 @@ third_party = {
         "platforms": {
             "macos-arm64": {
                 "deps": [
-                    ":wgpu-hal-29.0.3",
+                    ":wgpu-hal-30.0.2",
                 ],
                 "features": [
                     "metal",
@@ -61776,7 +67718,7 @@ third_party = {
             },
             "macos-x86_64": {
                 "deps": [
-                    ":wgpu-hal-29.0.3",
+                    ":wgpu-hal-30.0.2",
                 ],
                 "features": [
                     "metal",
@@ -61786,9 +67728,9 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "29.0.3",
+        "version": "30.0.2",
     },
-    "wgpu-core-deps-wasm-29.0.3": {
+    "wgpu-core-deps-wasm-30.0.2": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "gfx-rs developers",
@@ -61809,15 +67751,15 @@ third_party = {
         "platforms": {
             "wasi": {
                 "deps": [
-                    ":wgpu-hal-29.0.3",
+                    ":wgpu-hal-30.0.2",
                 ],
                 "features": [
                     "webgl",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
-                    ":wgpu-hal-29.0.3",
+                    ":wgpu-hal-30.0.2",
                 ],
                 "features": [
                     "webgl",
@@ -61827,9 +67769,9 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "29.0.3",
+        "version": "30.0.2",
     },
-    "wgpu-core-deps-windows-linux-android-29.0.3": {
+    "wgpu-core-deps-windows-linux-android-30.0.2": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "gfx-rs developers",
@@ -61850,7 +67792,7 @@ third_party = {
         "platforms": {
             "android-arm64": {
                 "deps": [
-                    ":wgpu-hal-29.0.3",
+                    ":wgpu-hal-30.0.2",
                 ],
                 "features": [
                     "dx12",
@@ -61861,7 +67803,7 @@ third_party = {
             },
             "linux-arm64": {
                 "deps": [
-                    ":wgpu-hal-29.0.3",
+                    ":wgpu-hal-30.0.2",
                 ],
                 "features": [
                     "dx12",
@@ -61872,7 +67814,7 @@ third_party = {
             },
             "linux-x86_64": {
                 "deps": [
-                    ":wgpu-hal-29.0.3",
+                    ":wgpu-hal-30.0.2",
                 ],
                 "features": [
                     "dx12",
@@ -61883,7 +67825,7 @@ third_party = {
             },
             "windows-arm64": {
                 "deps": [
-                    ":wgpu-hal-29.0.3",
+                    ":wgpu-hal-30.0.2",
                 ],
                 "features": [
                     "dx12",
@@ -61894,7 +67836,7 @@ third_party = {
             },
             "windows-x86_64": {
                 "deps": [
-                    ":wgpu-hal-29.0.3",
+                    ":wgpu-hal-30.0.2",
                 ],
                 "features": [
                     "dx12",
@@ -61907,9 +67849,9 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "29.0.3",
+        "version": "30.0.2",
     },
-    "wgpu-hal-29.0.3": {
+    "wgpu-hal-30.0.2": {
         "build_script": {
             "crate_root": "build.rs",
             "deps": [
@@ -61944,13 +67886,13 @@ third_party = {
                     ":cfg-if-1.0.4",
                     ":glow-0.17.0",
                     ":gpu-allocator-0.28.0",
-                    ":gpu-descriptor-0.3.2",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":khronos-egl-6.0.0",
                     ":libc-0.2.186",
                     ":libloading-0.8.9",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":ndk-sys-0.6.0+11769913",
                     ":ordered-float-5.3.0",
                     ":parking_lot-0.12.5",
@@ -61958,10 +67900,11 @@ third_party = {
                     ":raw-window-handle-0.6.2",
                     ":renderdoc-sys-1.1.0",
                     ":smallvec-1.16.5",
+                    ":static_assertions-1.1.0",
                     ":thiserror-2.0.18",
                     ":wayland-sys-0.31.11",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "dx12",
@@ -61980,23 +67923,24 @@ third_party = {
                     ":cfg-if-1.0.4",
                     ":glow-0.17.0",
                     ":gpu-allocator-0.28.0",
-                    ":gpu-descriptor-0.3.2",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":khronos-egl-6.0.0",
                     ":libc-0.2.186",
                     ":libloading-0.8.9",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":ordered-float-5.3.0",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
                     ":renderdoc-sys-1.1.0",
                     ":smallvec-1.16.5",
+                    ":static_assertions-1.1.0",
                     ":thiserror-2.0.18",
                     ":wayland-sys-0.31.11",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "dx12",
@@ -62015,23 +67959,24 @@ third_party = {
                     ":cfg-if-1.0.4",
                     ":glow-0.17.0",
                     ":gpu-allocator-0.28.0",
-                    ":gpu-descriptor-0.3.2",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":khronos-egl-6.0.0",
                     ":libc-0.2.186",
                     ":libloading-0.8.9",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":ordered-float-5.3.0",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
                     ":renderdoc-sys-1.1.0",
                     ":smallvec-1.16.5",
+                    ":static_assertions-1.1.0",
                     ":thiserror-2.0.18",
                     ":wayland-sys-0.31.11",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "dx12",
@@ -62048,12 +67993,14 @@ third_party = {
                     ":block2-0.6.2",
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
-                    ":hashbrown-0.16.1",
-                    ":libc-0.2.186",
+                    ":hashbrown-0.17.1",
+                    ":libloading-0.8.9",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":objc2-0.6.4",
                     ":objc2-core-foundation-0.3.2",
+                    ":objc2-core-graphics-0.3.2",
                     ":objc2-foundation-0.3.2",
                     ":objc2-metal-0.3.2",
                     ":objc2-quartz-core-0.3.2",
@@ -62062,9 +68009,10 @@ third_party = {
                     ":raw-window-handle-0.6.2",
                     ":raw-window-metal-1.1.0",
                     ":smallvec-1.16.5",
+                    ":static_assertions-1.1.0",
                     ":thiserror-2.0.18",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "metal",
@@ -62078,12 +68026,14 @@ third_party = {
                     ":block2-0.6.2",
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
-                    ":hashbrown-0.16.1",
-                    ":libc-0.2.186",
+                    ":hashbrown-0.17.1",
+                    ":libloading-0.8.9",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":objc2-0.6.4",
                     ":objc2-core-foundation-0.3.2",
+                    ":objc2-core-graphics-0.3.2",
                     ":objc2-foundation-0.3.2",
                     ":objc2-metal-0.3.2",
                     ":objc2-quartz-core-0.3.2",
@@ -62092,9 +68042,10 @@ third_party = {
                     ":raw-window-handle-0.6.2",
                     ":raw-window-metal-1.1.0",
                     ":smallvec-1.16.5",
+                    ":static_assertions-1.1.0",
                     ":thiserror-2.0.18",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "metal",
@@ -62108,42 +68059,46 @@ third_party = {
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":glow-0.17.0",
-                    ":hashbrown-0.16.1",
-                    ":js-sys-0.3.99",
+                    ":hashbrown-0.17.1",
+                    ":js-sys-0.3.107",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
+                    ":static_assertions-1.1.0",
                     ":thiserror-2.0.18",
-                    ":wasm-bindgen-0.2.122",
-                    ":web-sys-0.3.99",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wasm-bindgen-0.2.130",
+                    ":web-sys-0.3.107",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "gles",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":arrayvec-0.7.8",
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":glow-0.17.0",
-                    ":hashbrown-0.16.1",
-                    ":js-sys-0.3.99",
+                    ":hashbrown-0.17.1",
+                    ":js-sys-0.3.107",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":parking_lot-0.12.5",
                     ":profiling-1.0.18",
                     ":raw-window-handle-0.6.2",
+                    ":static_assertions-1.1.0",
                     ":thiserror-2.0.18",
-                    ":wasm-bindgen-0.2.122",
-                    ":web-sys-0.3.99",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wasm-bindgen-0.2.130",
+                    ":web-sys-0.3.107",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
                 "features": [
                     "gles",
@@ -62153,19 +68108,19 @@ third_party = {
                 "deps": [
                     ":arrayvec-0.7.8",
                     ":ash-0.38.0+1.3.281",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":glow-0.17.0",
                     ":glutin_wgl_sys-0.6.1",
                     ":gpu-allocator-0.28.0",
-                    ":gpu-descriptor-0.3.2",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":khronos-egl-6.0.0",
                     ":libloading-0.8.9",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":once_cell-1.21.4",
                     ":ordered-float-5.3.0",
                     ":parking_lot-0.12.5",
@@ -62174,9 +68129,10 @@ third_party = {
                     ":raw-window-handle-0.6.2",
                     ":renderdoc-sys-1.1.0",
                     ":smallvec-1.16.5",
+                    ":static_assertions-1.1.0",
                     ":thiserror-2.0.18",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                     ":windows-0.62.2",
                     ":windows-core-0.62.2",
                     ":windows-result-0.4.1",
@@ -62193,19 +68149,19 @@ third_party = {
                 "deps": [
                     ":arrayvec-0.7.8",
                     ":ash-0.38.0+1.3.281",
-                    ":bit-set-0.9.1",
+                    ":bit-set-0.10.0",
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":cfg-if-1.0.4",
                     ":glow-0.17.0",
                     ":glutin_wgl_sys-0.6.1",
                     ":gpu-allocator-0.28.0",
-                    ":gpu-descriptor-0.3.2",
-                    ":hashbrown-0.16.1",
+                    ":hashbrown-0.17.1",
                     ":khronos-egl-6.0.0",
                     ":libloading-0.8.9",
                     ":log-0.4.31",
-                    ":naga-29.0.3",
+                    ":naga-30.0.2",
+                    ":naga-types-30.0.2",
                     ":once_cell-1.21.4",
                     ":ordered-float-5.3.0",
                     ":parking_lot-0.12.5",
@@ -62214,9 +68170,10 @@ third_party = {
                     ":raw-window-handle-0.6.2",
                     ":renderdoc-sys-1.1.0",
                     ":smallvec-1.16.5",
+                    ":static_assertions-1.1.0",
                     ":thiserror-2.0.18",
-                    ":wgpu-naga-bridge-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":wgpu-naga-bridge-30.0.2",
+                    ":wgpu-types-30.0.2",
                     ":windows-0.62.2",
                     ":windows-core-0.62.2",
                     ":windows-result-0.4.1",
@@ -62233,9 +68190,9 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "29.0.3",
+        "version": "30.0.2",
     },
-    "wgpu-naga-bridge-29.0.3": {
+    "wgpu-naga-bridge-30.0.2": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "gfx-rs developers",
@@ -62255,65 +68212,65 @@ third_party = {
         "platforms": {
             "android-arm64": {
                 "deps": [
-                    ":naga-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":naga-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
             },
             "linux-arm64": {
                 "deps": [
-                    ":naga-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":naga-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
-                    ":naga-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":naga-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
             },
             "macos-arm64": {
                 "deps": [
-                    ":naga-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":naga-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
-                    ":naga-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":naga-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
             },
             "wasi": {
                 "deps": [
-                    ":naga-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":naga-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
-                    ":naga-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":naga-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
             },
             "windows-arm64": {
                 "deps": [
-                    ":naga-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":naga-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
-                    ":naga-29.0.3",
-                    ":wgpu-types-29.0.3",
+                    ":naga-30.0.2",
+                    ":wgpu-types-30.0.2",
                 ],
             },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "29.0.3",
+        "version": "30.0.2",
     },
-    "wgpu-types-29.0.3": {
+    "wgpu-types-30.0.2": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "gfx-rs developers",
@@ -62336,7 +68293,9 @@ third_party = {
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":raw-window-handle-0.6.2",
+                    ":static_assertions-1.1.0",
                 ],
                 "features": [
                     "std",
@@ -62348,7 +68307,9 @@ third_party = {
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":raw-window-handle-0.6.2",
+                    ":static_assertions-1.1.0",
                 ],
                 "features": [
                     "std",
@@ -62360,7 +68321,9 @@ third_party = {
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":raw-window-handle-0.6.2",
+                    ":static_assertions-1.1.0",
                 ],
                 "features": [
                     "std",
@@ -62372,7 +68335,9 @@ third_party = {
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":raw-window-handle-0.6.2",
+                    ":static_assertions-1.1.0",
                 ],
                 "features": [
                     "std",
@@ -62384,7 +68349,9 @@ third_party = {
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":raw-window-handle-0.6.2",
+                    ":static_assertions-1.1.0",
                 ],
                 "features": [
                     "std",
@@ -62395,10 +68362,12 @@ third_party = {
                 "deps": [
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
-                    ":js-sys-0.3.99",
+                    ":js-sys-0.3.107",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":raw-window-handle-0.6.2",
-                    ":web-sys-0.3.99",
+                    ":static_assertions-1.1.0",
+                    ":web-sys-0.3.107",
                 ],
                 "features": [
                     "std",
@@ -62409,24 +68378,28 @@ third_party = {
                 "deps": [
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
-                    ":js-sys-0.3.99",
+                    ":js-sys-0.3.107",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":raw-window-handle-0.6.2",
-                    ":web-sys-0.3.99",
+                    ":static_assertions-1.1.0",
+                    ":web-sys-0.3.107",
                 ],
                 "features": [
                     "std",
                     "web",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
-                    ":js-sys-0.3.99",
+                    ":js-sys-0.3.107",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":raw-window-handle-0.6.2",
-                    ":web-sys-0.3.99",
+                    ":static_assertions-1.1.0",
+                    ":web-sys-0.3.107",
                 ],
                 "features": [
                     "std",
@@ -62438,7 +68411,9 @@ third_party = {
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":raw-window-handle-0.6.2",
+                    ":static_assertions-1.1.0",
                 ],
                 "features": [
                     "std",
@@ -62450,7 +68425,9 @@ third_party = {
                     ":bitflags-2.12.1",
                     ":bytemuck-1.25.0",
                     ":log-0.4.31",
+                    ":naga-types-30.0.2",
                     ":raw-window-handle-0.6.2",
+                    ":static_assertions-1.1.0",
                 ],
                 "features": [
                     "std",
@@ -62461,190 +68438,116 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "29.0.3",
+        "version": "30.0.2",
     },
-    "wiggle-48.0.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Pat Hickey <phickey@fastly.com>:Jakub Konka <kubkonk@jakubkonka.com>:Alex Crichton <alex@alexcrichton.com>",
-            "CARGO_PKG_DESCRIPTION": "Runtime components of wiggle code generator",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "wiggle",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "wiggle",
-        "platforms": {
-            "android-arm64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                    ":thiserror-2.0.18",
-                    ":tracing-0.1.44",
-                    ":wasmtime-48.0.1",
-                    ":wasmtime-environ-48.0.1",
-                    ":wiggle-macro-48.0.1",
-                ],
-                "features": [
-                    "wasmtime",
-                ],
-            },
-            "linux-arm64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                    ":thiserror-2.0.18",
-                    ":tracing-0.1.44",
-                    ":wasmtime-48.0.1",
-                    ":wasmtime-environ-48.0.1",
-                    ":wiggle-macro-48.0.1",
-                ],
-                "features": [
-                    "wasmtime",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                    ":thiserror-2.0.18",
-                    ":tracing-0.1.44",
-                    ":wasmtime-48.0.1",
-                    ":wasmtime-environ-48.0.1",
-                    ":wiggle-macro-48.0.1",
-                ],
-                "features": [
-                    "wasmtime",
-                ],
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                    ":thiserror-2.0.18",
-                    ":tracing-0.1.44",
-                    ":wasmtime-48.0.1",
-                    ":wasmtime-environ-48.0.1",
-                    ":wiggle-macro-48.0.1",
-                ],
-                "features": [
-                    "wasmtime",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                    ":thiserror-2.0.18",
-                    ":tracing-0.1.44",
-                    ":wasmtime-48.0.1",
-                    ":wasmtime-environ-48.0.1",
-                    ":wiggle-macro-48.0.1",
-                ],
-                "features": [
-                    "wasmtime",
-                ],
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                    ":thiserror-2.0.18",
-                    ":tracing-0.1.44",
-                    ":wasmtime-48.0.1",
-                    ":wasmtime-environ-48.0.1",
-                    ":wiggle-macro-48.0.1",
-                ],
-                "features": [
-                    "wasmtime",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                    ":thiserror-2.0.18",
-                    ":tracing-0.1.44",
-                    ":wasmtime-48.0.1",
-                    ":wasmtime-environ-48.0.1",
-                    ":wiggle-macro-48.0.1",
-                ],
-                "features": [
-                    "wasmtime",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "48.0.1",
-    },
-    "wiggle-generate-48.0.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Pat Hickey <phickey@fastly.com>:Jakub Konka <kubkon@jakubkonka.com>:Alex Crichton <alex@alexcrichton.com>",
-            "CARGO_PKG_DESCRIPTION": "Library crate for wiggle code generator.",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
-        },
-        "library": {
-            "crate": "wiggle_generate",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "wiggle-generate",
-        "platforms": {
-            "linux-x86_64": {
-                "deps": [
-                    ":heck-0.5.0",
-                    ":proc-macro2-1.0.106",
-                    ":quote-1.0.45",
-                    ":syn-2.0.117",
-                    ":wasmtime-environ-48.0.1",
-                    ":witx-0.9.1",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "48.0.1",
-    },
-    "wiggle-macro-48.0.1": {
+    "wgsl-parse-0.4.0": {
         "build_script": {
             "crate_root": "build.rs",
+            "deps": [
+                ":lalrpop-0.22.2",
+            ],
             "edition": "2024",
         },
         "env": {
-            "CARGO_PKG_AUTHORS": "Pat Hickey <phickey@fastly.com>:Jakub Konka <kubkon@jakubkonka.com>:Alex Crichton <alex@alexcrichton.com>",
-            "CARGO_PKG_DESCRIPTION": "Wiggle code generator",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasmtime",
-            "CARGO_PKG_RUST_VERSION": "1.95.0",
+            "CARGO_PKG_DESCRIPTION": "Parse a wgsl source file to a syntax tree",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/wgsl-tooling-wg/wesl-rs",
+            "CARGO_PKG_RUST_VERSION": "1.87.0",
         },
         "library": {
-            "crate": "wiggle_macro",
+            "crate": "wgsl_parse",
             "crate_root": "src/lib.rs",
             "edition": "2024",
-            "proc_macro": True,
+            "proc_macro": False,
         },
-        "name": "wiggle-macro",
+        "name": "wgsl-parse",
         "platforms": {
             "linux-x86_64": {
                 "deps": [
-                    ":proc-macro2-1.0.106",
-                    ":quote-1.0.45",
-                    ":syn-2.0.117",
-                    ":wiggle-generate-48.0.1",
+                    ":annotate-snippets-0.12.18",
+                    ":derive_more-2.1.1",
+                    ":itertools-0.14.0",
+                    ":lalrpop-util-0.22.2",
+                    ":lexical-7.0.5",
+                    ":logos-0.16.1",
+                    ":thiserror-2.0.18",
+                    ":wgsl-types-0.4.0",
+                ],
+                "features": [
+                    "attributes",
+                    "condcomp",
+                    "default",
+                    "imports",
+                    "wesl",
                 ],
             },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "48.0.1",
+        "version": "0.4.0",
+    },
+    "wgsl-types-0.4.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Type-checking of WGSL types and builtins",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/wgsl-tooling-wg/wesl-rs",
+            "CARGO_PKG_RUST_VERSION": "1.87.0",
+        },
+        "library": {
+            "crate": "wgsl_types",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "wgsl-types",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":half-2.7.1",
+                    ":itertools-0.14.0",
+                    ":num-traits-0.2.19",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.4.0",
+    },
+    "which-6.0.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Harry Fei <tiziyuanfang@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": 'A Rust equivalent of Unix command "which". Locate installed executable in cross platforms.',
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/harryfei/which-rs.git",
+            "CARGO_PKG_RUST_VERSION": "1.70",
+        },
+        "library": {
+            "crate": "which",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "which",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":either-1.17.0",
+                    ":home-0.5.12",
+                    ":rustix-0.38.44",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "6.0.3",
     },
     "winapi-0.3.9": {
         "build_script": {
@@ -63535,15 +69438,8 @@ third_party = {
                     "Win32_NetworkManagement_IpHelper",
                     "Win32_Networking",
                     "Win32_Networking_WinSock",
-                    "Win32_Storage",
-                    "Win32_Storage_FileSystem",
                     "Win32_System",
                     "Win32_System_Com",
-                    "Win32_System_IO",
-                    "Win32_System_Ioctl",
-                    "Win32_System_LibraryLoader",
-                    "Win32_System_Performance",
-                    "Win32_System_SystemServices",
                     "Win32_System_Threading",
                     "Win32_UI",
                     "Win32_UI_Shell",
@@ -63563,15 +69459,8 @@ third_party = {
                     "Win32_NetworkManagement_IpHelper",
                     "Win32_Networking",
                     "Win32_Networking_WinSock",
-                    "Win32_Storage",
-                    "Win32_Storage_FileSystem",
                     "Win32_System",
                     "Win32_System_Com",
-                    "Win32_System_IO",
-                    "Win32_System_Ioctl",
-                    "Win32_System_LibraryLoader",
-                    "Win32_System_Performance",
-                    "Win32_System_SystemServices",
                     "Win32_System_Threading",
                     "Win32_UI",
                     "Win32_UI_Shell",
@@ -63613,13 +69502,10 @@ third_party = {
                     "Win32_Foundation",
                     "Win32_Graphics",
                     "Win32_Graphics_Gdi",
-                    "Win32_Networking",
-                    "Win32_Networking_WinSock",
                     "Win32_Security",
                     "Win32_Storage",
                     "Win32_Storage_FileSystem",
                     "Win32_System",
-                    "Win32_System_Console",
                     "Win32_System_DataExchange",
                     "Win32_System_IO",
                     "Win32_System_Memory",
@@ -63640,13 +69526,10 @@ third_party = {
                     "Win32_Foundation",
                     "Win32_Graphics",
                     "Win32_Graphics_Gdi",
-                    "Win32_Networking",
-                    "Win32_Networking_WinSock",
                     "Win32_Security",
                     "Win32_Storage",
                     "Win32_Storage_FileSystem",
                     "Win32_System",
-                    "Win32_System_Console",
                     "Win32_System_DataExchange",
                     "Win32_System_IO",
                     "Win32_System_Memory",
@@ -63715,11 +69598,9 @@ third_party = {
                     "Win32_System_Diagnostics",
                     "Win32_System_Diagnostics_Debug",
                     "Win32_System_IO",
-                    "Win32_System_Kernel",
                     "Win32_System_LibraryLoader",
                     "Win32_System_Memory",
                     "Win32_System_Ole",
-                    "Win32_System_Performance",
                     "Win32_System_Pipes",
                     "Win32_System_Registry",
                     "Win32_System_SystemInformation",
@@ -63775,11 +69656,9 @@ third_party = {
                     "Win32_System_Diagnostics",
                     "Win32_System_Diagnostics_Debug",
                     "Win32_System_IO",
-                    "Win32_System_Kernel",
                     "Win32_System_LibraryLoader",
                     "Win32_System_Memory",
                     "Win32_System_Ole",
-                    "Win32_System_Performance",
                     "Win32_System_Pipes",
                     "Win32_System_Registry",
                     "Win32_System_SystemInformation",
@@ -64781,7 +70660,6 @@ third_party = {
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi-guest": {},
-            "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -64867,16 +70745,6 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
-                "features": [
-                    "alloc",
-                    "ascii",
-                    "binary",
-                    "default",
-                    "parser",
-                    "std",
-                ],
-            },
             "windows-arm64": {
                 "features": [
                     "alloc",
@@ -64939,82 +70807,6 @@ third_party = {
         ],
         "version": "0.10.1",
     },
-    "winx-0.36.4": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Jakub Konka <kubkon@jakubkonka.com>:Dan Gohman <dev@sunfishcode.online>",
-            "CARGO_PKG_DESCRIPTION": "Windows API helper library",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/sunfishcode/winx",
-            "CARGO_PKG_RUST_VERSION": "1.63",
-        },
-        "library": {
-            "crate": "winx",
-            "crate_root": "src/lib.rs",
-            "edition": "2021",
-            "proc_macro": False,
-        },
-        "name": "winx",
-        "platforms": {
-            "windows-arm64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                    ":windows-sys-0.59.0",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                    ":windows-sys-0.59.0",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.36.4",
-    },
-    "wit-component-0.254.0": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Peter Huene <peter@huene.dev>",
-            "CARGO_PKG_DESCRIPTION": "Tooling for working with `*.wit` and component files together.\n",
-            "CARGO_PKG_HOMEPAGE": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wit-component",
-            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wit-component",
-            "CARGO_PKG_RUST_VERSION": "1.85.0",
-        },
-        "library": {
-            "crate": "wit_component",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "wit-component",
-        "platforms": {
-            "linux-x86_64": {
-                "deps": [
-                    ":anyhow-1.0.104",
-                    ":bitflags-2.12.1",
-                    ":indexmap-2.14.0",
-                    ":log-0.4.31",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":serde_json-1.0.150",
-                    ":wasm-encoder-0.254.0",
-                    ":wasm-metadata-0.254.0",
-                    ":wasmparser-0.254.0",
-                    ":wit-parser-0.254.0",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "version": "0.254.0",
-    },
     "wit-parser-0.254.0": {
         "build_script": None,
         "env": {
@@ -65042,17 +70834,9 @@ third_party = {
                     ":indexmap-2.14.0",
                     ":log-0.4.31",
                     ":semver-1.0.28",
-                    ":serde-1.0.228",
-                    ":serde_derive-1.0.228",
-                    ":serde_json-1.0.150",
                     ":unicode-ident-1.0.24",
-                    ":wasmparser-0.254.0",
                 ],
                 "features": [
-                    "decoding",
-                    "default",
-                    "serde",
-                    "serde_json",
                     "std",
                 ],
             },
@@ -65062,36 +70846,110 @@ third_party = {
         ],
         "version": "0.254.0",
     },
-    "witx-0.9.1": {
+    "wnaf-0.14.1": {
         "build_script": None,
         "env": {
-            "CARGO_PKG_AUTHORS": "Pat Hickey <phickey@fastly.com>:Alex Crichton <alex@alexcrichton.com>",
-            "CARGO_PKG_DESCRIPTION": "Parse and validate witx file format",
-            "CARGO_PKG_HOMEPAGE": "https://github.com/WebAssembly/WASI",
-            "CARGO_PKG_LICENSE": "Apache-2.0",
-            "CARGO_PKG_REPOSITORY": "https://github.com/WebAssembly/WASI",
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "wNAF (w-ary non-adjacent form) variable-time scalar multiplication implemented generically\nover elliptic curve groups with full `no_alloc` support, including multiscalar multiplication using\nStraus's interleaved window method. Contains an implementation adapted from the `group` crate which\nhas been forked and enhanced but is otherwise compatible with that crate's traits, along with the\n`ff` crate's traits for finite field representations\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/elliptic-curves/tree/master/wnaf",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/elliptic-curves",
+            "CARGO_PKG_RUST_VERSION": "1.85",
         },
         "library": {
-            "crate": "witx",
+            "crate": "wnaf",
             "crate_root": "src/lib.rs",
-            "edition": "2018",
+            "edition": "2024",
             "proc_macro": False,
         },
-        "name": "witx",
+        "name": "wnaf",
         "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":ff-0.14.0",
+                    ":group-0.14.0",
+                    ":primefield-0.14.0",
+                ],
+                "named_deps": {
+                    "array": ":hybrid-array-0.4.15",
+                },
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":ff-0.14.0",
+                    ":group-0.14.0",
+                    ":primefield-0.14.0",
+                ],
+                "named_deps": {
+                    "array": ":hybrid-array-0.4.15",
+                },
+            },
             "linux-x86_64": {
                 "deps": [
-                    ":anyhow-1.0.104",
-                    ":log-0.4.31",
-                    ":thiserror-1.0.69",
-                    ":wast-35.0.2",
+                    ":ff-0.14.0",
+                    ":group-0.14.0",
+                    ":primefield-0.14.0",
                 ],
+                "named_deps": {
+                    "array": ":hybrid-array-0.4.15",
+                },
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":ff-0.14.0",
+                    ":group-0.14.0",
+                    ":primefield-0.14.0",
+                ],
+                "named_deps": {
+                    "array": ":hybrid-array-0.4.15",
+                },
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":ff-0.14.0",
+                    ":group-0.14.0",
+                    ":primefield-0.14.0",
+                ],
+                "named_deps": {
+                    "array": ":hybrid-array-0.4.15",
+                },
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":ff-0.14.0",
+                    ":group-0.14.0",
+                    ":primefield-0.14.0",
+                ],
+                "named_deps": {
+                    "array": ":hybrid-array-0.4.15",
+                },
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":ff-0.14.0",
+                    ":group-0.14.0",
+                    ":primefield-0.14.0",
+                ],
+                "named_deps": {
+                    "array": ":hybrid-array-0.4.15",
+                },
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":ff-0.14.0",
+                    ":group-0.14.0",
+                    ":primefield-0.14.0",
+                ],
+                "named_deps": {
+                    "array": ":hybrid-array-0.4.15",
+                },
             },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "version": "0.9.1",
+        "version": "0.14.1",
     },
     "writeable-0.6.4": {
         "build_script": None,
@@ -65111,17 +70969,52 @@ third_party = {
         },
         "name": "writeable",
         "platforms": {
-            "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
+            "android-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
             "linux-x86_64-html": {},
-            "macos-arm64": {},
-            "macos-x86_64": {},
+            "macos-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
             "wasi": {},
             "wasi-guest": {},
             "wasi-html": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
+            "windows-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
@@ -65557,6 +71450,20 @@ third_party = {
                     "zeroize",
                 ],
             },
+            "wasi-guest": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":rand_core-0.6.4",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "precomputed-tables",
+                    "static_secrets",
+                    "zeroize",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":curve25519-dalek-4.1.3",
@@ -65757,70 +71664,136 @@ third_party = {
                 "deps": [
                     ":const-oid-0.10.2",
                     ":der-0.8.2",
+                    ":sha1-0.11.0",
+                    ":signature-3.0.0",
                     ":spki-0.8.1",
                 ],
                 "features": [
+                    "builder",
+                    "default",
+                    "hazmat",
                     "pem",
+                    "signature",
+                    "std",
                 ],
             },
             "linux-arm64": {
                 "deps": [
                     ":const-oid-0.10.2",
                     ":der-0.8.2",
+                    ":sha1-0.11.0",
+                    ":signature-3.0.0",
                     ":spki-0.8.1",
                 ],
                 "features": [
+                    "builder",
+                    "default",
+                    "hazmat",
                     "pem",
+                    "signature",
+                    "std",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
                     ":const-oid-0.10.2",
                     ":der-0.8.2",
+                    ":sha1-0.11.0",
+                    ":signature-3.0.0",
                     ":spki-0.8.1",
                 ],
                 "features": [
+                    "builder",
+                    "default",
+                    "hazmat",
                     "pem",
+                    "signature",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":der-0.8.2",
+                    ":sha1-0.11.0",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "builder",
+                    "default",
+                    "hazmat",
+                    "pem",
+                    "signature",
+                    "std",
                 ],
             },
             "macos-arm64": {
                 "deps": [
                     ":const-oid-0.10.2",
                     ":der-0.8.2",
+                    ":sha1-0.11.0",
+                    ":signature-3.0.0",
                     ":spki-0.8.1",
                 ],
                 "features": [
+                    "builder",
+                    "default",
+                    "hazmat",
                     "pem",
+                    "signature",
+                    "std",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
                     ":const-oid-0.10.2",
                     ":der-0.8.2",
+                    ":sha1-0.11.0",
+                    ":signature-3.0.0",
                     ":spki-0.8.1",
                 ],
                 "features": [
+                    "builder",
+                    "default",
+                    "hazmat",
                     "pem",
+                    "signature",
+                    "std",
                 ],
             },
             "windows-arm64": {
                 "deps": [
                     ":const-oid-0.10.2",
                     ":der-0.8.2",
+                    ":sha1-0.11.0",
+                    ":signature-3.0.0",
                     ":spki-0.8.1",
                 ],
                 "features": [
+                    "builder",
+                    "default",
+                    "hazmat",
                     "pem",
+                    "signature",
+                    "std",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
                     ":const-oid-0.10.2",
                     ":der-0.8.2",
+                    ":sha1-0.11.0",
+                    ":signature-3.0.0",
                     ":spki-0.8.1",
                 ],
                 "features": [
+                    "builder",
+                    "default",
+                    "hazmat",
                     "pem",
+                    "signature",
+                    "std",
                 ],
             },
         },
@@ -65881,6 +71854,22 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                    ":data-encoding-2.11.0",
+                    ":der-parser-10.0.0",
+                    ":lazy_static-1.5.0",
+                    ":nom-7.1.3",
+                    ":oid-registry-0.8.1",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-2.0.18",
+                    ":time-0.3.54",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":asn1-rs-0.7.2",
                     ":data-encoding-2.11.0",
@@ -66408,6 +72397,7 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "zerofrom",
                 ],
@@ -66419,6 +72409,7 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "zerofrom",
                 ],
@@ -66430,6 +72421,7 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "zerofrom",
                 ],
@@ -66452,6 +72444,7 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "zerofrom",
                 ],
@@ -66463,6 +72456,7 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "zerofrom",
                 ],
@@ -66507,6 +72501,7 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "zerofrom",
                 ],
@@ -66518,6 +72513,7 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "zerofrom",
                 ],
@@ -66550,7 +72546,7 @@ third_party = {
                 "deps": [
                     ":proc-macro2-1.0.106",
                     ":quote-1.0.45",
-                    ":syn-3.0.3",
+                    ":syn-3.0.10",
                     ":synstructure-0.14.0",
                 ],
             },
@@ -66846,6 +72842,93 @@ third_party = {
         ],
         "version": "5.2.1",
     },
+    "zeno-0.3.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Chad Brokaw <cbrokaw@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "High performance, low level 2D path rasterization.",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/dfrg/zeno",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/dfrg/zeno",
+        },
+        "library": {
+            "crate": "zeno",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "zeno",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "default",
+                    "eval",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "default",
+                    "eval",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "default",
+                    "eval",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "default",
+                    "eval",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "default",
+                    "eval",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "features": [
+                    "default",
+                    "eval",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "features": [
+                    "default",
+                    "eval",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "default",
+                    "eval",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "default",
+                    "eval",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.3.3",
+    },
     "zerocopy-0.8.50": {
         "build_script": {
             "crate_root": "build.rs",
@@ -66947,7 +73030,7 @@ third_party = {
                     "zerocopy-derive",
                 ],
             },
-            "wasm32": {
+            "wasm32-bindgen": {
                 "deps": [
                     ":zerocopy-derive-0.8.50",
                 ],
@@ -67035,6 +73118,7 @@ third_party = {
                     ":zerofrom-derive-0.1.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                 ],
             },
@@ -67043,6 +73127,7 @@ third_party = {
                     ":zerofrom-derive-0.1.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                 ],
             },
@@ -67051,6 +73136,7 @@ third_party = {
                     ":zerofrom-derive-0.1.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                 ],
             },
@@ -67067,6 +73153,7 @@ third_party = {
                     ":zerofrom-derive-0.1.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                 ],
             },
@@ -67075,6 +73162,7 @@ third_party = {
                     ":zerofrom-derive-0.1.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                 ],
             },
@@ -67107,6 +73195,7 @@ third_party = {
                     ":zerofrom-derive-0.1.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                 ],
             },
@@ -67115,6 +73204,7 @@ third_party = {
                     ":zerofrom-derive-0.1.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                 ],
             },
@@ -67176,61 +73266,73 @@ third_party = {
         "platforms": {
             "android-arm64": {
                 "deps": [
+                    ":serde-1.0.228",
                     ":zeroize_derive-1.5.0",
                 ],
                 "features": [
                     "alloc",
                     "default",
+                    "serde",
                     "zeroize_derive",
                 ],
             },
             "linux-arm64": {
                 "deps": [
+                    ":serde-1.0.228",
                     ":zeroize_derive-1.5.0",
                 ],
                 "features": [
                     "alloc",
                     "default",
+                    "serde",
                     "zeroize_derive",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
+                    ":serde-1.0.228",
                     ":zeroize_derive-1.5.0",
                 ],
                 "features": [
                     "alloc",
                     "default",
+                    "serde",
                     "zeroize_derive",
                 ],
             },
             "linux-x86_64-html": {
                 "deps": [
+                    ":serde-1.0.228",
                     ":zeroize_derive-1.5.0",
                 ],
                 "features": [
                     "alloc",
                     "default",
+                    "serde",
                     "zeroize_derive",
                 ],
             },
             "macos-arm64": {
                 "deps": [
+                    ":serde-1.0.228",
                     ":zeroize_derive-1.5.0",
                 ],
                 "features": [
                     "alloc",
                     "default",
+                    "serde",
                     "zeroize_derive",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
+                    ":serde-1.0.228",
                     ":zeroize_derive-1.5.0",
                 ],
                 "features": [
                     "alloc",
                     "default",
+                    "serde",
                     "zeroize_derive",
                 ],
             },
@@ -67240,27 +73342,41 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "zeroize_derive",
                 ],
             },
-            "wasi-guest": {},
-            "windows-arm64": {
+            "wasi-guest": {
                 "deps": [
                     ":zeroize_derive-1.5.0",
                 ],
                 "features": [
                     "alloc",
                     "default",
+                    "zeroize_derive",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":serde-1.0.228",
+                    ":zeroize_derive-1.5.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "serde",
                     "zeroize_derive",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
+                    ":serde-1.0.228",
                     ":zeroize_derive-1.5.0",
                 ],
                 "features": [
                     "alloc",
                     "default",
+                    "serde",
                     "zeroize_derive",
                 ],
             },
@@ -67327,6 +73443,8 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "yoke",
                     "zerofrom",
                 ],
@@ -67338,6 +73456,8 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "yoke",
                     "zerofrom",
                 ],
@@ -67349,6 +73469,8 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "yoke",
                     "zerofrom",
                 ],
@@ -67371,6 +73493,8 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "yoke",
                     "zerofrom",
                 ],
@@ -67382,6 +73506,8 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "yoke",
                     "zerofrom",
                 ],
@@ -67426,6 +73552,8 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "yoke",
                     "zerofrom",
                 ],
@@ -67437,6 +73565,8 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "yoke",
                     "zerofrom",
                 ],
@@ -67472,6 +73602,7 @@ third_party = {
                     ":zerovec-derive-0.11.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "yoke",
                 ],
@@ -67483,6 +73614,7 @@ third_party = {
                     ":zerovec-derive-0.11.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "yoke",
                 ],
@@ -67494,6 +73626,7 @@ third_party = {
                     ":zerovec-derive-0.11.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "yoke",
                 ],
@@ -67516,6 +73649,7 @@ third_party = {
                     ":zerovec-derive-0.11.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "yoke",
                 ],
@@ -67527,6 +73661,7 @@ third_party = {
                     ":zerovec-derive-0.11.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "yoke",
                 ],
@@ -67571,6 +73706,7 @@ third_party = {
                     ":zerovec-derive-0.11.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "yoke",
                 ],
@@ -67582,6 +73718,7 @@ third_party = {
                     ":zerovec-derive-0.11.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "yoke",
                 ],
@@ -67614,7 +73751,7 @@ third_party = {
                 "deps": [
                     ":proc-macro2-1.0.106",
                     ":quote-1.0.45",
-                    ":syn-3.0.3",
+                    ":syn-3.0.10",
                 ],
             },
         },
@@ -67862,7 +73999,7 @@ third_party = {
             "wasi": {},
             "wasi-guest": {},
             "wasi-html": {},
-            "wasm32": {},
+            "wasm32-bindgen": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -67870,6 +74007,94 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "1.0.21",
+    },
+    "zoneinfo64-0.3.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
+            "CARGO_PKG_DESCRIPTION": "Working with ICU zoneinfo64.res timezone data bundles",
+            "CARGO_PKG_HOMEPAGE": "https://icu4x.unicode.org",
+            "CARGO_PKG_LICENSE": "Unicode-3.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
+            "CARGO_PKG_RUST_VERSION": "1.82",
+        },
+        "library": {
+            "crate": "zoneinfo64",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "zoneinfo64",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":icu_locale_core-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":resb-0.1.2",
+                    ":serde-1.0.228",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":icu_locale_core-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":resb-0.1.2",
+                    ":serde-1.0.228",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":icu_locale_core-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":resb-0.1.2",
+                    ":serde-1.0.228",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":icu_locale_core-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":resb-0.1.2",
+                    ":serde-1.0.228",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":icu_locale_core-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":resb-0.1.2",
+                    ":serde-1.0.228",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":icu_locale_core-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":resb-0.1.2",
+                    ":serde-1.0.228",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":icu_locale_core-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":resb-0.1.2",
+                    ":serde-1.0.228",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.3.0",
     },
     "zopfli-0.8.3": {
         "build_script": None,

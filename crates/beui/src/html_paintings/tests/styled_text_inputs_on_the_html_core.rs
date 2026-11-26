@@ -1,5 +1,5 @@
 use super::*;
-use beui_macros::view;
+use crate::reactive::view;
 
 #[test]
 fn styled_text_inputs_on_the_html_core() {

@@ -1,5 +1,4 @@
 use crate::frame::{ColorRole, Frame};
-use beui_macros::{component, view};
 
 use crate::tokens::{Length, Size, Stroke};
 use beui_view::reactive::NodeId;

@@ -15,6 +15,9 @@ pub(crate) struct Docks {
     declared: HashMap<ViewId, Option<DockDeclaration>>,
     sent: HashMap<ViewId, Option<DockDeclaration>>,
     requests: Vec<(ViewId, DockRequest)>,
+    /// How many restores each view has asked for: only the main view's count, since the host
+    /// answers only its restores.
+    restores: HashMap<ViewId, u64>,
     hosting: HashMap<ChildId, DockHold>,
     /// The `epoch` of the last declaration or withdrawal heard for each child.
     seen: HashMap<ChildId, u64>,
@@ -25,6 +28,9 @@ pub(crate) struct Docks {
     closed: Vec<(ViewId, DockTabPath)>,
     children: HashMap<ChildId, DockDeclaration>,
     child_requests: Vec<(ChildId, Vec<ChildId>, DockRequest)>,
+    /// How many restores each child asked for that this instance has taken, which each hold of
+    /// the child carries (`DockHosted::restored`).
+    child_restored: HashMap<ChildId, u64>,
 }
 
 impl EditorHost {
@@ -39,6 +45,10 @@ impl EditorHost {
     pub fn request_dock(&self, view: ViewId, request: DockRequest) {
         let mut docks = self.docks.borrow_mut();
         docks.used = true;
+        // Only the main view joins a dock: the host answers no other's restores.
+        if view == ViewId::MAIN && matches!(request, DockRequest::Restore(_)) {
+            *docks.restores.entry(view).or_default() += 1;
+        }
         docks.requests.push((view, request));
         drop(docks);
         self.changed_docks();
@@ -46,6 +56,18 @@ impl EditorHost {
 
     pub fn dock_hosted(&self, view: ViewId) -> Option<DockHosted> {
         self.docks.borrow().hosted.get(&view).cloned()
+    }
+
+    /// Whether the root hosts `view`'s dock as it is after every restore the view asked for:
+    /// what it hosted before it took the last one has a smaller `DockHosted::restored`.
+    /// Only `ViewId::MAIN` joins a dock, so only its restores are counted.
+    pub fn dock_restored(&self, view: ViewId) -> bool {
+        let docks = self.docks.borrow();
+        let asked = docks.restores.get(&view).copied().unwrap_or(0);
+        docks
+            .hosted
+            .get(&view)
+            .is_some_and(|hosted| hosted.restored >= asked)
     }
 
     pub fn take_dock_closes(&self, view: ViewId) -> Vec<DockTabPath> {
@@ -65,17 +87,48 @@ impl EditorHost {
         self.docks.borrow().children.get(&child).cloned()
     }
 
-    pub fn take_child_dock_requests(&self, child: ChildId) -> Vec<(Vec<ChildId>, DockRequest)> {
-        let mut docks = self.docks.borrow_mut();
-        let mut taken = Vec::new();
-        docks.child_requests.retain(|(held, owner, request)| {
-            let here = *held == child;
+    /// Hands `take` the requests `child` and its descendants made, in order, with the owner
+    /// each came from. `take` answers whether it took one: one it leaves waits for the next
+    /// call, and so does every later one from the same owner or a descendant of it, while
+    /// other owners' requests go on past it. Each restore taken counts in the child's holds
+    /// (`DockHosted::restored`), so the asker knows what the root hosts from then on has it.
+    pub fn take_child_dock_requests(
+        &self,
+        child: ChildId,
+        mut take: impl FnMut(&[ChildId], &DockRequest) -> bool,
+    ) {
+        let mut held = Vec::new();
+        self.docks.borrow_mut().child_requests.retain(|request| {
+            let here = request.0 == child;
             if here {
-                taken.push((owner.clone(), request.clone()));
+                held.push(request.clone());
             }
             !here
         });
-        taken
+        let mut restored = 0;
+        let mut waiting: Vec<Vec<ChildId>> = Vec::new();
+        let mut left = Vec::new();
+        for request in held {
+            let (_, owner, asked) = &request;
+            let behind = waiting.iter().any(|waiting| owner.starts_with(waiting));
+            if !behind && take(owner, asked) {
+                if matches!(asked, DockRequest::Restore(_)) {
+                    restored += 1;
+                }
+                continue;
+            }
+            if !behind {
+                waiting.push(owner.clone());
+            }
+            left.push(request);
+        }
+        let mut docks = self.docks.borrow_mut();
+        docks.child_requests.splice(0..0, left);
+        if restored > 0 {
+            *docks.child_restored.entry(child).or_default() += restored;
+            drop(docks);
+            self.changed_docks();
+        }
     }
 
     pub fn host_child_dock(&self, child: ChildId, hold: DockHold) {
@@ -83,6 +136,18 @@ impl EditorHost {
         docks.used = true;
         if docks.hosting.get(&child) == Some(&hold) {
             return;
+        }
+        if matches!(hold, DockHold::Released) {
+            // A child let go takes none of what it still asks for.
+            let mut dropped = 0;
+            docks.child_requests.retain(|(held, _, request)| {
+                let here = *held == child;
+                if here && matches!(request, DockRequest::Restore(_)) {
+                    dropped += 1;
+                }
+                !here
+            });
+            *docks.child_restored.entry(child).or_default() += dropped;
         }
         docks.hosting.insert(child, hold);
         drop(docks);
@@ -201,11 +266,14 @@ impl EditorHost {
         children.sort();
         children.dedup();
         for child in children {
-            let hold = docks
+            let mut hold = docks
                 .hosting
                 .get(&child)
                 .cloned()
                 .unwrap_or(DockHold::Placing);
+            if let DockHold::Hosted(hosted) = &mut hold {
+                hosted.restored = docks.child_restored.get(&child).copied().unwrap_or(0);
+            }
             let seen = docks.seen.get(&child).copied().unwrap_or(0);
             let sent = docks.hosted_sent.get(&child);
             if sent.is_some_and(|(held, at)| *held == hold && *at == seen)
@@ -241,3 +309,6 @@ impl EditorHost {
         self.request_frame_in(std::time::Duration::ZERO);
     }
 }
+
+#[cfg(test)]
+mod tests;

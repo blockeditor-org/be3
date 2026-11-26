@@ -9,9 +9,7 @@ mod web;
 pub use native::{Request, spawn_request};
 pub use utc_offset::utc_offset;
 #[cfg(target_arch = "wasm32")]
-pub use web::{Request, spawn_request};
-
-pub const HAS_EMBEDDED_SERVER: bool = cfg!(not(target_arch = "wasm32"));
+pub use web::{Request, keep_storage, spawn_request};
 
 pub const SENDS_HEADERS: bool = cfg!(not(target_arch = "wasm32"));
 

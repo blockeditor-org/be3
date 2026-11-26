@@ -1,5 +1,4 @@
 use be_sdk_beui::be_block::Recents;
-use be_sdk_beui::be_block::profile::RECENTS;
 
 use super::*;
 
@@ -12,8 +11,8 @@ fn a_shown_block_is_remembered_in_the_recents() {
     show(&mut fixture, second, Some(opened));
 
     let recents: Vec<Uuid> = profile(&fixture)
-        .state(RECENTS)
-        .and_then(ViewState::value::<Recents>)
+        .view_state::<Recents>()
+        .and_then(Result::ok)
         .expect("the profile keeps recents")
         .0
         .into_iter()

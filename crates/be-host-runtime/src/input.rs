@@ -43,7 +43,10 @@ pub(super) fn file_drop(input: &beui::ForwardedInput, dropping: bool) -> Option<
     })
 }
 
-fn read_dropped(file: beui::DroppedFile) -> Option<ClipFile> {
+/// A file dropped on a window as a view hears it: its name (`File` when it has none) and what it
+/// holds, read from where it is when the platform did not hand its bytes over. None for one that
+/// cannot be read.
+pub fn read_dropped(file: beui::DroppedFile) -> Option<ClipFile> {
     let name = Some(file.name.clone())
         .filter(|name| !name.is_empty())
         .unwrap_or_else(|| "File".to_owned());
@@ -54,8 +57,16 @@ fn read_dropped(file: beui::DroppedFile) -> Option<ClipFile> {
     Some(ClipFile { name, data })
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn read_path(path: &std::path::Path) -> Option<Vec<u8>> {
     std::fs::read(path).ok()
+}
+
+/// A browser hands a dropped file's bytes over, and the web's page reads no files
+/// (decisions/the_web_page_never_waits.md).
+#[cfg(target_arch = "wasm32")]
+fn read_path(_path: &std::path::Path) -> Option<Vec<u8>> {
+    None
 }
 
 pub(super) struct InputForwarder {
@@ -65,16 +76,27 @@ pub(super) struct InputForwarder {
 
 impl InputForwarder {
     /// `heard` is what modifiers the app last heard, which every view of the app shares: the app
-    /// keeps one set of modifiers for all its views.
-    pub(super) fn new(heard: beui::Heard) -> Self {
+    /// keeps one set of modifiers for all its views. `focused` is whether the view starts out
+    /// counted as having the keyboard, which the host tells the app when it announces the view.
+    pub(super) fn new(heard: beui::Heard, focused: bool) -> Self {
         Self {
-            replay: Replay::hearing(heard),
+            replay: Replay::hearing(heard, focused),
             started: false,
         }
     }
 
     pub(super) fn focused(&self) -> bool {
         self.replay.focused()
+    }
+
+    /// The input that tells the view the modifiers held now, if the app does not know them.
+    pub(super) fn modifiers_now(&mut self) -> Option<Input> {
+        self.replay.modifiers_now()
+    }
+
+    /// Counts no pointer button as held, as for an app that has heard none go down.
+    pub(super) fn forget_presses(&mut self) {
+        self.replay.forget_presses();
     }
 
     pub(super) fn forward(

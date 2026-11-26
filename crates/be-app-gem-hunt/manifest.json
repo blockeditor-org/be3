@@ -1,0 +1,40 @@
+{
+  "id": "be3.gem-hunt",
+  "name": "Gem Hunt",
+  "version": "0.1.0",
+  "editors": {
+    "hunt": {
+      "id": "342128d2-1c81-42f1-b8eb-df22a004b502",
+      "edits": "67656d2d-6875-6e74-2d62-6c6f636b0001",
+      "display_name": "Gem Hunt",
+      "icon": "",
+      "templates": {
+        "main": {}
+      },
+      "views": [
+        "Main"
+      ]
+    }
+  },
+  "block_types": {
+    "hunt": {
+      "id": "67656d2d-6875-6e74-2d62-6c6f636b0001",
+      "display_name": "Gem Hunt",
+      "icon": "",
+      "color": [176, 92, 196],
+      "module": "gem_hunt_types.wasm"
+    }
+  },
+  "hosts": {
+    "hunt_host": {
+      "id": "90b69159-41fa-4cb8-a847-7f343c7b4fd3",
+      "edits": "67656d2d-6875-6e74-2d62-6c6f636b0001",
+      "levels": [
+        { "access": "join", "name": "Join the hunt", "line": "Connect to whoever hosts the hunt and dig with them, seeing only the cells that are dug." },
+        { "access": "edit", "name": "Host", "line": "Can run the hunt, and so can see where every gem lies and change anything in it, outside the game's rules. Hosts only while the hunt is open, or after Keep hosting." },
+        { "access": "manage", "name": "Manage", "line": "Can also share it." }
+      ]
+    }
+  },
+  "entry_point": "gem_hunt.wasm"
+}

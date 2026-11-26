@@ -1,4 +1,4 @@
-use be_sdk_type_api::SearchDocument;
+use be_block_content::SearchDocument;
 use be_type_text::{TextBlock, TextContent};
 
 use super::*;

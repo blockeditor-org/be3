@@ -2,10 +2,11 @@ use be_sdk_api::{
     AnchorSpace, HostTransform, InputBatch, ScreenId, ScreenRequest, TimedInput, ViewRef,
     ViewportMetrics, WindowLevel, WindowOpen, WindowRequest,
 };
-use be_sdk_beui::{BeuiRoot, View, ViewId};
+use be_sdk_beui::{AppEditor, BeuiRoot, View, ViewId};
 use be_sdk_window_stack::{Gesture, Host, Stacked};
 use beui::{Input, Key, KeyChord, NodeId, PointerButton, Pos2, Rect, Vec2, vec2};
 use beui_host::native::drive::gestures::Frames;
+use beui_host::native::testing::Gui;
 
 use super::{BeuiTest, INSTANCE, SCREEN};
 
@@ -53,6 +54,8 @@ pub(crate) struct Desk {
     raised: Vec<Raised>,
     next_screen: u64,
     gesture: Option<(ViewId, Gesture)>,
+    // The screen, point and view (with its rect) a held press began on.
+    #[allow(clippy::type_complexity)]
     pressed: Option<(ScreenId, Pos2, Option<(ViewId, Rect)>)>,
     pointer: Pos2,
     outside: bool,
@@ -98,10 +101,20 @@ impl Desk {
                     .filter(|rect| !report.marks.contains(rect))
                     .map(|rect| rect.translate(at))
                     .collect(),
+                // A host draws scrims itself (be-sdk-beui-platform sets `hosts_scrims`), so
+                // a scrim this test's document painted is not lifted over the windows.
                 paints: report
                     .floating_painted
                     .iter()
                     .filter(|rect| !report.marks_painted.contains(rect))
+                    .flat_map(|rect| {
+                        report.scrims.iter().fold(vec![*rect], |parts, scrim| {
+                            parts
+                                .into_iter()
+                                .flat_map(|part| outside(part, scrim.rect))
+                                .collect()
+                        })
+                    })
                     .map(|rect| rect.translate(at))
                     .collect(),
             };
@@ -378,12 +391,35 @@ impl Host<Hosted> for Desk {
     }
 }
 
+/// The parts of `rect` outside `hole`.
+fn outside(rect: Rect, hole: Rect) -> Vec<Rect> {
+    let cut = rect.intersect(hole);
+    if !cut.is_positive() {
+        return vec![rect];
+    }
+    [
+        Rect::from_min_max(rect.min, Pos2::new(rect.max.x, cut.min.y)),
+        Rect::from_min_max(Pos2::new(rect.min.x, cut.max.y), rect.max),
+        Rect::from_min_max(
+            Pos2::new(rect.min.x, cut.min.y),
+            Pos2::new(cut.min.x, cut.max.y),
+        ),
+        Rect::from_min_max(
+            Pos2::new(cut.max.x, cut.min.y),
+            Pos2::new(rect.max.x, cut.max.y),
+        ),
+    ]
+    .into_iter()
+    .filter(Rect::is_positive)
+    .collect()
+}
+
 fn owner(displays: &[Display], rect: Rect) -> Display {
     let rects: Vec<Rect> = displays.iter().map(|display| display.rect).collect();
     displays[be_sdk_window_stack::home(&rects, rect).unwrap_or(0)]
 }
 
-impl<A: BeuiRoot> BeuiTest<A> {
+impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
     pub fn show_on_displays(&mut self, displays: &[(Rect, f32)]) {
         let desk = Desk::new(displays);
         self.size = desk.displays[0].rect.size();
@@ -460,21 +496,41 @@ impl<A: BeuiRoot> BeuiTest<A> {
         }
     }
 
-    pub(super) fn desk_tap(&mut self, key: Key) -> Option<bool> {
-        let desk = self.desk.as_mut()?;
+    /// Queues a tap of `key` for another display's screen that intercepts it, saying whether
+    /// one did.
+    pub(super) fn desk_tap(&mut self, key: Key) -> bool {
+        let Some(desk) = self.desk.as_mut() else {
+            return false;
+        };
         let tap = KeyChord::tap(key);
-        let screen = desk
+        let Some(&(screen, _)) = desk
             .intercepts
             .iter()
-            .find(|(screen, keys)| *screen != SCREEN && keys.contains(&tap))?
-            .0;
+            .find(|(screen, keys)| *screen != SCREEN && keys.contains(&tap))
+        else {
+            return false;
+        };
         self.desk_batches.push(InputBatch {
             screen,
             every_sample: false,
             events: vec![TimedInput::from(Input::InterceptedTap(key))],
             dismissed: Vec::new(),
         });
-        Some(true)
+        true
+    }
+
+    /// What display `display`'s screen paints over the desk's windows (its menus, say), as a
+    /// host lifts it.
+    pub fn desk_lifted(&self, display: usize) -> Vec<Rect> {
+        let Some(desk) = self.desk.as_ref() else {
+            return Vec::new();
+        };
+        let screen = desk.displays[display].screen;
+        desk.raised
+            .iter()
+            .find(|raised| raised.screen == screen)
+            .map(|raised| raised.paints.clone())
+            .unwrap_or_default()
     }
 
     pub fn desk_windows(&self) -> Vec<Rect> {
@@ -575,6 +631,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
         for step in 1..=steps.max(1) {
             if !each.is_zero() {
                 self.advance(each);
+                self.run();
             }
             let along = step as f32 / steps.max(1) as f32;
             self.desk_move(from + (to - from) * along);

@@ -9,12 +9,31 @@ let
   data = "/mnt/data";
   # ./scripts/deploy copies be-server and its build-info.json here (crates/be-tool-local's deploy.rs).
   program = "/srv/be-server";
-  site = pkgs.runCommand "api-gate" { } "mkdir $out && cp ${./gate.html} $out/gate.html";
+  common = import ../common.nix;
+  # The gateway key's page: back where the browser was headed (/#next=PATH), or on to the web build.
+  site = common.gate pkgs {
+    name = "api-gate";
+    title = "be3";
+    about = [
+      "The only page api.be3.pfg.pw serves without the gateway key (Caddyfile): it stores the key as the cookie Caddy"
+      "checks, then goes back where the browser was headed (/#next=PATH) or on to the web build. JavaScript can set"
+      "only a cookie it can also read, which is enough here."
+    ];
+    field = "key";
+    label = "Gateway key";
+    button = "Continue";
+    cookie = "be3_gateway";
+    next = [
+      "const next = location.hash.startsWith(\"#next=\") ? location.hash.slice(6) : \"\";"
+      "location.href = next.startsWith(\"/\") && !next.startsWith(\"//\") ? next : \"https://be3.pfg.pw/\";"
+    ];
+  };
 in
 {
   imports = [
     (modulesPath + "/profiles/qemu-guest.nix")
-    ./disk.nix
+    # The server's own disk; the volume below is never touched by it.
+    (common.disk "scsi-0QEMU_QEMU_HARDDISK_133276878")
   ];
 
   networking.hostName = "api";

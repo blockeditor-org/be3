@@ -8,6 +8,8 @@ pub struct Description<'a> {
     pub role: &'a str,
     pub label: Option<&'a str>,
     pub value: Option<&'a str>,
+    /// What a screen reader says after the label and value (a menu item's detail).
+    pub description: Option<&'a str>,
     pub toggled: Option<&'a str>,
     pub disabled: bool,
     pub selected: bool,
@@ -56,6 +58,9 @@ pub fn describe<N>(depth: usize, description: Description, node: N) -> Line<N> {
     }
     if let Some(value) = description.value.filter(|value| !value.is_empty()) {
         let _ = write!(text, " value={value:?}");
+    }
+    if let Some(description) = description.description.filter(|said| !said.is_empty()) {
+        let _ = write!(text, " description={description:?}");
     }
     if let Some(toggled) = description.toggled {
         let _ = write!(text, " toggled={toggled}");
@@ -133,7 +138,7 @@ pub fn waited<'a, L: TreeLine>(lines: &'a [L], text: &str, over: Option<Pos2>) -
     lines.iter().find(|line| {
         let matches = match text.strip_prefix('#') {
             Some(id) => line.test_ids().iter().any(|named| named == id),
-            None => line.text().contains(text),
+            None => crate::target::line_holds(line.text(), text),
         };
         matches && over.is_none_or(|over| line.bounds().is_some_and(|bounds| bounds.contains(over)))
     })

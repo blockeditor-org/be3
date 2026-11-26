@@ -24,20 +24,16 @@ pub fn ViewHeader(data: Data) -> NodeId {
         <Container>|_| {
             let squeezed = narrower_than(WIDE_WIDTH);
             let narrow = create_memo(move || chrome.get() || squeezed.get());
-            let wide = create_memo(move || !narrow.get());
             view! {
                 <List spacing=Space::None>
-                    <Show condition={wide}>
-                        <WideHeader data={data} />
-                    </Show>
-                    <Show condition={narrow}>
+                    <Show
+                        value={narrow}
+                        fallback={move || view! {
+                            <WideHeader data={data} />
+                        }}
+                    >
                         <NarrowHeader data={data} />
                     </Show>
-                    <Banner
-                        message={data.error}
-                        id="database-view.error"
-                        on_dismiss={move || data.dismiss_error()}
-                    />
                     <Separator />
                 </List>
             }
@@ -158,7 +154,7 @@ fn ViewTabs(data: Data) -> NodeId {
     let read_only = data.read_only;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
-            <ForEach keys={keys}>|view: Uuid| {
+            <ForEach value={keys}>|view: Uuid| {
                 let name = create_memo(move || {
                     data.views.with(|views| {
                         views.iter().find(|(id, _)| *id == view).map(|(_, name)| name.clone()).unwrap_or_default()
@@ -210,7 +206,7 @@ fn NewRow(data: Data, compact: bool) -> NodeId {
         }
         data.new_row(values);
     };
-    let disabled = create_memo(move || data.read_only.get() || data.title_field.get().is_none());
+    let disabled = move || data.read_only.get() || data.title_field.get().is_none();
     match compact {
         true => view! {
             <Button

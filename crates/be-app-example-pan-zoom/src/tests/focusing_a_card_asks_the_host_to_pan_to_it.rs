@@ -13,7 +13,6 @@ fn focusing_a_card_asks_the_host_to_pan_to_it() {
     test.take_view_changes();
 
     test.click("pan_zoom.focus.6");
-    test.run();
 
     let expected = canvas.center() - pos2(450.0, 490.0);
     let changes = test.take_view_changes();

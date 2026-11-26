@@ -1,12 +1,14 @@
 //! Where to get `be` of this host's own build for a terminal host an app installs on a Linux
 //! machine of its own (`terminal-host-binary`, guides/terminal.md): a deployed build names
 //! the deployment's copy and its SHA-256 (`build-info.json`'s `terminal_hosts`, which
-//! `./scripts/deploy` writes), and a development build reads one built on this machine.
+//! `./scripts/deploy` writes), and a development build reads one built on this machine,
+//! `//crates/be-tool-cli:terminal-host`: `be` with the apps' manifests and type modules
+//! beside it, which it reads blocks through as a `be` staged here does.
 
 use std::path::Path;
 
 use be_lib_build_id::{Metadata, TERMINAL_HOST_ARCHES};
-use be_sdk_api::{TerminalHostBe, TerminalHostDownload, TerminalHostSource};
+use be_sdk_api::{TerminalHostBe, TerminalHostDownload, TerminalHostFile, TerminalHostSource};
 
 /// Answers `terminal-host-binary(arch)` on a thread of its own, since a development build's
 /// `be` is tens of megabytes read from disk.
@@ -72,24 +74,21 @@ pub fn answer(
     };
     let directory = built.join(arch);
     let build = format!(
-        "build it with `./scripts/buck build //crates/be-tool-cli:native --target-platforms \
+        "build it with `./scripts/buck build //crates/be-tool-cli:terminal-host --target-platforms \
          root//buck/platforms:linux_{arch} --out {}`",
         directory.display()
     );
-    let be = match std::fs::read(directory.join("be")) {
-        Ok(be) => be,
-        Err(_) => {
-            return Err(format!(
-                "no be for {arch} is built for this development build of be3: {build}"
-            ));
-        }
-    };
+    if !directory.join("be").is_file() {
+        return Err(format!(
+            "no be for {arch} is built for this development build of be3: {build}"
+        ));
+    }
     let theirs = std::fs::read_to_string(directory.join(be_lib_build_id::FILE))
         .ok()
         .and_then(|json| Metadata::parse(&json).ok());
     match theirs {
         Some(theirs) if theirs.id == metadata.id => Ok(TerminalHostBe {
-            source: TerminalHostSource::Bytes(be),
+            source: TerminalHostSource::Files(built_files(&directory, &build)?),
             build_info,
         }),
         _ => Err(format!(
@@ -97,4 +96,44 @@ pub fn answer(
             directory.display()
         )),
     }
+}
+
+/// The files of a `:terminal-host` build in `directory`: `be`, `apps.json` and each app's
+/// manifest and type module, which the app puts beside `be`. `build-info.json` goes up as the
+/// answer's own, and the stage's list of files is not needed there.
+fn built_files(directory: &Path, build: &str) -> Result<Vec<TerminalHostFile>, String> {
+    if !directory.join("apps.json").is_file() {
+        return Err(format!(
+            "the be in {} has no apps beside it to read blocks through: {build}",
+            directory.display()
+        ));
+    }
+    let entries = std::fs::read_dir(directory)
+        .map_err(|error| format!("could not read {}: {error}", directory.display()))?;
+    let mut files = Vec::new();
+    for entry in entries {
+        let path = entry
+            .map_err(|error| format!("could not read {}: {error}", directory.display()))?
+            .path();
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if name == be_lib_build_id::FILE || name == "program-files.txt" || !path.is_file() {
+            continue;
+        }
+        if !TerminalHostFile::plain_name(name) {
+            return Err(format!(
+                "{} is no plain file name to put beside be; delete it: {build}",
+                path.display()
+            ));
+        }
+        let bytes = std::fs::read(&path)
+            .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+        files.push(TerminalHostFile {
+            name: name.to_owned(),
+            bytes,
+        });
+    }
+    files.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(files)
 }

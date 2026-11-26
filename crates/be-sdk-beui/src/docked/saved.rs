@@ -21,14 +21,15 @@ struct SavedDock {
     keys: Vec<(u64, String)>,
 }
 
+/// What a dock's layout keeper last saw kept.
 #[derive(Default)]
 pub(super) struct Saving {
     seen: RefCell<Option<String>>,
-    stale: RefCell<Option<Option<String>>>,
 }
 
 trait Kept {
     fn saving(&self) -> &Saving;
+    /// The layout to keep: `None` while the dock has yet to take the restore it asked for last.
     fn layout(&self) -> Option<api::DockLayout>;
     fn keys(&self) -> Vec<(u64, String)>;
     fn restore(&self, spec: DockSpec);
@@ -39,7 +40,7 @@ pub(super) fn dock_layout_key(block_type: uuid::Uuid) -> String {
 }
 
 pub(super) fn keep_joined(link: &Rc<ProtocolLink>, editor: Editor) {
-    let declares = link.declares.read_only();
+    let declares = link.declares.handle();
     let declaring = link.declaring.read_only();
     let pushed = link.pushed;
     keep_layout(
@@ -47,8 +48,8 @@ pub(super) fn keep_joined(link: &Rc<ProtocolLink>, editor: Editor) {
         &link.host,
         editor,
         move || {
-            pushed.get();
-            declares.get();
+            pushed.track();
+            declares.track();
         },
         create_memo(move || declaring.get()),
     );
@@ -68,8 +69,8 @@ pub(super) fn keeper(host: EditorHost, editor: Editor, claimed: Rc<Cell<bool>>) 
             &host,
             editor,
             move || {
-                layout.with(|_| ());
-                keys.with(|_| ());
+                layout.track();
+                keys.track();
             },
             create_memo(move || keys.with(|keys| !keys.is_empty())),
         );
@@ -152,25 +153,12 @@ fn follow_saved(kept: &impl Kept, saved: Option<String>) {
         let key = old.get(&path.tab).filter(|_| path.is_own())?;
         current.get(key).copied()
     });
-    saving.stale.replace(Some(encoded(kept)));
     kept.restore(spec);
 }
 
 fn changed_layout(kept: &impl Kept) -> Option<String> {
     let saving = kept.saving();
     let encoded = encoded(kept)?;
-    let stale = saving.stale.borrow().clone();
-    match stale {
-        Some(Some(stale)) if stale == encoded => return None,
-        Some(None) => {
-            saving.stale.replace(Some(Some(encoded)));
-            return None;
-        }
-        Some(Some(_)) => {
-            saving.stale.replace(None);
-        }
-        None => {}
-    }
     if saving.seen.borrow().as_ref() == Some(&encoded) {
         return None;
     }
@@ -183,7 +171,14 @@ impl Kept for ProtocolLink {
         &self.saving
     }
 
+    /// A joined dock's root takes a restore some frames after it is asked, and what it hosts
+    /// meanwhile (as many layouts as the declaration changed in that time) is not the person's
+    /// to keep. The root counts the restores it took (`DockHosted::restored`), so nothing is
+    /// kept until it has taken the last.
     fn layout(&self) -> Option<api::DockLayout> {
+        if !self.host.dock_restored(self.view) {
+            return None;
+        }
         Some(self.host.dock_hosted(self.view)?.layout)
     }
 
@@ -269,6 +264,7 @@ fn outside_windows(mut spec: DockSpec) -> DockSpec {
             key: String::new(),
             rect,
             placed: None,
+            hidden: false,
             root: Some(DockSpecNode::Pane(DockSpecPane {
                 key: String::new(),
                 entries: vec![DockSpecEntry::Tab(outside.tab)],

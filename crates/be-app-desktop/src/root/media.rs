@@ -185,7 +185,7 @@ fn osd_level(shown: Shown, levels: MediaLevels) -> OsdLevel {
 pub(crate) struct Osd {
     level: Memo<Option<OsdLevel>>,
     shown: Signal<Option<Shown>>,
-    shows: Signal<u64>,
+    shows: Trigger,
 }
 
 impl Osd {
@@ -196,13 +196,13 @@ impl Osd {
         Self {
             level,
             shown,
-            shows: create_signal(0_u64),
+            shows: create_trigger(),
         }
     }
 
     fn show(self, showing: Shown) {
         self.shown.set(Some(showing));
-        self.shows.update(|shows| *shows += 1);
+        self.shows.notify();
     }
 }
 
@@ -230,11 +230,6 @@ pub(super) fn MediaKeys(editor: Editor, osd: Osd) -> NodeId {
 #[component]
 pub(super) fn LevelDisplay(osd: Osd, area: Memo<Rect>, display: u32) -> NodeId {
     view! {
-        <LevelOsd
-            level={osd.level}
-            shown={osd.shows.read_only()}
-            area
-            id={format!("desktop.osd.{display}")}
-        />
+        <LevelOsd level={osd.level} shown={osd.shows} area id={format!("desktop.osd.{display}")} />
     }
 }

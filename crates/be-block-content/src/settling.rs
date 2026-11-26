@@ -2,7 +2,9 @@ use std::collections::VecDeque;
 
 use crate::{LiveEdit, Touched};
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+/// An edit landing on what shows, as a replica tells its editors (`ToEditor::Operations`):
+/// `unsettled` is how many of the edits shown stay unsettled after it.
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub enum Landed<Op> {
     On {
         operation: Op,
@@ -10,6 +12,19 @@ pub enum Landed<Op> {
     },
     Beneath {
         operation: Op,
+        unsettled: u64,
+        local: Vec<Op>,
+    },
+    /// A local edit made beneath the last `above` unsettled ones (a held tentative layer,
+    /// which stays on top): unsettled itself, with `unsettled` left in all.
+    Under {
+        operation: Op,
+        unsettled: u64,
+        above: u64,
+    },
+    /// What is unsettled becomes `local`, with no edit beneath it: a peer's held layer left
+    /// or was laid again (guides/type_modules.md, Peers). `unsettled` as for `Beneath`.
+    Relaid {
         unsettled: u64,
         local: Vec<Op>,
     },
@@ -31,6 +46,19 @@ impl<Op> Landed<Op> {
                 local,
             } => Landed::Beneath {
                 operation: map(operation),
+                unsettled: *unsettled,
+                local: local.iter().map(map).collect(),
+            },
+            Self::Under {
+                operation,
+                unsettled,
+                above,
+            } => Landed::Under {
+                operation: map(operation),
+                unsettled: *unsettled,
+                above: *above,
+            },
+            Self::Relaid { unsettled, local } => Landed::Relaid {
                 unsettled: *unsettled,
                 local: local.iter().map(map).collect(),
             },
@@ -73,6 +101,49 @@ impl<C: LiveEdit> Settling<C> {
         self.settle_to(unsettled);
     }
 
+    /// Puts the local edit `operation` beneath the last `above` unsettled ones, then settles to
+    /// `unsettled`: false when fewer than `above` are unsettled.
+    pub fn under(&mut self, operation: C::Op, unsettled: u64, above: u64) -> bool {
+        let Some(at) = (self.unsettled.len() as u64).checked_sub(above) else {
+            return false;
+        };
+        self.unsettled.insert(at as usize, operation);
+        self.settle_to(unsettled);
+        true
+    }
+
+    /// As `under`, and makes `visible` (what this shows with `above` on top) show it too, as
+    /// `beneath` does, saying what that touched.
+    pub fn under_shown(
+        &mut self,
+        visible: &mut C,
+        operation: &C::Op,
+        unsettled: u64,
+        above: u64,
+        pending: impl IntoIterator<Item = C::Op>,
+        touched: &mut Vec<Touched>,
+    ) -> bool
+    where
+        C: Clone,
+    {
+        let Some(at) = (self.unsettled.len() as u64).checked_sub(above) else {
+            return false;
+        };
+        let mut beneath = self.settled.clone();
+        for operation in self.unsettled.iter().take(at as usize) {
+            beneath.apply(operation);
+        }
+        let ahead: Vec<C::Op> = self
+            .unsettled
+            .iter()
+            .skip(at as usize)
+            .cloned()
+            .chain(pending)
+            .collect();
+        visible.apply_beneath(&mut beneath, operation, &ahead, touched);
+        self.under(operation.clone(), unsettled, above)
+    }
+
     pub fn beneath(
         &mut self,
         visible: &mut C,
@@ -91,6 +162,17 @@ impl<C: LiveEdit> Settling<C> {
         }
         let ahead: Vec<C::Op> = local.iter().cloned().chain(above).collect();
         visible.apply_beneath(&mut self.settled, operation, &ahead, touched);
+        self.unsettled = local.into();
+        true
+    }
+
+    /// Settles to `unsettled`, then holds `local` unsettled instead: false when fewer than
+    /// `unsettled` were.
+    pub fn relay(&mut self, unsettled: u64, local: Vec<C::Op>) -> bool {
+        self.settle_to(unsettled);
+        if (self.unsettled.len() as u64) < unsettled {
+            return false;
+        }
         self.unsettled = local.into();
         true
     }
@@ -117,6 +199,12 @@ impl<C: LiveEdit> Settling<C> {
                 self.unsettled = local.into();
                 true
             }
+            Landed::Under {
+                operation,
+                unsettled,
+                above,
+            } => self.under(operation, unsettled, above),
+            Landed::Relaid { unsettled, local } => self.relay(unsettled, local),
         }
     }
 

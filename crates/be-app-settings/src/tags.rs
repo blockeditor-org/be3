@@ -52,18 +52,15 @@ pub fn TagsView(editor: Editor) -> NodeId {
         editor.blocks().watch(BlockQuery::Parents(block)),
     ));
     let tags = editor.block_content::<TagsContent>();
-    let listed = tags.project(|tags| tags.root().tags());
-    let ids = create_memo(move || listed.get());
+    let ids = tags.project(|tags| tags.root().tags());
     let editable = editor.editable();
-    let description = create_memo(move || match owner_name(editor) {
+    let description = move || match owner_name(editor) {
         Some(owner) => format!(
             "Anyone who can edit {owner} puts these on the blocks in it, and anyone who can view a block there sees them."
         ),
         None => "Your own tags. Only you see them, on any block you can edit.".to_owned(),
-    });
-    let empty = create_memo(move || ids.with(Vec::is_empty));
+    };
     let name = create_signal(String::new());
-    let unnamed = create_memo(move || !editable.get() || name.with(|name| name.trim().is_empty()));
     let add = move || {
         let wanted = name.get_untracked();
         if wanted.trim().is_empty() {
@@ -73,14 +70,15 @@ pub fn TagsView(editor: Editor) -> NodeId {
         editor.add_tag(editor.block_id(), &wanted, color);
         name.set(String::new());
     };
-    let locked = create_memo(move || !editable.get());
     view! {
         <SettingsPage>
             <SettingsSection title="Tags" description={description}>
-                <Show condition={empty}>
-                    <SettingsRow label="No tags yet." compact=true />
-                </Show>
-                <ForEach keys={ids}>|tag: Uuid|
+                <ForEach
+                    value={ids}
+                    fallback={|| view! {
+                        <SettingsRow label="No tags yet." compact=true />
+                    }}
+                >|tag: Uuid|
                     <TagRow editor={editor} tag={tag} />
                 </ForEach>
                 <SettingsRow label="New tag">
@@ -88,14 +86,14 @@ pub fn TagsView(editor: Editor) -> NodeId {
                         <TextInput
                             value={Binding::new(name, move |text: String| name.set(text))}
                             placeholder="Name"
-                            disabled={locked}
+                            disabled={move || !editable.get()}
                             @test_id={"tags.new-name"}
                         />
                         <Button
                             icon_only=true
                             glyph=ICON_PLUS
                             label="Add tag"
-                            disabled={unnamed}
+                            disabled={move || !editable.get() || name.with(|name| name.trim().is_empty())}
                             @test_id={"tags.add"}
                             on_click={add}
                         />
@@ -110,16 +108,13 @@ pub fn TagsView(editor: Editor) -> NodeId {
 fn TagRow(editor: Editor, tag: Uuid) -> NodeId {
     let content = editor.content_of::<TagContent>(tag);
     let name = content.project(|content| content.root().name.clone());
-    let name = create_memo(move || name.get());
     let color = content.project(|content| content.root().color);
-    let color = create_memo(move || color.get());
     let editable = editor.editable();
-    let locked = create_memo(move || !editable.get());
     let rename = move |text: String| content.operate(Tag::rename(&text));
-    let selected = create_memo(move || TagColor::ALL.iter().position(|held| *held == color.get()));
-    let recolor = move |index: Option<usize>| {
-        if let Some(color) = index.and_then(|index| TagColor::ALL.get(index)) {
-            content.operate(Tag::recolor(*color));
+    let selected = create_memo(move || Some(color.get()));
+    let recolor = move |chosen: Option<TagColor>| {
+        if let Some(color) = chosen {
+            content.operate(Tag::recolor(color));
         }
     };
     let remove = move || editor.remove_tag(editor.block_id(), tag);
@@ -133,11 +128,11 @@ fn TagRow(editor: Editor, tag: Uuid) -> NodeId {
             .map(|info| info.id)
             .collect::<Vec<_>>()
     });
-    let count = create_memo(move || match tagged.with(Vec::len) {
+    let count = move || match tagged.with(Vec::len) {
         0 => "On no blocks".to_owned(),
         1 => "On 1 block".to_owned(),
         count => format!("On {count} blocks"),
-    });
+    };
     view! {
         <List spacing=Space::None>
             <SettingsRow label={name} description={count}>
@@ -146,7 +141,7 @@ fn TagRow(editor: Editor, tag: Uuid) -> NodeId {
                     <Frame width=NAME_WIDTH>
                         <TextInput
                             value={Binding::new(name, rename)}
-                            disabled={locked}
+                            disabled={move || !editable.get()}
                             @test_id={format!("tags.tag.{tag}.name")}
                         />
                     </Frame>
@@ -154,14 +149,12 @@ fn TagRow(editor: Editor, tag: Uuid) -> NodeId {
                         <Select
                             label="Color"
                             options={view! {
-                                <ForEach
-                                    keys={create_memo(|| (0..TagColor::ALL.len()).collect::<Vec<usize>>())}
-                                >|index: usize|
-                                    <ChoiceOption label={TagColor::ALL[index].label().to_owned()} />
+                                <ForEach value={TagColor::ALL.to_vec()}>|color: TagColor|
+                                    <ChoiceOption value=color label={color.label().to_owned()} />
                                 </ForEach>
                             }}
                             selected={Binding::new(selected, recolor)}
-                            disabled={locked}
+                            disabled={move || !editable.get()}
                             @test_id={format!("tags.tag.{tag}.color")}
                         />
                     </Frame>
@@ -169,13 +162,13 @@ fn TagRow(editor: Editor, tag: Uuid) -> NodeId {
                         icon_only=true
                         glyph=ICON_TRASH
                         label="Remove tag"
-                        disabled={locked}
+                        disabled={move || !editable.get()}
                         @test_id={format!("tags.tag.{tag}.remove")}
                         on_click={remove}
                     />
                 </List>
             </SettingsRow>
-            <ForEach keys={tagged}>|block: Uuid|
+            <ForEach value={tagged}>|block: Uuid|
                 <TaggedBlock editor={editor} block={block} />
             </ForEach>
         </List>
@@ -184,13 +177,13 @@ fn TagRow(editor: Editor, tag: Uuid) -> NodeId {
 
 #[component]
 fn TaggedBlock(editor: Editor, block: Uuid) -> NodeId {
-    let label = create_memo(move || {
+    let label = move || {
         let types = editor.block_types();
         editor.blocks().info(block).map_or_else(
             || "A block you can't open".to_owned(),
             |info| info.label(types.as_ref()).name,
         )
-    });
+    };
     let open = move || {
         if let Some(info) = editor.blocks().info(block) {
             editor.host().open_block(block, info.block_type);

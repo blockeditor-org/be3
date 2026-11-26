@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use be_host_wayland::programs::{Environment, IconThemes, load_icon};
+use be_host_programs::{Environment, IconThemes, load_icon};
 use be_sdk_api::{HostImage, TrayStatus};
 
 use super::model::{Properties, pixmap_image, shrink};

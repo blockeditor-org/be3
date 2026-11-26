@@ -2,8 +2,10 @@ use super::*;
 
 #[test]
 fn every_type_keeps_everything_inside_the_organizations_history() {
-    let mut organization = OrganizationPolicies::default();
-    organization.history_days = Some(30);
+    let organization = OrganizationPolicies {
+        history_days: Some(30),
+        ..OrganizationPolicies::default()
+    };
     let now = 100 * DAY;
     let summaries: Vec<CommitSummary> = (0..20u8)
         .map(|step| CommitSummary {

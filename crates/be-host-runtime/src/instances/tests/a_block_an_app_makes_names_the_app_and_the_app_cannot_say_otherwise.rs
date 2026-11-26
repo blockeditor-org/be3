@@ -6,7 +6,7 @@ use be_type_example_counter::CounterContent;
 fn a_block_an_app_makes_names_the_app_and_the_app_cannot_say_otherwise() {
     let harness = be_host_testing::Harness::start();
     harness.connect();
-    be_host_stack::wait_until(|_| {
+    be_host_stack::wait_until("knew the counter type", |_| {
         be_host_stack::is_known(CounterContent::CONTENT_TYPE).then_some(())
     });
     let own = Uuid::new_v4();
@@ -30,7 +30,9 @@ fn a_block_an_app_makes_names_the_app_and_the_app_cannot_say_otherwise() {
     );
     be_host_stack::flush_and_send();
 
-    let global = be_host_stack::wait_until(|shared| shared.graph.get(made).map(|_| made));
+    let global = be_host_stack::wait_until("listed the block the app made", |shared| {
+        shared.graph.get(made).map(|_| made)
+    });
     let created_by = || {
         be_host_stack::node(global)
             .and_then(|node| node.metadata.get(&be_block_content::CREATED_BY))

@@ -49,6 +49,7 @@ struct Placed {
     gap: f32,
     align: Align,
     baseline: Option<f32>,
+    sticky: bool,
 }
 
 #[derive(Default)]
@@ -95,13 +96,22 @@ impl ListNode {
         }
     }
 
-    fn gaps(&self, spacing: f32, grid: PixelGrid) -> Vec<f32> {
+    /// The spacing before each child: none before the first that is shown, and none before
+    /// or for a collapsed child, which is laid out as if it were not there.
+    fn gaps(&self, doc: &Document, spacing: f32, grid: PixelGrid) -> Vec<f32> {
+        let mut shown = false;
         self.items
             .iter()
-            .enumerate()
-            .map(|(index, item)| match index {
-                0 => 0.0,
-                _ => grid.snap(item.size.gap.unwrap_or(spacing)),
+            .map(|item| {
+                if doc.arena.get(item.child).collapsed() {
+                    return 0.0;
+                }
+                let gap = match shown {
+                    false => 0.0,
+                    true => grid.snap(item.size.gap.unwrap_or(spacing)),
+                };
+                shown = true;
+                gap
             })
             .collect()
     }
@@ -133,6 +143,7 @@ impl ListNode {
             gap,
             align,
             baseline,
+            sticky: item.size.sticky,
         }
     }
 
@@ -146,7 +157,7 @@ impl ListNode {
     ) -> Line {
         let grid = doc.pixel_grid();
         let spacing = grid.snap(self.spacing);
-        let gaps = self.gaps(spacing, grid);
+        let gaps = self.gaps(doc, spacing, grid);
         let mut slots = Vec::with_capacity(self.items.len());
         for (item, gap) in self.items.iter().zip(gaps) {
             let intrinsic = match item.size.size {
@@ -208,11 +219,15 @@ impl ListNode {
     fn lines(&self, doc: &mut Document, painter: &Painter, available_main: f32) -> Vec<Line> {
         let grid = doc.pixel_grid();
         let spacing = grid.snap(self.spacing);
-        let gaps = self.gaps(spacing, grid);
+        let gaps = self.gaps(doc, spacing, grid);
         let mut runs: Vec<Vec<(ListEntry, f32, f32)>> = Vec::new();
         let mut run: Vec<(ListEntry, f32, f32)> = Vec::new();
         let mut taken = 0.0f32;
+        // Whether the run holds a child that is shown: a collapsed one neither breaks a line
+        // nor counts as one before the next child's spacing.
+        let mut shown = false;
         for (item, gap) in self.items.iter().zip(gaps) {
+            let collapsed = doc.arena.get(item.child).collapsed();
             let basis = match item.size.size {
                 ItemSize::Fixed(fixed) => grid.snap(fixed.max(0.0)),
                 ItemSize::Intrinsic | ItemSize::Grow(_) => {
@@ -229,12 +244,17 @@ impl ListNode {
                     }
                 }
             };
-            let basis = grid.snap(item.size.clamp(basis));
-            if !run.is_empty() && taken + gap + basis > available_main {
+            let basis = match collapsed {
+                true => 0.0,
+                false => grid.snap(item.size.clamp(basis)),
+            };
+            if shown && !collapsed && taken + gap + basis > available_main {
                 runs.push(std::mem::take(&mut run));
                 taken = 0.0;
+                shown = false;
             }
-            let gap = if run.is_empty() { 0.0 } else { gap };
+            let gap = if shown { gap } else { 0.0 };
+            shown |= !collapsed;
             taken += gap + basis;
             run.push((*item, basis, gap));
         }
@@ -295,6 +315,9 @@ impl ListNode {
             false => 0.0,
         };
         let starts = justified(grid, self.justify, leftover, &line.items);
+        // What of the list is visible, read only for a list that sticks something: reading it
+        // lays the list out again whenever the scroll around it moves.
+        let mut visible = None;
         for (item, start) in line.items.iter().zip(starts) {
             let (offset, length) = self.cross_place(grid, item, line, cross);
             let offset = self.axes(start, line_start + offset);
@@ -302,8 +325,53 @@ impl ListNode {
                 pos2(rect.left() + offset.x, rect.top() + offset.y),
                 self.axes(item.main, length),
             );
+            let child_rect = match item.align {
+                Align::Stretch => crate::layout::stretched(
+                    doc,
+                    painter,
+                    item.child,
+                    child_rect,
+                    self.direction == Direction::Vertical,
+                    self.direction == Direction::Horizontal,
+                ),
+                _ => child_rect,
+            };
+            let child_rect = match item.sticky && !self.wrap {
+                true => {
+                    let visible = *visible.get_or_insert_with(|| painter.clip_rect());
+                    self.stuck(child_rect, rect, visible)
+                }
+                false => child_rect,
+            };
             crate::layout::layout(doc, painter, item.child, child_rect, out);
         }
+    }
+
+    /// Where a sticky child at `child` goes: down to the start edge of what is `visible` of
+    /// the list once that edge has passed it, but no further than the list's end.
+    fn stuck(&self, child: Rect, list: Rect, visible: Rect) -> Rect {
+        let edge = self.main_and_cross(visible.min.to_vec2()).0;
+        let (start, length) = (
+            self.main_and_cross(child.min.to_vec2()).0,
+            self.main_and_cross(child.size()).0,
+        );
+        let end = self.main_and_cross(list.max.to_vec2()).0;
+        if !edge.is_finite() || edge <= start {
+            return child;
+        }
+        let at = edge.min(end - length).max(start);
+        child.translate(self.axes(at - start, 0.0))
+    }
+
+    /// The children in the order they are drawn: sticky ones last, above what scrolls under
+    /// them.
+    fn drawn(&self) -> impl Iterator<Item = NodeId> + '_ {
+        let sticky = move |item: &&ListEntry| item.size.sticky && !self.wrap;
+        self.items
+            .iter()
+            .filter(move |item| !sticky(item))
+            .chain(self.items.iter().filter(sticky))
+            .map(|item| item.child)
     }
 
     fn cross_place(&self, grid: PixelGrid, item: &Placed, line: &Line, cross: f32) -> (f32, f32) {
@@ -345,7 +413,7 @@ impl Element for ListNode {
 
     fn min_width(&self, doc: &mut Document, painter: &Painter) -> f32 {
         let grid = doc.pixel_grid();
-        let gaps = self.gaps(grid.snap(self.spacing), grid);
+        let gaps = self.gaps(doc, grid.snap(self.spacing), grid);
         let in_line = self.direction == Direction::Horizontal && !self.wrap;
         let mut total = 0.0f32;
         for (item, gap) in self.items.iter().zip(gaps) {
@@ -387,7 +455,7 @@ impl Element for ListNode {
             return None;
         }
         let grid = doc.pixel_grid();
-        let gaps = self.gaps(grid.snap(self.spacing), grid);
+        let gaps = self.gaps(doc, grid.snap(self.spacing), grid);
         let mut total = 0.0f32;
         for (item, gap) in self.items.iter().zip(gaps) {
             let size = item.size;
@@ -464,13 +532,15 @@ impl Element for ListNode {
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, _rect: Rect) {
-        crate::paint::paint_raised_last(doc, painter, rects, || {
-            self.items.iter().map(|item| item.child)
-        });
+        crate::paint::paint_raised_last(doc, painter, rects, || self.drawn());
     }
 
     fn children(&self) -> Vec<NodeId> {
         self.items.nodes()
+    }
+
+    fn pointer_children(&self) -> Vec<NodeId> {
+        self.drawn().collect()
     }
 
     fn children_revision(&self) -> Option<u64> {
@@ -489,6 +559,14 @@ impl Element for ListNode {
 
     fn passes_scroll_anchor(&self) -> bool {
         true
+    }
+
+    fn sticks(&self, child: NodeId) -> bool {
+        !self.wrap
+            && self
+                .items
+                .iter()
+                .any(|item| item.child == child && item.size.sticky)
     }
 
     fn kind(&self) -> &'static str {

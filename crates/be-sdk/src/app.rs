@@ -9,7 +9,7 @@ use be_sdk_api::{
 };
 use uuid::Uuid;
 
-use crate::{Artifact, EditorHost};
+use crate::{Artifact, EditorHost, ExportDialogRequest};
 
 pub trait App: 'static {
     fn open(host: EditorHost) -> Box<dyn Instance>;
@@ -18,13 +18,38 @@ pub trait App: 'static {
 pub trait Instance: std::any::Any {
     fn connect(&mut self, block_id: Uuid);
 
+    /// Opens as a host component on `block_id` (guides/apps/host_services.md, "Host
+    /// components"): connected as `connect` does, but never shown, so whatever it runs it runs
+    /// here.
+    fn connect_host(&mut self, block_id: Uuid) {
+        self.connect(block_id);
+    }
+
+    /// Opens on `block_id` as a Join member (`opening-kind.join`; guides/blocks/hosted.md,
+    /// "Hosting"): connected as `connect` does, but given no content, only the block's host
+    /// channel (`EditorHost::joined`, `EditorHost::take_channel_events`).
+    fn connect_join(&mut self, block_id: Uuid) {
+        self.connect(block_id);
+    }
+
+    /// Runs for a host component or an artifact instance each time it is woken, in place of
+    /// the frame it is never given: it takes in what changed (its content first) as
+    /// `begin_frame` does for an editor.
+    fn pass(&mut self) {}
+
     fn connect_creation(&mut self, _template: String) {}
 
     fn create_block(&mut self) -> Result<Uuid, String> {
         Err("this editor does not create blocks".into())
     }
 
-    fn connect_artifact(&mut self, _artifact: Artifact) {}
+    /// Opens on an artifact block (`opening-kind.artifact`), made from `data`, its settings as
+    /// stored.
+    fn connect_artifact(&mut self, _artifact: Artifact, _data: &[u8]) {}
+
+    /// Opens as the Export dialog of another block (`opening-kind.export`), which the instance
+    /// draws and closes with a dialog answer once the export is done or cancelled.
+    fn connect_export(&mut self, _export: ExportDialogRequest) {}
 
     fn describe_artifact(&mut self, _data: &[u8]) -> Result<String, String> {
         Err("this editor does not generate artifacts".into())
@@ -36,6 +61,12 @@ pub trait Instance: std::any::Any {
         None
     }
 
+    /// Why the artifact could not be made again as its source last changed, or none once it
+    /// was, whether or not the host asked for it.
+    fn artifact_failure(&mut self) -> Option<String> {
+        None
+    }
+
     fn intrinsic_size(&mut self) -> Option<Vec2> {
         None
     }
@@ -43,10 +74,6 @@ pub trait Instance: std::any::Any {
     fn resized(&mut self, _size: Vec2) {}
 
     fn presence_visible(&mut self, _visible: bool) {}
-
-    fn replace_child(&mut self, _old: Uuid, _new: Uuid) -> bool {
-        false
-    }
 
     fn open_view(&mut self, _view: View) {}
 }

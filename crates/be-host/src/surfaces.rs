@@ -90,9 +90,7 @@ pub(crate) fn apply() {
     for id in HOSTING {
         let hosted = hosted(id);
         let region = declared.regions.get(&id).cloned();
-        if hosted.region.with_untracked(|held| *held != region) {
-            hosted.region.set(region);
-        }
+        hosted.region.set(region);
     }
 }
 
@@ -111,22 +109,10 @@ pub(crate) fn HostedSurface(
     #[prop(default = None)] dialog: Prop<Option<DialogFrame>>,
 ) -> NodeId {
     let region = hosted(id).region;
-    let keys = create_memo(move || {
-        region.with(|held| {
-            held.as_ref()
-                .map(HostedView::key)
-                .into_iter()
-                .collect::<Vec<_>>()
-        })
-    });
     view! {
         <Layers>
-            <ForEach keys={keys}>|_key: (EditorInstanceId, View)| {
-                let Some(hosted) = region.get_untracked() else {
-                    return view! {
-                        <Frame />
-                    };
-                };
+            <Keyed value={region} key={HostedView::key} fallback=()>|hosted: ReadSignal<HostedView>| {
+                let hosted = hosted.get_untracked();
                 let child_view: ChildView = store(Box::new(|_, _, _| view! {
                     <Frame />
                 }));
@@ -141,7 +127,7 @@ pub(crate) fn HostedSurface(
                 view! {
                     <AppView editor={hosted.editor} region={hosted.region} frame child_view />
                 }
-            }</ForEach>
+            }</Keyed>
         </Layers>
     }
 }

@@ -13,6 +13,8 @@ use beui::{
     pos2, vec2,
 };
 
+use be_lib_layers::{Layer, Surface};
+
 use super::backend::{Availability, Frame, ShownFrame};
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -125,8 +127,18 @@ impl Quad {
         self.turning().bounds(self.rect)
     }
 
-    fn placed(&self, source: Rect, at: &DrawAt) -> texture_quad::Quad {
+    /// The texture quad that shows `source` (a fraction of the texture) over this quad, in a
+    /// pass at `at`: its rounding rounds only the corners where `source` meets the texture's,
+    /// since the rounding is the surface's own. The host drew a blit so before it drew layers,
+    /// which its tests check them against.
+    #[cfg(test)]
+    pub(super) fn placed(&self, source: Rect, at: &DrawAt) -> texture_quad::Quad {
         let scale = at.pixels_per_point;
+        let radius = self.corner_radius.max(0.0) * scale;
+        let (left, top) = (source.min.x <= 0.0, source.min.y <= 0.0);
+        let (right, bottom) = (source.max.x >= 1.0, source.max.y >= 1.0);
+        let corner_radii = [left && top, right && top, right && bottom, left && bottom]
+            .map(|rounded| if rounded { radius } else { 0.0 });
         texture_quad::Quad {
             rect: [
                 self.rect.min.x * scale,
@@ -138,7 +150,7 @@ impl Quad {
             clip: at.clip,
             rotation: self.rotation,
             opacity: self.opacity.clamp(0.0, 1.0),
-            corner_radius: self.corner_radius.max(0.0) * scale,
+            corner_radii,
             srgb_encoded: true,
             ..texture_quad::Quad::default()
         }
@@ -160,15 +172,41 @@ pub(super) fn shown_part(rect: Rect, clip: Rect) -> Option<Rect> {
 #[derive(Default)]
 pub(super) struct Shared {
     pub(super) layout: ScreenLayout,
+    /// The last frames the runtime keeps of views the app's layout left out (`be_sdk_app_host::holds::Shown`).
+    pub(super) kept: Vec<ScreenPlacement>,
     pub(super) frames: Vec<Frame>,
     pub(super) paintings: be_lib_stable_hash::HashMap<ScreenId, Painting>,
     pub(super) overflows: be_lib_stable_hash::HashMap<ScreenId, Vec<String>>,
     pub(super) published: Published,
+    /// The placement each surface was last painted at (`presented-frame.painted`), so its size
+    /// and raster are those of what it holds now, not of what the layout has asked for since.
+    /// Kept per surface and pruned against the layout each `publish` brings.
+    pub(super) painted: be_lib_stable_hash::HashMap<u32, ScreenPlacement>,
+}
+
+/// What a surface holds: the size of its texture or painting and the raster it was painted at.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct Painted {
+    pub(super) size: (u32, u32),
+    pub(super) raster: f32,
 }
 
 impl Shared {
-    pub(super) fn publish(&mut self, layout: &ScreenLayout, frame: Option<Frame>) {
+    pub(super) fn publish(
+        &mut self,
+        layout: &ScreenLayout,
+        kept: Vec<ScreenPlacement>,
+        frame: Option<Frame>,
+    ) {
         self.layout.clone_from(layout);
+        self.kept = kept;
+        // Pruned only here, against the layout just published: a surface's first present can
+        // be heard before the layout that brought it is published (both arrive in one pump).
+        // A present is never held behind a layout older than its own (`Runtime::received` holds
+        // a frame with the layout it follows), so the layout published here is never older than
+        // a surface painted in it.
+        let surfaces = self.surfaces();
+        self.painted.retain(|surface, _| surfaces.contains(surface));
         let Some(frame) = frame else {
             return;
         };
@@ -179,8 +217,48 @@ impl Shared {
         self.frames.push(frame);
     }
 
+    pub(super) fn paint(&mut self, painted: &[ScreenPlacement]) {
+        for placement in painted {
+            self.painted.insert(placement.surface, *placement);
+        }
+    }
+
+    /// What the surface `placement` names holds: `size` where the caller knows the size of what
+    /// it draws (the texture, the painting), else the size it was last painted at; the raster
+    /// it was painted at, or the layout's before any present reported one. `None` where nothing
+    /// was painted there yet.
+    pub(super) fn holds(
+        &self,
+        placement: &ScreenPlacement,
+        size: Option<(u32, u32)>,
+    ) -> Option<Painted> {
+        let painted = self.painted.get(&placement.surface);
+        Some(Painted {
+            size: size.or_else(|| painted.map(|painted| (painted.width, painted.height)))?,
+            raster: painted.unwrap_or(placement).raster(),
+        })
+    }
+
     fn take_frames(&mut self) -> Vec<Frame> {
         std::mem::take(&mut self.frames)
+    }
+
+    /// The placement a screen is drawn from: its kept last frame while it has one, else the
+    /// layout's.
+    pub(super) fn placement(&self, screen: ScreenId) -> Option<&ScreenPlacement> {
+        self.kept
+            .iter()
+            .find(|placement| placement.screen == screen)
+            .or_else(|| self.layout.placement(screen))
+    }
+
+    fn surfaces(&self) -> Vec<u32> {
+        self.layout
+            .screens
+            .iter()
+            .chain(&self.kept)
+            .map(|placement| placement.surface)
+            .collect()
     }
 }
 
@@ -224,8 +302,12 @@ pub struct Blit {
     pub(super) screen: ScreenId,
     pub(super) quad: Quad,
     pub(super) source: Rect,
-    pub(super) drawn: Option<(u32, u32)>,
-    pub(super) requested: Option<(u32, u32)>,
+    /// The zoom the host shows the view at (`Placed::zoom`): a painting at the raster it was
+    /// asked for covers its pixels over the raster times this, in the host's points.
+    pub(super) zoom: f32,
+    /// A block preview, which is a picture: fitted to each place it is shown at (a preview shown
+    /// in two places is painted for the larger), where an editor's view never is.
+    pub(super) picture: bool,
     pub(super) placed: Option<[u32; 3]>,
     pub(super) layer: Option<AnchoredSource>,
 }
@@ -244,8 +326,8 @@ impl PartialEq for Blit {
             && self.screen == other.screen
             && self.quad == other.quad
             && self.source == other.source
-            && self.drawn == other.drawn
-            && self.requested == other.requested
+            && self.zoom == other.zoom
+            && self.picture == other.picture
             && self.placed == other.placed
             && self.layer == other.layer
     }
@@ -256,31 +338,113 @@ impl Blit {
         self.quad.bounds()
     }
 
-    pub(super) fn shown_at(&self, painted: (u32, u32)) -> Option<(Quad, Rect)> {
-        if self.drawn.is_some_and(|drawn| drawn != painted) {
-            return None;
-        }
-        match (self.drawn, self.requested) {
-            (None, Some(requested)) if requested != painted => {
-                unstretched(self.quad, self.source, requested, painted)
-            }
-            _ => Some((self.quad, self.source)),
-        }
+    /// Where a painting of `painted` pixels, at `placement`'s raster, shows for this blit, and
+    /// which part of it: always at its own size, from the view's top left, cropped where the view
+    /// is smaller and leaving the rest of the view where it is larger to what is under it
+    /// (`unscaled`). Every path that draws an app's painting into its view, native, web or a
+    /// paint snapshot, goes through here. `painted` is the size of what is drawn (the texture,
+    /// the painting), never the size the layout asked for, since a layout commit can land
+    /// before the present that brings textures of its size.
+    /// The layer that shows this blit of `placement`'s surface, natively and as the hole the web
+    /// punches for its canvas: at the size the renderer says the texture is (`texture`; the web
+    /// keeps no textures, so it is the size the worker last painted that surface at). `piece`
+    /// tells apart the layers of one view's pieces.
+    pub(super) fn screen_layer(
+        &self,
+        placement: &ScreenPlacement,
+        texture: Option<(u32, u32)>,
+        drawing: u64,
+        piece: usize,
+    ) -> Option<Layer> {
+        let painted = self.shared.borrow().holds(placement, texture)?;
+        crate::layers::screen(
+            crate::layers::id(self.surface, self.screen.0, false, drawing, piece),
+            Surface::Screen {
+                instance: u64::from(self.surface),
+                surface: placement.surface,
+            },
+            self.shown_at(painted)?,
+            painted,
+        )
     }
 
-    pub(super) fn damage(&self, pieces: &[Piece], seen: u64) -> Option<Vec<Rect>> {
+    /// The layer that shows this blit's part of an anchored surface whose texture is `size`.
+    pub(super) fn anchored_layer(
+        &self,
+        anchored: AnchoredSource,
+        size: (u32, u32),
+        drawing: u64,
+        piece: usize,
+    ) -> Option<Layer> {
+        let (width, height) = (size.0 as f32, size.1 as f32);
+        if width <= 0.0 || height <= 0.0 {
+            return None;
+        }
+        let source = Rect::from_min_max(
+            pos2(
+                anchored.pixels.min.x / width,
+                anchored.pixels.min.y / height,
+            ),
+            pos2(
+                anchored.pixels.max.x / width,
+                anchored.pixels.max.y / height,
+            ),
+        );
+        crate::layers::screen(
+            crate::layers::id(
+                self.surface,
+                u64::from(anchored.surface),
+                true,
+                drawing,
+                piece,
+            ),
+            Surface::Anchored {
+                instance: u64::from(self.surface),
+                surface: anchored.surface,
+            },
+            within_texture(self.quad, source)?,
+            Painted { size, raster: 1.0 },
+        )
+    }
+
+    pub(super) fn shown_at(&self, painted: Painted) -> Option<(Quad, Rect)> {
+        if self.picture {
+            return (painted.size.0 > 0 && painted.size.1 > 0).then_some((self.quad, self.source));
+        }
+        unscaled(self.quad, self.source, painted.size, self.density(painted))
+    }
+
+    /// A painting's pixels per point of the host.
+    fn density(&self, painted: Painted) -> f32 {
+        painted.raster / self.zoom
+    }
+
+    pub(super) fn damage(&self, pieces: &[Piece], laid: Vec2, seen: u64) -> Option<Vec<Rect>> {
         let shared = self.shared.borrow();
         let damage = shared.published.since(seen)?;
         if damage.is_empty() {
             return Some(Vec::new());
         }
-        let placement = shared.layout.placement(self.screen)?;
-        if placement.width == 0
-            || placement.height == 0
-            || self
-                .requested
-                .is_some_and(|requested| requested != (placement.width, placement.height))
-        {
+        let placement = shared.placement(self.screen)?;
+        let painted = shared.holds(placement, None).unwrap_or(Painted {
+            size: (placement.width, placement.height),
+            raster: placement.raster(),
+        });
+        if painted.size != (placement.width, placement.height) {
+            return None;
+        }
+        // Damage maps through the pieces' fractions, which only hold while the painting fills
+        // the view as laid; one shown at another size is redrawn whole.
+        let density = self.density(painted);
+        let fills = pieces.iter().all(|piece| {
+            let textured = vec2(
+                piece.local.width() * laid.x / piece.source.width(),
+                piece.local.height() * laid.y / piece.source.height(),
+            ) * density;
+            (textured.x - painted.size.0 as f32).abs() < 0.5
+                && (textured.y - painted.size.1 as f32).abs() < 0.5
+        });
+        if !fills {
             return None;
         }
         Some(
@@ -293,26 +457,84 @@ impl Blit {
     }
 }
 
-pub(super) fn unstretched(
+/// Places a painting of `painted` pixels, at `density` pixels per point, for a piece of a view
+/// laid out at `quad` that shows `source` of the view's textured part: the painting keeps its own
+/// size, anchored at the textured part's top left. Returns the part of `quad` it covers and the
+/// part of the painting that shows there, or `None` where it covers none of the piece.
+///
+/// One point of the result's quad always shows `density` pixels of the painting along both axes,
+/// so an app's frame is never stretched or squished into a view of another size, however late
+/// its app answers: a view that grew shows the painting at its size with the rest left to what
+/// is under it (the view's backdrop, which fills the view's laid box, until the app reports the
+/// new size), and one that shrank shows its top left.
+pub(super) fn unscaled(
     quad: Quad,
     source: Rect,
-    requested: (u32, u32),
-    drawn: (u32, u32),
+    painted: (u32, u32),
+    density: f32,
 ) -> Option<(Quad, Rect)> {
-    if drawn.0 == 0 || drawn.1 == 0 {
+    if painted.0 == 0
+        || painted.1 == 0
+        || !(density.is_finite() && density > 0.0)
+        || !source.is_positive()
+        || !quad.rect.is_positive()
+    {
         return None;
     }
-    let (across, down) = (
-        requested.0 as f32 / drawn.0 as f32,
-        requested.1 as f32 / drawn.1 as f32,
+    let painted = vec2(painted.0 as f32, painted.1 as f32);
+    let rect = quad.rect;
+    let laid = vec2(
+        rect.width() / source.width(),
+        rect.height() / source.height(),
     );
-    within_texture(
-        quad,
-        Rect::from_min_max(
-            pos2(source.min.x * across, source.min.y * down),
-            pos2(source.max.x * across, source.max.y * down),
+    let origin = rect.min - vec2(source.min.x * laid.x, source.min.y * laid.y);
+    let extent = painted / density;
+    let pixels = laid * density;
+    if (pixels.x - painted.x).abs() < 1.0 && (pixels.y - painted.y).abs() < 1.0 {
+        // The painting is the size the view is laid out at, in whole pixels, as it is whenever
+        // its app has drawn that size: a view laid out at a fraction of a pixel is painted at
+        // that size rounded (a 100.3-point view at 100 or 101 pixels). The piece then shows as it
+        // was cut, with no float error.
+        return Some((quad, source));
+    }
+    let covers = Rect::from_min_size(origin, extent);
+    // An edge within a thousandth of a point of the piece's is the piece's: float error in
+    // the mapping must not move a painting that fills its view by a fraction of a pixel.
+    let snap = |value: f32, to: f32| match (value - to).abs() < 1e-3 {
+        true => to,
+        false => value,
+    };
+    let covers = Rect::from_min_max(
+        pos2(
+            snap(covers.min.x, rect.min.x),
+            snap(covers.min.y, rect.min.y),
         ),
-    )
+        pos2(
+            snap(covers.max.x, rect.max.x),
+            snap(covers.max.y, rect.max.y),
+        ),
+    );
+
+    let shown = rect.intersect(covers);
+    if !shown.is_positive() {
+        return None;
+    }
+    let of_quad = |point: Pos2| {
+        pos2(
+            (point.x - rect.min.x) / rect.width(),
+            (point.y - rect.min.y) / rect.height(),
+        )
+    };
+    let of_painting = |point: Pos2| {
+        pos2(
+            (point.x - origin.x) * density / painted.x,
+            (point.y - origin.y) * density / painted.y,
+        )
+    };
+    Some((
+        quad.part(Rect::from_min_max(of_quad(shown.min), of_quad(shown.max))),
+        Rect::from_min_max(of_painting(shown.min), of_painting(shown.max)),
+    ))
 }
 
 pub(super) fn within_texture(quad: Quad, source: Rect) -> Option<(Quad, Rect)> {
@@ -364,15 +586,23 @@ pub(super) fn damaged_pieces(
 }
 
 pub struct AppDrawing {
+    /// The drawing's own id, which its layers' ids carry (`layers::id`).
+    id: u64,
     blits: RefCell<Vec<Blit>>,
+    /// The surfaces it draws: all of them, or where its renderer composites, all but the
+    /// anchored views.
     quads: texture_quad::Quads,
+    /// The layers it placed at its last prepare, where its renderer composites.
+    placed: RefCell<Vec<beui::native::compose::Placed>>,
 }
 
 impl AppDrawing {
     pub fn new(blits: Vec<Blit>) -> Self {
         Self {
+            id: next_drawing(),
             blits: RefCell::new(blits),
             quads: texture_quad::Quads::default(),
+            placed: RefCell::new(Vec::new()),
         }
     }
 }
@@ -384,10 +614,7 @@ pub struct Piece {
 }
 
 pub struct ViewDrawing {
-    #[cfg(target_arch = "wasm32")]
-    id: u64,
     template: Blit,
-    made_for: Option<Vec2>,
     pieces: Pieces,
     held: Option<Rect>,
     rotation: f32,
@@ -397,18 +624,9 @@ pub struct ViewDrawing {
 pub type Pieces = Rc<RefCell<Vec<Piece>>>;
 
 impl ViewDrawing {
-    pub(super) fn new(
-        template: Blit,
-        made_for: Option<Vec2>,
-        pieces: Pieces,
-        held: Option<Rect>,
-        rotation: f32,
-    ) -> Self {
+    pub(super) fn new(template: Blit, pieces: Pieces, held: Option<Rect>, rotation: f32) -> Self {
         Self {
-            #[cfg(target_arch = "wasm32")]
-            id: next_drawing(),
             template,
-            made_for,
             pieces,
             held,
             rotation,
@@ -426,13 +644,6 @@ impl ViewDrawing {
 
     fn blits_in(&self, laid: Rect) -> Vec<Blit> {
         let rect = self.held.unwrap_or(laid);
-        let requested = match (self.template.requested, self.made_for) {
-            (Some((width, height)), Some(made)) if made.x > 0.0 && made.y > 0.0 => Some((
-                (width as f32 * rect.width() / made.x).round() as u32,
-                (height as f32 * rect.height() / made.y).round() as u32,
-            )),
-            (requested, _) => requested,
-        };
         let view = Quad {
             rect,
             rotation: self.rotation,
@@ -444,7 +655,6 @@ impl ViewDrawing {
             .map(|piece| Blit {
                 quad: view.part(piece.local),
                 source: piece.source,
-                requested,
                 ..self.template.clone()
             })
             .collect()
@@ -454,8 +664,6 @@ impl ViewDrawing {
 pub type AnchoredBlits = Rc<RefCell<Vec<Blit>>>;
 
 pub struct AnchoredDrawing {
-    #[cfg(target_arch = "wasm32")]
-    id: u64,
     blits: AnchoredBlits,
     drawing: AppDrawing,
 }
@@ -463,8 +671,6 @@ pub struct AnchoredDrawing {
 impl AnchoredDrawing {
     pub(super) fn new(blits: AnchoredBlits) -> Self {
         Self {
-            #[cfg(target_arch = "wasm32")]
-            id: next_drawing(),
             blits,
             drawing: AppDrawing::new(Vec::new()),
         }
@@ -474,7 +680,7 @@ impl AnchoredDrawing {
 #[cfg(target_arch = "wasm32")]
 impl Drop for AnchoredDrawing {
     fn drop(&mut self) {
-        SHOWN.with(|shown| shown.borrow_mut().remove(&self.id));
+        SHOWN.with(|shown| shown.borrow_mut().remove(&self.drawing.id));
         be_host_base::host::wake();
     }
 }
@@ -506,13 +712,17 @@ impl beui::native::Draw for AnchoredDrawing {
             })
             .collect();
         #[cfg(target_arch = "wasm32")]
-        record_shown(self.id, &blits);
+        record_shown(self.drawing.id, &blits);
         *self.drawing.blits.borrow_mut() = blits;
         self.drawing.prepare(device, queue, encoder, at);
     }
 
     fn paint(&self, pass: &mut wgpu::RenderPass<'_>, at: DrawAt) {
         self.drawing.paint(pass, at);
+    }
+
+    fn layers(&self) -> Vec<beui::native::compose::Placed> {
+        self.drawing.layers()
     }
 }
 
@@ -575,7 +785,6 @@ thread_local! {
     static PREPARED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
-#[cfg(target_arch = "wasm32")]
 fn next_drawing() -> u64 {
     thread_local! {
         static NEXT: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
@@ -586,15 +795,17 @@ fn next_drawing() -> u64 {
     })
 }
 
+/// The blits the frame's drawings showed, in the order they were prepared, each with the id of
+/// the drawing that showed it.
 #[cfg(target_arch = "wasm32")]
-pub fn shown() -> Vec<Blit> {
+pub fn shown() -> Vec<(u64, Blit)> {
     SHOWN.with(|shown| {
         let shown = shown.borrow();
-        let mut ordered: Vec<&(u64, Vec<Blit>)> = shown.values().collect();
-        ordered.sort_by_key(|(order, _)| *order);
+        let mut ordered: Vec<(&u64, &(u64, Vec<Blit>))> = shown.iter().collect();
+        ordered.sort_by_key(|(_, (order, _))| *order);
         ordered
             .into_iter()
-            .flat_map(|(_, blits)| blits.iter().cloned())
+            .flat_map(|(id, (_, blits))| blits.iter().map(|blit| (*id, blit.clone())))
             .collect()
     })
 }
@@ -621,7 +832,7 @@ fn record_shown(id: u64, blits: &[Blit]) {
 #[cfg(target_arch = "wasm32")]
 impl Drop for ViewDrawing {
     fn drop(&mut self) {
-        SHOWN.with(|shown| shown.borrow_mut().remove(&self.id));
+        SHOWN.with(|shown| shown.borrow_mut().remove(&self.drawing.id));
         be_host_base::host::wake();
     }
 }
@@ -636,13 +847,17 @@ impl beui::native::Draw for ViewDrawing {
     ) {
         let blits = self.blits(&at);
         #[cfg(target_arch = "wasm32")]
-        record_shown(self.id, &blits);
+        record_shown(self.drawing.id, &blits);
         *self.drawing.blits.borrow_mut() = blits;
         self.drawing.prepare(device, queue, encoder, at);
     }
 
     fn paint(&self, pass: &mut wgpu::RenderPass<'_>, at: DrawAt) {
         self.drawing.paint(pass, at);
+    }
+
+    fn layers(&self) -> Vec<beui::native::compose::Placed> {
+        self.drawing.layers()
     }
 }
 
@@ -663,16 +878,24 @@ impl Paints for ViewDrawing {
         let mut found = false;
         for blit in self.blits_in(rect) {
             let shared = blit.shared.borrow();
-            let Some(placement) = shared.layout.placement(blit.screen) else {
+            let Some(placement) = shared.placement(blit.screen) else {
                 continue;
             };
-            let placed = blit.shown_at((placement.width, placement.height));
-            let (Some((quad, source)), Some(screen)) = (placed, shared.paintings.get(&blit.screen))
+            let Some(screen) = shared.paintings.get(&blit.screen) else {
+                continue;
+            };
+            // The view has a painting, so it is drawn even where the painting does not reach a
+            // piece (a view grown before its app drew the new size): what is under the view shows
+            // there, its backdrop, which fills the view's laid box.
+            found = true;
+            let size = (screen.frame.size[0], screen.frame.size[1]);
+            let Some((quad, source)) = shared
+                .holds(placement, Some(size))
+                .and_then(|painted| blit.shown_at(painted))
             else {
                 continue;
             };
             let screen = super::previews::painting(screen.clone());
-            found = true;
             primitives.extend(screen.placed(Placement {
                 source: [source.min.x, source.min.y, source.max.x, source.max.y],
                 corners: quad.corners().map(|corner| [corner.x, corner.y]),
@@ -707,6 +930,7 @@ impl beui::native::Draw for AppDrawing {
         at: DrawAt,
     ) {
         let blits = self.blits.borrow();
+        self.placed.borrow_mut().clear();
         PRESENTER.with(|presenter| {
             let mut presenter = presenter.borrow_mut();
             let Some(presenter) = presenter.as_mut() else {
@@ -726,24 +950,16 @@ impl beui::native::Draw for AppDrawing {
                 return;
             };
             let mut placed = Vec::new();
+            let mut pieces = crate::layers::Pieces::default();
             for blit in blits.iter() {
                 let (frames, region, surfaces) = {
                     let mut shared = blit.shared.borrow_mut();
                     let frames = shared.take_frames();
-                    let laid = |placement: &ScreenPlacement| {
-                        let (quad, source) = blit.shown_at((placement.width, placement.height))?;
-                        Some((placement.surface, quad, source))
-                    };
                     let region = match blit.layer {
                         Some(_) => None,
-                        None => shared.layout.placement(blit.screen).and_then(laid),
+                        None => shared.placement(blit.screen).copied(),
                     };
-                    let surfaces: Vec<u32> = shared
-                        .layout
-                        .screens
-                        .iter()
-                        .map(|placement| placement.surface)
-                        .collect();
+                    let surfaces = shared.surfaces();
                     (frames, region, surfaces)
                 };
                 let mut failure = None;
@@ -755,45 +971,80 @@ impl beui::native::Draw for AppDrawing {
                 if !frames.is_empty() {
                     platform.retain(blit.surface, &surfaces);
                 }
-                let region =
-                    match blit.layer {
-                        Some(layer) => platform.size(blit.surface, layer.surface).and_then(
-                            |(width, height)| {
-                                let (width, height) = (width as f32, height as f32);
-                                let source = Rect::from_min_max(
-                                    pos2(layer.pixels.min.x / width, layer.pixels.min.y / height),
-                                    pos2(layer.pixels.max.x / width, layer.pixels.max.y / height),
-                                );
-                                let (quad, source) = (width > 0.0 && height > 0.0)
-                                    .then(|| within_texture(blit.quad, source))??;
-                                Some((layer.surface, quad, source))
-                            },
-                        ),
-                        None => region,
-                    };
+                // Every app surface is shown from its layer (crate::layers), as the web places
+                // its canvases from the frame's layers.
+                let layer = match blit.layer {
+                    Some(anchored) => {
+                        // The index is taken whether or not the surface has a texture yet, as
+                        // the web takes it (layers::frame), so a piece has the same id on both.
+                        let piece =
+                            pieces.next(blit.surface, u64::from(anchored.surface), true, self.id);
+                        platform
+                            .size(blit.surface, anchored.surface)
+                            .and_then(|size| blit.anchored_layer(anchored, size, self.id, piece))
+                    }
+                    None => region.and_then(|placement| {
+                        let texture = platform.size(blit.surface, placement.surface);
+                        let piece = pieces.next(blit.surface, blit.screen.0, false, self.id);
+                        blit.screen_layer(&placement, texture, self.id, piece)
+                    }),
+                };
                 blit.status.set(match failure {
                     Some(error) => PresenterState::Failed(error),
                     None => PresenterState::Presenting,
                 });
-                if let Some((surface, quad, source)) = region {
-                    placed.push((
-                        blit.surface,
-                        surface,
-                        platform.shown(quad.placed(source, &at)),
-                    ));
+                if let Some(layer) = layer {
+                    let surface = match layer.surface {
+                        Surface::Screen { surface, .. } | Surface::Anchored { surface, .. } => {
+                            surface
+                        }
+                        Surface::Root(_) | Surface::Host(_) => {
+                            unreachable!("a blit's layer is an app's surface")
+                        }
+                    };
+                    placed.push((blit.surface, surface, layer));
                 }
             }
             let platform = &*platform;
+            // A screen is drawn here, in the host UI's paint order, blending over what the
+            // host painted beneath it and inside its groups and filters. Where the renderer
+            // composites, every layer is also listed for damage and input, and an anchored
+            // view, which lies over the host's UI, is composited between the roots instead.
+            let mut layers = self.placed.borrow_mut();
+            let mut drawn = Vec::new();
+            for (slot, surface, layer) in placed {
+                let Some(texture) = platform.texture(slot, surface) else {
+                    continue;
+                };
+                let inline = !matches!(layer.surface, Surface::Anchored { .. });
+                if inline || !at.composited {
+                    drawn.push((
+                        texture,
+                        platform.shown(crate::layers::texture_quad(&layer, &at)),
+                    ));
+                }
+                if at.composited {
+                    layers.push(beui::native::compose::Placed {
+                        layer,
+                        texture: texture.clone(),
+                        opaque: false,
+                        srgb_encoded: true,
+                        inline,
+                    });
+                }
+            }
             self.quads.prepare(
                 platform.pipelines(),
                 queue,
                 at.format,
                 [at.screen.x, at.screen.y],
-                placed.into_iter().filter_map(|(slot, surface, quad)| {
-                    Some((platform.texture(slot, surface)?, quad))
-                }),
+                drawn,
             );
         });
+    }
+
+    fn layers(&self) -> Vec<beui::native::compose::Placed> {
+        self.placed.borrow().clone()
     }
 
     fn paint(&self, pass: &mut wgpu::RenderPass<'_>, _at: DrawAt) {
@@ -810,11 +1061,16 @@ struct Presenter {
 }
 
 pub(super) fn install(setup: &beui::native::Setup) -> Availability {
-    let Some(gpu) = setup.get::<beui_host::native::GpuSetup>() else {
+    let Some(gpu) = setup.get::<beui_renderer_wgpu::present::GpuSetup>() else {
         return Availability(Ok(()));
     };
     let platform = build_presenter(&gpu.device, &gpu.queue);
     let availability = Availability(platform.as_ref().map(|_| ()).map_err(Clone::clone));
+    // Natively the host's windows are composited from their layers (be-lib-layers): its UI is
+    // painted into the root's surfaces, with each anchored view a layer between them. The web
+    // places its canvases from the frame's layers instead (`web::canvases`).
+    #[cfg(not(target_arch = "wasm32"))]
+    beui::native::compose::composite_windows();
     PRESENTER.with(|presenter| {
         *presenter.borrow_mut() = Some(Presenter {
             platform: platform.ok(),

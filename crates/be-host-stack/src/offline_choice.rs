@@ -1,13 +1,15 @@
 use std::collections::HashMap;
 use std::sync::PoisonError;
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 
 use be_block::{OfflineChoice, OfflineSettings, Resolution};
 use uuid::Uuid;
 
-#[derive(Clone, Debug, PartialEq)]
-struct Choices {
+/// What the settings choose to keep offline. The page works it out (`publish`) and sends it to
+/// the stack's worker, which reads it (`choice`).
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct Choices {
     workspaces: HashMap<Uuid, OfflineChoice>,
     otherwise: OfflineChoice,
 }
@@ -39,12 +41,34 @@ pub fn publish(resolution: &Resolution<OfflineSettings>, workspaces: Vec<Uuid>, 
             .collect(),
         otherwise: OfflineSettings::choice(resolution, Uuid::nil(), personal),
     };
-    let mut held = CHOICES.lock().unwrap_or_else(PoisonError::into_inner);
-    if held.as_ref() != Some(&choices) {
-        *held = Some(choices);
-    }
+    tell(Some(choices));
 }
 
 pub fn forget() {
-    *CHOICES.lock().unwrap_or_else(PoisonError::into_inner) = None;
+    tell(None);
+}
+
+/// Keeps `choices` here and, when they changed, sends them to the stack's worker, which keeps
+/// its own copy (`set`).
+fn tell(choices: Option<Choices>) {
+    let mut held = CHOICES.lock().unwrap_or_else(PoisonError::into_inner);
+    if *held == choices {
+        return;
+    }
+    *held = choices.clone();
+    drop(held);
+    crate::send(crate::worker::Command::OfflineChoices(choices));
+}
+
+/// What `publish` chose last, for a stack that starts.
+pub(crate) fn current() -> Option<Choices> {
+    CHOICES
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone()
+}
+
+/// In the stack's worker: keeps what the page chose (`tell`).
+pub(crate) fn set(choices: Option<Choices>) {
+    *CHOICES.lock().unwrap_or_else(PoisonError::into_inner) = choices;
 }

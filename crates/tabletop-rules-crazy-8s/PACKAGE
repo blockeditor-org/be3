@@ -79,7 +79,7 @@ write_package_value("be3.cargo", {
             ],
             "test_features": [],
         },
-        "wasm32": {
+        "wasi-guest": {
             "binaries": {},
             "deps": [
                 "//crates/tabletop-api:tabletop-api",
@@ -87,7 +87,9 @@ write_package_value("be3.cargo", {
             ],
             "examples": {},
             "features": [],
-            "test_deps": [],
+            "test_deps": [
+                "//crates/tabletop-host:tabletop-host",
+            ],
             "test_features": [],
         },
         "windows-arm64": {

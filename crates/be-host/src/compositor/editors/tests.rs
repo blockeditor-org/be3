@@ -25,6 +25,7 @@ pub(super) fn editor(name: &str, edits: Edits) -> EditorManifest {
         views: Vec::new(),
         accepts: Vec::new(),
         opens: Vec::new(),
+        exporters: Vec::new(),
     }
 }
 
@@ -41,5 +42,9 @@ pub(super) fn app(id: &str, editors: Vec<EditorManifest>) -> Arc<AppManifest> {
         network: Vec::new(),
         extensions: Vec::new(),
         block_agents: false,
+        sharing: false,
+        hosts: Vec::new(),
+        workers: Vec::new(),
+        root: false,
     })
 }

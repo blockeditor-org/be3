@@ -24,11 +24,11 @@ fn a_drag_whose_moves_share_a_frame_with_its_press_and_release_keeps_both_ends()
 
     harness.frame(vec![
         touch_event(1, TouchPhase::Start, pos2(100.0, 100.0)),
-        touch_event(1, TouchPhase::Move, pos2(103.0, 100.0)),
+        touch_event(1, TouchPhase::Move, pos2(110.0, 100.0)),
     ]);
     harness.frame(vec![
-        touch_event(1, TouchPhase::Move, pos2(103.0, 103.0)),
-        touch_event(1, TouchPhase::End, pos2(103.0, 103.0)),
+        touch_event(1, TouchPhase::Move, pos2(110.0, 110.0)),
+        touch_event(1, TouchPhase::End, pos2(110.0, 110.0)),
     ]);
 
     assert_eq!(
@@ -38,7 +38,7 @@ fn a_drag_whose_moves_share_a_frame_with_its_press_and_release_keeps_both_ends()
     );
     assert_eq!(
         drags.get_untracked(),
-        vec![pos2(103.0, 100.0), pos2(103.0, 103.0)],
+        vec![pos2(110.0, 100.0), pos2(110.0, 110.0)],
         "the move made in the frame of the release is still dragged to"
     );
 }

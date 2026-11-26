@@ -5,12 +5,14 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+be-lib-failure-budget = { path = "../be-lib-failure-budget" }
 be-lib-remap = { path = "../be-lib-remap" }
-wasmi = { version = "1.1", default-features = false, features = ["std"] }
+be-wasm-guest-host = { path = "../be-wasm-guest-host" }
+be-wasm-host = { path = "../be-wasm-host" }
 
 [dev-dependencies]
 be-lib-remap = { path = "../be-lib-remap", features = ["text"] }
-wasmi = { version = "1.1", default-features = false, features = ["std", "wat"] }
+wat = "1"
 
 [lints]
 workspace = true

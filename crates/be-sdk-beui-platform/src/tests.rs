@@ -121,6 +121,8 @@ struct Windowed {
     views: Option<Views>,
     requested: OwnedSignal<Vec<View>>,
     /// Each view's window, once built, when the program reports its overlays as an app's does.
+    // A test's record of each view with its window, once the view is built.
+    #[allow(clippy::type_complexity)]
     reported: Option<Rc<RefCell<Vec<(ViewRef, beui::WindowId)>>>>,
 }
 
@@ -193,7 +195,7 @@ impl Program for Windowed {
                 view! {
                     <styled::Root>
                         <styled::List spacing=styled::Space::None>
-                            <ForEach keys>|id: ViewRef|
+                            <ForEach value={keys}>|id: ViewRef|
                                 <Shown
                                     id
                                     requested

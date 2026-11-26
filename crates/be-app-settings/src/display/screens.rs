@@ -8,6 +8,7 @@ use be_sdk_beui::{HostDisplay, LayeredSettingsRow, RotationPicker};
 
 use super::modes::{Size, effective, mode_label, rate_label, rates, size_label, size_of, sizes};
 use super::ui::Settings;
+use crate::custom::unlisted;
 use beui::Extent;
 
 #[component]
@@ -46,23 +47,16 @@ pub(super) fn ScreenSection(
         Some(chosen) => offered.with(|modes| rates(modes, size_of(chosen))),
         None => Vec::new(),
     });
-    let size_selected = create_memo(move || {
-        let size = size_of(chosen.get()?);
-        size_list.with(|sizes| sizes.iter().position(|known| *known == size))
-    });
-    let rate_selected = create_memo(move || {
-        let chosen = chosen.get()?;
-        rate_list.with(|rates| rates.iter().position(|known| *known == chosen))
-    });
-    let name = create_memo(move || {
+    let size_selected = create_memo(move || chosen.get().map(size_of));
+    let name = move || {
         display.with(|display| {
             display
                 .as_ref()
                 .map(|display| display.name.clone())
                 .unwrap_or_default()
         })
-    });
-    let showing = create_memo(move || {
+    };
+    let showing = move || {
         display.with(|display| match display {
             Some(display) => format!(
                 "{}, showing {}",
@@ -71,7 +65,7 @@ pub(super) fn ScreenSection(
             ),
             None => String::new(),
         })
-    });
+    };
     let connector = display.with_untracked(|display| {
         display
             .as_ref()
@@ -108,23 +102,15 @@ pub(super) fn ScreenSection(
                 })
         })
     });
-    let inherited_scale_label = create_memo(move || {
+    let inherited_scale_label = move || {
         format!(
             "Default ({}%)",
             below_scale.get().unwrap_or_else(|| natural_scale.get())
         )
-    });
-    let selected_scale = create_memo(move || {
-        Some(
-            chosen_scale
-                .get()
-                .and_then(|percent| {
-                    DisplaySettings::SCREEN_SCALES
-                        .iter()
-                        .position(|known| *known == percent)
-                })
-                .map_or(0, |index| index + 1),
-        )
+    };
+    let selected_scale = create_memo(move || Some(chosen_scale.get()));
+    let custom_scale = unlisted(chosen_scale, |percent| {
+        DisplaySettings::SCREEN_SCALES.contains(percent)
     });
     let set_scale = settings.setter(&scale);
     let used = DisplaySettings::used_setting(&id);
@@ -148,20 +134,9 @@ pub(super) fn ScreenSection(
             })
         }
     });
-    let choice_labels = create_memo(move || {
-        choices.with(|choices| {
-            choices
-                .iter()
-                .map(|(_, label)| label.clone())
-                .collect::<Vec<_>>()
-        })
-    });
     let use_selected = create_memo({
         let id = id.clone();
-        move || {
-            let used = merged.with(|merged| merged.used(&id));
-            choices.with(|choices| choices.iter().position(|(choice, _)| *choice == used))
-        }
+        move || Some(merged.with(|merged| merged.used(&id)))
     });
     let several = create_memo(move || displays.with(|displays| displays.len() > 1));
     let on_desktop = create_memo(move || {
@@ -180,7 +155,6 @@ pub(super) fn ScreenSection(
                 > 1
         })
     });
-    let main_shown = create_memo(move || on_desktop.get() && arranged.get());
     let is_main = create_memo({
         let id = id.clone();
         move || {
@@ -192,7 +166,6 @@ pub(super) fn ScreenSection(
             })
         }
     });
-    let main_locked = create_memo(move || is_main.get() || read_only.get());
     let arrangement = DisplaySettings::arrangement_setting();
     let save_arrangement = settings.setter(&arrangement);
     let make_main = {
@@ -210,10 +183,9 @@ pub(super) fn ScreenSection(
     };
     let fastest = create_memo(move || rate_list.with(|rates| rates.first().copied()));
     let slower = create_memo(move || chosen.get().is_some() && chosen.get() != fastest.get());
-    let at_fastest = create_memo(move || !slower.get() || read_only.get());
     view! {
         <SettingsSection title={name} description={showing}>
-            <Show condition={several}>
+            <Show value={several}>
                 <LayeredSettingsRow
                     setting={used_row}
                     label="Use"
@@ -225,12 +197,12 @@ pub(super) fn ScreenSection(
                         <Select
                             width={Extent::fraction(1.0)}
                             options={view! {
-                                <ForEach keys={choice_labels}>|label: String|
-                                    <ChoiceOption label={label} />
+                                <ForEach value={choices}>|(choice, label): (ScreenUse, String)|
+                                    <ChoiceOption value={choice} label={label} />
                                 </ForEach>
                             }}
-                            selected={Binding::new(use_selected, move |index: Option<usize>| {
-                                let Some(choice) = index.and_then(|index| choices.with_untracked(|choices| choices.get(index).map(|(choice, _)| choice.clone()))) else {
+                            selected={Binding::new(use_selected, move |chosen: Option<ScreenUse>| {
+                                let Some(choice) = chosen else {
                                     return;
                                 };
                                 set_used.call((choice != ScreenUse::Desktop).then_some(choice));
@@ -242,7 +214,7 @@ pub(super) fn ScreenSection(
                     </ListItem>
                 </LayeredSettingsRow>
             </Show>
-            <Show condition={main_shown}>
+            <Show value={move || on_desktop.get() && arranged.get()}>
                 <SettingsRow
                     label="Main display"
                     description="Shows the sign-in, the desktop's Status bar and the windows that open first."
@@ -253,7 +225,7 @@ pub(super) fn ScreenSection(
                     <Switch
                         on={Binding::new(is_main, move |on: bool| make_main.call(on))}
                         label="Main display"
-                        disabled={main_locked}
+                        disabled={move || is_main.get() || read_only.get()}
                         @test_id={String::clone(&main_id.value())}
                     />
                 </SettingsRow>
@@ -270,12 +242,12 @@ pub(super) fn ScreenSection(
                     <Select
                         width={Extent::fraction(1.0)}
                         options={view! {
-                            <ForEach keys={size_list}>|size: Size|
-                                <ChoiceOption label={size_label(size)} />
+                            <ForEach value={size_list}>|size: Size|
+                                <ChoiceOption value=size label={size_label(size)} />
                             </ForEach>
                         }}
-                        selected={Binding::new(size_selected, move |index: Option<usize>| {
-                            let Some(size) = index.and_then(|index| size_list.with_untracked(|sizes| sizes.get(index).copied())) else {
+                        selected={Binding::new(size_selected, move |chosen: Option<Size>| {
+                            let Some(size) = chosen else {
                                 return;
                             };
                             let fastest = offered.with_untracked(|modes| rates(modes, size).first().copied());
@@ -299,8 +271,8 @@ pub(super) fn ScreenSection(
                     <MenuItem
                         label="Use the fastest rate"
                         glyph=ICON_ROTATE_CCW
-                        disabled={at_fastest}
-                        row_test_id={format!("display.{connector}.refresh.reset")}
+                        disabled={move || !slower.get() || read_only.get()}
+                        @test_id={format!("display.{connector}.refresh.reset")}
                         on_click={move || set.call(fastest.get_untracked())}
                     />
                 }}
@@ -309,12 +281,14 @@ pub(super) fn ScreenSection(
                     <Select
                         width={Extent::fraction(1.0)}
                         options={view! {
-                            <ForEach keys={rate_list}>|mode: DisplayMode|
-                                <ChoiceOption label={rate_label(mode.refresh_millihertz)} />
+                            <ForEach value={rate_list}>|mode: DisplayMode|
+                                <ChoiceOption
+                                    value=mode
+                                    label={rate_label(mode.refresh_millihertz)}
+                                />
                             </ForEach>
                         }}
-                        selected={Binding::new(rate_selected, move |index: Option<usize>| {
-                            let mode = index.and_then(|index| rate_list.with_untracked(|rates| rates.get(index).copied()));
+                        selected={Binding::new(chosen, move |mode: Option<DisplayMode>| {
                             if mode.is_some() {
                                 set.call(mode);
                             }
@@ -337,16 +311,21 @@ pub(super) fn ScreenSection(
                     <Select
                         width={Extent::fraction(1.0)}
                         options={view! {
-                            <ChoiceOption label={inherited_scale_label} />
-                            <ForEach keys={DisplaySettings::SCREEN_SCALES.to_vec()}>|percent: u32|
-                                <ChoiceOption label={format!("{percent}%")} />
+                            <ChoiceOption value=None label={inherited_scale_label} />
+                            <ForEach value={DisplaySettings::SCREEN_SCALES.to_vec()}>|percent: u32|
+                                <ChoiceOption value={Some(percent)} label={format!("{percent}%")} />
+                            </ForEach>
+                            <ForEach value={custom_scale}>|percent: u32|
+                                <ChoiceOption
+                                    value={Some(percent)}
+                                    label={format!("Custom ({percent}%)")}
+                                />
                             </ForEach>
                         }}
-                        selected={Binding::new(selected_scale, move |index: Option<usize>| {
-                            let percent = index
-                                .and_then(|index| index.checked_sub(1))
-                                .and_then(|index| DisplaySettings::SCREEN_SCALES.get(index).copied());
-                            set_scale.call(percent);
+                        selected={Binding::new(selected_scale, move |chosen: Option<Option<u32>>| {
+                            if let Some(percent) = chosen {
+                                set_scale.call(percent);
+                            }
                         })}
                         label="Display scale"
                         disabled={read_only}

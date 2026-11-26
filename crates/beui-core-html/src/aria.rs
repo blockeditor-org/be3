@@ -188,6 +188,7 @@ pub(crate) fn attributes(node: &accesskit::Node, tag: Option<&str>) -> Vec<(&'st
     [
         ("role", (!native).then(|| mapping.aria.to_owned())),
         ("aria-label", node.label().map(str::to_owned)),
+        ("aria-description", node.description().map(str::to_owned)),
         (
             "aria-level",
             (node.role() == Role::Heading)

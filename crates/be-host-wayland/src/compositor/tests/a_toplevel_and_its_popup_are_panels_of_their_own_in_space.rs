@@ -11,7 +11,7 @@ fn Panels(windows: Windows) -> NodeId {
         <Frame fill=ColorRole::Surface padding=Space::Xl3>
             <List spacing=Space::None>
                 <Text style=TextStyle::HEADING>"The main panel"</Text>
-                <ForEach keys={ids}>|id: WindowId| {
+                <ForEach value={ids}>|id: WindowId| {
                     let placement = WindowPlacement::Over {
                         window: beui::WindowId::MAIN,
                         at: PLACED,

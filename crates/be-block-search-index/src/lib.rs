@@ -1,0 +1,501 @@
+//! The search index block (guides/blocks/host.md, "Search"): a `be_lib_search::Index` kept as the
+//! block's parts. The first part is the index's header with the length of every part it names, in
+//! `Index::parts` order; each of those parts is a child after it, so a replica loads only the
+//! header (`Loads::FirstPart`) and a query or a batch reads the rest by range.
+//!
+//! Hand-written rather than a `Document`, which loads whole. Two sides merge by parts
+//! (`MergeParts`) as `Index::merge` unions them; within a session, where nothing can be read,
+//! a side unchanged from the base gives way and anything else keeps ours as a conflict.
+
+use std::{collections::HashMap, ops::Range};
+
+use be_block_commit::MergeResult;
+use be_lib_search::{Batch, DocId, Error, Id, Index, PartName, Parts, PartsOut, Written};
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+use be_block_content::{
+    BlockContent, ContentError, LiveEdit, Loads, Merge, MergeParts, Part, PartReader, PartRef,
+    Stored,
+};
+
+/// A part of the index: its bytes, written here and not saved yet, or the saved part a save
+/// reuses.
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum Held {
+    Bytes(Vec<u8>),
+    Saved(PartRef),
+}
+
+impl Held {
+    fn length(&self) -> u64 {
+        match self {
+            Self::Bytes(bytes) => bytes.len() as u64,
+            Self::Saved(part) => part.length(),
+        }
+    }
+}
+
+/// How long the server keeps an index block's old states (`be_server::retention`).
+pub const SEARCH_INDEX_KEPT: i64 = be_block_commit::DAY;
+
+/// How long a retired segment or a removed block is remembered (`SearchIndexContent::compact`):
+/// several times `SEARCH_INDEX_KEPT`, for a device that comes back after longer than that with
+/// a batch written on an old head, and for clocks that disagree.
+const REMEMBERED: i64 = 7 * SEARCH_INDEX_KEPT;
+
+/// The segment merges one compaction makes at most, so no one batch rewrites the index.
+const MERGES_PER_PASS: usize = 2;
+
+/// The most bytes of parts one merge reads as a batch is written, so a batch's write stays
+/// quick. Segments whose merge would read more are left for a pass while the device is idle
+/// (`SearchIndexContent::merges_over`), which merges any: a merge reads its inputs and writes
+/// its output a piece at a time, holding two `u32` per document, one term's whole posting list,
+/// up to five read windows of about 1 MiB per input and the table chunks its documents' entries
+/// live in, not its inputs' bytes.
+pub const MERGE_BYTES: u64 = 8 << 20;
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct Header {
+    index: Vec<u8>,
+    /// The length of each part `Index::parts` names, in that order.
+    lengths: Vec<u64>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct SearchIndexContent {
+    index: Index,
+    /// Every part the header names, in `Index::parts` order.
+    parts: Vec<(PartName, Held)>,
+}
+
+/// An operation: the index as a writer left it, with every part it names saved already
+/// (`part-writer`, guides/type_modules.md, "Parts named by hash").
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SetIndex {
+    pub header: Vec<u8>,
+    pub parts: Vec<PartRef>,
+}
+
+impl SearchIndexContent {
+    pub fn index(&self) -> &Index {
+        &self.index
+    }
+
+    /// The saved part a name is, while it is one.
+    pub fn saved(&self, name: &PartName) -> Option<PartRef> {
+        self.parts.iter().find_map(|(held, part)| match part {
+            Held::Saved(part) if held == name => Some(*part),
+            _ => None,
+        })
+    }
+
+    /// Applies a batch (`Index::apply`), reading what it needs with `read`; answers the
+    /// documents whose text it lacks (`Written::needs_text`).
+    pub async fn apply<F: AsyncRead>(
+        &mut self,
+        read: &F,
+        origin: Id,
+        batch: Batch,
+        latest: i64,
+    ) -> Result<Vec<DocId>, Error> {
+        let mut index = self.index.clone();
+        let written = index
+            .apply(&self.reader([self], read), origin, batch, latest)
+            .await?;
+        let needs_text = written.needs_text.clone();
+        *self = Self::rebuilt(index, written, [&*self], &Unsaved)?;
+        Ok(needs_text)
+    }
+
+    /// Compacts a few segments (`Index::compact`, `MERGES_PER_PASS`, none reading more than
+    /// `bytes`: `MERGE_BYTES` as a batch is written, any while the device is idle), writing the
+    /// merged segments' parts through `out`, and forgets the retired segments and removed blocks
+    /// recorded longer than `REMEMBERED` before `now` (milliseconds): what the device that
+    /// writes a batch does with it, so the segments a query reads stay few.
+    pub async fn compact<F: AsyncRead>(
+        &mut self,
+        read: &F,
+        out: &impl SavedParts,
+        origin: Id,
+        now: i64,
+        bytes: u64,
+    ) -> Result<(), Error> {
+        let mut index = self.index.clone();
+        let length = |name: &PartName| self.length(name);
+        let written = index
+            .compact(
+                &self.reader([self], read),
+                out,
+                origin,
+                now,
+                MERGES_PER_PASS,
+                bytes,
+                length,
+            )
+            .await?;
+        index.forget_before(now - REMEMBERED);
+        *self = Self::rebuilt(index, written, [&*self], out)?;
+        Ok(())
+    }
+
+    /// Whether a merge compaction would make reads more than `bytes` (`Index::merges_over`):
+    /// one only an uncapped pass makes.
+    pub fn merges_over(&self, bytes: u64) -> bool {
+        self.index.merges_over(bytes, |name| self.length(name))
+    }
+
+    fn length(&self, name: &PartName) -> u64 {
+        self.parts
+            .iter()
+            .find(|(held, _)| held == name)
+            // A part it does not hold counts as too big to merge.
+            .map_or(u64::MAX, |(_, part)| part.length())
+    }
+
+    /// The best `limit` hits of `query` (`Index::search`).
+    pub async fn search<F: AsyncRead>(
+        &self,
+        read: &F,
+        query: &be_lib_search::Query,
+        limit: usize,
+        latest: i64,
+    ) -> Result<Vec<be_lib_search::Hit>, Error> {
+        self.index
+            .search(&self.reader([self], read), query, limit, latest)
+            .await
+    }
+
+    /// The table entries of a block's documents (`Index::entries_of`).
+    pub async fn entries_of<F: AsyncRead>(
+        &self,
+        read: &F,
+        block: &[u8],
+    ) -> Result<Vec<be_lib_search::Entry>, Error> {
+        self.index
+            .entries_of(&self.reader([self], read), block)
+            .await
+    }
+
+    fn reader<'a, const N: usize, F: AsyncRead>(
+        &self,
+        sides: [&'a Self; N],
+        read: &'a F,
+    ) -> Reader<'a, F> {
+        let mut parts = HashMap::new();
+        for side in sides {
+            for (name, held) in &side.parts {
+                parts.entry(*name).or_insert(held);
+            }
+        }
+        Reader { parts, read }
+    }
+
+    /// The content of `index` after a change wrote `written`: its new parts as bytes or as
+    /// `saved` saved them, and every other part it names as one of `sides` held it. A part it
+    /// names that none of those has is an error.
+    fn rebuilt<const N: usize>(
+        index: Index,
+        written: Written,
+        sides: [&Self; N],
+        saved: &impl SavedParts,
+    ) -> Result<Self, Error> {
+        let mut added: HashMap<PartName, Vec<u8>> = written.added.into_iter().collect();
+        let parts = index
+            .parts()
+            .into_iter()
+            .map(|name| {
+                if let Some(bytes) = added.remove(&name) {
+                    return Ok((name, Held::Bytes(bytes)));
+                }
+                if written.saved.contains(&name) {
+                    let held = saved
+                        .saved(&name)?
+                        .map_or(Held::Bytes(Vec::new()), Held::Saved);
+                    return Ok((name, held));
+                }
+                sides
+                    .iter()
+                    .find_map(|side| side.parts.iter().find(|(held, _)| *held == name))
+                    .map(|(_, part)| (name, part.clone()))
+                    .ok_or_else(|| Error::Write(format!("no part {name:?} was written")))
+            })
+            .collect::<Result<_, Error>>()?;
+        Ok(Self { index, parts })
+    }
+
+    fn header(&self) -> Vec<u8> {
+        postcard::to_allocvec(&Header {
+            index: self.index.encode(),
+            lengths: self.parts.iter().map(|(_, part)| part.length()).collect(),
+        })
+        .expect("a header encodes")
+    }
+
+    fn decode_header(bytes: &[u8]) -> Result<(Index, Vec<PartName>, Vec<u64>), ContentError> {
+        let (header, _): (Header, _) =
+            postcard::take_from_bytes(bytes).map_err(|_| ContentError::Truncated)?;
+        let index = Index::decode(&header.index).map_err(|_| ContentError::Truncated)?;
+        let names = index.parts();
+        if names.len() != header.lengths.len() {
+            return Err(ContentError::Truncated);
+        }
+        Ok((index, names, header.lengths))
+    }
+
+    fn header_length(bytes: &[u8]) -> Result<usize, ContentError> {
+        let (_, rest): (Header, _) =
+            postcard::take_from_bytes(bytes).map_err(|_| ContentError::Truncated)?;
+        Ok(bytes.len() - rest.len())
+    }
+}
+
+/// Reads a range of a saved part, as the host's `read-part` or a module's `PartReader` does.
+/// Boxed, as a future returned from a trait method in another crate must be
+/// (guides/type_modules.md, "The generator").
+pub trait AsyncRead {
+    fn read(
+        &self,
+        part: PartRef,
+        range: Range<u64>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, String>> + '_>>;
+}
+
+impl AsyncRead for PartReader {
+    fn read(
+        &self,
+        part: PartRef,
+        range: Range<u64>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, String>> + '_>> {
+        let end = range.end.min(part.length());
+        let start = range.start.min(end);
+        PartReader::read(self, part, start, end - start)
+    }
+}
+
+/// The index's parts by name, read from what a side holds or with `read`.
+struct Reader<'a, F> {
+    parts: HashMap<PartName, &'a Held>,
+    read: &'a F,
+}
+
+impl<F: AsyncRead> Parts for Reader<'_, F> {
+    fn read<'a>(
+        &'a self,
+        part: &'a PartName,
+        range: Range<u64>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, Error>> + 'a>> {
+        match self.parts.get(part) {
+            Some(held) => read_held(held, range, self.read),
+            None => {
+                Box::pin(
+                    async move { Err(Error::Read(format!("the index names no part {part:?}"))) },
+                )
+            }
+        }
+    }
+}
+
+/// `range` of a part as `held` holds it, reading a saved one with `read`.
+fn read_held<'a, F: AsyncRead>(
+    held: &Held,
+    range: Range<u64>,
+    read: &'a F,
+) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, Error>> + 'a>> {
+    let end = range.end.min(held.length());
+    let start = range.start.min(end);
+    match held {
+        Held::Bytes(bytes) => {
+            let bytes = bytes[start as usize..end as usize].to_vec();
+            Box::pin(async move { Ok(bytes) })
+        }
+        Held::Saved(saved) => {
+            let saved = *saved;
+            Box::pin(async move { read.read(saved, start..end).await.map_err(Error::Read) })
+        }
+    }
+}
+
+/// Where a compaction writes its merged segments' parts (`PartsOut`), and the saved part each
+/// one it finished is: be-host-stack's seals each a chunk at a time with `Vault::part_writer`
+/// under the index block's key, so neither the merge nor it holds a part whole. A saved part is
+/// `Held::Saved`, which the commit that names it reuses and its drain uploads.
+pub trait SavedParts: PartsOut {
+    /// The part `part` was saved as, None for one finished with nothing written; an error for
+    /// one this did not finish.
+    fn saved(&self, part: &PartName) -> Result<Option<PartRef>, Error>;
+}
+
+/// Where a change that writes no part through a sink saves its parts: nowhere.
+struct Unsaved;
+
+impl PartsOut for Unsaved {
+    fn write(&self, part: &PartName, _: &[u8]) -> Result<(), Error> {
+        Err(Error::Write(format!("{part:?} has nowhere to be saved")))
+    }
+
+    fn finish(&self, part: &PartName) -> Result<(), Error> {
+        Err(Error::Write(format!("{part:?} has nowhere to be saved")))
+    }
+}
+
+impl SavedParts for Unsaved {
+    fn saved(&self, part: &PartName) -> Result<Option<PartRef>, Error> {
+        Err(Error::Write(format!("{part:?} was not saved")))
+    }
+}
+
+impl BlockContent for SearchIndexContent {
+    const CONTENT_TYPE: Uuid = be_block_graph::SEARCH_INDEX_TYPE;
+
+    const LOADS: Loads = Loads::FirstPart;
+
+    /// The header and the bytes of the parts held, which is the whole stored form for content
+    /// that holds every part.
+    fn encode(&self) -> Vec<u8> {
+        let mut bytes = self.header();
+        for (_, part) in &self.parts {
+            if let Held::Bytes(held) = part {
+                bytes.extend_from_slice(held);
+            }
+        }
+        bytes
+    }
+
+    fn decode(bytes: &[u8]) -> Result<Self, ContentError> {
+        if bytes.is_empty() {
+            return Ok(Self::default());
+        }
+        let (index, names, lengths) = Self::decode_header(bytes)?;
+        let mut at = Self::header_length(bytes)?;
+        let mut parts = Vec::with_capacity(names.len());
+        for (name, length) in names.into_iter().zip(lengths) {
+            let end = usize::try_from(length)
+                .ok()
+                .and_then(|length| at.checked_add(length))
+                .ok_or(ContentError::Truncated)?;
+            let held = bytes.get(at..end).ok_or(ContentError::Truncated)?;
+            parts.push((name, Held::Bytes(held.to_vec())));
+            at = end;
+        }
+        Ok(Self { index, parts })
+    }
+
+    fn parts(&self) -> Part<'_> {
+        let mut parts = vec![Part::from(self.header())];
+        parts.extend(self.parts.iter().map(|(_, part)| match part {
+            Held::Bytes(bytes) => Part::from(bytes.as_slice()),
+            Held::Saved(saved) => Part::Reused(*saved),
+        }));
+        Part::node(parts)
+    }
+
+    fn from_stored(stored: &Stored) -> Result<Self, ContentError> {
+        let Some(root) = stored
+            .root
+            .as_ref()
+            .filter(|root| !root.children.is_empty())
+        else {
+            return Self::decode(&stored.bytes);
+        };
+        let first = &root.children[0];
+        let (index, names, lengths) = match stored.holds(first) {
+            true => Self::decode_header(stored.bytes_of(first))?,
+            false => return Err(ContentError::Truncated),
+        };
+        // A node leaves out empty parts, so only the others are children.
+        let mut children = root.children[1..].iter();
+        let mut parts = Vec::with_capacity(names.len());
+        for (name, length) in names.into_iter().zip(lengths) {
+            if length == 0 {
+                parts.push((name, Held::Bytes(Vec::new())));
+                continue;
+            }
+            let child = children.next().ok_or(ContentError::Truncated)?;
+            if child.reference.length() != length {
+                return Err(ContentError::Truncated);
+            }
+            parts.push((
+                name,
+                match stored.holds(child) {
+                    true => Held::Bytes(stored.bytes_of(child).to_vec()),
+                    false => Held::Saved(child.reference),
+                },
+            ));
+        }
+        Ok(Self { index, parts })
+    }
+}
+
+impl LiveEdit for SearchIndexContent {
+    type Op = SetIndex;
+
+    /// An index whose header or parts do not agree is ignored.
+    fn apply(&mut self, operation: &SetIndex) {
+        let Ok((index, names, lengths)) = Self::decode_header(&operation.header) else {
+            return;
+        };
+        let mut saved = operation.parts.iter();
+        let mut parts = Vec::with_capacity(names.len());
+        for (name, length) in names.into_iter().zip(lengths) {
+            if length == 0 {
+                parts.push((name, Held::Bytes(Vec::new())));
+                continue;
+            }
+            match saved.next() {
+                Some(part) if part.length() == length => parts.push((name, Held::Saved(*part))),
+                _ => return,
+            }
+        }
+        *self = Self { index, parts };
+    }
+}
+
+impl Merge for SearchIndexContent {
+    /// Over what each side holds, which cannot be read here: a side whose header is the base's
+    /// gives way, and two changed sides keep ours as a conflict, which `merge_parts` unions.
+    fn merge3(base: &Self, ours: &Self, theirs: &Self) -> MergeResult<Self> {
+        let header = Self::header;
+        if header(ours) == header(base) || header(ours) == header(theirs) {
+            return MergeResult::Clean(theirs.clone());
+        }
+        if header(theirs) == header(base) {
+            return MergeResult::Clean(ours.clone());
+        }
+        MergeResult::Conflicted {
+            value: ours.clone(),
+            conflicts: 1,
+        }
+    }
+}
+
+impl MergeParts for SearchIndexContent {
+    /// The union of the two sides (`Index::merge`), which never conflicts. Its new parts are
+    /// named under an id taken from both headers, so every device merging the same sides
+    /// writes the same parts.
+    fn merge_parts(
+        _: Self,
+        ours: Self,
+        theirs: Self,
+        parts: PartReader,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<MergeResult<Self>, String>>>> {
+        Box::pin(async move {
+            let mut origin = [0; 16];
+            let both = be_block_store::Hash::of_parts(&[&ours.header(), &theirs.header()]);
+            origin.copy_from_slice(&both.as_bytes()[..16]);
+            let reader = ours.reader([&ours, &theirs], &parts);
+            let (index, written) = ours
+                .index
+                .merge(&theirs.index, &reader, origin)
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(MergeResult::Clean(
+                Self::rebuilt(index, written, [&ours, &theirs], &Unsaved)
+                    .map_err(|error| error.to_string())?,
+            ))
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests;

@@ -10,8 +10,8 @@ fn the_right_arrow_scrolls_a_horizontal_scroll_the_focus_is_in() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @test_id="strip" direction=Direction::Horizontal>
-                        <ForEach keys={indices(40)}>|index: usize|
+                    <Scroll @test_id="strip" direction=Direction::Horizontal style={plain_scroll()}>
+                        <ForEach value={indices(40)}>|index: usize|
                             <Frame width=120.0>
                                 <LabelledButton
                                     label={format!("Card {index}")}

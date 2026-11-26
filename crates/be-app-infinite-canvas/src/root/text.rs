@@ -305,7 +305,7 @@ fn peer_carets(state: CanvasState, id: Uuid, area: TextAreaState) -> Memo<Vec<Re
         if theirs.is_empty() {
             return Vec::new();
         }
-        area.content().get();
+        area.content().track();
         remote_carets(area, theirs)
     })
 }
@@ -314,8 +314,8 @@ fn share_caret(state: CanvasState, id: Uuid, area: TextAreaState, editing: Memo<
     create_effect(move || {
         let caret = match editing.get() {
             true => {
-                area.cursors().get();
-                area.content().get();
+                area.cursors().track();
+                area.content().track();
                 untrack(|| SharedCaret::of(area))
             }
             false => None,
@@ -353,13 +353,13 @@ fn live_text(
     let adopted = StoredCell::new(false);
     let fitted = StoredCell::new(0_u64);
     create_effect(move || {
-        area.content().get();
+        area.content().track();
         let editing = editing.get();
         match editing {
             true => {
-                let _ = content.revision();
+                content.track();
             }
-            false => stored.with(|_| ()),
+            false => stored.track(),
         }
         untrack(|| {
             if !adopted.is_alive() {

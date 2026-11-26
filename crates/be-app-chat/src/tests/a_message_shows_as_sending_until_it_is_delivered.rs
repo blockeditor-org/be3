@@ -1,44 +1,31 @@
 use super::*;
 
+/// A message waits on the device until the server takes it, and shows as sending until then,
+/// in a chat opened again too.
 #[test]
 fn a_message_shows_as_sending_until_it_is_delivered() {
     let mut chat = Harness::new(&[(ROSA, "Are you on the train yet?")]);
 
-    chat.write("Just got on");
-    chat.click("chat.send");
-    let on = chat.id(1);
-    assert!(
-        chat.row(on).contains("Sending"),
-        "a message its replica confirmed is sending until the server holds it"
-    );
-    chat.editor.advance(Duration::from_millis(500));
-    assert!(
-        !chat.row(on).contains("Sending"),
-        "the server took the journal entry"
-    );
-
     chat.editor.store().set_online(false);
     chat.write("The signal keeps dropping");
     chat.click("chat.send");
-    let offline = chat.id(2);
-    chat.editor.advance(Duration::from_secs(40));
+    let kept = chat.kept(0);
     assert!(
-        chat.row(offline).contains("Sending"),
-        "a message sent offline is sending, sealed or not, until it is published"
-    );
-    assert!(
-        !chat.row(on).contains("Sending"),
-        "what was delivered before stays delivered"
+        chat.row(&kept).contains("Sending"),
+        "a message is sending until the server takes it"
     );
     chat.snapshot("a_message_sent_offline_shows_as_sending");
 
     let mut again = chat.reopened();
     assert!(
-        again.row(offline).contains("Sending"),
+        again.row(&kept).contains("Sending"),
         "a chat opened again still shows what the server lacks as sending"
     );
 
     again.editor.store().set_online(true);
     again.run();
-    assert!(!again.row(offline).contains("Sending"));
+    let sent = again.seq(1);
+    assert!(!again.editor.shown(&format!("chat.message.{kept}")));
+    assert!(!again.row(sent).contains("Sending"));
+    assert_eq!(again.bodies()[1], "The signal keeps dropping");
 }

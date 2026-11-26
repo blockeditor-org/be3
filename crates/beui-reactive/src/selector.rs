@@ -8,10 +8,10 @@ use crate::computation::create_effect;
 use crate::memo::{Memo, create_memo};
 use crate::runtime::{check_tracked_read, tracking};
 use crate::scope::on_cleanup;
-use crate::signal::{Get, Source, track};
+use crate::signal::{Get, Node, track};
 
 struct Watched {
-    source: Rc<Source>,
+    source: Rc<Node>,
     watchers: usize,
 }
 
@@ -32,19 +32,18 @@ pub fn create_selector<K: Clone + Eq + Hash + 'static>(
     let keys: Keys<K> = Rc::new(RefCell::new(HashMap::default()));
     let value = {
         let keys = keys.clone();
-        let mut previous: Option<K> = None;
-        create_memo(move || {
+        create_memo(move |previous: Option<&K>| {
             let next = source();
-            if let Some(previous) = previous.replace(next.clone())
-                && previous != next
+            if let Some(previous) = previous
+                && *previous != next
             {
-                notify(&keys, &previous);
+                notify(&keys, previous);
                 notify(&keys, &next);
             }
             next
         })
     };
-    create_effect(move || value.with(|_| ()));
+    create_effect(move || value.track());
     Selector {
         value,
         keys: arena::insert_owned(keys),
@@ -93,7 +92,7 @@ impl<K: Clone + Eq + Hash + 'static> Selector<K> {
         let source = {
             let mut keys = keys.borrow_mut();
             let watched = keys.entry(key.clone()).or_insert_with(|| Watched {
-                source: Rc::new(Source::default()),
+                source: Rc::new(Node::default()),
                 watchers: 0,
             });
             watched.watchers += 1;

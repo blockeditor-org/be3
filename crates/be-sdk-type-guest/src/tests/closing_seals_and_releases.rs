@@ -12,6 +12,6 @@ fn closing_seals_and_releases() {
     assert_eq!(sim.publishes, 1);
     assert_eq!(count(&sim.head_content()), 3);
     assert!(sim.devices[0].module.is_none());
-    assert!(sim.devices[1].status.owner);
+    assert!(sim.devices[1].status.holder);
     assert_eq!(sim.devices[1].status.head, sim.head);
 }

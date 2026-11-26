@@ -1,11 +1,10 @@
 use super::*;
 
-/// A module buck compiled for wasmtime (crates/be-host-runtime/BUCK), which the host loads as it
-/// is rather than compiling it.
-fn compiled(variable: &str) -> Vec<u8> {
+/// A module buck built (crates/be-host-runtime/BUCK names it).
+fn module(variable: &str) -> Vec<u8> {
     let path = std::env::var(variable).unwrap_or_else(|_| {
         panic!(
-            "{variable} names a module buck compiled, which crates/be-host-runtime/BUCK sets: \
+            "{variable} names a module buck built, which crates/be-host-runtime/BUCK sets: \
              run this test with ./scripts/test, not the harness binary on its own"
         )
     });
@@ -18,12 +17,12 @@ const TRIANGLE: &str = "5254d0a5-ae87-4afe-8458-50fde9cc0d2b";
 fn a_standalone_triangle_paints_what_the_triangle_linked_against_its_library_paints() {
     let editor = uuid::Uuid::parse_str(TRIANGLE).unwrap().into_bytes();
     let (linked, standalone, library) = (
-        compiled("TRIANGLE_CWASM"),
-        compiled("TRIANGLE_STANDALONE_CWASM"),
-        compiled("BASE_LIBRARY_CWASM"),
+        module("TRIANGLE_WASM"),
+        module("TRIANGLE_STANDALONE_WASM"),
+        module("BASE_LIBRARY_WASM"),
     );
     let (device, queue) = device();
-    let host = Host::new(device.clone(), queue.clone(), None).unwrap();
+    let host = Host::new(device.clone(), queue.clone()).unwrap();
     let linked = host
         .load_bytes_with_libraries(&linked, |_| Ok(library.clone()))
         .expect("the triangle linked against its library loads");

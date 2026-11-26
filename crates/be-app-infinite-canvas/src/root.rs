@@ -15,6 +15,7 @@ use uuid::Uuid;
 
 pub(crate) mod actions;
 pub(crate) mod canvas;
+pub(crate) mod carry;
 pub(crate) mod components;
 pub(crate) mod entities;
 pub(crate) mod export;
@@ -37,20 +38,18 @@ pub(crate) mod touch;
 
 use actions::canvas_actions;
 use canvas::CanvasStage;
-use export::ExportDialog;
 use layers::CanvasLayers;
 use mode::{MODE, ModeBar};
 use raster::RasterDialogs;
 use sidebar::CanvasInspector;
 use state::CanvasState;
-use toolbar::{ImportError, STAGE, SelectionDock, TOOLS, ToolBar, ZOOM, ZoomBar, tools_open};
+use toolbar::{STAGE, SelectionDock, TOOLS, ToolBar, ZOOM, ZoomBar, tools_open};
 use touch::TouchSetting;
 
 use crate::geometry::MIN_SIZE;
 use beui::Direction;
 
 pub(crate) const INSPECTOR: &str = "inspector";
-const LAYERS: &str = "layers";
 const INSPECTOR_WIDTH: f32 = 280.0;
 const LAYERS_HEIGHT: f32 = 240.0;
 
@@ -61,18 +60,17 @@ impl be_sdk_beui::BeuiRoot for CanvasRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         let presented = editor.presenting();
-        let editing = create_memo(move || !presented.get());
         view! {
             <Root>
                 <Loaded>
-                    <Layers>
-                        <Show condition={editing}>
+                    <Show
+                        value={presented}
+                        fallback={move || view! {
                             <CanvasEditor editor={editor} />
-                        </Show>
-                        <Show condition={presented}>
-                            <CanvasPresented editor={editor} />
-                        </Show>
-                    </Layers>
+                        }}
+                    >
+                        <CanvasPresented editor={editor} />
+                    </Show>
                 </Loaded>
             </Root>
         }
@@ -90,6 +88,10 @@ impl be_sdk_beui::BeuiRoot for CanvasRoot {
     fn create_block(creation: &Creation) -> Result<Uuid, String> {
         Ok(creation.create(&CanvasContent::default()))
     }
+
+    fn exporters() -> Vec<be_sdk_beui::Exporter> {
+        vec![export::png_exporter().into(), export::svg_exporter().into()]
+    }
 }
 
 #[component]
@@ -97,38 +99,34 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     let state = CanvasState::new(editor, false);
     state.watch();
 
-    editor.on_replace_child(move |old, new| {
-        state.is_alive() && state.replace_referenced_block(old, new)
-    });
-
     report_intrinsic_size(editor, state);
 
     let content = NodeRef::new();
     editor.content(&content);
     editor.keep_fitted(|| Some(Fit::Centre));
     let chrome = editor.chrome_shown();
-    let inspected = create_memo(move || {
-        chrome.get() && state.profile.get() != be_type_infinite_canvas::CanvasProfile::Prototyping
-    });
     let scope = NodeRef::new();
     action_scope(&scope);
     let actions = canvas_actions(state);
-    add_to_menu(menu::frame_menu(&actions));
+    // With the frame's fit once it has zoom actions, whenever it makes them.
+    let zoom = editor.zoom_actions();
+    let menu_actions = actions.clone();
+    create_effect(move || {
+        let fit_all = zoom.get().map(|zoom| zoom.fit);
+        untrack(|| add_to_menu(menu::frame_menu(&menu_actions, fit_all.as_ref())));
+    });
     let touch = actions.touch;
-    let exporter = actions.exporter;
     provide_context(actions);
     let open = tools_open(state, chrome);
     let bar_size = create_signal(Vec2::ZERO);
     let layout = DockingLayout::<&'static str>::new();
     view! {
-        <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="canvas" size={SplitSize::Second(INSPECTOR_WIDTH)}>
-                <DockPane id="stage" locked=true bare=true>
-                    <DockTab id=STAGE title="Canvas">
+        <Docking layout>
+            <DockSplit size={SplitSize::Second(INSPECTOR_WIDTH)}>
+                <DockPane stage=true>
+                    <DockTab id=STAGE>
                         <List @node_ref=&scope spacing=Space::None>
                             <TouchSetting editor choice={touch} />
-                            <ImportError state={state} />
-                            <ExportDialog exporter />
                             <RasterDialogs state />
                             <ListItem grow=1.0>
                                 <Layers>
@@ -139,19 +137,23 @@ fn CanvasEditor(editor: Editor) -> NodeId {
                         </List>
                     </DockTab>
                 </DockPane>
-                <Show condition={inspected}>
+                <Show
+                    value={move || {
+                        chrome.get()
+                            && state.profile.get() != be_type_infinite_canvas::CanvasProfile::Prototyping
+                    }}
+                >
                     <DockSplit
-                        id="side"
                         direction=Direction::Vertical
                         size={SplitSize::Second(LAYERS_HEIGHT)}
                     >
-                        <DockPane id="inspector" locked=true>
+                        <DockPane id="inspector">
                             <DockTab id=INSPECTOR title="Inspector">
                                 <CanvasInspector state={state} />
                             </DockTab>
                         </DockPane>
-                        <DockPane id="layers" locked=true>
-                            <DockTab id=LAYERS title="Layers">
+                        <DockPane>
+                            <DockTab title="Layers">
                                 <CanvasLayers state={state} />
                             </DockTab>
                         </DockPane>
@@ -207,12 +209,21 @@ fn CanvasPreview(editor: Editor) -> NodeId {
     }
 }
 
+/// The size an empty canvas asks for where it is placed: what it holds has no size yet. The
+/// same as be-host's `DEFAULT_EDITOR_SIZE` for an editor that tells none.
+const EMPTY_SIZE: Vec2 = Vec2::new(420.0, 240.0);
+
+/// Tells the size of what the canvas holds, which a placer fits its card to and zooms its
+/// camera over; an empty canvas tells `EMPTY_SIZE` instead.
 fn report_intrinsic_size(editor: Editor, state: CanvasState) {
     create_effect(move || {
-        let region = state.entities.region().size();
-        editor.set_intrinsic_size(Some(Vec2::new(
-            region.x.max(MIN_SIZE),
-            region.y.max(MIN_SIZE),
-        )));
+        let size = match state.entities.shows_anything() {
+            true => {
+                let region = state.entities.region().size();
+                Vec2::new(region.x.max(MIN_SIZE), region.y.max(MIN_SIZE))
+            }
+            false => EMPTY_SIZE,
+        };
+        editor.set_intrinsic_size(Some(size));
     });
 }

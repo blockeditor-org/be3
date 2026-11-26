@@ -58,12 +58,12 @@ pub(crate) struct OpenableBlock {
     pub(crate) at: Option<be_sdk_api::SearchLocation>,
 }
 
-/// Where quick open's rows come from. Handed what is typed into quick open and which opening of
-/// it this is (0 while the palette lists actions, when a source lists nothing and lets go of
-/// what it read), it answers the blocks to offer, filtered and in order: the palette keeps
-/// that order (`PaletteItem::ranked`), so a source can be a search answering as its results
-/// arrive (plans/search.md). The host's own, `found_blocks`, lists the blocks its graph holds
-/// whose names match, then what the search index finds in content.
+/// Where quick open's rows come from. Handed what is typed into quick open and which opening of it
+/// this is (0 while the palette lists actions, when a source lists nothing and lets go of what it
+/// read), it answers the blocks to offer, filtered and in order: the palette keeps that order
+/// (`PaletteItem::ranked`), so a source can be a search answering as its results arrive
+/// (guides/blocks/host.md, "Search"). The host's own, `found_blocks`, lists the blocks its graph
+/// holds whose names match, then what the search index finds in content.
 pub(crate) type BlockSource = Rc<dyn Fn(Memo<String>, Memo<u64>) -> Memo<Vec<OpenableBlock>>>;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -234,8 +234,8 @@ fn block_rows(blocks: Vec<OpenableBlock>, from: Option<Uuid>) -> Vec<Row> {
 }
 
 /// The host's own quick open: the blocks whose names match (`loaded_blocks`), then the search
-/// index's hits for what is typed (plans/search.md) that are not among them, in the index's
-/// order, each with the text around its match as its detail.
+/// index's hits for what is typed (guides/blocks/host.md, "Search") that are not among them, in the
+/// index's order, each with the text around its match as its detail.
 fn found_blocks(typed: Memo<String>, opened: Memo<u64>) -> Memo<Vec<OpenableBlock>> {
     let named = loaded_blocks(typed, opened);
     let searched = super::searched();
@@ -252,36 +252,80 @@ fn found_blocks(typed: Memo<String>, opened: Memo<u64>) -> Memo<Vec<OpenableBloc
     });
     on_cleanup(|| be_host_stack::want_searches(be_host_stack::Owner::Host, Vec::new()));
     create_memo(move || {
-        searched.get();
-        let mut blocks = named.get();
-        let Some(found) = asked.with(|asked| asked.as_ref().and_then(be_host_stack::searched))
-        else {
-            return blocks;
-        };
-        let registry = super::editors::editors().registry();
-        for hit in found.hits {
-            if blocks.iter().any(|block| block.id == hit.block) {
-                continue;
-            }
-            let Some(node) = be_host_stack::node(hit.block) else {
-                continue;
-            };
-            let Some(type_name) = registry.display_name(node.content_type) else {
-                continue;
-            };
-            blocks.push(OpenableBlock {
-                id: node.id,
-                block_type: node.content_type,
-                name: node.metadata.name().unwrap_or_else(|| type_name.to_owned()),
-                at: hit.matches.first().map(|range| be_sdk_api::SearchLocation {
-                    key: hit.key.clone(),
-                    text: hit.snippet[range.clone()].to_owned(),
-                }),
-                detail: hit.snippet,
-            });
+        searched.track();
+        let blocks = named.get();
+        match asked.with(|asked| asked.as_ref().and_then(be_host_stack::searched)) {
+            Some(found) => with_hits(blocks, found.hits),
+            None => blocks,
         }
-        blocks
     })
+}
+
+/// `blocks`, then the search index's `hits` that are not among them, in the index's order, each
+/// named after its block (else its type) with the text around its match as its detail.
+fn with_hits(
+    mut blocks: Vec<OpenableBlock>,
+    hits: Vec<be_host_stack::SearchHit>,
+) -> Vec<OpenableBlock> {
+    let registry = super::editors::editors().registry();
+    for hit in hits {
+        if blocks.iter().any(|block| block.id == hit.block) {
+            continue;
+        }
+        let Some(node) = be_host_stack::node(hit.block) else {
+            continue;
+        };
+        let Some(type_name) = registry.display_name(node.content_type) else {
+            continue;
+        };
+        blocks.push(OpenableBlock {
+            id: node.id,
+            block_type: node.content_type,
+            name: node.metadata.name().unwrap_or_else(|| type_name.to_owned()),
+            at: hit.matches.first().map(|range| be_sdk_api::SearchLocation {
+                key: hit.key.clone(),
+                text: hit.snippet[range.clone()].to_owned(),
+            }),
+            detail: hit.snippet,
+        });
+    }
+    blocks
+}
+
+#[cfg(not(target_os = "android"))]
+/// The search index's ask for what is `typed` into quick open, none for nothing typed.
+pub(crate) fn search_ask(typed: &str) -> Option<be_host_stack::SearchAsk> {
+    let text = typed.trim();
+    (!text.is_empty()).then(|| be_host_stack::SearchAsk {
+        text: text.to_owned(),
+        within: None,
+    })
+}
+
+#[cfg(not(target_os = "android"))]
+/// Whether quick open can answer what is `typed` now, as `quick_open` would: at once for
+/// nothing typed, else once the search index answered it.
+pub(crate) fn quick_open_ready(typed: &str) -> bool {
+    search_ask(typed).is_none_or(|ask| be_host_stack::searched(&ask).is_some())
+}
+
+#[cfg(not(target_os = "android"))]
+/// The blocks quick open offers by name before anything is typed (`graph_blocks`), those `open`
+/// in an editor first.
+pub(crate) fn quick_open_blocks(open: &[Uuid]) -> Vec<OpenableBlock> {
+    graph_blocks_open(open)
+}
+
+#[cfg(not(target_os = "android"))]
+/// Quick open's blocks for what is `typed`, as be-host's own palette finds them (`found_blocks`),
+/// for an ask that cannot watch them (a root's `host.find-blocks`): those of `blocks` whose names
+/// match, then the search index's hits once it answered (`quick_open_ready`).
+pub(crate) fn quick_open(blocks: &[OpenableBlock], typed: &str) -> Vec<OpenableBlock> {
+    let named = named(blocks, typed);
+    match search_ask(typed).and_then(|ask| be_host_stack::searched(&ask)) {
+        Some(found) => with_hits(named, found.hits),
+        None => named,
+    }
 }
 
 /// The host's quick open by name: the blocks its graph holds, read again each time quick open
@@ -295,31 +339,41 @@ fn loaded_blocks(typed: Memo<String>, opened: Memo<u64>) -> Memo<Vec<OpenableBlo
     });
     create_memo(move || {
         let typed = typed.get();
-        loaded.with(|blocks| {
-            if typed.trim().is_empty() {
-                return blocks.clone();
-            }
-            let mut scored: Vec<(u32, &OpenableBlock)> = blocks
-                .iter()
-                .filter_map(|block| {
-                    let item = PaletteItem {
-                        title: block.name.clone(),
-                        detail: block.detail.clone(),
-                        ..PaletteItem::default()
-                    };
-                    Some((item.fuzzy_score(&typed)?, block))
-                })
-                .collect();
-            scored.sort_by(|(a, _), (b, _)| b.cmp(a));
-            scored.into_iter().map(|(_, block)| block.clone()).collect()
-        })
+        loaded.with(|blocks| named(blocks, &typed))
     })
+}
+
+/// `blocks` fuzzily matched against what is `typed`, the best first; all of them, in order, for
+/// nothing typed.
+fn named(blocks: &[OpenableBlock], typed: &str) -> Vec<OpenableBlock> {
+    if typed.trim().is_empty() {
+        return blocks.to_vec();
+    }
+    let mut scored: Vec<(u32, &OpenableBlock)> = blocks
+        .iter()
+        .filter_map(|block| {
+            let item = PaletteItem {
+                title: block.name.clone(),
+                detail: block.detail.clone(),
+                ..PaletteItem::default()
+            };
+            Some((item.fuzzy_score(typed)?, block))
+        })
+        .collect();
+    scored.sort_by(|(a, _), (b, _)| b.cmp(a));
+    scored.into_iter().map(|(_, block)| block.clone()).collect()
 }
 
 fn graph_blocks() -> Vec<OpenableBlock> {
     let editors = super::editors::editors();
     let open: Vec<Uuid> = editors.with(|open| open.keys().copied().collect());
-    let registry = editors.registry();
+    graph_blocks_open(&open)
+}
+
+/// The blocks the graph holds that quick open offers (`graph_blocks`), those `open` in an editor
+/// first.
+fn graph_blocks_open(open: &[Uuid]) -> Vec<OpenableBlock> {
+    let registry = super::editors::editors().registry();
     let mut blocks: Vec<OpenableBlock> = be_host_stack::with_graph(|graph| {
         graph
             .nodes()

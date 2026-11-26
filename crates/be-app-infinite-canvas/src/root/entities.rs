@@ -376,14 +376,9 @@ impl Entities {
             {
                 entities.embedding.set(catalogued.embedding);
             }
-            if entities.extent.get_untracked() != catalogued.extent {
-                entities.extent.set(catalogued.extent);
-            }
+            entities.extent.set(catalogued.extent);
         });
-        create_effect(move || {
-            ids.with(|_| ());
-            untrack(|| entities.sweep());
-        });
+        create_effect_on(move || ids.track(), move |_, _| entities.sweep());
         entities
     }
 
@@ -392,7 +387,7 @@ impl Entities {
     }
 
     pub(crate) fn track_edits(&self) {
-        let _ = self.slots.value().content.revision();
+        self.slots.value().content.track();
     }
 
     pub(crate) fn watch(&self, id: Uuid) -> EntitySignals {
@@ -407,12 +402,12 @@ impl Entities {
     }
 
     pub(crate) fn get(&self, id: Uuid) -> Option<CanvasEntity> {
-        self.ids.with(|_| ());
+        self.ids.track();
         self.signals(id).stored.get()
     }
 
     pub(crate) fn raster(&self, id: Uuid) -> Memo<Option<CanvasRaster>> {
-        self.ids.with(|_| ());
+        self.ids.track();
         self.signals(id).raster
     }
 
@@ -483,6 +478,11 @@ impl Entities {
         });
         listed.sort_unstable();
         listed.into_iter().map(|(_, id)| id).collect()
+    }
+
+    /// Whether the canvas holds anything to show: a frame or another entity.
+    pub(crate) fn shows_anything(&self) -> bool {
+        self.first_frame().is_some() || self.extent.get().is_some()
     }
 
     pub(crate) fn region(&self) -> WorldRect {

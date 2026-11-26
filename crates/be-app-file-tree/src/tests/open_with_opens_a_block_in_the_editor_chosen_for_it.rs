@@ -28,6 +28,7 @@ fn open_with_opens_a_block_in_the_editor_chosen_for_it() {
                 name: "Note".to_owned(),
                 icon_codepoint: String::new(),
                 extensions: Vec::new(),
+                exporters: Vec::new(),
             },
             EditorDescriptor {
                 editor: debug.into_bytes(),
@@ -35,6 +36,7 @@ fn open_with_opens_a_block_in_the_editor_chosen_for_it() {
                 name: "Debug view".to_owned(),
                 icon_codepoint: String::new(),
                 extensions: Vec::new(),
+                exporters: Vec::new(),
             },
         ],
     });

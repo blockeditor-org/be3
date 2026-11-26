@@ -42,6 +42,7 @@ pub(crate) mod painter {
 }
 pub(crate) mod portal;
 pub(crate) mod reactive;
+pub(crate) mod replica;
 pub(crate) mod root;
 pub(crate) mod selectable;
 pub(crate) mod text;
@@ -62,13 +63,14 @@ pub(crate) use list::spacer;
 pub(crate) use offset::offset;
 pub(crate) use overlay::overlay;
 pub(crate) use portal::portal;
+pub(crate) use replica::replica;
 pub(crate) use root::root;
 pub(crate) use text::text;
 pub(crate) use text::text_item;
 pub(crate) use virtual_list::virtual_list;
 pub(crate) use window::{placed_windows, request_window};
 
-use crate::reactive::{Prop, create_binding};
+use crate::reactive::{Get, Prop, create_binding};
 
 fn bind<T: Clone + 'static>(prop: Prop<T>, apply: impl Fn(T) + 'static) {
     match prop {

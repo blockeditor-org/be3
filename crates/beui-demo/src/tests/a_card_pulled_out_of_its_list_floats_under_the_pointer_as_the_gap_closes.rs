@@ -19,6 +19,7 @@ fn a_card_pulled_out_of_its_list_floats_under_the_pointer_as_the_gap_closes() {
         test.record();
     }
     test.settle();
+    test.record();
     test.snapshot("a_card_pulled_out_of_its_list_floats_under_the_pointer_as_the_gap_closes");
     test.up(away, PointerButton::Primary);
     test.settle();

@@ -21,6 +21,7 @@ pub(super) struct Loader {
 }
 
 impl Loader {
+    /// The module compiled and runs what is wanted now.
     pub(super) fn installed(&mut self, wanted: Wanted) {
         self.loaded = Some((wanted.app.clone(), wanted.module.clone()));
         self.fetching = None;
@@ -51,13 +52,28 @@ impl Loader {
         }
     }
 
+    /// The module arrived: what is wanted of it, if it is still the one wanted. It stays on its
+    /// way while it compiles, until `installed` or `failed`.
     pub(super) fn fetched(&mut self, app: &str, module: &str) -> Option<Wanted> {
         let wanted = self.wanted.clone()?;
         if wanted.app != app || wanted.module != module {
             return None;
         }
-        self.installed(wanted.clone());
         Some(wanted)
+    }
+
+    /// A module this device kept from its last session is compiling: wanted, and on its way
+    /// until `installed` or `failed`.
+    pub(super) fn compiling(&mut self, wanted: Wanted) {
+        self.fetching = Some((wanted.app.clone(), wanted.module.clone()));
+        self.wanted = Some(wanted);
+    }
+
+    /// Whether `app`'s `module` is the one wanted now.
+    pub(super) fn wants(&self, app: &str, module: &str) -> bool {
+        self.wanted
+            .as_ref()
+            .is_some_and(|wanted| wanted.app == app && wanted.module == module)
     }
 
     /// Whether this module is on its way.

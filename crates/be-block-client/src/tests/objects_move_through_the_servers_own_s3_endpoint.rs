@@ -9,7 +9,7 @@ async fn objects_move_through_the_servers_own_s3_endpoint() {
     let text = large_text();
     phone.save(note, &TextBlock::of(&text), None).await.unwrap();
     let head = phone.summary(note).await.unwrap().head.unwrap();
-    let manifest = phone.load_commit(head).await.unwrap().manifest;
+    let manifest = phone.load_reached(head).await.unwrap().manifest;
     let chunks = phone.objects_of(&manifest).await.unwrap();
     // Every object the save sent: the server holds them, so it asks for none again (their
     // lengths, which only room for an upload is reserved by, do not matter).
@@ -20,9 +20,13 @@ async fn objects_move_through_the_servers_own_s3_endpoint() {
             length: Some(1),
         })
         .collect();
-    let urls = crate::ask(be_block_protocol::client::objects::upload_urls(
+    let urls = crate::ask(be_block_protocol::write::<
+        Vec<Option<be_block_protocol::UploadUrl>>,
+        _,
+    >(
         &phone.connection(),
-        lengths,
+        Some(phone.organization()),
+        be_block_protocol::Op::ReserveUploads(lengths),
     ))
     .await
     .unwrap();

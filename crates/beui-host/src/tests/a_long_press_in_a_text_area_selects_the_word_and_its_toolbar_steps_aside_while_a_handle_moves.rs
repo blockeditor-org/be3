@@ -38,11 +38,11 @@ fn a_long_press_in_a_text_area_selects_the_word_and_its_toolbar_steps_aside_whil
         "the long press selects the word"
     );
     assert!(
-        text_within(harness.document(), root, "Copy").is_some(),
+        find_text(harness.document(), root, "Copy", Match::Exact).is_some(),
         "and shows the toolbar"
     );
     assert!(
-        text_within(harness.document(), root, "Select All").is_some(),
+        find_text(harness.document(), root, "Select All", Match::Exact).is_some(),
         "with the selection's actions on it"
     );
 
@@ -59,7 +59,7 @@ fn a_long_press_in_a_text_area_selects_the_word_and_its_toolbar_steps_aside_whil
     harness.touch(TouchPhase::Move, further);
     harness.frame(Vec::new());
     assert!(
-        text_within(harness.document(), root, "Copy").is_none(),
+        find_text(harness.document(), root, "Copy", Match::Exact).is_none(),
         "the toolbar steps aside while a handle moves"
     );
     harness.touch(TouchPhase::End, further);
@@ -70,7 +70,7 @@ fn a_long_press_in_a_text_area_selects_the_word_and_its_toolbar_steps_aside_whil
         "the handle grew the selection to {range:?}"
     );
     assert!(
-        text_within(harness.document(), root, "Copy").is_some(),
+        find_text(harness.document(), root, "Copy", Match::Exact).is_some(),
         "and comes back once the handle is let go"
     );
 }

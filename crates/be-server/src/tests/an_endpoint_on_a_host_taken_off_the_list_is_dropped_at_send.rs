@@ -21,8 +21,7 @@ async fn an_endpoint_on_a_host_taken_off_the_list_is_dropped_at_send() {
     let mut harness = Harness::configured(pushing_to(&["127.0.0.1", "127.0.0.2"])).await;
     let mut service = TestPushService::start(|_| (201, String::new())).await;
     let port = service.url.rsplit(':').next().unwrap().to_owned();
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     let organization = owner.personal().await;
     let block = owner.create_block(BlockParent::Root).await;
     let (mut member, account) = viewer_of(&harness, &mut owner, block, "member@example.com").await;

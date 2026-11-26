@@ -1,6 +1,6 @@
 //! `Probe`, a block type whose merge over parts reaches past what it was handed: it reads the
-//! part its content names (any part, of any block) and makes a call other than `read-part`
-//! under the request, and fails with what the host answered both, so a test sees the host
+//! part its content names (any part, of any block) and makes a part writer (a call other than
+//! `read-part`) under the request, and fails with what the host answered both, so a test sees the host
 //! refuse them. Its searchable text breaks every rule a type should keep, for the host to
 //! enforce: `PROBE_ANSWERS` says what it answers.
 
@@ -88,12 +88,14 @@ impl Merge for Probe {
 fn reach(target: Option<PartRef>, parts: PartReader) -> impl Future<Output = String> + 'static {
     let request = ops::request();
     async move {
-        let put = || host::put_part(b"a probe".to_vec());
-        let called = match request {
-            Some(request) => ops::with_parent(request, put),
-            None => put(),
-        }
-        .await;
+        // A resource, whose methods have it as their parent rather than the request.
+        let writer = match request {
+            Some(request) => ops::with_parent(request, host::PartWriter::new),
+            None => host::PartWriter::new(),
+        };
+        writer.write(b"a probe".to_vec()).detach();
+        let called = writer.finish().await;
+        drop(writer);
         let read = match target {
             Some(target) => parts.read_all(target).await.map(|bytes| bytes.len()),
             None => Err("no target".to_owned()),

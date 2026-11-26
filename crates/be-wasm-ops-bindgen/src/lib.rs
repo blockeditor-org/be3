@@ -30,7 +30,9 @@ struct Options {
     ordered: BTreeSet<String>,
     deps: Vec<String>,
     local: BTreeSet<String>,
+    secret: BTreeSet<String>,
     network: bool,
+    root: Option<syn::Path>,
 }
 
 impl Parse for Options {
@@ -45,6 +47,7 @@ impl Parse for Options {
                 "path" => options.path = content.parse::<LitStr>()?.value(),
                 "world" => options.world = content.parse::<LitStr>()?.value(),
                 "network" => options.network = content.parse::<syn::LitBool>()?.value,
+                "root" => options.root = Some(content.parse()?),
                 "with" | "encodings" => {
                     let target = match key.to_string().as_str() {
                         "with" => &mut options.with,
@@ -76,7 +79,7 @@ impl Parse for Options {
                     }
                 }
                 "copy" | "default" | "inline" | "lenient" | "ordered" | "deps" | "own_debug"
-                | "local" => {
+                | "local" | "secret" => {
                     let names;
                     bracketed!(names in content);
                     let names: Punctuated<LitStr, Token![,]> =
@@ -91,6 +94,7 @@ impl Parse for Options {
                         "ordered" => options.ordered = set(),
                         "own_debug" => options.own_debug = set(),
                         "local" => options.local = set(),
+                        "secret" => options.secret = set(),
                         _ => options.default = set(),
                     }
                 }
@@ -120,9 +124,12 @@ mod tests;
 ///
 /// Options, each a list of WIT type names unless said:
 /// - `with` (map): an existing Rust type in place of a WIT type with the same serde data
-///   model. Nothing checks that the two agree, so use it only for byte arrays (uuids,
-///   hashes, colours) and newtype ids; generate anything with fields of its own.
-///   Network worlds may map onto the very types their client and server share.
+///   model: byte arrays (uuids, hashes, colours), newtype ids, or a type both sides already
+///   share (network worlds' client and server, the block stack's types a type module and its
+///   host exchange). The generator does not check that the two agree (a test that generates
+///   the world again under `root`, with only its ids mapped, can): a mapped record keeps the
+///   WIT's fields in their order, a variant its cases, a record a case carries is `inline`
+///   when the Rust case has fields of its own, and byte fields use `serde_bytes`.
 /// - `uses` (map): take a whole interface of another package from its generated crate.
 ///   A type another interface `use`s needs a `uses` entry for its defining interface.
 /// - `copy`: mapped types that are `Copy`. `default`: types that derive `Default` (a
@@ -131,18 +138,60 @@ mod tests;
 ///   non-`Copy` types that derive `Ord` and `Hash`. `own_debug`: types whose crate writes
 ///   `Debug` itself.
 /// - `encodings` (map): the `be_wasm_ops::wire` encoding of a `with` type holding bytes.
+/// - `secret`: types holding a secret (a password): a call taking one, at any depth, has its encoded
+///   arguments zeroed once decoded (`be_wasm_ops::scrub`), so the secret lives on only in the
+///   decoded value, whose type zeroes itself. No other call pays for it. A type holding one
+///   is neither copied nor compared: it derives `Debug` alone.
 /// - `local`: interfaces answered synchronously on the guest's own thread (the GPU);
 ///   only these may have plain `func`s.
 /// - `network: true`: a client and server over a socket instead of a guest and host.
+/// - `root` (a path): the module the world is generated in, when not the crate root. It lets a
+///   world be generated a second time inside a test module, beside the one its crate exports. Every `crate::` path of the
+///   output, the `with` and `uses` paths too, is read under it. Not with `local`.
 #[proc_macro]
 pub fn generate(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let options = syn::parse_macro_input!(input as Options);
+    let root = options.root.clone();
+    if root.is_some() && !options.local.is_empty() {
+        return syn::Error::new(Span::call_site(), "`root` does not take `local` interfaces")
+            .to_compile_error()
+            .into();
+    }
     match Generator::run(options) {
-        Ok(tokens) => tokens.into(),
+        Ok(tokens) => match root {
+            Some(root) => rooted(tokens, &root).into(),
+            None => tokens.into(),
+        },
         Err(error) => syn::Error::new(Span::call_site(), error)
             .to_compile_error()
             .into(),
     }
+}
+
+/// `tokens` with each `crate` path segment, outside a `$crate`, read as `root`.
+fn rooted(tokens: TokenStream, root: &syn::Path) -> TokenStream {
+    use proc_macro2::{Group, TokenTree};
+    let mut out = TokenStream::new();
+    let mut after_dollar = false;
+    for tree in tokens {
+        match tree {
+            TokenTree::Ident(ident) if ident == "crate" && !after_dollar => {
+                out.extend(quote!(#root));
+                after_dollar = false;
+            }
+            TokenTree::Group(group) => {
+                let mut rooted_group = Group::new(group.delimiter(), rooted(group.stream(), root));
+                rooted_group.set_span(group.span());
+                out.extend([TokenTree::Group(rooted_group)]);
+                after_dollar = false;
+            }
+            other => {
+                after_dollar = matches!(&other, TokenTree::Punct(punct) if punct.as_char() == '$');
+                out.extend([other]);
+            }
+        }
+    }
+    out
 }
 
 const KEYWORDS: &[&str] = &[
@@ -260,6 +309,7 @@ impl Generator {
             methods: BTreeMap::new(),
             package: None,
         };
+        generator.byte_lists_have_encodings()?;
         let world = generator.resolve.worlds[world].clone();
         generator.package = world.package;
         let interfaces = |items: &wit_parser::IndexMap<_, WorldItem>| {
@@ -796,6 +846,38 @@ impl Generator {
         })
     }
 
+    /// Whether `ty` holds a type the options name as a secret, at any depth: itself, or in a
+    /// record's field, a list, an option, a tuple, a result or a variant's case.
+    fn holds_secret(&self, ty: &Type) -> bool {
+        let Type::Id(id) = ty else {
+            return false;
+        };
+        let def = &self.resolve.types[*id];
+        if def
+            .name
+            .as_ref()
+            .is_some_and(|name| self.options.secret.contains(name))
+        {
+            return true;
+        }
+        let holds = |ty: &Type| self.holds_secret(ty);
+        match &def.kind {
+            TypeDefKind::Type(inner) | TypeDefKind::List(inner) | TypeDefKind::Option(inner) => {
+                holds(inner)
+            }
+            TypeDefKind::Record(record) => record.fields.iter().any(|field| holds(&field.ty)),
+            TypeDefKind::Tuple(tuple) => tuple.types.iter().any(holds),
+            TypeDefKind::Variant(variant) => variant
+                .cases
+                .iter()
+                .any(|case| case.ty.as_ref().is_some_and(holds)),
+            TypeDefKind::Result(result) => {
+                result.ok.as_ref().is_some_and(holds) || result.err.as_ref().is_some_and(holds)
+            }
+            _ => false,
+        }
+    }
+
     fn is_local(&self, interface: InterfaceId) -> bool {
         self.resolve
             .id_of(interface)
@@ -807,6 +889,39 @@ impl Generator {
             Some(ty) => self.ty(ty),
             None => Ok(quote!(())),
         }
+    }
+
+    /// Refuses a `with` that puts an array in place of a `list<u8>` (an id as its bytes) with no
+    /// `encodings` entry: a Rust array is a tuple on the wire, not the list the WIT says.
+    fn byte_lists_have_encodings(&self) -> Result<(), String> {
+        for (name, mapped) in &self.options.with {
+            if !matches!(mapped, syn::Type::Array(_)) || self.options.encodings.contains_key(name) {
+                continue;
+            }
+            let byte_list = self
+                .resolve
+                .types
+                .iter()
+                .filter(|(_, def)| def.name.as_deref() == Some(name.as_str()))
+                .any(|(_, def)| {
+                    let mut kind = &def.kind;
+                    loop {
+                        match kind {
+                            TypeDefKind::List(Type::U8) => return true,
+                            TypeDefKind::Type(Type::Id(next)) => {
+                                kind = &self.resolve.types[*next].kind;
+                            }
+                            _ => return false,
+                        }
+                    }
+                });
+            if byte_list {
+                return Err(format!(
+                    "`{name}` is a list<u8> mapped onto an array, which goes on the wire as a tuple: give it an encoding, `encodings: {{\"{name}\": ::be_wasm_ops::wire::Bytes}}`"
+                ));
+            }
+        }
+        Ok(())
     }
 
     fn encoding_of(&self, ty: &Type) -> Option<TokenStream> {
@@ -940,18 +1055,26 @@ impl Generator {
             true => quote!(#[serde(default)]),
             false => TokenStream::new(),
         };
-        let copy = self.copyable(&Type::Id(id));
-        let exact = !self.floating(&Type::Id(id));
-        let ordered = exact && (copy || listed(&self.options.ordered));
-        let mut derives = vec!["Clone"];
-        derives.extend(copy.then_some("Copy"));
-        derives.extend((!listed(&self.options.own_debug)).then_some("Debug"));
-        derives.extend(listed(&self.options.default).then_some("Default"));
-        derives.extend(exact.then_some("Eq"));
-        derives.extend(ordered.then_some("Hash"));
-        derives.extend(ordered.then_some("Ord"));
-        derives.push("PartialEq");
-        derives.extend(ordered.then_some("PartialOrd"));
+        let debug = (!listed(&self.options.own_debug)).then_some("Debug");
+        // A type holding a secret is neither copied nor compared, as the secret's own type is
+        // not: it derives `Debug` alone, which the secret's type writes without the secret.
+        let mut derives = Vec::new();
+        if self.holds_secret(&Type::Id(id)) {
+            derives.extend(debug);
+        } else {
+            let copy = self.copyable(&Type::Id(id));
+            let exact = !self.floating(&Type::Id(id));
+            let ordered = exact && (copy || listed(&self.options.ordered));
+            derives.push("Clone");
+            derives.extend(copy.then_some("Copy"));
+            derives.extend(debug);
+            derives.extend(listed(&self.options.default).then_some("Default"));
+            derives.extend(exact.then_some("Eq"));
+            derives.extend(ordered.then_some("Hash"));
+            derives.extend(ordered.then_some("Ord"));
+            derives.push("PartialEq");
+            derives.extend(ordered.then_some("PartialOrd"));
+        }
         let derives = derives
             .into_iter()
             .map(|derive| Ident::new(derive, Span::call_site()));
@@ -1486,7 +1609,9 @@ impl Generator {
         let mut cases = Vec::new();
         let mut started_methods: Vec<TokenStream> = Vec::new();
         let mut arms = Vec::new();
+        let mut scrubs = false;
         let mut refusals = Vec::new();
+        let mut ops = Vec::new();
         let mut handles = BTreeSet::new();
         for method in methods {
             let resource = method.function.kind.resource().map(|resource| {
@@ -1568,10 +1693,24 @@ impl Generator {
                 (Shape::Call(_), _, _) => quote!(Call::#case { reply, .. } => reply.into_op()),
                 (Shape::Stream(_), _, _) => quote!(Call::#case { stream, .. } => stream.op()),
             });
+            ops.push(match (&method.shape, &resource, &method.function.kind) {
+                (_, Some(_), FunctionKind::Constructor(_)) => {
+                    quote!(Call::#case { resource, .. } => resource.op())
+                }
+                (Shape::Call(_), _, _) => quote!(Call::#case { reply, .. } => reply.op()),
+                (Shape::Stream(_), _, _) => quote!(Call::#case { stream, .. } => stream.op()),
+            });
             started_methods.push(quote!(crate::__args::#constant));
+            // A call taking a secret has its arguments zeroed once decoded, so the secret lives on
+            // only in the call.
+            let secret = method.params.iter().any(|(_, ty)| self.holds_secret(ty));
+            scrubs |= secret;
+            let scrub = secret.then(|| quote!(::be_wasm_ops::scrub(&mut started.args);));
             arms.push(quote! {
                 crate::__args::#constant => {
-                    match ::be_wasm_ops::decode::<crate::__args::#args>(&started.args) {
+                    let decoded = ::be_wasm_ops::decode::<crate::__args::#args>(&started.args);
+                    #scrub
+                    match decoded {
                         ::core::option::Option::Some(crate::__args::#args { #(#names),* }) => {
                             Call::#case { #(#this_started,)* #(#value,)* #(#names,)* }
                         }
@@ -1603,6 +1742,7 @@ impl Generator {
                 }
             }
         });
+        let mutable = scrubs.then(|| quote!(let mut started = started;));
         let accept = match arms.is_empty() {
             true => quote! {
                 connection.complete(
@@ -1612,6 +1752,7 @@ impl Generator {
                 ::core::option::Option::None
             },
             false => quote! {
+                #mutable
                 let op = started.op;
                 ::core::option::Option::Some(match started.method {
                     #(#arms)*
@@ -1624,6 +1765,10 @@ impl Generator {
                     }
                 })
             },
+        };
+        let op_body = match ops.is_empty() {
+            true => quote!(match *self {}),
+            false => quote!(match self { #(#ops,)* }),
         };
         quote! {
             #(#handles)*
@@ -1654,6 +1799,11 @@ impl Generator {
                         #(#refusals,)*
                     };
                     (op, ::be_wasm_ops::Outcome::Err(error))
+                }
+
+                /// The op the call was started as, which its answer completes.
+                pub fn op(&self) -> ::be_wasm_ops::OpId {
+                    #op_body
                 }
             }
         }

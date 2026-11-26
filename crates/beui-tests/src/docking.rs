@@ -21,7 +21,7 @@ fn name(tab: TabId) -> &'static str {
     }
 }
 
-fn describe(state: &DockState, tree: &DockTree) -> String {
+fn describe(tree: &DockTree) -> String {
     match tree {
         DockTree::Tabs {
             entries, active, ..
@@ -34,7 +34,7 @@ fn describe(state: &DockState, tree: &DockTree) -> String {
                     match entry {
                         DockTreeEntry::Tab(tab) => format!("{}{mark}", name(*tab)),
                         DockTreeEntry::Group(group) => {
-                            format!("{{{}}}{mark}", describe(state, group))
+                            format!("{{{}}}{mark}", describe(group))
                         }
                     }
                 })
@@ -56,11 +56,7 @@ fn describe(state: &DockState, tree: &DockTree) -> String {
                 SplitSize::First(points) => format!("{points:.0}pt<"),
                 SplitSize::Second(points) => format!(">{points:.0}pt"),
             };
-            format!(
-                "({} {between}{size} {})",
-                describe(state, first),
-                describe(state, second)
-            )
+            format!("({} {between}{size} {})", describe(first), describe(second))
         }
     }
 }
@@ -72,7 +68,7 @@ fn report(state: &DockState) -> String {
         .into_iter()
         .filter_map(|surface| {
             let tree = state.tree(Tree::Surface(surface))?;
-            let described = describe(state, &tree);
+            let described = describe(&tree);
             Some(
                 match state
                     .window_rect(surface)
@@ -101,7 +97,7 @@ fn Panel(tab: TabId) -> NodeId {
 
 #[component]
 pub fn DockingFixture() -> NodeId {
-    let layout = DockingLayout::new();
+    let layout = DockingLayout::<TabId>::new();
     let open = create_signal(vec![ALPHA, BETA]);
     let state = layout.state();
     let described = create_memo(move || state.with(report));
@@ -118,7 +114,7 @@ pub fn DockingFixture() -> NodeId {
                             size={SplitSize::Fraction(0.5)}
                         >
                             <DockPane id="left">
-                                <ForEach keys={open}>|tab: TabId|
+                                <ForEach value={open}>|tab: TabId|
                                     <DockTab id=tab title={name(tab)} on_close={move || close(tab)}>
                                         <Panel tab />
                                     </DockTab>

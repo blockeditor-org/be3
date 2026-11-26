@@ -1,5 +1,4 @@
 use accesskit::{Node, Role};
-use beui_macros::{component, view};
 use beui_view::types::icons::Glyph;
 
 use crate as unstyled;
@@ -20,8 +19,8 @@ pub fn SplitButton(
     #[prop(default = false)] disabled: Prop<bool>,
     items: Children<MenuItem>,
     menu: MenuStyle,
-    main: Render<ButtonHandle>,
-    arrow: Render<PopupTriggerHandle>,
+    main: Render<ButtonHandle, NodeId>,
+    arrow: Render<PopupTriggerHandle, NodeId>,
     on_click: Callback<()>,
 ) -> NodeId {
     let label = create_memo(move || label.get());

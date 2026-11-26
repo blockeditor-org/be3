@@ -37,8 +37,8 @@ fn turning_an_oklch_color_wheel_keeps_its_lightness() {
     harness.frame(Vec::new());
 
     let changes = changes.get_untracked();
-    assert_eq!(changes.len(), 1);
-    let turned = Oklch::from_color(changes[0]);
+    assert!(!changes.is_empty(), "the drag writes the value as it goes");
+    let turned = Oklch::from_color(*changes.last().expect("the drag wrote"));
     assert!((turned.hue - 180.0).abs() < 2.0, "{turned:?}");
     assert!((turned.lightness - 0.6).abs() < 0.01, "{turned:?}");
     assert!((turned.chroma - 0.06).abs() < 0.01, "{turned:?}");

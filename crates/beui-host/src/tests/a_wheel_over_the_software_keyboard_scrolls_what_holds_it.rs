@@ -14,7 +14,7 @@ fn a_wheel_over_the_software_keyboard_scrolls_what_holds_it() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @node_ref=&scroll>
+                    <Scroll @node_ref=&scroll style={plain_scroll()}>
                         <List spacing=0.0>
                             <Frame height=300.0 @node_ref=&keyboard>
                                 <SoftwareKeyboard />

@@ -1,11 +1,11 @@
 use be_lib_stable_hash::{HashMap, HashSet};
 
-use beui_types::Direction;
-use beui_types::{Pos2, Rect};
+use be_lib_geometry::Direction;
+use be_lib_geometry::{Pos2, Rect};
 
 use super::{
-    Bar, DockBarPlacement, DockCompact, DockEdge, DockHome, DockOutside, DockState, Entry,
-    FLOATING_SIZE, Group, GroupId, Home, Leaf, LeafId, MIN_SIDEBAR_WIDTH, Node, Side, Split,
+    Bar, DockBarPane, DockBarPlacement, DockCompact, DockEdge, DockHome, DockOutside, DockState,
+    Entry, FLOATING_SIZE, Group, GroupId, Home, Leaf, LeafId, MIN_SIDEBAR_WIDTH, Node, Side, Split,
     SplitId, SplitSize, Surface, SurfaceId, TabId, Tree,
 };
 
@@ -33,7 +33,9 @@ pub struct DockSpecBar {
     pub hidden: bool,
     /// The tab of the owner's joined dock whose pane shows the bar (`DockState::place_bar_on`);
     /// `None` is its first pane.
-    pub pane: Option<TabId>,
+    pub pane: Option<DockBarPane>,
+    /// Where the bar was among its pane's bars across layers when saved (`number_bar_slots`).
+    pub slot: Option<usize>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -55,6 +57,9 @@ pub struct DockSpecWindow {
     /// Where the host last put the window when it shows it on its own (its opaque host place),
     /// which `rect` may not be while the host keeps the window on smaller displays.
     pub placed: Option<String>,
+    /// The window opens hidden and unfocused when it is first added (`DockState::hide_window`);
+    /// a window already there keeps whether it shows.
+    pub hidden: bool,
     pub root: Option<DockSpecNode>,
 }
 
@@ -359,7 +364,8 @@ impl DockState {
                     owner: declared.owner,
                     placement: declared.placement,
                     hidden: declared.hidden,
-                    pane: declared.pane,
+                    pane: declared.pane.clone(),
+                    slot: declared.slot,
                 },
             );
         }
@@ -394,6 +400,9 @@ impl DockState {
             let id = self.add_window(window.rect, Some(window.key.clone()), root);
             if let Some(surface) = self.surface_mut(id) {
                 surface.placed.clone_from(&window.placed);
+            }
+            if window.hidden {
+                self.hide_window(id);
             }
         }
         self.settle_areas(&spec.sites());
@@ -708,7 +717,11 @@ impl DockState {
                 Some(surface) => Tree::Surface(surface),
                 None => {
                     let id = leaf.id;
-                    self.add_window(window.rect, Some(window.key.clone()), Node::Leaf(leaf));
+                    let surface =
+                        self.add_window(window.rect, Some(window.key.clone()), Node::Leaf(leaf));
+                    if window.hidden {
+                        self.hide_window(surface);
+                    }
                     return Some(id);
                 }
             },
@@ -920,8 +933,11 @@ impl DockState {
         {
             let leaf = self.spec_leaf(site.pane, vec![entry]);
             let id = leaf.id;
-            self.add_window(window.rect, Some(window.key.clone()), Node::Leaf(leaf));
-            self.focus(id);
+            let surface = self.add_window(window.rect, Some(window.key.clone()), Node::Leaf(leaf));
+            match window.hidden {
+                true => self.hide_window(surface),
+                false => self.focus(id),
+            }
             return;
         }
         if (site.pane.locked() || matches!(site.holder, Holder::Group(_)))

@@ -96,3 +96,5 @@ fn a_hosted_window_keeps_its_place_when_a_dock_bar_moves_the_docks_area() {
         "and the dock still knows where it is, though its own area moved down under the band"
     );
 }
+
+test_editor!(HostedRoot);

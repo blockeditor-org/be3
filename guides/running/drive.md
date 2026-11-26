@@ -91,10 +91,18 @@ succeeds and the program exits cleanly. crates/be-host-tests uses it (guides/tes
       Pane "Checklist" at 253,51 size 837x608
         CheckBox "buy milk" toggled=True at 307,307 size 624x18
 
-Coordinates are pixels from the window's corner. In be-host each app region is a `Pane` (guides/apps/editor.md, Accessibility) named
+A line names the node's role, its label, then any `value=`, `description=` (what a screen
+reader says after them, such as a menu item's detail), state (`toggled=`, `disabled`,
+`selected`, `focused`) and test ids. Coordinates are pixels from the window's corner. In be-host, and under a root in its place, each app region is a `Pane` (guides/apps/editor.md, Accessibility) named
 after its app, holding the nodes its editor describes, so apps read like the host's own
 controls. An app's anchored view (a menu or popover past its frame) is an untitled container
-beside its `Pane`.
+beside its `Pane`, as is a dock bar of an app's tools.
+
+Under `--root` the tree past be-host's window node is the root's (`frame-done.accessibility`):
+an untitled container for each layer it draws, in z-order, holding what its own surface
+describes or what the app on that screen does, so test ids and labels read as they do in be-host.
+A press by name lands at the point the tree says; other accessibility actions do not reach the
+root yet.
 
 - `ids` lists every test id and where it is, apps included. Test ids are the steadiest names.
 - `find TARGET` says where a target is; `find TARGET reveal` scrolls it into view first, and
@@ -111,8 +119,8 @@ beside its `Pane`.
 - `shot FILE.png [TARGET]` is a PNG of what the platform shows (under space, the 3D view).
 - `paint FILE.paint [TARGET] [in WINDOW]` is a paint snapshot (guides/testing_a_gui.md, 4) with
   every app's painting where the host composites it, which compares exactly where a PNG would
-  not; `paint FILE.png` draws it flat. What an app draws through its own `Drawing`, a web view
-  or a Wayland window is a placeholder.
+  not; `paint FILE.png` draws it flat. What an app draws through its own `Drawing` or a web view
+  is a placeholder; a Wayland window paints what its program drew.
 - `overflows` lists what the window shows out of bounds, host and apps included.
 
 ## Targets
@@ -127,7 +135,11 @@ from `drive windows` (each display's window in a login session, say).
 
 A command that presses, points or types at a target first scrolls it into view when a scroll
 hides or cuts it (the accessibility `ScrollIntoView`), then aims at the middle of the part that
-shows. `shot` and `paint` reveal and crop the same way. `BeuiTest::click` does the same.
+shows. It aims at where the target is when the command reads the tree, and the press lands frames
+later: a target still moving (a sheet sliding up as it opens) has moved by then, and the press
+can land beside it, or outside the sheet and close it. Wait for it to settle first (`settle`, or
+`pause` with the clock stopped). beui itself takes a press where things are drawn as it takes it
+(beui-host's `a_tap_on_a_sheet_still_sliding_up_lands_on_the_row_drawn_under_it`). `shot` and `paint` reveal and crop the same way. `BeuiTest::click` does the same.
 
 ## Acting
 
@@ -141,6 +153,13 @@ shows. `shot` and `paint` reveal and crop the same way. `BeuiTest::click` does t
     drive type 'buy milk'           drive key ctrl+z Enter shift+Tab
     drive ime compose ni; drive ime commit 你
     drive act ACTION_ID [PANE]      drive a11y TARGET [ACTION [VALUE]]
+    drive back                      drive back left|right; drive back 0.4; drive back commit|cancel
+
+`back` alone is a whole system back gesture from the left edge, as a phone's swipe or back
+button gives (guides/beui/overlays.md, Back and `BackSlide`). `back left` or `back right` starts
+one from that edge and holds it; `back PROGRESS` (0 to 1) moves it there, starting one from the
+left if none is under way; `back commit` ends it as invoked, `back cancel` as cancelled, so a
+test can stop part way and see what the gesture previews.
 
 `pen draw` packs PER_FRAME samples into each frame, as a fast stylus or a backed-up program
 delivers them. `motion DX DY` is relative motion for a locked pointer. `a11y` acts through the
@@ -157,35 +176,42 @@ input, one a line, and stops at the first that fails:
 
 Every input command waits until the program settles, then prints the tree's changes as `-` and
 `+` lines (`--changes=N|all|0`). `--no-settle` answers after the frame that took the input, to
-see the program part way through something. A command gives up after 30 s
+see the program part way through something. On a session command (`settle`, `clock`, `hurry`,
+`present`), `--no-settle` answers after one frame rather than once the program settles; `paint`, which
+paints the settled frame, under `--no-settle` paints the next frame as it is. With the clock
+stopped and `step on`, a test steps frame by frame with commands (The clock, below). A command gives up after 30 s
 (`--timeout=SECONDS`) and names what kept the program busy.
 
 A program has settled once a frame asks for no other and `Program::busy` gives no reason.
 be-host is busy while an app starts, owes a frame or has unanswered input, while an editor on
 screen waits for content (its own block's, or a block it watches beside it, such as the text
 app's view state: one that is offline and not cached keeps `settle` waiting), while an account
-request is pending, and while the block store has
-work queued or edits to journal, or, while hurried, to seal (unhurried, a type module seals after
-a quiet spell, which counts as out of step instead). Sending the outbox and asking the server for a block's
-revisions count as unsynced instead (below). A command that needs the server still runs in the
+request is pending, and while the block store has work queued or edits to journal, or, while
+hurried, to seal (unhurried, a type module seals after a quiet spell, which counts as out of step
+instead). Loading a listing the server never answered (a folder's children, what links to a
+block) is busy too, but reading one again after the server answered it (once this device's
+creation or move reaches the server, on a new connection, or for a change the server pushed)
+keeps showing what it held, so, like sending the outbox and asking the server for a block's
+revisions, it counts as unsynced instead (below), and a connection that silently stops answering
+does not hold up `settle` with it. A command that needs the server still runs in the
 block store's loop, so the commands queued behind it keep the host busy until it is answered or
 the connection is declared lost; the busy reason names the step the loop is in. It is never
 busy on its error screen.
 
 `drive synced` waits for more: settled, and `Program::out_of_step` gives no reason. be-host gives
-one while its block store is not connected, has edits waiting to be sent, or has yet to ask for
-what changed since it connected (what it asks for arrives by push after); it fails on a program
-with nothing outside its window to keep in step with. With the clock stopped, a program quiet but
-still out of step may be waiting on a timer of its own (be-host's type modules seal after a quiet
-spell and back off before retrying, on the frame clock): once nothing is in flight that could
-still make progress, `synced` moves the clock to `Program::in_step_due`, the soonest such timer,
-as `pause` would. be-host gives one only while its block store waits on nothing but a type
-module's timer for being in step (not a heartbeat). With `hurry off` and the clock running,
-`synced` waits out that quiet spell (30 s after the last edit), so turn `hurry on` or stop the
-clock before it. `drive offline` waits until
-`Program::connected` says it is not connected, as after its network went away. A device waiting to
-reconnect tries again only when its wait runs out, so after its network comes back `drive
-network` first, as crates/be-host-tests' `HostTest::online` does.
+one while its block store is not connected, has edits waiting to be sent, reads a listing again, or
+has yet to ask for what changed since it connected (what it asks for arrives by push after); it
+fails on a program with nothing outside its window to keep in step with. With the clock stopped, a
+program quiet but still out of step may be waiting on a timer of its own (be-host's type modules
+seal after a quiet spell and back off before retrying, on the frame clock): once nothing is in
+flight that could still make progress, `synced` moves the clock to `Program::in_step_due`, the
+soonest such timer, as `pause` would. be-host gives one only while its block store waits on nothing
+but a type module's timer for being in step (not a read's retry). With `hurry off` and the clock
+running, `synced` waits out that quiet spell (30 s after the last edit), so turn `hurry on` or stop
+the clock before it. `drive offline` waits until `Program::connected` says it is not connected, as
+after its network went away. A device waiting to reconnect tries again only when its wait runs out,
+so after its network comes back `drive network` first, as crates/be-host-tests' `HostTest::online`
+does.
 
 Work the program cannot see is not waited for:
 
@@ -202,12 +228,42 @@ frame at a time, so an animation can be captured at any point the same way every
 program that animates forever still settles. A pause runs its frames at once, costing only
 the frames, not the time it names. With the clock stopped, it runs each frame only once the program has nothing to wait
 for, such as an app's answer to the one before, so what apps report across threads of their own
-does not depend on how fast they are. `drive clock run` restarts it. With the clock stopped:
+does not depend on how fast they are. `drive clock run` restarts it.
+
+With the clock stopped, be-host starts each frame only once, within `STOPPED_CLOCK_FRAME_BUDGET`
+(10 s), the block store has run every command sent to it that it does not hold for the server,
+its type modules have settled, and every app is idle, steps it woke itself for included
+(guides/apps/runtime.md, Settling). Frames the program asks for still run between commands,
+so which command's frame takes in what a thread did meanwhile depends on how soon that command
+came. `drive step on` stops that: with the clock stopped, no frame runs between commands (the
+drive layer holds them, `Layer::holds_frames`), and a command that does not settle
+(`--no-settle`, `state`) runs one frame. What comes from outside the process (the server's
+answers, another device, a program in the desktop's compositor) still lands when it lands.
+Measured by recording each frame of opening a document on a phone under `present late`
+(`stress --apart`, 6 at a time on 4 cores): without `step on`, about 1 run in 5 recorded
+different frames (13 in 50 without the waits above, 9 in 50 with them); with it, all 200 runs
+did the same, 50 of them without the waits
+(`on_a_phone_each_frame_of_opening_a_document_is_the_same_every_run_under_step_on`). Leave it off
+where another device in the test needs this one between commands: a held device serves no
+hosted block, so a wait on the other device's side times out. `drive step off` lets frames run
+again. With the clock stopped:
 
 - a menu or sheet that closes stays in the tree until its animation ends, so `wait not` after
   closing it needs a `pause` first;
 - anything else timed (an app's frame timeout, a type module grouping edits into an undo step)
   waits for `pause` too.
+
+`drive present late` has be-host take in what each app presents only at the next frame's
+poll, rather than as it settles the frame the app laid out in: a frame is then drawn between
+an app's layout and its present, as one is when a present misses its frame's deadline, which a
+stopped clock never lets happen (guides/apps/runtime.md, Layout and present commits). Busy names
+the app whose present is held. `drive present now` takes them in as they come again.
+
+`drive hold APP` has be-host hold back what the app `APP` (its id, such as `be3.text`) sends,
+as though it were slow to answer: its layouts, presents and calls wait, its last frame stays
+shown, and it counts as settled. Its hello, its stopping and a crash are still heard at once.
+A name that is not a running app's id is an error that lists the ids it could be, so `hold` can't hold an app before it starts. The host goes
+on without it, sending it input and views. `drive hold off` hands over what it held, in order (guides/apps/runtime.md).
 
 A driven program takes shortcuts a person never sees so that it settles sooner: be-host seals
 edits at once instead of after the usual pause (`Context::hurried`). `drive hurry off` turns

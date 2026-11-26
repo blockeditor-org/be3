@@ -1,16 +1,18 @@
 // Runs a test of the whole web host (web_host_test in drive.bzl) in Chromium through
 // Playwright:
 //
-//   node web-host-test.mjs --bundle=DIR --server=BIN --caddy=DIR --caddyfile=FILE TEST.mjs
+//   node web-host-test.mjs --bundle=DIR --server=BIN --caddy=DIR --caddyfile=FILE [--root=APP] TEST.mjs
 //
 // It starts be-server and Caddy in front of the bundle in a directory of its own, as web-dev.sh
 // does, opens the page in Chromium with `?dev-workspace&automation`, signs in as dev@localhost
-// through the portal (web-sign-in.mjs), waits for the workspace, and calls TEST.mjs's default
+// through the portal (web-sign-in.mjs), waits for the workspace (with --root, opened again on
+// `?root=APP`, the staged root in place of the host's own UI), and calls TEST.mjs's default
 // export with a `test` object, which is Dev's account (below) with:
 //
 //   await test.account(name)   another account, `name` (its address is name@localhost), signed
 //                               in on a page of its own browser context, so of its own storage
 //   test.serverLog             the server's log file
+//   test.root                  the staged root in place of the host's own UI (--root), if any
 //   await test.endpoints()      the push endpoints the server holds, [{ account, address }]
 //   await test.until(check, what)   check()'s first truthy answer, asked again until one comes:
 //                               for state nothing announces, such as the server's database
@@ -20,8 +22,10 @@
 //   page, context              its Playwright page and browser context
 //   await drive(...words)      a drive command the host answers in the page, as web-drive.mjs
 //                               sends it; it throws what the host says when it fails
-//   await openPage()           opens the host on a new page of the context (after the test
-//                               closed `page`, say) and waits for its workspace
+//   await openPage(query)      opens the host on a new page of the context (after the test
+//                               closed `page`, say), with `query` before `automation` in its
+//                               address (by default `root=APP` with --root, else none), and
+//                               waits for its workspace
 //   await deliverPush(data)    has the context's service worker take a push whose payload is
 //                               data (bytes or text), as a push service would deliver it, and
 //                               resolves once the worker has handled it, with a tab or without
@@ -50,6 +54,7 @@ import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { launch } from "./browser.mjs";
 import { signIn } from "./web-sign-in.mjs";
 
 const TIMEOUT = 120;
@@ -61,22 +66,14 @@ const bundle = resolve(option("bundle"));
 const server = resolve(option("server"));
 let caddy = resolve(option("caddy"));
 const caddyfile = resolve(option("caddyfile"));
+// The staged root that shows each account's page in place of the host's own UI, once signed in.
+const root = option("root");
 const script = process.argv.slice(2).find((argument) => !argument.startsWith("--"));
 if (!bundle || !server || !caddy || !caddyfile || !script) {
-    console.error("usage: web-host-test.mjs --bundle=DIR --server=BIN --caddy=DIR --caddyfile=FILE TEST.mjs");
+    console.error("usage: web-host-test.mjs --bundle=DIR --server=BIN --caddy=DIR --caddyfile=FILE [--root=APP] TEST.mjs");
     process.exit(2);
 }
 caddy = join(caddy, "caddy");
-
-function playwright() {
-    const require = createRequire(import.meta.url);
-    try {
-        return require("playwright");
-    } catch {
-        console.error("Playwright is missing: NODE_PATH names its modules on a worker.");
-        process.exit(1);
-    }
-}
 
 // A port nothing listens on yet.
 function freePort() {
@@ -303,18 +300,9 @@ try {
     await new Promise((done) => pushServer.listen(push, "127.0.0.1", done));
     await served(`${origin}/`, 30);
 
-    const { chromium } = playwright();
-    browser = await chromium.launch({
-        executablePath: process.env.BE3_CHROME || chromium.executablePath(),
-        args: [
-            "--no-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-features=WebGPU",
-            "--use-angle=swiftshader",
-            "--enable-unsafe-swiftshader",
-            "--ignore-gpu-blocklist",
-        ],
-        env: { ...process.env, TMPDIR: directory },
+    browser = await launch({
+        args: ["--disable-features=WebGPU", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
+        temporary: directory,
     });
 
     const account = async ({ name, email }) => {
@@ -370,10 +358,10 @@ try {
             await opened.drive("wait", 'TreeItem "My files"');
             await opened.drive("settle");
         };
-        opened.openPage = async () => {
+        opened.openPage = async (query = root === undefined ? undefined : `root=${root}`) => {
             opened.page = await context.newPage();
             watch(opened.page);
-            await opened.page.goto(`${origin}/?automation`);
+            await opened.page.goto(`${origin}/?${query ? `${query}&` : ""}automation`);
             await ready();
         };
         opened.deliverPush = async (data) => {
@@ -394,6 +382,11 @@ try {
         await opened.page.goto(`${origin}/?dev-workspace&automation`);
         await signIn(opened.page, serverLog, invite, TIMEOUT, { name, email });
         await ready();
+        if (root !== undefined) {
+            // One tab at a time holds the host's files (the `block-files` Web Lock).
+            await opened.page.close();
+            await opened.openPage();
+        }
         return opened;
     };
 
@@ -402,6 +395,7 @@ try {
     Object.assign(test, {
         account: (name) => account({ name, email: `${name.toLowerCase()}@localhost` }),
         serverLog,
+        root,
         endpoints: async () => {
             const database = new DatabaseSync(join(serverData, "metadata.sqlite"), { readOnly: true });
             try {

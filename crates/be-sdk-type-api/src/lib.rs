@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 pub use be_block_commit::CommitId;
-pub use be_block_protocol::{ClientId, RelayKind, SessionState};
+pub use be_block_protocol::{ClientId, Participant, SessionState};
 pub use be_block_session::Resume;
 pub use be_wasm_ops::{self as ops, FrameError, OpError, OpId, decode_frame, encode_frame};
 use serde::{Deserialize, Serialize};
@@ -13,19 +13,40 @@ be_wasm_ops_bindgen::generate!({
     deps: ["../be-wasm-ops/wit"],
     with: {
         "uuid": uuid::Uuid,
-        "hash": [u8; 32],
+        "hash": be_block_store::Hash,
         "commit-id": be_block_commit::CommitId,
         "session-tag": crate::SessionTag,
+        "participant": be_block_protocol::Participant,
         "session-state": be_block_protocol::SessionState,
-        "relay-kind": be_block_protocol::RelayKind,
         "resume": be_block_session::Resume,
+        "journal-entry": be_block_protocol::JournalEntry,
+        "journal-base": be_block_protocol::JournalBase,
+        "journal": be_block_protocol::Journal,
+        "chunk-ref": be_block_store::ChunkRef,
+        "node-ref": be_block_store::NodeRef,
+        "part-ref": be_block_store::PartRef,
+        "signer": be_block_content::Signer,
+        "log-import": be_block_content::LogImport,
+        "log-item": be_block_content::LogItem,
+        "kept-entry": be_block_content::KeptEntry,
+        "refused-entry": be_block_content::RefusedEntry,
+        "log-page": be_block_content::LogPage,
+        "log-search": be_block_content::LogSearch,
+        "announcement": be_block_content::Announcement,
+        "along": be_block_content::Along,
+        "child-change": be_block_content::ChildChange,
+        "search-document": be_block_content::SearchDocument,
         "entries": crate::Entries,
     },
     encodings: {
         "entries": ::be_wasm_ops::wire::Map<::be_wasm_ops::wire::Plain, ::be_wasm_ops::wire::Bytes>,
     },
-    copy: ["uuid", "hash", "commit-id", "session-tag", "relay-kind"],
+    copy: [
+        "uuid", "hash", "commit-id", "session-tag", "chunk-ref", "node-ref", "part-ref", "signer",
+        "log-import", "child-change",
+    ],
     default: ["plain", "description", "plain-file", "status"],
+    inline: ["replace-child", "reorder-child"],
 });
 
 pub use host::PublishOutcome;
@@ -34,45 +55,15 @@ pub use types::*;
 
 pub type ReplicaId = OpId;
 
-impl From<be_block_store::PartRef> for PartRef {
-    fn from(part: be_block_store::PartRef) -> Self {
-        let node = |node: be_block_store::NodeRef| NodeRef {
-            hash: *node.hash.as_bytes(),
-            length: node.length,
-        };
-        match part {
-            be_block_store::PartRef::Chunk(chunk) => Self::Chunk(ChunkRef {
-                hash: *chunk.hash.as_bytes(),
-                length: chunk.length,
-            }),
-            be_block_store::PartRef::Chunks(chunks) => Self::Chunks(node(chunks)),
-            be_block_store::PartRef::Node(parts) => Self::Node(node(parts)),
-        }
-    }
-}
-
-impl From<PartRef> for be_block_store::PartRef {
-    fn from(part: PartRef) -> Self {
-        let node = |node: NodeRef| be_block_store::NodeRef {
-            hash: be_block_store::Hash::from_bytes(node.hash),
-            length: node.length,
-        };
-        match part {
-            PartRef::Chunk(chunk) => Self::Chunk(be_block_store::ChunkRef {
-                hash: be_block_store::Hash::from_bytes(chunk.hash),
-                length: chunk.length,
-            }),
-            PartRef::Chunks(chunks) => Self::Chunks(node(chunks)),
-            PartRef::Node(parts) => Self::Node(node(parts)),
-        }
-    }
-}
+/// The editor the host acts as for edits of its own (setting up a new organization's settings,
+/// say): not a person's editing, so a replica keeps none of them in its undo history.
+pub const HOST_EDITOR: EditorId = u64::MAX;
 
 impl Loaded {
     pub fn of(stored: be_block_store::Stored) -> Self {
         fn flatten(part: &be_block_store::LoadedPart, parts: &mut Vec<LoadedPart>) {
             parts.push(LoadedPart {
-                part: part.reference.into(),
+                part: part.reference,
                 children: u32::try_from(part.children.len()).unwrap_or(u32::MAX),
                 references: part.references.clone(),
             });
@@ -98,7 +89,7 @@ impl Loaded {
             depth: usize,
         ) -> Option<be_block_store::LoadedPart> {
             let part = parts.next()?;
-            let reference = be_block_store::PartRef::from(part.part);
+            let reference = part.part;
             let mut children = Vec::new();
             let mut at = start;
             for _ in 0..part.children {
@@ -136,10 +127,22 @@ impl Loaded {
 
 pub type Entries = BTreeMap<Uuid, Vec<u8>>;
 
-#[derive(
-    Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize,
-)]
+/// A type module's hash (`session-tag`), on the wire as the WIT's other hashes are
+/// (`be_block_store::Hash`).
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct SessionTag(pub [u8; 32]);
+
+impl Serialize for SessionTag {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        be_block_store::Hash::from_bytes(self.0).serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for SessionTag {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        be_block_store::Hash::deserialize(deserializer).map(|hash| Self(*hash.as_bytes()))
+    }
+}
 
 /// Content's parts as `Written` carries them: the bytes of its new parts, and its
 /// shape in pre-order, a `Reused` part kept by its ref. None only for a part
@@ -161,7 +164,7 @@ fn shape_into(
             shape.push(WrittenPart::Bytes(u32::try_from(held.len()).ok()?));
             bytes.extend_from_slice(held);
         }
-        be_block_store::Part::Reused(part) => shape.push(WrittenPart::Reused((*part).into())),
+        be_block_store::Part::Reused(part) => shape.push(WrittenPart::Reused(*part)),
         be_block_store::Part::Node { parts, references } => {
             shape.push(WrittenPart::Node(WrittenNode {
                 parts: u32::try_from(parts.len()).ok()?,
@@ -210,6 +213,9 @@ fn take_part<'a>(
             })
         }
         WrittenPart::Node(_) => None,
-        WrittenPart::Reused(part) => Some(be_block_store::Part::Reused((*part).into())),
+        WrittenPart::Reused(part) => Some(be_block_store::Part::Reused(*part)),
     }
 }
+
+#[cfg(test)]
+mod tests;

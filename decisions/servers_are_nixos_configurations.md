@@ -13,6 +13,6 @@ leave the machine half changed, and a bad one rolls back.
 
 - Terraform or OpenTofu: it manages the provider's resources (servers, firewalls, DNS), which change a few times a
   year, and not what runs on the machines, which is where the setup is.
-- A setup script per server (as the build server's `scripts/internal/nativelink/setup.sh`): it says what to change
-  rather than what the machine is, so anything changed by hand stays, and a rerun restarts everything.
+- A setup script per server (as the build server's `setup.sh` was, before it became `servers/build`): it says what to
+  change rather than what the machine is, so anything changed by hand stays, and a rerun restarts everything.
 - Ansible: the same, with another language.

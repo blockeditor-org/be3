@@ -41,7 +41,7 @@ async fn a_publish_the_server_refuses_as_invalid_is_set_aside_not_sent_again() {
     assert!(
         drained.contains(&Drained::SetAside {
             block: note,
-            code: ErrorCode::InvalidRequest
+            why: crate::Aside::Refused(ErrorCode::InvalidRequest)
         }),
         "{drained:?}"
     );

@@ -26,6 +26,7 @@ fn typing_on_a_line_rebuilds_only_that_line() {
                     font_size=AREA_FONT_SIZE
                     padding=AREA_PADDING
                     state={state}
+                    scroll={plain_scroll()}
                 />
             </Frame>
         }

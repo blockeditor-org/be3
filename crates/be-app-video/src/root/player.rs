@@ -13,35 +13,32 @@ const STAGE: Color32 = Color32::from_gray(18);
 #[component]
 pub(crate) fn Player(state: VideoState) -> NodeId {
     let playhead = state.playhead;
-    let clips = state.clips;
+    let edit = state.edit;
     let visible = create_memo(move || {
-        let _ = clips.get();
-        let _ = playhead.get();
-        state
-            .video()
-            .map(|video| video.visible_at(playhead.get()))
-            .unwrap_or_default()
+        let playhead = playhead.get();
+        edit.with(|video| video.visible_at(playhead))
     });
     let empty = create_memo(move || visible.get().is_empty());
-    let any = create_memo(move || !empty.get());
 
     view! {
         <Frame fill={ColorRole::Custom(STAGE.into())} padding=Space::Md>
             <List spacing=Space::None>
-                <Show condition={empty}>
+                <Show
+                    value={empty}
+                    fallback={move || view! {
+                        <Frame
+                            aspect_ratio=DEFAULT_ASPECT_RATIO
+                            fill={ColorRole::Custom(Color32::BLACK.into())}
+                        >
+                            <List spacing=Space::None>
+                                <ForEach value={visible}>|id: Uuid|
+                                    <Layer state id />
+                                </ForEach>
+                            </List>
+                        </Frame>
+                    }}
+                >
                     <Text style=TextStyle::CAPTION>"No clip at the playhead"</Text>
-                </Show>
-                <Show condition={any}>
-                    <Frame
-                        aspect_ratio=DEFAULT_ASPECT_RATIO
-                        fill={ColorRole::Custom(Color32::BLACK.into())}
-                    >
-                        <List spacing=Space::None>
-                            <ForEach keys={visible}>|id: Uuid|
-                                <Layer state id />
-                            </ForEach>
-                        </List>
-                    </Frame>
                 </Show>
             </List>
         </Frame>

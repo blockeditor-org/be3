@@ -7,6 +7,16 @@ use beui::styled::*;
 
 const GRACE: Duration = Duration::from_millis(300);
 
+/// What the host answered `asked`, as an async memo reads it: a failure is `Failed`, and a
+/// question the host dropped (it closed) is still loading.
+pub async fn answer<T>(asked: be_sdk::Asked<Result<T, be_sdk::Failure>>) -> Ready<T> {
+    match asked.await {
+        Some(Ok(answer)) => Ok(answer),
+        Some(Err(failure)) => Err(Pending::Failed(failure.to_string())),
+        None => Err(Pending::Loading),
+    }
+}
+
 #[component]
 pub fn LoadingPane(#[prop(default = "Loading".to_owned())] label: Prop<String>) -> NodeId {
     let label = create_memo(move || label.get());
@@ -20,7 +30,7 @@ pub fn LoadingPane(#[prop(default = "Loading".to_owned())] label: Prop<String>) 
         <Frame @test_id={"editor.loading"}>
             <List spacing=Space::None align=Align::Center>
                 <Spacer />
-                <Show condition={late}>
+                <Show value={late}>
                     <Progress width=INLINE_PROGRESS_WIDTH label={label} />
                 </Show>
                 <Spacer />
@@ -45,7 +55,7 @@ pub fn FailedPane(error: String) -> NodeId {
 #[component]
 pub fn Loaded(
     #[prop(default = "Loading".to_owned())] label: Prop<String>,
-    #[prop(children)] content: Render<()>,
+    #[prop(children)] content: Build<Child>,
 ) -> NodeId {
     let label = create_memo(move || label.get());
     let fallback = move |pending: Pending| match pending {
@@ -57,8 +67,6 @@ pub fn Loaded(
         },
     };
     view! {
-        <Layers>
-            <Loading fallback>|| { content.call(()) }</Loading>
-        </Layers>
+        <Loading fallback>|| { content.call() }</Loading>
     }
 }

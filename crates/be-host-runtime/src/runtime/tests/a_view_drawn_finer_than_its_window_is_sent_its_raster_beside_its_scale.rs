@@ -28,7 +28,7 @@ fn sent() -> Option<(Vec2, [u32; 2], f32, f32)> {
     with(APP, |runtime| {
         runtime
             .instances
-            .statuses(&runtime.layout, 0)
+            .statuses(runtime.run.layout(), 0)
             .into_iter()
             .flat_map(|instance| instance.screens)
             .find(|screen| screen.view == REGION)

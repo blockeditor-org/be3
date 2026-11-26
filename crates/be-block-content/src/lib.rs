@@ -15,31 +15,34 @@ pub mod block_url;
 pub mod editor_view;
 pub mod history;
 pub mod layered;
+pub mod log;
 pub mod metadata;
 pub mod model;
 pub mod plain;
 pub mod presence;
 pub mod setting;
 pub mod settling;
-pub mod streamed;
 
 pub use be_block_model;
 pub use be_block_model::{Edit, Item, ObjectId, Touched};
 pub use blob::{Blob, BlobKind, BlobOp};
-pub use editor_view::{EditorView, EditorViewContent, VIEW_TYPE, ViewState};
+pub use editor_view::{
+    EditorView, EditorViewContent, VIEW_TYPE, ViewRef, ViewState, ViewStateKind,
+};
 pub use layered::{Follows, KindRule, KindVisibility, Layered, layered};
+pub use log::{
+    Along, KeptEntry, LogAppended, LogFold, LogImport, LogItem, LogNotAppended, LogPage, LogSearch,
+    RefusedEntry, Signer,
+};
 pub use metadata::{
-    ARTIFACT, Artifact, BlockMetadata, CREATED_BY, DELETED_FROM, Definition, DeletedFrom,
-    EXECUTABLE, Entries, ICON, ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MATERIAL_ICON, MY_FILES,
-    MetaKey, NAME, Origin, ROW_PREFIX, SCHEMA, SEARCH_INDEX, SETTINGS, THUMBHASH, Thumbhash,
-    VIEW_EDITOR,
+    ARTIFACT, ARTIFACT_MADE, Artifact, BlockMetadata, CREATED_BY, DELETED_FROM, Definition,
+    DeletedFrom, EXECUTABLE, Entries, ICON, ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MATERIAL_ICON,
+    MY_FILES, MetaKey, NAME, Origin, ROW_PREFIX, SCHEMA, SEARCH_INDEX, SETTINGS, THUMBHASH,
+    Thumbhash, VIEW_EDITOR,
 };
 pub use model::Root;
 pub use setting::{Layers, Setting, SettingsLayer};
 pub use settling::{Landed, Settling};
-pub use streamed::{
-    HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
-};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ContentError {
@@ -73,13 +76,6 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
     const CONTENT_TYPE: Uuid;
 
     const LOADS: Loads = Loads::Whole;
-
-    /// Whether the stored form read whole decodes to the content, so a copy through bytes (a
-    /// duplicate, an export, a revision restore, a transfer) loses nothing. A file's does, though
-    /// its `encode()` may leave its payload unloaded. False for a type whose stored form has parts
-    /// that decoding it cannot rebuild (chat's closed segments): those refuse such a copy when the
-    /// block has parts after its first.
-    const WHOLE_BYTES: bool = true;
 
     const FROZEN: bool = false;
 
@@ -129,15 +125,15 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
         let _ = metadata;
     }
 
-    /// The searchable text of the content, one `SearchDocument` per key, which the search
-    /// index holds (plans/search.md); none for a type that is not content-searchable. Content
-    /// that loads only its first part reads the others with `parts`. `keys` (none for every
-    /// document) and `indexed` (the parts the index already holds text from) only spare work:
-    /// a type need not answer documents outside `keys`, nor read a part in `indexed`, so a
-    /// snippet reads one part of a large block and reindexing it reads only its changed
-    /// parts. The host drops documents outside `keys` and the bodies of documents whose source
-    /// is in `indexed` whatever the type answers. Boxed, as a future returned from a trait
-    /// method in another crate must be (guides/type_modules.md, "The generator").
+    /// The searchable text of the content, one `SearchDocument` per key, which the search index
+    /// holds (guides/blocks/host.md, "Search"); none for a type that is not content-searchable.
+    /// Content that loads only its first part reads the others with `parts`. `keys` (none for every
+    /// document) and `indexed` (the parts the index already holds text from) only spare work: a
+    /// type need not answer documents outside `keys`, nor read a part in `indexed`, so a snippet
+    /// reads one part of a large block and reindexing it reads only its changed parts. The host
+    /// drops documents outside `keys` and the bodies of documents whose source is in `indexed`
+    /// whatever the type answers. Boxed, as a future returned from a trait method in another crate
+    /// must be (guides/type_modules.md, "The generator").
     fn search_text(
         &self,
         keys: Option<&HashSet<String>>,
@@ -149,12 +145,41 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
     }
 }
 
+/// Content that counts what the account has not read in it yet (a chat's messages from
+/// others), so a row showing the block can carry the count without opening it. Where the
+/// account read up to is never in the content, where others would see it, but in an owner-only
+/// settings kind of the type's own (`Reads`, `KindVisibility::Owner`). The host has the type
+/// pick each block's own place out of the account's layers of it, combined (`places`), and
+/// counts a block with its content as the type loads it (only its first part for a type that
+/// loads only that) and its place alone, again only when its head or its place moved; it keeps
+/// the answer on the block's row (guides/blocks/host.md, "Unread counts"). Registered with the
+/// type's `unread` part (`be_block_types!`).
+pub trait Unread: BlockContent {
+    type Reads: Layered;
+    /// Where the account read one block up to: all `count_unread` reads of `Reads`. A block
+    /// `places` leaves out has the default place.
+    type Place: Serialize + DeserializeOwned + Default;
+
+    /// Each block's place in `reads`. Each block at most once, and its place the same for the
+    /// same reads, since the host recounts a block when the place's bytes change.
+    fn places(reads: &Self::Reads) -> Vec<(Uuid, Self::Place)>;
+
+    /// How many of the things in this content and `log` `me` has not read, by `place`. Counted
+    /// from what is loaded alone: a type that loads only its first part reads no other part for
+    /// it, and a type with a signed log is handed its latest entries, at most `UNREAD_ENTRIES`
+    /// (none for a type without), so a count past them is at least theirs.
+    fn count_unread(&self, place: &Self::Place, log: &[LogItem], me: Uuid) -> u32;
+}
+
+/// How many of a block's latest log entries a count of what is unread is handed
+/// (`Unread::count_unread`): past them, an editor shows the count as at least as many.
+pub const UNREAD_ENTRIES: u32 = 100;
+
 /// A searchable document of a block's content (`BlockContent::search_text`).
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct SearchDocument {
-    /// Stable across edits and rekeys, unlike a part's ref: a chat segment's part hash (of its
-    /// plaintext, so a rekey keeps it), a database row's id, a long text's section id, or empty
-    /// for a block that is one document.
+    /// Stable across edits and rekeys, unlike a part's ref: a database row's id, a long text's
+    /// section id, or empty for a block that is one document.
     pub key: String,
     /// The part the document's text came from, if it is one part.
     pub source: Option<PartRef>,
@@ -189,7 +214,7 @@ pub fn derived_metadata<C: BlockContent>(content: &C) -> Entries {
     metadata.derived
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum ChildChange {
     Add(Uuid),
     Delete(Uuid),
@@ -197,12 +222,12 @@ pub enum ChildChange {
     Reorder { block: Uuid, after: Option<Uuid> },
 }
 
-/// What an edit made on this device tells the block's other members who are not connected, once
-/// the server holds it: the text of a notification and the accounts it mentions. `key` names
-/// what is announced (chat: the message), unique in the block and the same each time the edit
-/// is made again (a host replays an editor's edits into a restarted replica), so it is told
-/// once. `several` is the text when it goes together with others of the block (an outbox
-/// drained at once), with `{count}` for how many (chat: "{count} new messages").
+/// What an entry appended to a block's signed log tells the block's other members who are not
+/// connected, once the server holds it (`Along::announcement`): the text of a notification and
+/// the accounts it mentions. `key` names what is announced (chat: the message), unique in the
+/// block and the same each time the entry is appended again, so it is told once. `several` is
+/// the text when it goes together with others of the block (an outbox drained at once), with
+/// `{count}` for how many (chat: "{count} new messages").
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Announcement {
     pub key: String,
@@ -227,33 +252,6 @@ pub trait LiveEdit: BlockContent {
         Vec::new()
     }
 
-    /// What `operation` announces (`Announcement`), asked when the edit is made on this device
-    /// of content that holds it. The replica hands it to the host with the edit, and the host
-    /// keeps it beside the journal entry or commit holding the edit and sends it once the
-    /// server holds that, whether the replica is open then or not.
-    fn announcements(&self, operation: &Self::Op) -> Vec<Announcement> {
-        let _ = operation;
-        Vec::new()
-    }
-
-    /// Where `operation` keeps when the server took it (milliseconds since the Unix epoch by
-    /// the server's clock), or none for an operation that keeps no such time, as for every
-    /// operation of content that keeps none. An operation holding other operations exposes one
-    /// slot at most, or the replica could not check them all: such content refuses an edit
-    /// whose operations would need more.
-    ///
-    /// Only the owner fills the slot: the replica refuses an edit made on a device with it
-    /// filled, and the owner drops a participant's operation with it filled, so only the
-    /// owner's stamp is ever held. The owner fills it on a participant's operation as it
-    /// sequences it, then relays and saves it stamped. Some operations stay unstamped, their
-    /// arrival unknown: the owner's own, one that travels as a part, and one that stamping
-    /// would make too large to relay inline. Content shows no time for those, never a time
-    /// the edit claims.
-    fn arrival(operation: &mut Self::Op) -> Option<&mut Option<i64>> {
-        let _ = operation;
-        None
-    }
-
     fn apply_touching(&mut self, operation: &Self::Op, touched: &mut Vec<Touched>) {
         self.apply(operation);
         touched.push(Touched::Everything);
@@ -276,8 +274,10 @@ pub trait LiveEdit: BlockContent {
         touched.push(Touched::Everything);
     }
 
-    fn child_operations(&self, change: ChildChange) -> Option<Vec<Self::Op>> {
-        let _ = change;
+    /// The operations that make this content follow `change` to one of its children, made as
+    /// `client`, or none when the type does not take it.
+    fn child_operations(&self, change: ChildChange, client: u64) -> Option<Vec<Self::Op>> {
+        let _ = (change, client);
         None
     }
 

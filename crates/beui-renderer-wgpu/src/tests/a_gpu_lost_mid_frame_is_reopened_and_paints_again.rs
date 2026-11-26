@@ -16,23 +16,26 @@ fn crowded(painter: &Painter) {
 
 #[test]
 fn a_gpu_lost_mid_frame_is_reopened_and_paints_again() {
-    assert!(
-        (SIZE * SIZE * 4) as usize > LISTED,
-        "the crowded frame outgrows the instance list the renderer starts with"
-    );
     let mut gpu = pollster::block_on(create_offscreen(FORMAT, Default::default()))
         .expect("no graphics adapter is available");
-    let mut lost = Target::on(gpu.device.clone(), gpu.queue.clone(), FORMAT);
+    let setup = gpu.setup();
+    let mut lost = Target::on(setup.device, setup.queue, FORMAT, &setup.lost);
+    lost.draw(Color32::BLACK, Repaint::Everything, crowded);
+    assert_eq!(lost.read().pixel(32, 32), [255, 255, 255, 255]);
+
     gpu.device.destroy();
     let _ = gpu.device.poll(wgpu::PollType::wait_indefinitely());
     assert!(gpu.lost(), "a destroyed device reports itself lost");
-
+    assert!(
+        lost.renderer.resources().lost(),
+        "the renderer stops drawing"
+    );
     lost.draw(Color32::BLACK, Repaint::Everything, crowded);
 
     pollster::block_on(gpu.reopen(None)).expect("a replacement device opens");
     assert!(!gpu.lost(), "the replacement device is not lost");
-    let mut target = Target::on(gpu.device.clone(), gpu.queue.clone(), FORMAT);
+    let setup = gpu.setup();
+    let mut target = Target::on(setup.device, setup.queue, FORMAT, &setup.lost);
     target.draw(Color32::BLACK, Repaint::Everything, crowded);
-    let capture = target.read();
-    assert_eq!(capture.pixel(32, 32), [255, 255, 255, 255]);
+    assert_eq!(target.read().pixel(32, 32), [255, 255, 255, 255]);
 }

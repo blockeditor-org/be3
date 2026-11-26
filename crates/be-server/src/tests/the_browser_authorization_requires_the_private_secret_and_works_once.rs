@@ -21,13 +21,10 @@ async fn the_browser_authorization_requires_the_private_secret_and_works_once() 
                 ("invite", &harness.invite()),
                 ("email", "ada@example.com"),
                 ("display_name", "Ada"),
-                ("password", "correct horse battery"),
-                ("confirmation", "correct horse battery"),
             ],
         )
         .await;
     assert_eq!(status, 303, "{page}");
-    assert!(!page.contains("correct horse"));
     assert!(
         matches!(
             poll_login(&harness, &code, &secret).await,
@@ -35,15 +32,12 @@ async fn the_browser_authorization_requires_the_private_secret_and_works_once() 
         ),
         "a sign-in finished before the browser approved it"
     );
-    let token = harness.mail_token("ada@example.com");
-    let path = format!("/auth/verify?token={token}");
-    assert_eq!(
-        browser
-            .submit(&harness, &path, "/auth/verify", &[("token", &token)])
-            .await
-            .0,
-        303
-    );
+    let (email_code, _) = harness.mailed_code("ada@example.com");
+    let (status, page) = browser.enter_code(&harness, &email_code).await;
+    assert_eq!(status, 303, "{page}");
+    // Entering the code signs the browser in and returns it to the sign-in, which still waits
+    // for the person to approve it.
+    assert!(page.contains(&format!("/auth?code={code}")), "{page}");
     assert!(
         matches!(
             poll_login(&harness, &code, &secret).await,
@@ -82,11 +76,5 @@ async fn the_browser_authorization_requires_the_private_secret_and_works_once() 
         ),
         "the token was handed out twice"
     );
-    let mut other = harness.client().await;
-    assert!(matches!(
-        other
-            .call(|peer| client::account::authenticate(peer, Some(token)))
-            .await,
-        Ok(_)
-    ));
+    assert!(harness.sign_in(&token).await.is_ok());
 }

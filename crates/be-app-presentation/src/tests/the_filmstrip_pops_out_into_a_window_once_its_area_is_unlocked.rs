@@ -13,13 +13,10 @@ fn the_filmstrip_pops_out_into_a_window_once_its_area_is_unlocked() {
     );
 
     test.click_with("dock.grip.filmstrip", PointerButton::Secondary);
-    test.run();
     test.click("dock.pane.locked");
-    test.run();
     let grip = test.rect_of("dock.grip.filmstrip");
     let tab = grip.center() + Vec2::new(grip.width() / 2.0 + 30.0, 0.0);
     test.click_with(tab, PointerButton::Secondary);
-    test.run();
     test.click("dock.tab.pop-out");
     test.settle();
 

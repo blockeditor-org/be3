@@ -6,9 +6,7 @@ fn a_chord_pressed_while_the_picker_listens_is_what_is_pressed() {
     let mut editor = editor(RemapState::On, Some(CAPS_TO_ESCAPE));
 
     editor.click("input-remaps.group.0.rule.0");
-    editor.run();
     editor.click("input-remaps.group.0.rule.0.on");
-    editor.run();
     assert!(
         editor.shown("input-remaps.picker.listen"),
         "where the session filters input, the picker opens on Press it"
@@ -18,7 +16,6 @@ fn a_chord_pressed_while_the_picker_listens_is_what_is_pressed() {
         "nothing is caught until it listens"
     );
     editor.click("input-remaps.picker.listen");
-    editor.run();
     assert!(editor.watches::<InputCaptureWatch>());
     editor.set_watched::<InputCaptureWatch>(&InputCapture {
         held: vec![29, 190],
@@ -47,9 +44,7 @@ fn a_chord_pressed_while_the_picker_listens_is_what_is_pressed() {
     );
 
     editor.click("input-remaps.group.0.rule.0.key");
-    editor.run();
     editor.click("input-remaps.picker.listen");
-    editor.run();
     editor.set_watched::<InputCaptureWatch>(&InputCapture {
         held: Vec::new(),
         chord: Some(CapturedChord {

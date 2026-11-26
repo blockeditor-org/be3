@@ -161,7 +161,7 @@ impl Mapping<'_> {
                             Some(owner) => Some((self.tab)(owner)?),
                             None => None,
                         },
-                        placement: bar.placement.clone(),
+                        placement: bar.placement,
                         hidden: bar.hidden,
                         pane: bar.pane.as_ref().and_then(|pane| (self.tab)(pane)),
                     })
@@ -284,11 +284,18 @@ impl DockDeclaration {
             .as_ref()
             .map(|main| inward.node(main))
             .unwrap_or_else(|| empty_pane(format!("{prefix}/")));
+        let title = self
+            .tabs
+            .iter()
+            .find(|tab| tab.tab == host)
+            .map(|tab| tab.title.clone())
+            .unwrap_or_default();
         let group = DockEntry::Group {
             group: DockGroup {
                 key: prefix.to_owned(),
                 pinned: true,
                 child: Some(child),
+                title,
             },
             root: Box::new(root),
         };
@@ -403,7 +410,7 @@ impl DockRequest {
             }
             Self::PlaceBar(place) => Self::PlaceBar(crate::DockBarPlace {
                 bar: place.bar.clone().through(child),
-                placement: place.placement.clone(),
+                placement: place.placement,
             }),
             Self::MoveBar(moved) => Self::MoveBar(crate::DockBarMove {
                 bar: moved.bar.clone().through(child),
@@ -469,7 +476,7 @@ impl DockHosted {
                         Some(owner) => Some(path(owner)?),
                         None => None,
                     },
-                    placement: bar.placement.clone(),
+                    placement: bar.placement,
                     hidden: bar.hidden,
                     pane: bar.pane.as_ref().and_then(path),
                 })
@@ -494,6 +501,8 @@ impl DockHosted {
                 .filter(|cover| cover.tab.is_own())
                 .cloned()
                 .collect(),
+            // The host gives each instance its own count.
+            restored: 0,
         })
     }
 
@@ -512,7 +521,7 @@ impl DockHosted {
                 Some(DockPlacedBar {
                     owner: owner(&tab)?,
                     bar: tab,
-                    placement: bar.placement.clone(),
+                    placement: bar.placement,
                     hidden: bar.hidden,
                     pane: bar.pane.as_ref().and_then(|pane| pane.within(child)),
                 })
@@ -553,6 +562,7 @@ impl DockHosted {
             fullscreen: None,
             mode: self.mode,
             covers,
+            restored: 0,
         }
     }
 
@@ -608,6 +618,7 @@ impl DockHosted {
                     })
                 })
                 .collect(),
+            restored: 0,
         }))
     }
 }

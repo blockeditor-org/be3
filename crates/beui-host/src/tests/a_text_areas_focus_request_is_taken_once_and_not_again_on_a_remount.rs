@@ -16,7 +16,7 @@ fn a_text_areas_focus_request_is_taken_once_and_not_again_on_a_remount() {
         view! {
             <Frame width=300.0 height=200.0>
                 <List spacing=0.0>
-                    <Show condition={shown}>
+                    <Show value={shown}>
                         <TextArea
                             colors={area_colors()}
                             look={area_look()}
@@ -25,6 +25,7 @@ fn a_text_areas_focus_request_is_taken_once_and_not_again_on_a_remount() {
                             @node_ref=&area
                             state={state}
                             line_numbers=false
+                            scroll={plain_scroll()}
                         />
                     </Show>
                 </List>

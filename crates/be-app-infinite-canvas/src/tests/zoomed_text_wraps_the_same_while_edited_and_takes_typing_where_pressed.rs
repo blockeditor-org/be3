@@ -5,14 +5,13 @@ use be_type_infinite_canvas::CanvasTextStyle;
 
 fn zoom_to(editor: &mut BeuiTest<CanvasRoot>, label: &str) {
     for _ in 0..8 {
-        if editor.label("infinite-canvas.pill.zoom") == label {
+        if editor.label("editor.zoom") == label {
             return;
         }
-        editor.click("infinite-canvas.pill.zoom-in");
-        editor.run();
+        editor.click("editor.zoom_in");
         editor.settle();
     }
-    assert_eq!(editor.label("infinite-canvas.pill.zoom"), label);
+    assert_eq!(editor.label("editor.zoom"), label);
 }
 
 fn index_at(editor: &BeuiTest<CanvasRoot>, field: &str, at: Pos2) -> usize {
@@ -61,7 +60,6 @@ fn zoomed_text_wraps_the_same_while_edited_and_takes_typing_where_pressed() {
         .len();
     assert!(starts >= 3, "the text wraps onto several lines: {shown:?}");
     editor.double_click(pos2(resting.left() + 8.0, resting.top() + 8.0));
-    editor.run();
     assert_eq!(
         editor.rect_of(&field),
         resting,
@@ -73,7 +71,6 @@ fn zoomed_text_wraps_the_same_while_edited_and_takes_typing_where_pressed() {
         "the text wraps the same while it is edited"
     );
     editor.key(Key::Escape, Modifiers::NONE);
-    editor.run();
 
     let band = editor.content_rect().expect("the canvas reports its stage");
     editor.set_view(
@@ -81,15 +78,13 @@ fn zoomed_text_wraps_the_same_while_edited_and_takes_typing_where_pressed() {
         2.0,
     );
     editor.settle();
-    assert_eq!(editor.label("infinite-canvas.pill.zoom"), "200%");
+    assert_eq!(editor.label("editor.zoom"), "200%");
     let resting = editor.rect_of(&field);
     let pressed = pos2(resting.center().x, resting.center().y);
     let at = index_at(&editor, &field, pressed);
     assert!(0 < at && at < text.len(), "the press lands inside the text");
     editor.double_click(pressed);
-    editor.run();
     editor.type_text("!");
-    editor.run();
     let mut written = text.to_owned();
     written.insert(at, '!');
     assert_eq!(

@@ -33,6 +33,10 @@ fn a_window_over_a_tab_docked_on_the_desktop_draws_above_it() {
     host.run(&["drag", &tab, "12,360", "12"]);
     host.gone(DOCKED);
     host.run(&["settle"]);
+    // The panes glide into the layout the drop made on the stopped clock: the settle
+    // spring (stiffness 500, damping ratio 0.75) swings a 600-point move past its place once and
+    // lands within a quarter point in about half a second, so a second is twice that.
+    host.pause(1000);
 
     let docked = innermost(&mut host, 12.0, 600.0);
     assert!(

@@ -3,14 +3,15 @@ use std::io::Write;
 use std::path::PathBuf;
 
 use serde_json::json;
-use sha2::{Digest, Sha256};
 
 use crate::builds::{self, Installed, Slot};
 use crate::github::{
     Entry, InlineComment, Person, PullRequest, Repository, State, Tone, branch_deleted, hex_color,
     parse_pull_requests, parse_timeline, timeline_images,
 };
-use crate::helper::{self, Helper, Manifest, Product};
+use be_tool_build_helper_protocol::{Manifest, ManifestFile, platform};
+
+use crate::helper::{self, Helper, Product};
 use crate::markdown::{Block, blocks};
 use crate::net::Http;
 use crate::time::{parse_timestamp, relative};
@@ -47,14 +48,11 @@ struct Store {
 }
 
 impl Store {
-    fn put(&mut self, bytes: &[u8]) -> helper::File {
-        let sha256: String = Sha256::digest(bytes)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect();
+    fn put(&mut self, bytes: &[u8]) -> ManifestFile {
+        let sha256 = be_lib_sha256::sha256(bytes);
         self.answers
             .insert(helper::file_url(&sha256), (200, bytes.to_vec()));
-        helper::File {
+        ManifestFile {
             path: String::new(),
             sha256,
             size: bytes.len() as u64,
@@ -94,13 +92,13 @@ impl Http for Store {
     }
 }
 
-fn manifest(files: Vec<(&str, helper::File)>) -> Manifest {
+fn manifest(files: Vec<(&str, ManifestFile)>) -> Manifest {
     Manifest {
         product: "android".to_owned(),
         commit: "c".repeat(40),
         files: files
             .into_iter()
-            .map(|(path, file)| helper::File {
+            .map(|(path, file)| ManifestFile {
                 path: path.to_owned(),
                 ..file
             })

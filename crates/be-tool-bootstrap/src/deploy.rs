@@ -41,7 +41,7 @@ pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
         std::env::set_var("BE3_PROGRAM_ID", "be-host");
         std::env::set_var("BE3_DEPLOY_DEFAULT_SERVER", "true");
     }
-    // The native downloads are linked with LTO by the deploy target's own
+    // The downloads are built for their platforms by the deploy target's own
     // transitions (crates/be-tool-local/defs.bzl), and each skip is a target of
     // its own, so nothing here is buckconfig.
     let target = if !downloads {

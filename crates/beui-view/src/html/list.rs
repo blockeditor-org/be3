@@ -5,7 +5,7 @@ use crate::types::Align;
 use crate::types::Direction;
 use crate::types::Justify;
 use beui_core_html::css;
-use beui_core_html::document::{create, set_direction, set_style};
+use beui_core_html::document::{create, set_direction, set_style, set_wraps};
 use beui_core_html::tree::{ListKind, host};
 
 use super::bind;
@@ -39,6 +39,7 @@ pub(crate) fn list(
         );
     });
     bind(wrap, move |wrap| {
+        set_wraps(list, wrap);
         set_style(list, "flex-wrap", wrap.then(|| "wrap".to_owned()));
     });
     bind(spacing, move |spacing| {

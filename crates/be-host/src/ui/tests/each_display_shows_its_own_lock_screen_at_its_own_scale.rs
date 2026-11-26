@@ -15,7 +15,7 @@ fn display(id: &str, rect: beui::Rect, scale: f32) -> crate::display::shown::Sho
 fn each_display_shows_its_own_lock_screen_at_its_own_scale() {
     let laptop = beui::Rect::from_min_size(pos2(0.0, 0.0), vec2(960.0, 600.0));
     let monitor = beui::Rect::from_min_size(pos2(960.0, 120.0), vec2(640.0, 480.0));
-    let context = Context::new(FreetypeFonts::default());
+    let context = Context::new(SkrifaFonts::default());
     beui::reactive::pin_wall_clock(Some((context.now(), Duration::from_secs(1_700_000_000))));
     let mut document = build(|| {
         crate::compositor::install();

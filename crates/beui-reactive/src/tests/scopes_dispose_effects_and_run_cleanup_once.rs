@@ -12,7 +12,7 @@ fn scopes_dispose_effects_and_run_cleanup_once() {
         let calls = calls.clone();
         let cleanups = cleanups.clone();
         create_effect(move || {
-            value.get();
+            value.track();
             calls.set(calls.get() + 1);
             let cleanups = cleanups.clone();
             on_cleanup(move || cleanups.set(cleanups.get() + 1));

@@ -3,8 +3,9 @@ use std::rc::Rc;
 
 use crate::arena::{self, Key};
 use crate::computation::Computation;
+use crate::loading::note_read;
 use crate::runtime::{check_tracked_read, probe};
-use crate::signal::{Get, Tracked, Value, track};
+use crate::signal::{Get, Tracked, Value, readiness_of, track};
 
 pub struct Memo<T> {
     key: Key,
@@ -19,8 +20,13 @@ pub struct Memo<T> {
 /// computation behind it. The closure must be pure: writing a signal in it panics, even
 /// under `untrack`, and `./scripts/verify` flags writes in a `create_memo` closure. Nothing
 /// registers with a loading `Boundary` from inside a memo, since it reruns on every read.
-pub fn create_memo<T: PartialEq + 'static>(mut compute: impl FnMut() -> T + 'static) -> Memo<T> {
-    let probed = probe(true, &mut compute);
+///
+/// The closure may take the value it computed last, `None` the first time: annotate it,
+/// `create_memo(move |previous: Option<&Size>| measured.get().or(previous.copied()))`.
+pub fn create_memo<T: PartialEq + 'static, M>(
+    mut compute: impl Compute<T, M> + 'static,
+) -> Memo<T> {
+    let probed = probe(true, || compute.compute(None));
     let constant = probed.constant();
     let output = Rc::new(Value::new(Some(probed.value)));
     if constant {
@@ -28,10 +34,16 @@ pub fn create_memo<T: PartialEq + 'static>(mut compute: impl FnMut() -> T + 'sta
             owner.dispose();
         }
     } else {
+        output.source.set_readiness(readiness_of(
+            probed
+                .read
+                .iter()
+                .map(|(dependency, _)| dependency.source()),
+        ));
         let written = output.clone();
         let tracked: Rc<dyn Tracked> = output.clone();
         let computation = Computation::new(Some(tracked), move || {
-            let next = compute();
+            let next = compute.compute(written.value.borrow().as_ref());
             let mut value = written.value.borrow_mut();
             if value.as_ref() == Some(&next) {
                 false
@@ -46,6 +58,32 @@ pub fn create_memo<T: PartialEq + 'static>(mut compute: impl FnMut() -> T + 'sta
     Memo {
         key: arena::insert_owned_tracked(output),
         ty: PhantomData,
+    }
+}
+
+/// What `create_memo` and `create_linked_signal` take: a closure computing the value,
+/// `FnMut() -> T`, or one given the value it computed last, `FnMut(Option<&T>) -> T`. `M`
+/// only tells the two apart. The argument must be annotated (`|previous: Option<&T>|`): an
+/// unannotated `|previous|` fails to infer its type.
+pub trait Compute<T, M> {
+    fn compute(&mut self, previous: Option<&T>) -> T;
+}
+
+#[doc(hidden)]
+pub struct Fresh;
+
+#[doc(hidden)]
+pub struct FromPrevious;
+
+impl<T, F: FnMut() -> T> Compute<T, Fresh> for F {
+    fn compute(&mut self, _: Option<&T>) -> T {
+        self()
+    }
+}
+
+impl<T, F: FnMut(Option<&T>) -> T> Compute<T, FromPrevious> for F {
+    fn compute(&mut self, previous: Option<&T>) -> T {
+        self(previous)
     }
 }
 
@@ -65,6 +103,12 @@ impl<T> PartialEq for Memo<T> {
 
 impl<T> Eq for Memo<T> {}
 
+impl<T> std::fmt::Debug for Memo<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Memo").field(&self.key).finish()
+    }
+}
+
 impl<T: 'static> Get<T> for Memo<T> {
     fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
         check_tracked_read::<Self>();
@@ -73,6 +117,9 @@ impl<T: 'static> Get<T> for Memo<T> {
         let producer = output.source.producer.borrow().upgrade();
         if let Some(producer) = producer {
             producer.refresh();
+        }
+        if !output.source.is_settled() {
+            note_read(output.clone());
         }
         track(output.clone());
         f(output.value.borrow().as_ref().expect("memo has no value"))

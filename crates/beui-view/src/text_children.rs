@@ -1,16 +1,20 @@
+use crate::reactive::view;
 use crate::reactive::{
-    BuildsNode, ChildSegment, ChildValue, Children, ComponentContext, Get, IntoChild, IntoProp,
-    IntoSegment, Memo, NodeId, Prop, ReadSignal, Ready, ScopeContext, Signal,
+    BuildsNode, ChildSegment, ChildValue, Children, ComponentContext, Get, IntoChild, IntoSegment,
+    Memo, NodeId, Prop, ReadSignal, Ready, ScopeContext, Signal,
 };
 use crate::reactive::{DynamicSegment, ForEach, create_memo};
 use crate::types::icons::Glyph;
 use crate::types::text::{FontPatch, IconSpan, Phrase, PhraseRun};
-use crate::types::{Color, FontFamily, FontId, SpanBackground};
-use beui_macros::view;
+use crate::types::{Color, FontFamily, FontId, GapWidth, SpanBackground};
 
+// Not boxed: a span is the child text has most of, and boxing it would allocate for every one
+// to make the rarer children smaller.
+#[allow(clippy::large_enum_variant)]
 pub enum TextChild {
     Span(Span),
     Gap(Gap),
+    Blank(Blank),
     Break(Break),
     Item(TextItem),
 }
@@ -20,6 +24,7 @@ impl ChildValue for TextChild {
         match self {
             Self::Span(value) => value.finish_component(component, scope),
             Self::Gap(value) => value.finish_component(component, scope),
+            Self::Blank(value) => value.finish_component(component, scope),
             Self::Break(value) => value.finish_component(component, scope),
             Self::Item(value) => value.finish_component(component, scope),
         }
@@ -167,7 +172,7 @@ macro_rules! text_child_from {
         $(
             impl IntoChild<TextChild> for $ty {
                 fn into_child(self) -> TextChild {
-                    TextChild::Span(Span::plain(self.into_prop()))
+                    TextChild::Span(Span::plain(beui_tree::reactive::IntoPropValue::<beui_tree::reactive::Prop<String>, _>::into_prop_value(self)))
                 }
             }
 
@@ -179,7 +184,7 @@ macro_rules! text_child_from {
 
             impl IntoSegment<SpanText> for $ty {
                 fn into_segment(self) -> ChildSegment<SpanText> {
-                    ChildSegment::One(SpanText(self.into_prop()))
+                    ChildSegment::One(SpanText(beui_tree::reactive::IntoPropValue::<beui_tree::reactive::Prop<String>, _>::into_prop_value(self)))
                 }
             }
         )*
@@ -211,6 +216,16 @@ impl Span {
     }
 }
 
+macro_rules! text_counted {
+    ($($ty:ty),*) => {
+        $(impl crate::reactive::Counted for $ty {
+            type Count = crate::reactive::CountOne;
+        })*
+    };
+}
+
+text_counted!(Span, Gap, Blank, Break, TextItem);
+
 impl IntoSegment<TextChild> for Phrase {
     fn into_segment(self) -> ChildSegment<TextChild> {
         ChildSegment::Many(
@@ -234,7 +249,7 @@ impl IntoSegment<TextChild> for Memo<Phrase> {
         let keys: Memo<Vec<usize>> =
             create_memo(move || phrase.with(|phrase| (0..phrase.runs().len()).collect()));
         let runs: DynamicSegment<TextChild> = view! {
-            <ForEach keys={keys}>|index: usize| { Span::of_run(phrase, index) }</ForEach>
+            <ForEach value={keys}>|index: usize| { Span::of_run(phrase, index) }</ForEach>
         };
         ChildSegment::Dynamic(runs)
     }
@@ -265,7 +280,7 @@ impl IntoSegment<TextChild> for Span {
 }
 
 pub struct Gap {
-    pub(crate) width: f32,
+    pub(crate) width: GapWidth,
 }
 
 impl ChildValue for Gap {}
@@ -279,6 +294,25 @@ impl IntoChild<TextChild> for Gap {
 impl IntoSegment<TextChild> for Gap {
     fn into_segment(self) -> ChildSegment<TextChild> {
         ChildSegment::One(TextChild::Gap(self))
+    }
+}
+
+pub struct Blank {
+    pub(crate) width: f32,
+    pub(crate) font: Option<FontId>,
+}
+
+impl ChildValue for Blank {}
+
+impl IntoChild<TextChild> for Blank {
+    fn into_child(self) -> TextChild {
+        TextChild::Blank(self)
+    }
+}
+
+impl IntoSegment<TextChild> for Blank {
+    fn into_segment(self) -> ChildSegment<TextChild> {
+        ChildSegment::One(TextChild::Blank(self))
     }
 }
 

@@ -3,8 +3,9 @@ name: Broad check
 # What ./scripts/verify does not compile, in one buck2 command
 # (buck/dev/broad.bxl): rustc's check pass over every first-party crate on
 # Windows, macOS, Android, linux arm64, the web's wasm32, host wasi and beui's
-# HTML core, release copies of Linux and the apps' wasm, and clippy over Linux
-# and the apps' wasm, which fails on any warning.
+# HTML core, release copies of Linux and the apps' wasm, a link of be-host's
+# Android library, and clippy over Linux and the apps' wasm, which fails on any
+# warning.
 # decisions/verify_compiles_one_configuration_per_target.md says why verify
 # leaves these out. It also builds crates/be-tool-bootstrap with cargo, the
 # recovery route in guides/bootstrap.md, to see that it still works.

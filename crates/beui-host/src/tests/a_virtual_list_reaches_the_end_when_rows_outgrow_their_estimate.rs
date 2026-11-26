@@ -17,10 +17,10 @@ fn a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @node_ref=&scroll>
+                    <Scroll @node_ref=&scroll style={plain_scroll()}>
                         <VirtualList
                             @node_ref=&list
-                            keys={indices(ROWS)}
+                            value={indices(ROWS)}
                             item_size=ESTIMATE
                         >|index: ReadSignal<usize>| {
                             create_binding(move || {

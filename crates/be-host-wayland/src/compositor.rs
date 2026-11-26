@@ -15,10 +15,10 @@ use smithay::input::pointer::{CursorImageStatus, CursorImageSurfaceData};
 use smithay::wayland::compositor::with_states;
 
 use crate::presentation::{Place, Presented};
-use crate::render::{Gpu, Textures, WindowDraw};
+use crate::render::{Gpu, Textures, WindowDraw, WindowPicture};
 use crate::server::{Server, Watch};
 use crate::state::{KeyboardConfig, ServerEvent, WindowId};
-use crate::windows::{Command, Launch, Popups, WindowInfo, Windows};
+use crate::windows::{Command, Drawn, Launch, Popups, WindowInfo, Windows};
 
 /// The desktop's name in `XDG_CURRENT_DESKTOP`, as the login session's entry
 /// names it, given to programs when be-host started without one; under it
@@ -417,6 +417,7 @@ impl Compositor {
                 ServerEvent::Menu(id, at) => windows.ask_menu(id, at),
                 ServerEvent::Minimized(id) => windows.minimize(id),
                 ServerEvent::Rang(id) => windows.ring(id),
+                ServerEvent::Failed(problem) => self.fail(problem),
                 ServerEvent::Unmapped(id) => {
                     windows.forget(id);
                     windows.open(id);
@@ -559,8 +560,8 @@ impl Compositor {
             self.server.state.presentation.drawn(*id, callbacks);
         }
         let store = self.windows;
-        for (id, (drawing, popups)) in drawings {
-            store.draw(id, drawing, popups);
+        for (id, drawn) in drawings {
+            store.draw(id, drawn);
         }
     }
 
@@ -611,24 +612,41 @@ impl Compositor {
         })
     }
 
-    fn drawing(&self, id: WindowId) -> (Option<beui::native::Drawing>, Option<Popups>) {
+    /// What `id` shows: its drawing, its popups' drawing, and the whole of it (its own surfaces
+    /// and then its popups', where each is in the window) for a host that composites it itself.
+    fn drawing(&self, id: WindowId) -> Drawn {
         let textures = self.textures.borrow();
         let (Some(gpu), Some(signals)) = (textures.gpu(), self.windows.signals(id)) else {
-            return (None, None);
+            return Drawn::default();
         };
-        let (popups, own): (Vec<_>, Vec<_>) = self
+        let layers: Vec<_> = self
             .server
             .state
             .layers(id)
             .into_iter()
             .filter_map(|layer| Some((textures.get(&layer.surface)?, layer)))
-            .partition(|(_, layer)| layer.popup);
-        let drawing = WindowDraw::drawing(
-            gpu.clone(),
-            own,
-            signals.painted.clone(),
-            self.waker.clone(),
-        );
+            .collect();
+        let picture = |layers| {
+            Rc::new(WindowPicture::new(
+                gpu.clone(),
+                layers,
+                signals.painted.clone(),
+                self.waker.clone(),
+            ))
+        };
+        let whole = self.windows.composited(id).then(|| {
+            picture(
+                layers
+                    .iter()
+                    .filter(|(_, layer)| !layer.popup)
+                    .chain(layers.iter().filter(|(_, layer)| layer.popup))
+                    .cloned()
+                    .collect(),
+            )
+        });
+        let (popups, own): (Vec<_>, Vec<_>) =
+            layers.into_iter().partition(|(_, layer)| layer.popup);
+        let drawing = WindowDraw::drawing(picture(own));
         let bounds = popups
             .iter()
             .map(|(_, layer)| layer.rect)
@@ -657,15 +675,14 @@ impl Compositor {
                     Pos2::new(bounds.loc.x as f32, bounds.loc.y as f32),
                     Vec2::new(bounds.size.w as f32, bounds.size.h as f32),
                 ),
-                drawing: WindowDraw::drawing(
-                    gpu,
-                    layers,
-                    signals.painted.clone(),
-                    self.waker.clone(),
-                ),
+                drawing: WindowDraw::drawing(picture(layers)),
             }
         });
-        (Some(drawing), popups)
+        Drawn {
+            drawing: Some(drawing),
+            popups,
+            picture: whole,
+        }
     }
 
     fn input(&mut self, now: Instant) {
@@ -1040,6 +1057,22 @@ impl Compositor {
         self.server.state.presentation.flipped(screen, presented);
     }
 
+    /// Why the desktop is not settled, if it is not: a program window shown (placed, by its
+    /// view or a host that composites it) has yet to draw what it was last configured to, so
+    /// what shows of it is still arriving. One that stopped responding is not waited for.
+    pub fn busy(&self) -> Option<String> {
+        let state = &self.server.state;
+        state
+            .windows()
+            .into_iter()
+            .any(|id| {
+                self.windows.rect(id).is_some()
+                    && state.responding(id)
+                    && state.configure_outstanding(id)
+            })
+            .then(|| "a program window has yet to draw what it was configured to".to_owned())
+    }
+
     pub fn awaits_flip(&self) -> bool {
         self.server.state.presentation.awaits_flip()
     }
@@ -1111,6 +1144,14 @@ impl Compositor {
     pub fn before(&mut self, context: &Context, rect: Rect) {
         self.show_painted(context);
         self.receive(context);
+        // A window a host composites itself from now on, which drew before it was: its picture,
+        // which it would otherwise have only once it draws again.
+        let unpictured: Vec<_> = (self.server.state.windows().into_iter())
+            .filter(|id| self.windows.composited(*id) && self.windows.picture(*id).is_none())
+            .collect();
+        if !unpictured.is_empty() {
+            self.redraw(unpictured);
+        }
         self.scale = context.pixels_per_point();
         self.area = match self.monitors.is_empty() {
             true => rect,
@@ -1201,6 +1242,13 @@ impl Compositor {
         self.ping_unowned(context);
         self.watch_pings(context);
         if std::mem::take(&mut self.forced) || self.windows.revision() != self.listed {
+            context.request_repaint();
+        }
+        // A window a host just began compositing itself is pictured in the next frame's
+        // `before`.
+        if (self.server.state.windows().into_iter())
+            .any(|id| self.windows.composited(id) && self.windows.picture(id).is_none())
+        {
             context.request_repaint();
         }
         let awaits = (self.server.state.presentation).awaits_frame(|id| self.shown(id));

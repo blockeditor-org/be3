@@ -137,18 +137,17 @@ pub(super) fn ProgramSearch(
         !searching.get() && catalog.with(|catalog| catalog.listed && catalog.programs.is_empty())
     });
     let steady = create_memo(move || catalog.with(|catalog| !catalog.programs.is_empty()));
-    let columns = create_memo(move || match searching.get() {
-        true => 1,
-        false => COLUMNS,
-    });
     view! {
         <List spacing=Space::Sm>
             <SearchList
                 items
-                score
+                score={score as fn(&PaletteItem, &str) -> Option<u32>}
                 query
                 highlighted={programs.highlighted}
-                columns
+                columns={move || match searching.get() {
+                    true => 1,
+                    false => COLUMNS,
+                }}
                 focused
                 list_height=RESULTS_HEIGHT
                 fill_height={steady}
@@ -160,10 +159,10 @@ pub(super) fn ProgramSearch(
                     close.call(());
                 }}
             />
-            <Show condition={waiting}>
+            <Show value={waiting}>
                 <Text style=TextStyle::CAPTION>"Loading programs…"</Text>
             </Show>
-            <Show condition={none}>
+            <Show value={none}>
                 <Text style=TextStyle::CAPTION>"No programs found."</Text>
             </Show>
         </List>

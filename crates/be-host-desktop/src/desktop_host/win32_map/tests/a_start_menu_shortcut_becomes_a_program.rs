@@ -19,5 +19,23 @@ fn a_start_menu_shortcut_becomes_a_program() {
     assert_eq!(host.name, "Paint");
     assert_eq!(host.comment, "Draw pictures");
     assert_eq!(host.keywords, vec!["Accessories".to_owned()]);
-    assert_eq!(host.wm_class.as_deref(), Some("Microsoft.Paint"));
+    assert_eq!(
+        host.wm_class.as_deref(),
+        Some("Microsoft.Paint"),
+        "its windows carry its AppUserModelID"
+    );
+
+    // A shortcut with no AppUserModelID: its windows carry its target's path, which a shell
+    // matches a window from last time by, to start it again.
+    let plain = Program {
+        shortcut: Shortcut {
+            app_user_model_id: None,
+            ..program.shortcut.clone()
+        },
+        ..program
+    };
+    assert_eq!(
+        host_program(&plain, None).wm_class.as_deref(),
+        Some("C:\\Windows\\paint.exe")
+    );
 }

@@ -4,31 +4,7 @@ use beui_tree::reactive::{Get, IntoProp, Memo, Prop, ReadSignal, Signal};
 
 use crate::color::Color;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Direction {
-    Horizontal,
-    Vertical,
-}
-
-impl Direction {
-    pub fn axes(self, main: f32, cross: f32) -> Vec2 {
-        match self {
-            Direction::Horizontal => vec2(main, cross),
-            Direction::Vertical => vec2(cross, main),
-        }
-    }
-
-    pub fn main(self, size: Vec2) -> f32 {
-        self.main_and_cross(size).0
-    }
-
-    pub fn main_and_cross(self, size: Vec2) -> (f32, f32) {
-        match self {
-            Direction::Horizontal => (size.x, size.y),
-            Direction::Vertical => (size.y, size.x),
-        }
-    }
-}
+pub use be_lib_geometry::Direction;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Align {
@@ -70,6 +46,9 @@ pub struct Sizing {
     pub shrink: f32,
     pub align: Option<Align>,
     pub gap: Option<f32>,
+    /// Stays at the start edge of what is visible of its list (the scroll around it) once
+    /// scrolled to it, within the list, as CSS `position: sticky` does.
+    pub sticky: bool,
 }
 
 impl Default for Sizing {
@@ -81,6 +60,7 @@ impl Default for Sizing {
             shrink: 0.0,
             align: None,
             gap: None,
+            sticky: false,
         }
     }
 }

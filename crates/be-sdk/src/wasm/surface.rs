@@ -52,6 +52,9 @@ pub(crate) struct Surfaces {
     layout: ScreenLayout,
     fresh: HashSet<u32>,
     relaid: bool,
+    /// A surface placed anew in the frame that laid it out, whose painting was dropped (`lay_out`),
+    /// is owed a frame at its new size.
+    owed: bool,
 }
 
 impl Surfaces {
@@ -72,6 +75,7 @@ impl Surfaces {
             layout: ScreenLayout::default(),
             fresh: HashSet::default(),
             relaid: false,
+            owed: false,
         })
     }
 
@@ -81,6 +85,12 @@ impl Surfaces {
 
     pub(crate) fn take_relaid(&mut self) -> bool {
         std::mem::take(&mut self.relaid)
+    }
+
+    /// Whether a surface the last `lay_out` placed anew is left without a frame at its new size,
+    /// which the app asks the host for (`frame-needed`), so no host need know to lay it out again.
+    pub(crate) fn take_owed(&mut self) -> bool {
+        std::mem::take(&mut self.owed)
     }
 
     pub(crate) fn place(&mut self, layout: ScreenLayout) {
@@ -110,6 +120,9 @@ impl Surfaces {
                     placement.width,
                     placement.height,
                     format,
+                    &[],
+                    // beui draws premultiplied, and a surface may be translucent anywhere.
+                    wgpu::CompositeAlphaMode::PreMultiplied,
                 );
                 self.fresh.insert(placement.surface);
             }
@@ -128,9 +141,22 @@ impl Surfaces {
             crate::screens::seen(),
             self.gpu.is_some(),
         );
+        let mut ran = ran;
         if !self.layout.same_placements(screens.layout()) {
             self.place(screens.layout().clone());
             self.relaid = true;
+            // A view that fitted itself to new content in this frame was run at the placement it
+            // had: its painting is at a size its surface no longer has, so it is not presented,
+            // and the surface, fresh, is drawn at its new size in the next frame, which it owes.
+            let before = ran.painting.len();
+            let layout = &self.layout;
+            ran.painting.retain(|painting| {
+                layout.screens.iter().any(|laid| {
+                    laid.surface == painting.surface
+                        && (laid.width, laid.height) == (painting.width, painting.height)
+                })
+            });
+            self.owed |= ran.painting.len() != before;
         }
         Some((screens.commit(), ran))
     }
@@ -148,22 +174,22 @@ impl Surfaces {
         if let Some((gpu, format)) = &self.gpu
             && !ran.painting.is_empty()
         {
-            let painted: Vec<u32> = ran
-                .painting
-                .iter()
-                .map(|placement| placement.surface)
-                .collect();
+            let painted = ran.painting.clone();
             let damage =
                 self.panes
                     .paint(&gpu.device, &gpu.queue, *format, screens, ran.painting)?;
-            for surface in painted {
-                self.fresh.remove(&surface);
+            for placement in &painted {
+                self.fresh.remove(&placement.surface);
             }
             let sequence = PRESENTS.with(|presents| {
                 presents.set(presents.get() + 1);
                 presents.get()
             });
-            presented = Some(PresentedFrame { sequence, damage });
+            presented = Some(PresentedFrame {
+                sequence,
+                damage,
+                painted,
+            });
         }
         Ok(PresentCommit {
             serial,
@@ -178,8 +204,6 @@ impl Surfaces {
 fn format(format: SurfaceFormat) -> wgpu::TextureFormat {
     match format {
         SurfaceFormat::Rgba8Unorm => wgpu::TextureFormat::Rgba8Unorm,
-        SurfaceFormat::Rgba8UnormSrgb => wgpu::TextureFormat::Rgba8UnormSrgb,
         SurfaceFormat::Bgra8Unorm => wgpu::TextureFormat::Bgra8Unorm,
-        SurfaceFormat::Bgra8UnormSrgb => wgpu::TextureFormat::Bgra8UnormSrgb,
     }
 }

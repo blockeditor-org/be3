@@ -4,8 +4,8 @@ use be_block_graph::{
     SETTINGS_TYPE,
 };
 use be_block_protocol::{
-    AccessEntry, AccessList, BlockSummary, ChangeCursor, ChangedPage, ErrorCode, HistoryEntry,
-    Hold, KeyKind, KeySet, Listed, Listing, ObjectChange, OrganizationRole, ReferenceChange,
+    AccessEntry, AccessList, AccountName, BlockSummary, ChangeCursor, ChangedPage, ErrorCode,
+    HistoryEntry, Hold, Listed, Listing, ObjectChange, OrganizationRole, ReferenceChange,
 };
 use be_block_store::Hash;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -23,18 +23,9 @@ fn departing(graph: &BlockGraph, block: Uuid) -> crate::changes::Departing {
     }
 }
 
-/// The top-level block whose tree `block` is in, if it is in one (and not in the trash).
-fn tree_of(graph: &BlockGraph, block: Uuid) -> Option<Uuid> {
-    let top = graph.ancestors(block).last().unwrap_or(block);
-    graph
-        .get(top)
-        .is_some_and(|node| node.parent == BlockParent::Root)
-        .then_some(top)
-}
-
-/// The most blocks of either kind a page of `changed-since` holds.
+/// The most blocks of either kind a page of `query.tree` holds.
 const MAX_CHANGES_PER_PAGE: usize = 500;
-/// The summaries of one `changed-since` page: once they come to this, the page ends, so with
+/// The summaries of one `query.tree` page: once they come to this, the page ends, so with
 /// one summary more, however large, it stays inside a frame.
 const MAX_PAGE_SUMMARY_BYTES: usize = be_block_protocol::MAX_FRAME_BYTES / 4;
 const _: () = assert!(
@@ -45,31 +36,56 @@ const _: () = assert!(
         <= be_block_protocol::MAX_FRAME_BYTES
 );
 
-/// The most changes one page of `changed-since` looks at, those of other trees included.
+/// The most changes one page of `query.tree` looks at, those of other trees included.
 const MAX_SCANNED: usize = if cfg!(test) { 6 } else { 20_000 };
 
 use crate::{
     ServerError,
-    keys::{forget_block_keys, store_keys},
     limits::{MAX_BLOCKS_PER_ACCOUNT, MAX_COMMIT_AHEAD, MAX_METADATA_BYTES},
     store::{
-        Collected, Identity, ServerStore, encode_access, encode_parent, parse_uuid,
+        Identity, ServerStore, encode_access, encode_parent, parse_uuid,
         usage::{forget_objects, payer_for_new, persist_sizes},
     },
 };
 
 pub enum PublishOutcome {
-    Published(CommitId, Option<Vec<Uuid>>),
+    /// The head moved, or was the commit already; with the blocks the publish started or
+    /// stopped referencing, and what the publish's seal did to its block's journal, when it
+    /// trimmed it.
+    Published(CommitId, Vec<Uuid>, Option<crate::journal::Trimmed>),
     Rejected(Option<CommitId>),
+}
+
+/// What a move did besides moving its block.
+pub struct Moved {
+    /// Who could know of the block before.
+    pub before: BTreeSet<Uuid>,
+    /// Who no longer views something below it.
+    pub lost: BTreeSet<Uuid>,
+    /// The blocks above it before, whose followers hear it left.
+    pub above: Vec<Uuid>,
+    /// The scope above where it was, none from the top or the trash (`keys::Whole::Moved`).
+    pub scope_before: Option<Uuid>,
+    /// The tops of the trees of the blocks' agents the move forgot (`store::Removed::trees`).
+    pub forgotten: Vec<Uuid>,
 }
 
 pub(crate) struct Visibility {
     account: Uuid,
     organization: Uuid,
     administrator: bool,
+    /// A guest of the organization (guides/blocks/keys.md, "Share links"): it reaches only what
+    /// links granted it, not the organization's settings, and is served its log as a proof path.
+    guest: bool,
     /// The block a block's agent is bound to, outside which it reaches nothing.
     bound: Option<Uuid>,
     visible: std::cell::OnceCell<BTreeMap<Uuid, Access>>,
+}
+
+/// Whether `block` is within what an account bound to `bound` may reach at all: anything for an
+/// account bound to none, or for a block's agent its block and the blocks under it.
+pub(crate) fn reaches(graph: &BlockGraph, bound: Option<Uuid>, block: Uuid) -> bool {
+    bound.is_none_or(|root| block == root || graph.ancestors(block).any(|above| above == root))
 }
 
 impl Visibility {
@@ -80,16 +96,15 @@ impl Visibility {
             // A block's agent never administers, whatever its role says.
             administrator: identity.role == OrganizationRole::Administrator
                 && identity.bound.is_none(),
+            guest: identity.role == OrganizationRole::Guest,
             bound: identity.bound,
             visible: std::cell::OnceCell::new(),
         }
     }
 
-    /// Whether `block` is within what this caller may reach at all: anything, or for a block's
-    /// agent its block and the blocks under it.
+    /// Whether `block` is within what this caller may reach at all (`reaches`).
     fn reaches(&self, graph: &BlockGraph, block: Uuid) -> bool {
-        self.bound
-            .is_none_or(|root| block == root || graph.ancestors(block).any(|above| above == root))
+        reaches(graph, self.bound, block)
     }
 
     fn inherited(&self, graph: &BlockGraph, block: Uuid) -> Access {
@@ -103,7 +118,10 @@ impl Visibility {
                 false => graph.inherited(block, self.account).min(Access::KnowExists),
             },
             (true, true) => Access::Manage,
-            (true, false) if crate::organization::in_settings(graph, self.organization, block) => {
+            (true, false)
+                if !self.guest
+                    && crate::organization::in_settings(graph, self.organization, block) =>
+            {
                 Access::View
             }
             (true, false) => graph.inherited(block, self.account),
@@ -126,6 +144,33 @@ impl Visibility {
         self.administrator
     }
 
+    /// Whether a block this caller may view lies below `block`, whose log it is then served to
+    /// check that block's ancestry and the records resting on it (guides/blocks/keys.md, "Parent
+    /// records").
+    pub(crate) fn reads_below(&self, graph: &BlockGraph, block: Uuid) -> bool {
+        graph
+            .entry_points(self.account)
+            .into_iter()
+            .any(|entry| graph.ancestors(entry).any(|above| above == block))
+    }
+
+    /// Whether this caller is served `block`'s whole access log rather than a proof path
+    /// (guides/blocks/keys.md, "Who is served what"): it has Edit or above there, or on a block
+    /// below it, whose sealing checks every ancestor's log too.
+    pub(crate) fn served_whole(&self, graph: &BlockGraph, block: Uuid) -> bool {
+        self.can_edit(graph, block)
+            || graph.entry_points(self.account).into_iter().any(|entry| {
+                graph.ancestors(entry).any(|above| above == block) && self.can_edit(graph, entry)
+            })
+    }
+
+    /// Whether this caller is served the organization's whole log rather than a proof path: it
+    /// administers the organization. Anyone else would learn every member from it, which only
+    /// an administrator may list (`list-members`), however many blocks it manages.
+    pub(crate) fn served_whole_organization(&self) -> bool {
+        !self.guest && self.bound.is_none() && self.administrator
+    }
+
     /// The blocks a member who administers nothing may know of, and perhaps some more: what lies
     /// below the member's own entry points and in the organization's settings. A member's call
     /// walks these rather than the whole organization, as the personal one holds every
@@ -143,7 +188,9 @@ impl Visibility {
             .keys()
             .copied()
             .collect();
-        blocks.extend(graph.subtree(crate::organization::settings_of(self.organization)));
+        if !self.guest {
+            blocks.extend(graph.subtree(crate::organization::settings_of(self.organization)));
+        }
         Some(blocks)
     }
 
@@ -168,15 +215,23 @@ pub(crate) fn visibility(identity: Identity) -> Visibility {
     Visibility::of(identity)
 }
 
-fn require_edit(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Result<(), ServerError> {
+pub(crate) fn require_edit(
+    graph: &BlockGraph,
+    seen: &Visibility,
+    block: Uuid,
+) -> Result<(), ServerError> {
     require(graph, seen, block, Access::Edit, "editable")
 }
 
-fn require_manage(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Result<(), ServerError> {
+pub(crate) fn require_manage(
+    graph: &BlockGraph,
+    seen: &Visibility,
+    block: Uuid,
+) -> Result<(), ServerError> {
     require(graph, seen, block, Access::Manage, "managed")
 }
 
-fn require(
+pub(crate) fn require(
     graph: &BlockGraph,
     seen: &Visibility,
     block: Uuid,
@@ -212,6 +267,7 @@ pub(crate) fn not_found(block: Uuid) -> ServerError {
 fn verb(level: Access) -> &'static str {
     match level {
         Access::None | Access::KnowExists => "known",
+        Access::Join => "joinable",
         Access::View => "readable",
         Access::Edit => "editable",
         Access::Manage => "managed",
@@ -244,9 +300,10 @@ fn require_descends(expected: Option<CommitId>, parents: &[CommitId]) -> Result<
     }
 }
 
-/// A search index lies under the block whose tree it indexes, one held per block: the server
-/// cannot read the `SEARCH_INDEX` metadata that names it, so it holds to the type and parent
-/// (plans/search.md). `index` is the index being placed, which may already be the one held.
+/// A search index lies under the block whose tree it indexes, one held per block: the server cannot
+/// read the `SEARCH_INDEX` metadata that names it, so it holds to the type and parent
+/// (guides/blocks/host.md, "Search"). `index` is the index being placed, which may already be the
+/// one held.
 fn require_index_place(
     graph: &BlockGraph,
     index: Uuid,
@@ -324,42 +381,6 @@ fn require_keeping_settings(
     }
 }
 
-/// Whether `seen` may delete a detached `block` for good: one it may edit, or an owner-only block
-/// (or one inside it) whose place it may edit, since deleting ciphertext nobody else opens
-/// reveals nothing, and leaving it would strand it below a parent that is gone.
-fn may_collect(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> bool {
-    seen.can_edit(graph, block)
-        || graph
-            .owner_only_root(block)
-            .and_then(|root| graph.get(root))
-            .and_then(|root| root.parent.block())
-            .is_some_and(|place| seen.can_edit(graph, place))
-}
-
-/// The `chosen` blocks that can go, children before their parents: a block goes only with every
-/// child it has, so no block is ever left below one that is gone.
-fn removable(graph: &BlockGraph, mut chosen: BTreeSet<Uuid>) -> Vec<Uuid> {
-    loop {
-        let kept: BTreeSet<Uuid> = chosen
-            .iter()
-            .copied()
-            .filter(|block| {
-                graph
-                    .children(BlockParent::Block(*block))
-                    .iter()
-                    .all(|child| chosen.contains(child))
-            })
-            .collect();
-        if kept.len() == chosen.len() {
-            break;
-        }
-        chosen = kept;
-    }
-    let mut ordered: Vec<Uuid> = chosen.into_iter().collect();
-    ordered.sort_by_key(|block| std::cmp::Reverse(graph.ancestors(*block).count()));
-    ordered
-}
-
 /// An owner-only block is made only in its maker's own settings: a `Settings` or
 /// `SettingsProfile` block the maker authored, so no one plants one in a block someone else
 /// pays for and could then neither open nor delete.
@@ -385,6 +406,80 @@ fn require_own_settings(
     }
 }
 
+/// What a guest makes (decisions/a_guest_makes_only_its_own_shell.md): only its shell's own
+/// blocks, so it can run be-host in the organization: a `Settings` at the top that only it
+/// reads (`owner_only`), and below it whatever its shell keeps (its device profiles, sessions
+/// and their settings), which that block's scope seals to it alone. Nothing a member could
+/// see, nor anything in a block someone else made.
+fn require_guest_shell(
+    graph: &BlockGraph,
+    database: &Connection,
+    identity: Identity,
+    content_type: Uuid,
+    parent: BlockParent,
+    owner_only: bool,
+) -> Result<(), ServerError> {
+    // Its admission named it a guest; one its last grant dropped since is no one here, and
+    // makes nothing that would outlive it (`share_links::drop_idle_guest`).
+    if crate::contacts::role_in(database, identity.account, identity.organization)?
+        != Some(OrganizationRole::Guest)
+    {
+        return Err(ServerError::Refused(
+            ErrorCode::PermissionDenied,
+            "the account is no longer in the organization".into(),
+        ));
+    }
+    let settings = <be_block::Settings as be_block_content::Root>::CONTENT_TYPE;
+    let allowed = match parent {
+        BlockParent::Root => owner_only && content_type == settings,
+        // Below its settings, which already only it reads, nothing is owner-only of its own, as
+        // a member's owner-only block is made only in settings that are not.
+        BlockParent::Block(_) if owner_only => false,
+        BlockParent::Block(parent) => graph
+            .owner_only_root(parent)
+            .and_then(|root| Some((root, graph.get(root)?)))
+            .is_some_and(|(_, root)| {
+                root.author == identity.account
+                    && root.content_type == settings
+                    && root.parent == BlockParent::Root
+            }),
+        _ => false,
+    };
+    match allowed {
+        true => Ok(()),
+        false => Err(ServerError::Refused(
+            ErrorCode::PermissionDenied,
+            "a guest makes only its own settings, readable by it alone, and what lies in them"
+                .into(),
+        )),
+    }
+}
+
+/// The account's own block (`be_block::account_block`) is made only at its id in the personal
+/// organization, owner-only and at the top, so it holds the account's records alone and no one
+/// else reads it (guides/blocks/keys.md, "Contacts").
+fn require_account_block(
+    connection: &rusqlite::Connection,
+    identity: Identity,
+    content_type: Uuid,
+    parent: BlockParent,
+    owner_only: bool,
+) -> Result<(), ServerError> {
+    let personal = crate::keys::organization_kind(connection, identity.organization)?
+        == be_block_protocol::OrganizationKind::Personal;
+    match personal
+        && owner_only
+        && parent == BlockParent::Root
+        && content_type == <be_block::AccountBlock as be_block_content::Root>::CONTENT_TYPE
+    {
+        true => Ok(()),
+        false => Err(ServerError::Refused(
+            ErrorCode::PermissionDenied,
+            "an account's own block is made only by it, readable by it alone, at the top of the personal organization".into(),
+        )),
+    }
+}
+
 /// Only the author of an owner-only block, or of the one it lies in, moves or shares it, whatever
 /// access anyone else is given (decisions/owner_only_settings_are_never_escrowed.md).
 fn require_owner_of_owner_only(
@@ -402,6 +497,23 @@ fn require_owner_of_owner_only(
     }
 }
 
+/// What a summary says that a follow of a block known of (`topic.known`) tells changes of: its
+/// access and its own `changed`. A change below the block moves neither, so it is not told.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct KnownState {
+    pub(crate) access: Access,
+    pub(crate) changed: u64,
+}
+
+impl KnownState {
+    pub(crate) fn of(summary: &BlockSummary) -> Self {
+        Self {
+            access: summary.access,
+            changed: summary.changed,
+        }
+    }
+}
+
 fn summary(graph: &BlockGraph, identity: Identity, block: Uuid) -> Option<BlockSummary> {
     summary_with(graph, &visibility(identity), block)
 }
@@ -409,10 +521,11 @@ fn summary(graph: &BlockGraph, identity: Identity, block: Uuid) -> Option<BlockS
 fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<BlockSummary> {
     let node = graph.get(block)?;
     let access = seen.access(graph, block);
-    let revision = graph.revision();
     if !access.can_view() {
+        // Its own `changed` still, so this lesser summary orders after the one a reader held
+        // while it could view the block.
         return Some(BlockSummary {
-            revision,
+            changed: node.changed,
             ..BlockSummary::no_access(block, node.content_type, access)
         });
     }
@@ -423,12 +536,12 @@ fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<Bl
         author: Some(node.author),
         parent: Some(node.parent),
         head: node.head,
-        references: node.references.clone(),
         metadata: node.metadata.clone(),
         version: Some(node.version),
         key: node.key,
         scope: Some(graph.scope(block)),
-        revision,
+        changed: node.changed,
+        entry: Some(entry_of(graph, seen, block)),
         held: graph.holds(block),
         opens_inside: node.is_open_inside() && graph.settings_owner(block).is_some(),
         sets_access: node.sets_access(),
@@ -438,31 +551,19 @@ fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<Bl
     })
 }
 
-/// What `summary_with` would tell a connection of `block` that decides which of its listings
-/// hold it, read from the graph without making the summary (its metadata and references).
-fn facts_of(
-    graph: &BlockGraph,
-    seen: &Visibility,
-    block: Uuid,
-    entry: bool,
-) -> Option<crate::watch::Facts> {
-    let node = graph.get(block)?;
-    if !seen.access(graph, block).can_view() {
-        return Some(crate::watch::Facts::new(
-            None,
-            true,
-            entry,
-            HashSet::new(),
-            false,
-        ));
+/// The entry point a caller who may view `block` follows to hear of its changes: the highest
+/// block above it, or itself, that the caller may view through every block between them. That
+/// is the top of its tree, or the block where the caller's view starts below a parent it may
+/// not view. O(depth) access checks, each O(depth).
+fn entry_of(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Uuid {
+    let mut entry = block;
+    while let Some(BlockParent::Block(parent)) = graph.get(entry).map(|node| node.parent) {
+        if !graph.contains(parent) || !seen.can_view(graph, parent) {
+            break;
+        }
+        entry = parent;
     }
-    Some(crate::watch::Facts::new(
-        Some(node.parent),
-        graph.holds(block),
-        entry,
-        node.references.iter().copied().collect(),
-        node.is_open_inside() && graph.settings_owner(block).is_some(),
-    ))
+    entry
 }
 
 impl ServerStore {
@@ -476,8 +577,9 @@ impl ServerStore {
         metadata: Vec<u8>,
         references: Vec<Uuid>,
         key: Uuid,
-        keys: KeySet,
         owner_only: bool,
+        root: Vec<u8>,
+        placement: Vec<u8>,
     ) -> Result<BlockSummary, ServerError> {
         let references = distinct(references);
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
@@ -492,35 +594,33 @@ impl ServerStore {
             if let BlockParent::Block(target) = parent {
                 require_parent_of(graph, &visibility(identity), content_type, target)?;
             }
-            if owner_only {
+            let account_block = block == be_block::account_block(identity.organization, identity.account);
+            if identity.role == OrganizationRole::Guest {
+                require_guest_shell(graph, database, identity, content_type, parent, owner_only)?;
+            } else if account_block {
+                require_account_block(database, identity, content_type, parent, owner_only)?;
+            } else if owner_only {
                 require_own_settings(graph, identity, parent)?;
             }
             if content_type == SEARCH_INDEX_TYPE {
                 require_index_place(graph, block, parent)?;
             }
             store.may_create(graph, database, identity, block, content_type, parent)?;
-            if !keys
-                .keys
-                .iter()
-                .any(|row| row.id == key && row.block == block && row.kind == KeyKind::Data)
-            {
-                return Err(ServerError::Refused(
-                    ErrorCode::InvalidRequest,
-                    "a new block needs a data key of its own".into(),
-                ));
-            }
             let mut node = BlockNode::new(content_type, identity.account, parent);
             node.metadata.clone_from(&metadata);
             node.owner_only = owner_only;
             graph.insert(block, node)?;
+            // Its key row comes in a `put-keys` of the same write, checked at the write's end
+            // (`keys::Whole::Made`).
+            graph.set_key(block, key)?;
             let (kind, parent_id) = encode_parent(parent);
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             let payer = payer_for_new(&transaction, identity.organization, parent, identity.account)?;
             transaction.execute(
                 "INSERT INTO blocks
                     (organization_id, id, content_type, author, parent_kind, parent_id, head, metadata,
-                     payer, owner_only)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7, ?8, ?9)",
+                     payer, owner_only, key_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7, ?8, ?9, ?10)",
                 params![
                     identity.organization.to_string(),
                     block.to_string(),
@@ -531,22 +631,27 @@ impl ServerStore {
                     metadata,
                     payer.to_string(),
                     owner_only,
+                    key.to_string(),
                 ],
             )?;
-            crate::changes::touch(&transaction, identity.organization, &[block])?;
+            crate::access::store_root(
+                &transaction,
+                identity.organization,
+                identity.account,
+                block,
+                parent,
+                &root,
+                &placement,
+            )?;
+            // The blocks it references are known to exist by whoever views it: they changed too.
+            let mut touched = vec![block];
+            touched.extend(references.iter().copied());
+            crate::changes::touch(&transaction, graph, identity.organization, &touched)?;
             store_edges(
                 &transaction,
                 &identity.organization.to_string(),
                 block,
                 &references,
-            )?;
-            store_keys(
-                graph,
-                &transaction,
-                identity.organization,
-                identity.account,
-                &keys,
-                |_, owner| owner == block,
             )?;
             transaction.commit()?;
             graph.set_references(block, &references)?;
@@ -555,24 +660,120 @@ impl ServerStore {
         .await
     }
 
-    pub async fn set_metadata(
+    /// The block's access log, root first (`query.log`), to a caller who may view or join it
+    /// or view a block below it: whole to one with Edit or above on it, or who views it with
+    /// Edit below, else a proof path of the caller's own right, of that of each lease holder in
+    /// `hosts` (each session the caller is in, by its block, with its holder's account) whose
+    /// session's block is `block` or lies below it, whom a Join member or viewer checks before it
+    /// speaks to it (guides/blocks/hosted.md), and, for a block above what the caller views, of
+    /// whoever signs below on authority from it. A host is proved nowhere else, so a member of
+    /// one session learns nothing of its host's records on unrelated blocks. Served whole, only
+    /// the entries after `held` when the log holds it (`access::served_log`).
+    pub async fn access_log(
         &self,
         identity: Identity,
         block: Uuid,
+        hosts: Vec<(Uuid, Uuid)>,
+        held: Option<be_block_protocol::HeldEntry>,
+    ) -> Result<be_block_protocol::AccessLogPage, ServerError> {
+        self.with_graph(identity.organization, move |_, graph, database| {
+            let seen = visibility(identity);
+            let viewed = graph.contains(block) && seen.can_view(graph, block);
+            let joins = graph.contains(block) && seen.inherited(graph, block).can_join();
+            let below = !viewed && seen.reads_below(graph, block);
+            // The member a block is offered to reads its log, as a path, to accept it.
+            let offered = graph.contains(block)
+                && crate::access::offered(database, identity.organization, block)?
+                    .is_some_and(|(to, _)| to == identity.account);
+            if !viewed && !joins && !below && !offered {
+                return Err(refusal(graph, &seen, block, "visible"));
+            }
+            let whole = viewed && seen.served_whole(graph, block);
+            let reader = (!whole).then_some(identity.account);
+            // Above what the caller views: whoever signs below on authority from it, and whoever
+            // sealed the caller a key, who may hold Edit here (`KeyBook::vouch`).
+            let mut also = match below {
+                false => Vec::new(),
+                true => {
+                    let mut also: Vec<Uuid> =
+                        crate::access::inherited_signers(database, identity.organization, block)?
+                            .into_iter()
+                            .filter(|(below, _)| {
+                                graph.contains(*below)
+                                    && (seen.can_view(graph, *below)
+                                        || seen.reads_below(graph, *below))
+                            })
+                            .map(|(_, signer)| signer)
+                            .collect();
+                    also.extend(crate::access::all_sealers(
+                        database,
+                        identity.organization,
+                        identity.account,
+                    )?);
+                    also
+                }
+            };
+            also.extend(
+                hosts
+                    .into_iter()
+                    .filter(|(session, _)| {
+                        *session == block || graph.ancestors(*session).any(|above| above == block)
+                    })
+                    .map(|(_, host)| host),
+            );
+            crate::access::served_log(
+                database,
+                be_block_keys::LogKind::Block,
+                identity.organization,
+                block,
+                reader,
+                also,
+                held,
+            )
+        })
+        .await
+    }
+
+    /// A publish with no commit: sets `block`'s metadata and references while its head is
+    /// `expected`, which stays the head, answering the block and the blocks it started or
+    /// stopped referencing; else the head, as a stale publish is rejected. `references` is a
+    /// change from what `expected` holds, the whole list with none.
+    pub async fn describe(
+        &self,
+        identity: Identity,
+        block: Uuid,
+        expected: Option<CommitId>,
         metadata: Vec<u8>,
-        references: Vec<Uuid>,
-    ) -> Result<(BlockSummary, Vec<Uuid>), ServerError> {
-        let references = distinct(references);
+        references: ReferenceChange,
+    ) -> Result<Result<(BlockSummary, Vec<Uuid>), Option<CommitId>>, ServerError> {
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
-        crate::limits::references(&references)?;
+        crate::limits::references(&references.removed)?;
+        if references.added.len() > crate::limits::MAX_REFERENCES {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                format!(
+                    "a block may reference at most {} blocks",
+                    crate::limits::MAX_REFERENCES
+                ),
+            ));
+        }
         self.with_graph(identity.organization, move |_, graph, database| {
             require_edit(graph, &visibility(identity), block)?;
-            if let Some(head) = graph.head(block) {
-                return Err(ServerError::Refused(
-                    ErrorCode::BlockHasContent,
-                    format!("block {block} has content at {head}, so its metadata is published with it"),
-                ));
+            let head = graph.head(block);
+            if head != expected {
+                return Ok(Err(head));
             }
+            let listed = match expected {
+                Some(_) => graph.references(block),
+                None => Vec::new(),
+            };
+            let references = references.apply(&listed).ok_or_else(|| {
+                ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "a reference change must be as `ReferenceChange::between` makes it".into(),
+                )
+            })?;
+            crate::limits::references(&references)?;
             require_keeping_settings(graph, &visibility(identity), block, &references)?;
             require_one_index(graph, block, &references)?;
             let relinked = relinked(graph, block, &references);
@@ -582,7 +783,9 @@ impl ServerStore {
                 "UPDATE blocks SET metadata = ?3, version = version + 1 WHERE organization_id = ?1 AND id = ?2",
                 params![organization, block.to_string(), metadata],
             )?;
-            crate::changes::touch(&transaction, identity.organization, &[block])?;
+            let mut touched = vec![block];
+            touched.extend(relinked.iter().flatten().copied());
+            crate::changes::touch(&transaction, graph, identity.organization, &touched)?;
             if relinked.is_some() {
                 let before = graph.references(block);
                 change_edges(&transaction, &organization, block, &before, &references)?;
@@ -592,63 +795,70 @@ impl ServerStore {
             graph.set_metadata(block, metadata)?;
             graph.touch(block)?;
             let summary = summary(graph, identity, block).ok_or(ServerError::Corrupt)?;
-            Ok((summary, relinked.unwrap_or_default()))
+            Ok(Ok((summary, relinked.unwrap_or_default())))
         })
         .await
     }
 
-    pub async fn graph_views(
+    /// The organization's sequence now, and the blocks on the paths of `blocks` (each, and
+    /// every block above it; with `subtree`, every block below them too), and `above` (blocks
+    /// that were above them before a move), whose followers a change of `blocks` advanced
+    /// (`WatchHub::followers`).
+    pub(crate) async fn advanced(
         &self,
         organization: Uuid,
-        members: Vec<Identity>,
         blocks: Vec<Uuid>,
         subtree: bool,
-        from: be_block_protocol::ClientId,
-    ) -> Result<Vec<Vec<(crate::watch::Push, bool)>>, ServerError> {
-        self.with_graph(organization, move |_, graph, _| {
-            let mut touched = Vec::new();
+        above: Vec<Uuid>,
+    ) -> Result<(u64, Vec<Uuid>), ServerError> {
+        self.with_graph(organization, move |_, graph, database| {
+            let mut path: BTreeSet<Uuid> = above.into_iter().collect();
             for block in blocks {
-                match subtree {
-                    true => touched.extend(graph.subtree(block)),
-                    false => touched.push(block),
+                if subtree {
+                    path.extend(graph.subtree(block));
+                }
+                if path.insert(block) || subtree {
+                    path.extend(graph.ancestors(block));
                 }
             }
-            let referenced: Vec<Uuid> = touched
-                .iter()
-                .flat_map(|block| graph.references(*block))
-                .collect();
-            touched.extend(referenced);
-            touched.retain(|block| graph.contains(*block));
-            touched.sort_unstable();
-            touched.dedup();
-            let revision = graph.revision();
-            Ok(members
+            Ok((
+                crate::changes::current(database, organization)?,
+                path.into_iter().collect(),
+            ))
+        })
+        .await
+    }
+
+    /// Whether each caller may view the block paired with it.
+    pub(crate) async fn viewing(
+        &self,
+        organization: Uuid,
+        asked: Vec<(Identity, Uuid)>,
+    ) -> Result<Vec<bool>, ServerError> {
+        self.with_graph(organization, move |_, graph, _| {
+            Ok(asked
                 .into_iter()
-                .map(|identity| {
-                    let seen = visibility(identity);
-                    let shared: HashSet<Uuid> = match seen.administrator {
-                        true => HashSet::new(),
-                        false => graph.shared(identity.account).into_iter().collect(),
-                    };
-                    touched
-                        .iter()
-                        .map(|block| match summary_with(graph, &seen, *block) {
-                            Some(found) if found.access.can_know_exists() => {
-                                let entry = found.access.can_view() && shared.contains(block);
-                                (
-                                    crate::watch::Push::BlockChanged { block: found, from },
-                                    entry,
-                                )
-                            }
-                            _ => (
-                                crate::watch::Push::BlockRemoved {
-                                    block: *block,
-                                    revision,
-                                },
-                                false,
-                            ),
-                        })
-                        .collect()
+                .map(|(identity, block)| visibility(identity).can_view(graph, block))
+                .collect())
+        })
+        .await
+    }
+
+    /// What each asker's summary of a block says of it now, for a follow of it as a block known
+    /// of (`topic.known`): its access and `changed`, as `read_summaries` would answer them, or
+    /// none once the asker may not know of it (or it is gone).
+    pub(crate) async fn known_states(
+        &self,
+        organization: Uuid,
+        asked: Vec<(Identity, Uuid)>,
+    ) -> Result<Vec<Option<KnownState>>, ServerError> {
+        self.with_graph(organization, move |_, graph, _| {
+            Ok(asked
+                .into_iter()
+                .map(|(identity, block)| {
+                    summary_with(graph, &visibility(identity), block)
+                        .filter(|summary| summary.access.can_know_exists())
+                        .map(|summary| KnownState::of(&summary))
                 })
                 .collect())
         })
@@ -688,36 +898,6 @@ impl ServerStore {
                 }))
         })
         .await?
-    }
-
-    pub async fn read_block(
-        &self,
-        identity: Identity,
-        block: Uuid,
-    ) -> Result<BlockSummary, ServerError> {
-        self.with_graph(identity.organization, move |_, graph, _| {
-            let Some(node) = graph.get(block) else {
-                return Err(not_found(block));
-            };
-            let seen = visibility(identity);
-            if !seen.can_view(graph, block) {
-                let access = match seen.reaches(graph, block) {
-                    true => graph
-                        .effective_access(block, identity.account)
-                        .max(seen.access(graph, block)),
-                    false => Access::None,
-                };
-                return match access.can_know_exists() {
-                    true => Ok(BlockSummary {
-                        revision: graph.revision(),
-                        ..BlockSummary::no_access(block, node.content_type, access)
-                    }),
-                    false => Err(not_found(block)),
-                };
-            }
-            summary_with(graph, &seen, block).ok_or(ServerError::Corrupt)
-        })
-        .await
     }
 
     /// The summaries of the first of `blocks` that fit in `room` bytes (the first always does),
@@ -807,8 +987,29 @@ impl ServerStore {
         pinned: bool,
         references: ReferenceChange,
         metadata: Vec<u8>,
+        trim: Option<crate::journal::Asked>,
+        log_through: Option<be_block_protocol::LogHead>,
     ) -> Result<PublishOutcome, ServerError> {
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
+        if let Some(crate::journal::Asked { base, .. }) = &trim {
+            if base.commit != Some(commit) {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "a journal base names the commit published".into(),
+                ));
+            }
+            crate::limits::at_most(
+                "a journal's base",
+                base.state.len(),
+                crate::journal::MAX_BASE_STATE_BYTES,
+            )?;
+            if base.parts.len() > crate::journal::MAX_BASE_PARTS {
+                return Err(crate::limits::too_many(
+                    "objects a journal's base names",
+                    crate::journal::MAX_BASE_PARTS,
+                ));
+            }
+        }
         // Checked before the graph is taken, so no change too large to keep holds it up.
         crate::limits::references(&references.removed)?;
         if references.added.len() > crate::limits::MAX_REFERENCES {
@@ -823,7 +1024,7 @@ impl ServerStore {
         let latest = be_block_commit::now_milliseconds().saturating_add(MAX_COMMIT_AHEAD);
         if time > latest {
             return Err(ServerError::Refused(
-                ErrorCode::InvalidRequest,
+                ErrorCode::CommitAhead,
                 format!("a commit's time may be at most {latest}, not {time}: is this clock fast?"),
             ));
         }
@@ -838,8 +1039,46 @@ impl ServerStore {
                 if current != expected {
                     return Ok(PublishOutcome::Rejected(current));
                 }
+                // A commit names only a head its block's signed log had.
+                if let Some(through) = &log_through
+                    && !crate::log::holds_prefix(database, identity.organization, block, through)?
+                {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        format!(
+                            "the commit names a head of the block's log ({} entries) that the log never had",
+                            through.size
+                        ),
+                    ));
+                }
+                // A trim with no new commit: the head is the base's commit already. Only the
+                // lease holder trims so, held as the holder while the trim is written; anyone
+                // else's publish goes through and trims nothing.
                 if current == Some(commit) {
-                    return Ok(PublishOutcome::Published(commit, None));
+                    let trimmed = match trim {
+                        Some(asked) => match (asked.holding)() {
+                            Some(_holding) => {
+                                let transaction =
+                                    be_block_sqlite_schema::write_transaction(database)?;
+                                let trimmed = crate::journal::rebase(
+                                    &transaction,
+                                    identity.organization,
+                                    block,
+                                    &crate::journal::Seal {
+                                        tag: asked.tag,
+                                        run: asked.run,
+                                        base: asked.base,
+                                        new_commit: false,
+                                    },
+                                )?;
+                                transaction.commit()?;
+                                trimmed
+                            }
+                            None => None,
+                        },
+                        None => None,
+                    };
+                    return Ok(PublishOutcome::Published(commit, Vec::new(), trimmed));
                 }
                 require_descends(expected, &parents)?;
                 let organization = identity.organization.to_string();
@@ -907,11 +1146,6 @@ impl ServerStore {
                 require_keeping_settings(graph, &visibility(identity), block, &references)?;
                 require_one_index(graph, block, &references)?;
                 let relinked = relinked(graph, block, &references);
-                let redescribed = (relinked.is_some()
-                    || graph
-                        .get(block)
-                        .is_some_and(|node| node.metadata != metadata))
-                .then(|| relinked.clone().unwrap_or_default());
                 let transaction = be_block_sqlite_schema::write_transaction(database)?;
                 let existing: Option<i64> = transaction
                     .query_row(
@@ -985,7 +1219,11 @@ impl ServerStore {
                         metadata
                     ],
                 )?;
-                crate::changes::touch(&transaction, identity.organization, &[block])?;
+                // The blocks it started or stopped referencing changed for whoever knows of
+                // them through it.
+                let mut touched = vec![block];
+                touched.extend(relinked.iter().flatten().copied());
+                crate::changes::touch(&transaction, graph, identity.organization, &touched)?;
                 if relinked.is_some() {
                     let before = graph.references(block);
                     change_edges(&transaction, &organization, block, &before, &references)?;
@@ -1003,25 +1241,45 @@ impl ServerStore {
                     commit,
                     &policy,
                 )?;
+                // A seal trims the journal only as its commit wins the head, in one transaction.
+                let trimmed = match trim {
+                    Some(asked) => crate::journal::rebase(
+                        &transaction,
+                        identity.organization,
+                        block,
+                        &crate::journal::Seal {
+                            tag: asked.tag,
+                            run: asked.run,
+                            base: asked.base,
+                            new_commit: true,
+                        },
+                    )?,
+                    None => None,
+                };
                 transaction.commit()?;
                 graph.set_references(block, &references)?;
                 graph.set_head(block, commit)?;
                 graph.set_metadata(block, metadata)?;
                 graph.touch(block)?;
                 store.objects().remove_freed(&freed);
-                Ok(PublishOutcome::Published(commit, redescribed))
+                Ok(PublishOutcome::Published(
+                    commit,
+                    relinked.unwrap_or_default(),
+                    trimmed,
+                ))
             })
         })
         .await
     }
 
-    /// Which of `hashes` the caller may read, in order: those a block it may view holds. A held
-    /// object was confirmed stored before any block could take it (`holdable`), so this asks
-    /// no object store.
+    /// Which of `hashes` the caller may read, in order: those a block it may view holds, or with
+    /// `holder`, those that block holds if the caller may view it. A held object was confirmed
+    /// stored before any block could take it (`holdable`), so this asks no object store.
     pub async fn may_read_objects(
         &self,
         identity: Identity,
         hashes: Vec<Hash>,
+        holder: Option<Uuid>,
     ) -> Result<Vec<bool>, ServerError> {
         // Downloads take neither the database lock nor the graph job's: the holders come from the
         // read-only connection and access from the cached graph, which a revocation changes
@@ -1038,7 +1296,12 @@ impl ServerStore {
                 Ok(store.read_graph(organization, |graph| {
                     holders
                         .iter()
-                        .map(|holders| holders.iter().any(|block| seen.can_view(graph, *block)))
+                        .map(|holders| {
+                            holders
+                                .iter()
+                                .filter(|block| holder.is_none_or(|holder| holder == **block))
+                                .any(|block| seen.can_view(graph, *block))
+                        })
                         .collect::<Vec<bool>>()
                 }))
             })
@@ -1049,7 +1312,7 @@ impl ServerStore {
         self.with_graph(organization, move |_, graph, database| {
             hashes
                 .iter()
-                .map(|hash| readable(graph, database, identity, *hash))
+                .map(|hash| readable(graph, database, identity, *hash, holder))
                 .collect()
         })
         .await
@@ -1160,7 +1423,7 @@ impl ServerStore {
     ) -> Result<bool, ServerError> {
         Ok(crate::store::stored(database, hash)?
             && (crate::store::uploaded(database, identity, hash)?
-                || readable(graph, database, identity, hash)?))
+                || readable(graph, database, identity, hash, None)?))
     }
 
     fn require_holdable(
@@ -1254,9 +1517,11 @@ impl ServerStore {
     }
 
     /// Ends the `until-committed` holds past their grace (`hold_objects`), uncharging their
-    /// blocks, and deletes what nothing holds any more. A block whose journal holds entries keeps
-    /// its holds, since an operation there may name a part no commit took yet: they end once a
-    /// commit rebases the journal and the grace has passed. Answers how many objects it
+    /// blocks, and deletes what nothing holds any more. A hold lasts while what no commit holds
+    /// yet may name its object: any of the block's, while its journal holds entries (an
+    /// operation there may name a part), and those its journal's base names
+    /// (`journal_base_parts`, a session state that goes by a part). They end once a commit
+    /// rebases the journal past them and the grace has passed. Answers how many objects it
     /// deleted.
     pub(crate) async fn collect_holds(&self) -> Result<usize, ServerError> {
         let grace = i64::try_from(self.upload_grace().as_millis()).unwrap_or(i64::MAX);
@@ -1268,7 +1533,11 @@ impl ServerStore {
                      WHERE held_since IS NOT NULL AND held_since <= ?1
                      AND NOT EXISTS(SELECT 1 FROM journal_entries
                          WHERE journal_entries.organization_id = block_objects.organization_id
-                           AND journal_entries.block_id = block_objects.block_id)",
+                           AND journal_entries.block_id = block_objects.block_id)
+                     AND NOT EXISTS(SELECT 1 FROM journal_base_parts
+                         WHERE journal_base_parts.organization_id = block_objects.organization_id
+                           AND journal_base_parts.block_id = block_objects.block_id
+                           AND journal_base_parts.hash = block_objects.hash)",
                 )?;
                 let rows = statement.query_map([cutoff], |row| row.get::<_, String>(0))?;
                 rows.map(|row| parse_uuid(&row?)).collect()
@@ -1286,7 +1555,11 @@ impl ServerStore {
                                AND held_since <= ?2
                                AND NOT EXISTS(SELECT 1 FROM journal_entries
                                    WHERE journal_entries.organization_id = block_objects.organization_id
-                                     AND journal_entries.block_id = block_objects.block_id)",
+                                     AND journal_entries.block_id = block_objects.block_id)
+                               AND NOT EXISTS(SELECT 1 FROM journal_base_parts
+                                   WHERE journal_base_parts.organization_id = block_objects.organization_id
+                                     AND journal_base_parts.block_id = block_objects.block_id
+                                     AND journal_base_parts.hash = block_objects.hash)",
                         )?;
                         let rows = statement
                             .query_map(params![organization.to_string(), cutoff], |row| {
@@ -1346,8 +1619,8 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
         parent: BlockParent,
-        keys: KeySet,
-    ) -> Result<(BTreeSet<Uuid>, BTreeSet<Uuid>), ServerError> {
+        record: Vec<u8>,
+    ) -> Result<Moved, ServerError> {
         self.with_graph(identity.organization, move |store, graph, database| {
             let seen = visibility(identity);
             require_edit(graph, &seen, block)?;
@@ -1401,6 +1674,10 @@ impl ServerStore {
                 BlockParent::Root | BlockParent::Detached => {}
             }
             let before = graph.audience(block);
+            let scope_before = match node.parent {
+                BlockParent::Block(above) => Some(graph.scope(above)),
+                BlockParent::Root | BlockParent::Detached => None,
+            };
             let viewing = match parent {
                 BlockParent::Detached => None,
                 _ => Some(crate::keys::viewing_below(
@@ -1411,22 +1688,20 @@ impl ServerStore {
                 )?),
             };
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
-            store_keys(
-                graph,
+            crate::access::append_parent(
                 &transaction,
                 identity.organization,
+                block,
                 identity.account,
-                &keys,
-                |graph, owner| {
-                    (owner == block || graph.ancestors(owner).any(|above| above == block))
-                        && seen.can_view(graph, owner)
-                },
+                parent,
+                &record,
             )?;
             store.follow_payer(graph, &transaction, identity, block, parent)?;
-            // The tree it leaves, for `changed-since` to name it to the readers of that tree.
-            let old_top = tree_of(graph, block);
-            // What leaves with it, read before it moves: a move within the same tree is not a
-            // departure from it.
+            // The entry points above it, for `query.tree` to name it to their readers once it
+            // has left them.
+            let entries_before = crate::changes::entries_above(graph, block);
+            let above: Vec<Uuid> = graph.ancestors(block).collect();
+            // What leaves with it, read before it moves.
             let leaving: Vec<crate::changes::Departing> = graph
                 .subtree(block)
                 .into_iter()
@@ -1454,17 +1729,25 @@ impl ServerStore {
                     parent_id
                 ],
             )?;
-            // The block and everything below it lie in another tree now.
-            let stays_in_tree = old_top.is_some() && tree_of(graph, block) == old_top;
+            // The block and everything below it lie elsewhere now: they left each entry point
+            // above them before that is not above them still, within one tree too, so a reader of
+            // a subtree hears of a block moved out of it.
+            let entries_after = crate::changes::entries_above(graph, block);
+            let left: Vec<Uuid> = entries_before
+                .iter()
+                .copied()
+                .filter(|entry| !entries_after.contains(entry))
+                .collect();
             crate::changes::touch_moved(
                 &transaction,
+                graph,
                 identity.organization,
                 &leaving,
-                old_top.filter(|_| !stays_in_tree),
+                &left,
                 be_block_commit::now_milliseconds(),
             )?;
             let forgotten = crate::store::forget_orphaned_block_agents(
-                graph,
+                store, graph,
                 &transaction,
                 identity.organization,
             )?;
@@ -1475,34 +1758,41 @@ impl ServerStore {
                 block,
             )?;
             transaction.commit()?;
-            if !forgotten.is_empty() || trashed {
+            if !forgotten.agents.is_empty() || trashed {
                 store.sessions_changed();
             }
-            Ok((before, lost))
+            Ok(Moved {
+                before,
+                lost,
+                above,
+                scope_before,
+                forgotten: forgotten.trees,
+            })
         })
         .await
     }
 
-    /// A page of `listing` (any but `Listing::Block`) in the order of block ids: the blocks after
-    /// `after`, the first whose summaries fit in `room` bytes (at least one), then the next ids
-    /// that fit in half that, and `next` when the listing goes on. Only the page's blocks are
-    /// summarized. With the page, what the connection is told of each of its blocks.
+    /// A page of `listing` in the order of block ids: the blocks after `after`, the first whose
+    /// summaries fit in `room` bytes (at least one), then the next ids that fit in half that,
+    /// and `next` when the listing goes on. Only the page's blocks are summarized.
     pub(crate) async fn list_page(
         &self,
         identity: Identity,
         listing: Listing,
         after: Option<Uuid>,
-    ) -> Result<(Listed, Vec<(Uuid, crate::watch::Facts)>), ServerError> {
-        self.with_graph(identity.organization, move |store, graph, _| {
+    ) -> Result<Listed, ServerError> {
+        self.with_graph(identity.organization, move |store, graph, database| {
             let seen = visibility(identity);
-            let ids = listing_ids(graph, &seen, identity, listing);
-            let start = after.map_or(0, |after| ids.partition_point(|id| *id <= after));
-            let entry = listing == Listing::Shared;
-            let mut told = Vec::new();
-            let mut page = listed(graph, Vec::new());
+            let mut ids = listing_ids(graph, &seen, identity, listing, after).peekable();
+            let mut page = Listed {
+                sequence: crate::changes::current(database, identity.organization)?,
+                blocks: Vec::new(),
+                rest: Vec::new(),
+                next: None,
+            };
             let mut room = store.listing_page_bytes();
             let mut rest_room = room / 2;
-            let mut ids = ids[start..].iter().copied().peekable();
+            let mut last = None;
             // The first blocks, summarized while their summaries fit (at least one).
             while let Some(id) = ids.peek().copied() {
                 let summary = summary_with(graph, &seen, id).ok_or(ServerError::Corrupt)?;
@@ -1511,8 +1801,8 @@ impl ServerStore {
                     break;
                 }
                 room = room.saturating_sub(size);
-                told.push((id, crate::watch::Facts::of(&summary, entry)));
                 page.blocks.push(summary);
+                last = Some(id);
                 ids.next();
             }
             // Then ids, with no summary made.
@@ -1522,17 +1812,14 @@ impl ServerStore {
                     break;
                 }
                 rest_room -= size;
-                told.push((
-                    id,
-                    facts_of(graph, &seen, id, entry).ok_or(ServerError::Corrupt)?,
-                ));
                 page.rest.push(id);
+                last = Some(id);
                 ids.next();
             }
             if ids.peek().is_some() {
-                page.next = told.last().map(|(id, _)| *id);
+                page.next = last;
             }
-            Ok((page, told))
+            Ok(page)
         })
         .await
     }
@@ -1555,30 +1842,23 @@ impl ServerStore {
         .await
     }
 
-    /// What changed after `since` in `root`'s tree (a top-level block's), from `after`
-    /// (`changes.rs`): the blocks in the tree now that changed, and the blocks that left that
-    /// tree (moved out, or deleted for good from it) since, and are not in it. A page ends at `limit` blocks of either kind, at
-    /// `MAX_PAGE_SUMMARY_BYTES` of summaries, or at `MAX_SCANNED` changes looked at (the changes
-    /// of other trees count), with `next` set.
+    /// What changed after `since` in the tree of `entry` (`changes.rs`), from `after`: the
+    /// blocks in the tree now that changed, and the blocks that left that tree (moved out, or
+    /// deleted for good from it) since, and are not in it. `entry` is any block the caller may
+    /// view, though departures are written only for entry points (`changes::entries_above`). A
+    /// page ends at `limit` blocks of either kind, at `MAX_PAGE_SUMMARY_BYTES` of summaries, or
+    /// at `MAX_SCANNED` changes looked at (the changes of other trees count), with `next` set.
     pub async fn changed_since(
         &self,
         identity: Identity,
-        root: Uuid,
+        entry: Uuid,
         after: ChangeCursor,
         limit: u32,
     ) -> Result<ChangedPage, ServerError> {
         self.with_graph(identity.organization, move |_, graph, database| {
             let seen = visibility(identity);
-            require(graph, &seen, root, Access::View, "readable")?;
-            if graph
-                .get(root)
-                .is_none_or(|node| node.parent != BlockParent::Root)
-            {
-                return Err(ServerError::Refused(
-                    ErrorCode::InvalidRequest,
-                    "changes are asked of a top-level block's tree".into(),
-                ));
-            }
+            require(graph, &seen, entry, Access::View, "readable")?;
+            let root = entry;
             let organization = identity.organization.to_string();
             let limit = (limit as usize).clamp(1, MAX_CHANGES_PER_PAGE);
             let sequence: i64 = database.query_row(
@@ -1595,7 +1875,7 @@ impl ServerStore {
                  WHERE organization_id = ?1 AND (changed > ?2 OR (changed = ?2 AND id > ?3))
                  UNION ALL
                  SELECT block_id, changed, 1 FROM block_departures
-                 WHERE organization_id = ?1 AND root = ?4 AND (owner IS NULL OR owner = ?5)
+                 WHERE organization_id = ?1 AND entry = ?4 AND (owner IS NULL OR owner = ?5)
                    AND (changed > ?2 OR (changed = ?2 AND block_id > ?3))
                  ORDER BY 2, 1",
             )?;
@@ -1703,128 +1983,14 @@ impl ServerStore {
         .await
     }
 
-    pub async fn collect_detached(&self, identity: Identity) -> Result<Collected, ServerError> {
-        self.with_graph(identity.organization, move |store, graph, database| {
-            store.keeping_refs(database, || {
-                let seen = visibility(identity);
-                let kept_for = store
-                    .policies(graph, database, identity.organization)?
-                    .history_kept_for();
-                let since = be_block_commit::now_milliseconds() - kept_for;
-                let mut chosen = BTreeSet::new();
-                let candidates = match seen.candidates(graph) {
-                    None => graph.detached(),
-                    Some(blocks) => blocks
-                        .into_iter()
-                        .filter(|block| graph.contains(*block) && !graph.is_live(*block))
-                        .collect(),
-                };
-                for block in candidates {
-                    if !may_collect(graph, &seen, block) {
-                        continue;
-                    }
-                    if kept_for > 0
-                        && newest_version(database, identity.organization, block)? > since
-                    {
-                        continue;
-                    }
-                    chosen.insert(block);
-                }
-                let detached = removable(graph, chosen);
-                let transaction = be_block_sqlite_schema::write_transaction(database)?;
-                let mut refs = store.object_refs();
-                let mut freed = Vec::new();
-                let mut removed = Vec::new();
-                for block in detached {
-                    let mut released = Vec::new();
-                    for commit in read_history(&transaction, identity.organization, block)? {
-                        let (rows, gone) = release_commit(
-                            &transaction,
-                            &mut refs,
-                            identity.organization,
-                            block,
-                            commit.commit,
-                        )?;
-                        released.extend(rows);
-                        freed.extend(gone);
-                    }
-                    let (rows, gone) =
-                        release_held(&transaction, &mut refs, identity.organization, block)?;
-                    released.extend(rows);
-                    freed.extend(gone);
-                    let shrank = store.release_charged(
-                        &transaction,
-                        graph,
-                        identity.organization,
-                        block,
-                        &released,
-                    )?;
-                    graph.add_size(block, shrank, false)?;
-                    let organization = identity.organization.to_string();
-                    transaction.execute(
-                        "DELETE FROM block_edges WHERE organization_id = ?1 AND block_id = ?2",
-                        params![organization, block.to_string()],
-                    )?;
-                    transaction.execute(
-                        "DELETE FROM block_edges WHERE organization_id = ?1 AND reference_id = ?2",
-                        params![organization, block.to_string()],
-                    )?;
-                    transaction.execute(
-                        "DELETE FROM block_access WHERE organization_id = ?1 AND block_id = ?2",
-                        params![organization, block.to_string()],
-                    )?;
-                    transaction.execute(
-                        "DELETE FROM opened_kinds WHERE organization_id = ?1 AND block_id = ?2",
-                        params![organization, block.to_string()],
-                    )?;
-                    crate::changes::removed(
-                        &transaction,
-                        identity.organization,
-                        tree_of(graph, block),
-                        departing(graph, block),
-                        be_block_commit::now_milliseconds(),
-                    )?;
-                    transaction.execute(
-                        "DELETE FROM blocks WHERE organization_id = ?1 AND id = ?2",
-                        params![organization, block.to_string()],
-                    )?;
-                    forget_block_keys(&transaction, identity.organization, block)?;
-                    crate::journal::forget(&transaction, identity.organization, block)?;
-                    crate::notifications::forget(&transaction, identity.organization, block)?;
-                    let resized = chain(graph, block);
-                    graph.remove(block);
-                    persist_sizes(&transaction, graph, identity.organization, resized)?;
-                    removed.push(block);
-                }
-                std::mem::drop(refs);
-                let freed = forget_objects(&transaction, &freed)?;
-                let forgotten = crate::store::forget_orphaned_block_agents(
-                    graph,
-                    &transaction,
-                    identity.organization,
-                )?;
-                transaction.commit()?;
-                if !forgotten.is_empty() {
-                    store.sessions_changed();
-                }
-                store.objects().remove_freed(&freed);
-                Ok(Collected {
-                    blocks: removed,
-                    objects: freed.len(),
-                    revision: graph.revision(),
-                })
-            })
-        })
-        .await
-    }
-
     pub async fn set_access(
         &self,
         identity: Identity,
         block: Uuid,
         account: Uuid,
         access: Access,
-    ) -> Result<BTreeSet<Uuid>, ServerError> {
+        record: Option<Vec<u8>>,
+    ) -> Result<Option<(BTreeSet<Uuid>, Vec<Uuid>)>, ServerError> {
         self.with_graph(identity.organization, move |store, graph, database| {
             let leaving = account == identity.account && access == Access::None;
             match leaving {
@@ -1868,7 +2034,9 @@ impl ServerStore {
                 }
             }
             if account == ANYONE_INSIDE {
-                if graph.settings_owner(block).is_none() || access > Access::View {
+                if graph.settings_owner(block).is_none()
+                    || !matches!(access, Access::None | Access::View)
+                {
                     return Err(ServerError::Refused(
                         ErrorCode::InvalidRequest,
                         "only a kind of settings opens to anyone who can view a block inside, and only to view".into(),
@@ -1895,9 +2063,63 @@ impl ServerStore {
                     ));
                 }
             }
+            // A grant to the server is a standing exception no device seals to by grant, so it
+            // is a row alone. Any other grant is a record in the block's access log (opening a
+            // kind to anyone inside, an opening record), as is the revocation of one the log
+            // names.
+            let standing = account == crate::organization::server_account(database)?;
+            let record = match (standing, record) {
+                (true, Some(_)) => {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "a standing grant takes no record".into(),
+                    ));
+                }
+                (true, None) => None,
+                (false, Some(record)) => Some(record),
+                (false, None)
+                    if access == Access::None
+                        && !crate::access::names_grant(
+                            database,
+                            identity.organization,
+                            block,
+                            account,
+                        )? =>
+                {
+                    None
+                }
+                (false, None) => {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "a grant is set by the record its granter signed".into(),
+                    ));
+                }
+            };
+            // A grant that changes nothing writes nothing and tells no one: a device that shares
+            // again what it may already have shared (the organization's settings, on each
+            // administrator's connect) costs its audience nothing. Its record still goes in the
+            // log when the log lacks it (a contact link's grant, applied on accepting, is signed
+            // when its maker's device finishes the link).
+            let granted = graph
+                .get(block)
+                .map(|node| node.grants.get(&account).copied().unwrap_or(Access::None));
+            if granted == Some(access) {
+                if let Some(record) = record {
+                    crate::access::append_grant(
+                        database,
+                        identity.organization,
+                        block,
+                        identity.account,
+                        account,
+                        access,
+                        &record,
+                    )?;
+                }
+                return Ok(None);
+            }
             let before = graph.audience(block);
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
-            revoke_or_grant(
+            revoke_or_grant(store,
                 graph,
                 &transaction,
                 identity.organization,
@@ -1905,16 +2127,295 @@ impl ServerStore {
                 account,
                 access,
             )?;
+            if let Some(record) = record {
+                crate::access::append_grant(
+                    &transaction,
+                    identity.organization,
+                    block,
+                    identity.account,
+                    account,
+                    access,
+                    &record,
+                )?;
+            }
             let forgotten = crate::store::forget_orphaned_block_agents(
-                graph,
+                store, graph,
                 &transaction,
                 identity.organization,
             )?;
             transaction.commit()?;
-            if !forgotten.is_empty() {
+            if !forgotten.agents.is_empty() {
                 store.sessions_changed();
             }
-            Ok(before)
+            Ok(Some((before, forgotten.trees)))
+        })
+        .await
+    }
+
+    /// An owner record for `block`, signed by the caller (`append-log(owner)`,
+    /// guides/blocks/keys.md, "Owner records"): its owner offering it to another member, a
+    /// contact of theirs, or withdrawing the offer by naming itself; or the member it was offered
+    /// to accepting it, naming itself. Only an acceptance moves ownership: the new owner holds
+    /// what authorship gives and the former keeps Edit (`be_block_keys::FORMER_OWNER`), in the log
+    /// as in the graph. Answers, for an acceptance, who could view the block before and the
+    /// former owner.
+    pub async fn owner_record(
+        &self,
+        identity: Identity,
+        block: Uuid,
+        record: Vec<u8>,
+    ) -> Result<Option<(BTreeSet<Uuid>, Uuid)>, ServerError> {
+        self.with_graph(identity.organization, move |store, graph, database| {
+            let entry = be_block_keys::Entry::decode(&record)
+                .map_err(|_| ServerError::Refused(ErrorCode::InvalidRequest, "the record does not read".into()))?;
+            let be_block_keys::Record::Owner(named) = &entry.record else {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "an owner record offers, withdraws or accepts a block".into(),
+                ));
+            };
+            let account = Uuid::from_bytes(named.account);
+            let caller = identity.account;
+            let offered = crate::access::offer_row(database, identity.organization, block)?;
+            let Some(node) = graph.get(block) else {
+                return Err(not_found(block));
+            };
+            let former = node.author;
+            if former != caller {
+                // The member a block was offered to accepts it, naming itself.
+                if offered.map(|(to, _)| to) != Some(caller) || account != caller {
+                    return Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        format!(
+                            "only the owner of block {block} offers it, and only whom it offers it to accepts it"
+                        ),
+                    ));
+                }
+                // The block becomes theirs to keep, so it counts against their bound as making
+                // one would: no one fills an account up by being given blocks.
+                if graph.authored(caller) >= MAX_BLOCKS_PER_ACCOUNT {
+                    return Err(crate::limits::too_many(
+                        "blocks one account makes in an organization",
+                        MAX_BLOCKS_PER_ACCOUNT,
+                    ));
+                }
+                // Only while they may still read it: an offer outlives access taken away from
+                // above, which this block's log does not show.
+                require(graph, &visibility(identity), block, Access::View, "readable")?;
+                let before = graph.audience(block);
+                let transaction = be_block_sqlite_schema::write_transaction(database)?;
+                crate::access::append_owner(
+                    &transaction,
+                    identity.organization,
+                    block,
+                    caller,
+                    caller,
+                    &record,
+                )?;
+                crate::access::set_offer(&transaction, identity.organization, block, None)?;
+                graph.set_author(block, caller)?;
+                transaction.execute(
+                    "UPDATE blocks SET author = ?3 WHERE organization_id = ?1 AND id = ?2",
+                    params![
+                        identity.organization.to_string(),
+                        block.to_string(),
+                        caller.to_string()
+                    ],
+                )?;
+                // The log grants the new owner Manage, as the row does: authorship alone gives
+                // it only while they can view the parent, which a block given away from
+                // somewhere they cannot see would not be.
+                write_grant(
+                    store,
+                    graph,
+                    &transaction,
+                    identity.organization,
+                    block,
+                    caller,
+                    Access::Manage,
+                )?;
+                write_grant(
+                    store,
+                    graph,
+                    &transaction,
+                    identity.organization,
+                    block,
+                    former,
+                    Access::Edit,
+                )?;
+                transaction.commit()?;
+                return Ok(Some((before, former)));
+            }
+            require_manage(graph, &visibility(identity), block)?;
+            let fixed = node.owner_only
+                || graph.owner_only_root(block).is_some()
+                || node.is_search_index()
+                || node.is_edit_kind()
+                || node.unfiled()
+                || be_block::holds_owner_only(node.content_type);
+            if fixed {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    format!("block {block} belongs to what holds it, so its ownership never moves"),
+                ));
+            }
+            if account != caller {
+                if account == ANYONE_INSIDE
+                    || account == crate::organization::server_account(database)?
+                {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "a block is offered to another member".into(),
+                    ));
+                }
+                if !crate::store::is_member_of(database, account, identity.organization)? {
+                    return Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        "that account is not a member of this organization".into(),
+                    ));
+                }
+                if !crate::contacts::is_contact(database, caller, account)? {
+                    return Err(ServerError::Refused(
+                        ErrorCode::NotAContact,
+                        "offer ownership only to your contacts: send them a contact link first"
+                            .into(),
+                    ));
+                }
+                // Only to someone who may read the block, as only they may accept it.
+                let administrator = crate::contacts::role_in(database, account, identity.organization)?
+                    == Some(OrganizationRole::Administrator);
+                if !administrator && !graph.effective_access(block, account).can_view() {
+                    return Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        "offer ownership only to someone with access to the block".into(),
+                    ));
+                }
+            }
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
+            crate::access::append_owner(
+                &transaction,
+                identity.organization,
+                block,
+                caller,
+                account,
+                &record,
+            )?;
+            // An offer names whom it is to; naming the owner withdraws it.
+            crate::access::set_offer(
+                &transaction,
+                identity.organization,
+                block,
+                (account != caller).then_some((account, caller)),
+            )?;
+            transaction.commit()?;
+            Ok(None)
+        })
+        .await
+    }
+
+    /// The blocks offered to the caller in its organization (`query.owner-offers`), not yet
+    /// accepted or withdrawn, with who offered each.
+    pub async fn owner_offers(
+        &self,
+        identity: Identity,
+    ) -> Result<Vec<be_block_protocol::OwnerOffer>, ServerError> {
+        self.with_graph(identity.organization, move |_, graph, database| {
+            let seen = visibility(identity);
+            Ok(
+                crate::access::offers_to(database, identity.organization, identity.account)?
+                    .into_iter()
+                    .filter(|(block, _)| {
+                        graph.contains(*block) && seen.inherited(graph, *block).can_view()
+                    })
+                    .map(|(block, from)| be_block_protocol::OwnerOffer { block, from })
+                    .collect(),
+            )
+        })
+        .await
+    }
+
+    /// The accounts that may view `block`, its author among them while it may, with the names
+    /// they gave the server, for a caller that may view it (`query.names`).
+    pub async fn list_names(
+        &self,
+        identity: Identity,
+        block: Uuid,
+    ) -> Result<Vec<AccountName>, ServerError> {
+        self.with_graph(identity.organization, move |_, graph, database| {
+            require(
+                graph,
+                &visibility(identity),
+                block,
+                Access::View,
+                "viewable",
+            )?;
+            let node = graph.get(block).ok_or(ServerError::Corrupt)?;
+            let listed: BTreeSet<Uuid> = graph
+                .audience(block)
+                .into_iter()
+                .chain([node.author])
+                .filter(|account| {
+                    *account != ANYONE_INSIDE && graph.effective_access(block, *account).can_view()
+                })
+                // A guest learns no member of the organization (guides/blocks/server.md): it is
+                // named only itself.
+                .filter(|account| {
+                    identity.role != OrganizationRole::Guest || *account == identity.account
+                })
+                .collect();
+            let mut statement = database.prepare_cached(
+                "SELECT accounts.display_name
+                 FROM memberships
+                 JOIN accounts ON accounts.id = memberships.account_id
+                 WHERE memberships.organization_id = ?1 AND memberships.account_id = ?2",
+            )?;
+            let mut names = Vec::new();
+            for account in listed {
+                let name = statement
+                    .query_row(
+                        params![identity.organization.to_string(), account.to_string()],
+                        |row| row.get::<_, String>(0),
+                    )
+                    .optional()?;
+                if let Some(display_name) = name {
+                    names.push(AccountName {
+                        account,
+                        display_name,
+                    });
+                }
+            }
+            Ok(names)
+        })
+        .await
+    }
+
+    /// Appends a ban (`Record::Ban`) of `account` to `block`'s log, signed by the caller, who
+    /// holds Edit or above (guides/blocks/hosted.md, "Hosting").
+    pub async fn ban(
+        &self,
+        identity: Identity,
+        block: Uuid,
+        account: Uuid,
+        record: Vec<u8>,
+    ) -> Result<(), ServerError> {
+        self.with_graph(identity.organization, move |_, graph, database| {
+            require_edit(graph, &visibility(identity), block)?;
+            crate::access::append_ban(
+                database,
+                identity.organization,
+                block,
+                identity.account,
+                account,
+                &record,
+            )
+        })
+        .await
+    }
+
+    /// Whether `block`'s log bars the caller from joining its host now.
+    pub async fn banned(&self, identity: Identity, block: Uuid) -> Result<bool, ServerError> {
+        self.with_graph(identity.organization, move |_, _, database| {
+            crate::access::banned(database, identity.organization, block, identity.account)
         })
         .await
     }
@@ -1940,8 +2441,13 @@ impl ServerStore {
                     .filter(|account| graph.effective_access(block, *account).can_view()),
             );
             listed.extend(contacts.iter().copied());
+            let linked: BTreeSet<Uuid> =
+                crate::access::linked(database, identity.organization, block)?
+                    .into_iter()
+                    .map(|(account, _)| account)
+                    .collect();
             let mut statement = database.prepare_cached(
-                "SELECT CASE WHEN accounts.local_profile THEN '' ELSE accounts.email END, accounts.display_name, memberships.role
+                "SELECT COALESCE(accounts.email, ''), accounts.display_name, memberships.role
                  FROM memberships
                  JOIN accounts ON accounts.id = memberships.account_id
                  WHERE memberships.organization_id = ?1 AND memberships.account_id = ?2",
@@ -1973,6 +2479,7 @@ impl ServerStore {
                         source: node.grants.contains_key(&account).then_some(block),
                         contact: false,
                         waiting: false,
+                        through_link: false,
                     });
                     continue;
                 }
@@ -1980,23 +2487,25 @@ impl ServerStore {
                     continue;
                 };
                 let role = crate::store::decode_role(&role)?;
-                if company
-                    && role == OrganizationRole::Administrator
-                    && account != identity.account
+                if company && role == OrganizationRole::Administrator && account != identity.account
                 {
                     continue;
                 }
                 let granted = node.grants.get(&account).copied();
                 let (effective, source) = match role {
                     OrganizationRole::Administrator => (Access::Manage, None),
-                    OrganizationRole::Editor => match graph.inherited_from(block, account) {
-                        (level, source) if level.can_know_exists() => (level, source),
-                        _ => (graph.effective_access(block, account), None),
-                    },
+                    OrganizationRole::Editor | OrganizationRole::Guest => {
+                        match graph.inherited_from(block, account) {
+                            (level, source) if level.can_know_exists() => (level, source),
+                            _ => (graph.effective_access(block, account), None),
+                        }
+                    }
                 };
                 let inherited = match (role, granted) {
                     (OrganizationRole::Administrator, _) | (_, None) => effective,
-                    (OrganizationRole::Editor, Some(_)) => graph.inherited_above(block, account),
+                    (OrganizationRole::Editor | OrganizationRole::Guest, Some(_)) => {
+                        graph.inherited_above(block, account)
+                    }
                 };
                 entries.push(AccessEntry {
                     account,
@@ -2019,28 +2528,35 @@ impl ServerStore {
                             block,
                             account,
                         )?,
+                    through_link: linked.contains(&account),
                 });
             }
             Ok(AccessList {
                 entries,
                 company,
                 set_inside: u32::try_from(graph.set_inside(block)).unwrap_or(u32::MAX),
+                host: None,
+                offered: crate::access::offered(database, identity.organization, block)?
+                    .map(|(to, _)| to),
             })
         })
         .await
     }
 }
 
-/// Whether a block the caller can view holds `hash`, by a commit or by `HoldObjects`.
+/// Whether a block the caller can view holds `hash`, by a commit or by `HoldObjects`; with
+/// `holder`, whether that block does.
 pub(crate) fn readable(
     graph: &BlockGraph,
     database: &Connection,
     identity: Identity,
     hash: Hash,
+    holder: Option<Uuid>,
 ) -> Result<bool, ServerError> {
     let seen = visibility(identity);
     Ok(holders_of(database, identity.organization, hash)?
         .into_iter()
+        .filter(|block| holder.is_none_or(|holder| holder == *block))
         .any(|block| seen.can_view(graph, block)))
 }
 
@@ -2062,6 +2578,7 @@ fn holders_of(
 }
 
 pub(crate) fn revoke_or_grant(
+    store: &ServerStore,
     graph: &mut BlockGraph,
     database: &Connection,
     organization: Uuid,
@@ -2070,11 +2587,11 @@ pub(crate) fn revoke_or_grant(
     access: Access,
 ) -> Result<(), ServerError> {
     if account == be_block_graph::ANYONE_INSIDE {
-        return open_or_close_inside(graph, database, organization, block, access);
+        return open_or_close_inside(store, graph, database, organization, block, access);
     }
     let viewed = crate::keys::is_viewer(database, graph, organization, account, block)?;
     let kinds = crate::keys::open_kinds_viewed(database, graph, organization, account, block)?;
-    write_grant(graph, database, organization, block, account, access)?;
+    write_grant(store, graph, database, organization, block, account, access)?;
     if viewed && !crate::keys::is_viewer(database, graph, organization, account, block)? {
         crate::keys::lost_view(database, organization, block, account)?;
     }
@@ -2082,6 +2599,7 @@ pub(crate) fn revoke_or_grant(
 }
 
 fn open_or_close_inside(
+    store: &ServerStore,
     graph: &mut BlockGraph,
     database: &Connection,
     organization: Uuid,
@@ -2097,6 +2615,7 @@ fn open_or_close_inside(
         }
     }
     write_grant(
+        store,
         graph,
         database,
         organization,
@@ -2125,6 +2644,7 @@ fn was_opened(database: &Connection, organization: Uuid, kind: Uuid) -> Result<b
 }
 
 pub(crate) fn write_grant(
+    store: &ServerStore,
     graph: &mut BlockGraph,
     database: &Connection,
     organization: Uuid,
@@ -2134,7 +2654,25 @@ pub(crate) fn write_grant(
 ) -> Result<(), ServerError> {
     graph.grant(block, account, access)?;
     graph.touch(block)?;
-    crate::changes::touch(database, organization, &[block])?;
+    // Who may view everything below it moved, and each summary says what its reader may do.
+    let below = graph.subtree(block);
+    crate::changes::touch(database, graph, organization, &below)?;
+    // A revocation the server makes on its own (`remove-contact`, `delete-agent`) of a grant
+    // the block's log names waits for a device to sign it (`KeyWork::unsigned_revocations`);
+    // a signed one, appended after, clears it (`access::append_grant`).
+    if access == Access::None && crate::access::names_grant(database, organization, block, account)?
+    {
+        database.execute(
+            "INSERT OR IGNORE INTO unsigned_revocations (organization_id, block_id, account_id)
+             VALUES (?1, ?2, ?3)",
+            params![
+                organization.to_string(),
+                block.to_string(),
+                account.to_string()
+            ],
+        )?;
+    }
+    let organization_id = organization;
     let organization = organization.to_string();
     database.execute(
         "UPDATE blocks SET version = version + 1 WHERE organization_id = ?1 AND id = ?2",
@@ -2148,6 +2686,9 @@ pub(crate) fn write_grant(
                  WHERE organization_id = ?1 AND block_id = ?2 AND account_id = ?3",
                 params![organization, block.to_string(), account.to_string()],
             )?;
+            // A guest is there only through what links granted it: with its last grant gone,
+            // whatever took it, it leaves.
+            crate::share_links::drop_idle_guest(store, database, graph, organization_id, account)?;
         }
         Some(encoded) => {
             database.execute(
@@ -2164,27 +2705,6 @@ pub(crate) fn write_grant(
         }
     }
     Ok(())
-}
-
-fn newest_version(
-    connection: &Connection,
-    organization: Uuid,
-    block: Uuid,
-) -> Result<i64, ServerError> {
-    let mut statement = connection.prepare_cached(
-        "SELECT commit_id, MAX(time, received) FROM block_commits
-         WHERE organization_id = ?1 AND block_id = ?2",
-    )?;
-    let rows = statement.query_map(
-        params![organization.to_string(), block.to_string()],
-        |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
-    )?;
-    let mut newest = i64::MIN;
-    for row in rows {
-        let (_, at) = row?;
-        newest = newest.max(at);
-    }
-    Ok(newest)
 }
 
 fn read_history(
@@ -2220,6 +2740,178 @@ fn read_history(
         });
     }
     Ok(entries)
+}
+
+/// The tables that keep rows of one block by `block_id`, which `forget_blocks` deletes: every
+/// one that does not cascade from `blocks`, and those that do, so nothing outlives the block.
+/// A new table with a `block_id` column goes here, or in `BLOCK_ROWS_APART` with how it is
+/// handled; `every_block_table_is_forgotten_with_its_block` fails until it is in one of them.
+pub(crate) const BLOCK_ROWS: &[&str] = &[
+    "access_log",
+    "access_log_names",
+    "access_log_authorities",
+    "unsigned_revocations",
+    "block_access",
+    "opened_kinds",
+    "rotations",
+    "block_sizes",
+    "journal_entries",
+    "block_journals",
+    "journal_base_parts",
+    "block_logs",
+    "block_log_nodes",
+    "block_log_heads",
+    "mutes",
+    "told_keys",
+    "share_links",
+    "owner_offers",
+];
+
+/// The tables with a `block_id` column that `forget_blocks` does not delete by it alone:
+/// `block_commits`, `commit_objects` and `block_objects` release what they hold first, `keys`
+/// takes the `wrapped_keys` sealed under them, `block_edges` goes by either end, and
+/// `block_departures` outlives the block on purpose, so a reader catching up still hears it left.
+#[cfg(test)]
+pub(crate) const BLOCK_ROWS_APART: &[&str] = &[
+    "block_commits",
+    "commit_objects",
+    "block_objects",
+    "keys",
+    "block_edges",
+    "block_departures",
+];
+
+/// The other columns that name a block, each with how `forget_blocks` leaves none naming a
+/// block it forgets. `every_block_table_is_forgotten_with_its_block` fails while one is gone
+/// from the schema; a new column that names a block goes here.
+#[cfg(test)]
+pub(crate) const BLOCK_COLUMNS: &[(&str, &str, &str)] = &[
+    (
+        "block_edges",
+        "reference_id",
+        "deleted with the block, as either end",
+    ),
+    (
+        "blocks",
+        "parent_id",
+        "a child lies in the subtree forgotten with its parent",
+    ),
+    (
+        "access_log_authorities",
+        "above_id",
+        "a row for a block below lies in the subtree forgotten with it, by its block_id",
+    ),
+    (
+        "block_departures",
+        "entry",
+        "kept, so a follower catching up under that entry still hears what left it, until \
+         departures a day old are forgotten (`changes::departed`)",
+    ),
+];
+
+impl ServerStore {
+    /// Forgets `blocks` of `organization` as though never made, in the caller's transaction:
+    /// releases their commits' and pending objects (uncharging their payer), deletes every row
+    /// of them, their keys and what they seal, and their edges either way, and takes them out of
+    /// `graph`. The objects nothing holds then are deleted once that is kept (`free_later`). The
+    /// blocks are a whole subtree (a departed guest's shell): nothing outside it lies in them,
+    /// so no row of a block left names one as its parent or the block above it.
+    pub(crate) fn forget_blocks(
+        &self,
+        connection: &Connection,
+        graph: &mut BlockGraph,
+        organization: Uuid,
+        blocks: &[Uuid],
+    ) -> Result<(), ServerError> {
+        // Parents first, so taking them out of the graph deepest first leaves no child behind.
+        debug_assert!(blocks.iter().enumerate().all(|(at, block)| {
+            graph
+                .get(*block)
+                .and_then(|node| node.parent.block())
+                .is_none_or(|parent| !blocks.contains(&parent) || blocks[..at].contains(&parent))
+        }));
+        let mut freed = Vec::new();
+        let mut released: Vec<(Uuid, Vec<Hash>)> = Vec::new();
+        {
+            let mut refs = self.object_refs();
+            for block in blocks {
+                let commits = {
+                    let mut statement = connection.prepare_cached(
+                        "SELECT commit_id FROM block_commits
+                         WHERE organization_id = ?1 AND block_id = ?2",
+                    )?;
+                    let rows = statement.query_map(
+                        params![organization.to_string(), block.to_string()],
+                        |row| row.get::<_, String>(0),
+                    )?;
+                    rows.map(|row| parse_commit(&row?))
+                        .collect::<Result<Vec<_>, _>>()?
+                };
+                let mut held = Vec::new();
+                for commit in commits {
+                    let (hashes, gone) =
+                        release_commit(connection, &mut refs, organization, *block, commit)?;
+                    held.extend(hashes);
+                    freed.extend(gone);
+                }
+                let pending = {
+                    let mut statement = connection.prepare_cached(
+                        "SELECT hash FROM block_objects WHERE organization_id = ?1 AND block_id = ?2",
+                    )?;
+                    let rows = statement.query_map(
+                        params![organization.to_string(), block.to_string()],
+                        |row| row.get::<_, String>(0),
+                    )?;
+                    rows.map(|row| Hash::from_hex(&row?).ok_or(ServerError::Corrupt))
+                        .collect::<Result<Vec<_>, _>>()?
+                };
+                connection.execute(
+                    "DELETE FROM block_objects WHERE organization_id = ?1 AND block_id = ?2",
+                    params![organization.to_string(), block.to_string()],
+                )?;
+                freed.extend(refs.release(&pending));
+                persist_refs(connection, &refs, &pending)?;
+                held.extend(pending);
+                released.push((*block, held));
+            }
+        }
+        for (block, held) in &released {
+            self.release_charged(connection, graph, organization, *block, held)?;
+        }
+        for block in blocks {
+            let (organization, block) = (organization.to_string(), block.to_string());
+            connection.execute(
+                "DELETE FROM wrapped_keys WHERE organization_id = ?1 AND key_id IN
+                     (SELECT id FROM keys WHERE organization_id = ?1 AND block_id = ?2)",
+                params![organization, block],
+            )?;
+            connection.execute(
+                "DELETE FROM keys WHERE organization_id = ?1 AND block_id = ?2",
+                params![organization, block],
+            )?;
+            connection.execute(
+                "DELETE FROM block_edges
+                 WHERE organization_id = ?1 AND (block_id = ?2 OR reference_id = ?2)",
+                params![organization, block],
+            )?;
+            for table in BLOCK_ROWS {
+                connection.execute(
+                    &format!("DELETE FROM {table} WHERE organization_id = ?1 AND block_id = ?2"),
+                    params![organization, block],
+                )?;
+            }
+            connection.execute(
+                "DELETE FROM blocks WHERE organization_id = ?1 AND id = ?2",
+                params![organization, block],
+            )?;
+        }
+        // The deepest first, so no block leaves a child behind in the graph.
+        for block in blocks.iter().rev() {
+            graph.remove(*block);
+        }
+        self.free_later(forget_objects(connection, &freed)?);
+        Ok(())
+    }
 }
 
 fn release_commit(
@@ -2310,41 +3002,6 @@ fn release_committed(
     Ok(())
 }
 
-fn release_held(
-    connection: &Connection,
-    refs: &mut ObjectRefs,
-    organization: Uuid,
-    block: Uuid,
-) -> Result<(Vec<Hash>, Vec<Hash>), ServerError> {
-    let mut held = Vec::new();
-    {
-        let mut statement = connection.prepare(
-            "SELECT hash FROM block_objects WHERE organization_id = ?1 AND block_id = ?2",
-        )?;
-        let rows = statement.query_map(
-            params![organization.to_string(), block.to_string()],
-            |row| row.get::<_, String>(0),
-        )?;
-        for row in rows {
-            held.push(Hash::from_hex(&row?).ok_or(ServerError::Corrupt)?);
-        }
-    }
-    connection.execute(
-        "DELETE FROM block_objects WHERE organization_id = ?1 AND block_id = ?2",
-        params![organization.to_string(), block.to_string()],
-    )?;
-    let freed = refs.release(&held);
-    persist_refs(connection, refs, &held)?;
-    Ok((held, freed))
-}
-
-/// A block and its ancestors: the blocks whose sizes change with its own.
-fn chain(graph: &BlockGraph, block: Uuid) -> Vec<Uuid> {
-    std::iter::once(block)
-        .chain(graph.ancestors(block))
-        .collect()
-}
-
 fn persist_refs(
     connection: &Connection,
     refs: &ObjectRefs,
@@ -2414,7 +3071,7 @@ fn relinked(graph: &BlockGraph, block: Uuid, references: &[Uuid]) -> Option<Vec<
 const EDGE_SPACING: i64 = 1 << 20;
 
 fn store_edges(
-    transaction: &rusqlite::Transaction<'_>,
+    transaction: &rusqlite::Connection,
     organization: &str,
     block: Uuid,
     references: &[Uuid],
@@ -2433,7 +3090,7 @@ fn store_edges(
 }
 
 fn insert_edges(
-    transaction: &rusqlite::Transaction<'_>,
+    transaction: &rusqlite::Connection,
     organization: &str,
     block: Uuid,
     edges: impl IntoIterator<Item = (Uuid, i64)>,
@@ -2457,7 +3114,7 @@ fn insert_edges(
 /// Turns a block's edges from `before` into `after`, writing only the edges that left, joined
 /// or moved; an edge put in between two others takes a position between theirs.
 fn change_edges(
-    transaction: &rusqlite::Transaction<'_>,
+    transaction: &rusqlite::Connection,
     organization: &str,
     block: Uuid,
     before: &[Uuid],
@@ -2518,7 +3175,10 @@ fn change_edges(
                 let step = (high - low) / (count + 1);
                 (low + step, step)
             }
-            (Some(_), Some(_)) => return store_edges(transaction, organization, block, after),
+            (Some(_), Some(_)) => {
+                store_edges(transaction, organization, block, after)?;
+                return Ok(());
+            }
         };
         for (offset, reference) in after[index..end].iter().enumerate() {
             let offset = i64::try_from(offset).map_err(|_| ServerError::Corrupt)?;
@@ -2527,7 +3187,8 @@ fn change_edges(
         low = placed.last().map(|(_, position)| *position);
         index = end;
     }
-    insert_edges(transaction, organization, block, placed)
+    insert_edges(transaction, organization, block, placed)?;
+    Ok(())
 }
 
 /// The objects a commit of `block` holds, in the order it listed them: the commit first.
@@ -2553,32 +3214,33 @@ fn commit_objects(
     Ok(objects)
 }
 
-/// A listing's blocks, as of the revision the graph read them at.
-/// The blocks of `listing` (any but `Listing::Block`) the caller may know of, as a listing
-/// holds them, in the order of their ids.
-fn listing_ids(
-    graph: &BlockGraph,
-    seen: &Visibility,
+/// The blocks of `listing` after `after` the caller may know of, as a listing holds them, in
+/// the order of their ids. A folder's children are read from `after` on, so a page of a large
+/// folder costs what it holds, not what the folder does.
+fn listing_ids<'a>(
+    graph: &'a BlockGraph,
+    seen: &'a Visibility,
     identity: Identity,
     listing: Listing,
-) -> Vec<Uuid> {
+    after: Option<Uuid>,
+) -> Box<dyn Iterator<Item = Uuid> + 'a> {
     let knows =
-        |block: &Uuid| graph.contains(*block) && seen.access(graph, *block).can_know_exists();
+        move |block: &Uuid| graph.contains(*block) && seen.access(graph, *block).can_know_exists();
     let mut ids: Vec<Uuid> = match listing {
         Listing::Shared if seen.administrator => Vec::new(),
         Listing::Shared => graph
             .shared(identity.account)
             .into_iter()
-            .filter(|block| graph.contains(*block) && seen.access(graph, *block).can_view())
+            .filter(|block| graph.contains(*block) && seen.access(graph, *block).can_join())
             .collect(),
         Listing::Children(parent) => {
             let settings = crate::organization::settings_of(identity.organization);
-            graph
-                .children(parent)
-                .into_iter()
-                .filter(|block| *block != settings)
-                .filter(knows)
-                .collect()
+            return Box::new(
+                graph
+                    .children_after(parent, after)
+                    .filter(move |block| *block != settings)
+                    .filter(knows),
+            );
         }
         Listing::Deleted => match seen.candidates(graph) {
             None => graph.deleted_roots(),
@@ -2613,18 +3275,16 @@ fn listing_ids(
             }
             found.into_values().collect()
         }
-        Listing::Block(block) => vec![block],
     };
     ids.sort_unstable();
     ids.dedup();
-    ids
+    let start = after.map_or(0, |after| ids.partition_point(|id| *id <= after));
+    Box::new(ids.into_iter().skip(start))
 }
 
-fn listed(graph: &BlockGraph, blocks: Vec<BlockSummary>) -> Listed {
-    Listed {
-        revision: graph.revision(),
-        blocks,
-        rest: Vec::new(),
-        next: None,
-    }
+/// A block and its ancestors: the blocks whose sizes change with its own.
+pub(crate) fn chain(graph: &BlockGraph, block: Uuid) -> Vec<Uuid> {
+    std::iter::once(block)
+        .chain(graph.ancestors(block))
+        .collect()
 }

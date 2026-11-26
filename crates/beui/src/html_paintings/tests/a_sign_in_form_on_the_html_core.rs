@@ -1,5 +1,5 @@
 use super::*;
-use beui_macros::view;
+use crate::reactive::view;
 
 fn sign_in() -> crate::primitives::Root {
     let email = create_signal("ada@example.com".to_owned());

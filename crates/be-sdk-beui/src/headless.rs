@@ -54,6 +54,8 @@ pub struct Drawn {
 pub struct HeadlessApp {
     core: Core,
     module: Rc<Module>,
+    // Each instance's downcast to its parts, a plain function pointer taken where it is built.
+    #[allow(clippy::type_complexity)]
     access: HashMap<EditorInstanceId, fn(&dyn Instance) -> &dyn Parts>,
 }
 

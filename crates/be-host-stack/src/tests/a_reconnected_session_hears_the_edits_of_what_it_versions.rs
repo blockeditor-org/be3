@@ -7,7 +7,10 @@ fn a_reconnected_session_hears_the_edits_of_what_it_versions() {
     let harness = Harness::relayed().on_manual_clock();
     harness.connect();
     let versioned = start_versioning("hello\n");
-    show_version(versioned.checkout, be_block::CheckoutContent::CONTENT_TYPE);
+    show_version(
+        versioned.checkout,
+        be_block_repository::CheckoutContent::CONTENT_TYPE,
+    );
     wait_until("read the checkout's versions", |shared| {
         settled(shared, versioned.checkout)
             && version_status(shared, versioned.checkout)
@@ -15,13 +18,20 @@ fn a_reconnected_session_hears_the_edits_of_what_it_versions() {
     });
     flush();
 
-    // The note's own listing, which is how the new connection hears its heads again: the
+    // The note's tree followed again, which is how the new connection hears its heads: the
     // graph's relist after a reconnect lists much else besides.
     let note = versioned.note;
+    let entry = node(note)
+        .and_then(|node| node.entry)
+        .expect("the note lies in a tree");
     let mut listings = harness.relay().count(move |method, args| {
-        method == be_block_protocol::__args::BLOCKS_LIST_BLOCKS
-            && be_wasm_ops::decode::<be_block_protocol::__args::BlocksListBlocksArgs>(args)
-                .is_some_and(|asked| asked.listing == be_block_protocol::Listing::Block(note))
+        method == be_block_protocol::__args::SERVER_READ
+            && be_wasm_ops::decode::<be_block_protocol::__args::ServerReadArgs>(args).is_some_and(
+                |asked| {
+                    asked.follow
+                        && matches!(asked.query, be_block_protocol::Query::Tree { entry: of, .. } if of == entry)
+                },
+            )
     });
     harness.relay().stall();
     harness.miss_a_ping();
@@ -29,7 +39,7 @@ fn a_reconnected_session_hears_the_edits_of_what_it_versions() {
     wait_until("connected again", |shared| shared.connected);
     runtime()
         .block_on(listings.wait_for(|listings| *listings > 0))
-        .expect("the new connection lists what the session versions");
+        .expect("the new connection follows the tree of what the session versions");
 
     // Another device edits the note in the checkout, which the new connection must hear.
     let device = Device::online(&harness);

@@ -1,11 +1,11 @@
 use super::*;
 use beui::text::{FontId, TextLayout};
-use beui::text::{Piece, RichOptions};
+use beui::text::{GapWidth, Piece, RichOptions};
 use beui_core::font::Galley;
 
 #[test]
 fn a_gap_in_rich_text_takes_room_but_no_bytes() {
-    let context = Context::new(crate::native::FreetypeFonts::default());
+    let context = Context::new(crate::native::SkrifaFonts::default());
     let mut shaper =
         |text: &str, font: FontId| -> Galley { context.layout(text, font, TextLayout::DEFAULT) };
     let style = SpanStyle::new(FontId::proportional(14.0), Color32::WHITE);
@@ -15,7 +15,6 @@ fn a_gap_in_rich_text_takes_room_but_no_bytes() {
         style,
         hang: 0,
         anywhere: false,
-        least: false,
     };
     let plain = RichLayout::new(
         &[Piece::text("ab", style), Piece::text("cd", style)],
@@ -25,9 +24,9 @@ fn a_gap_in_rich_text_takes_room_but_no_bytes() {
     let gapped = RichLayout::new(
         &[
             Piece::text("ab", style),
-            Piece::Gap(30.0),
+            Piece::Gap(GapWidth::px(30.0)),
             Piece::text("cd", style),
-            Piece::Gap(5.0),
+            Piece::Gap(GapWidth::px(5.0)),
         ],
         options,
         &mut shaper,

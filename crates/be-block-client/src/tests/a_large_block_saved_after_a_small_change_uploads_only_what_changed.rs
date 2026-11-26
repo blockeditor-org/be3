@@ -117,10 +117,11 @@ async fn a_large_block_saved_after_a_small_change_uploads_only_what_changed() {
     let second = author.save(block, &log, Some(first)).await.unwrap();
     let second = second.published().expect("the edit is published");
     let sent = relay.heard() - before;
+    let summary = author.summary(block).await.unwrap();
     assert_eq!(
-        author.summary(block).await.unwrap().references,
+        author.content_references(&summary).await.unwrap(),
         Log::referenced(&log.entries),
-        "the server keeps every reference, the reused groups' among them"
+        "the commit keeps every reference, the reused groups' among them"
     );
 
     let vault = author.commits().vault();

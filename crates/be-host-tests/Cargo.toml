@@ -5,13 +5,23 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+be-block-client = { path = "../be-block-client" }
+be-block-keys = { path = "../be-block-keys" }
+be-block-protocol = { path = "../be-block-protocol" }
+be-block-store = { path = "../be-block-store" }
+beui-core = { path = "../beui-core" }
 be-block-fault-relay = { path = "../be-block-fault-relay" }
-be-server = { path = "../be-server" }
-tokio = { version = "1", features = ["rt-multi-thread"] }
+be-host-server = { path = "../be-host-server" }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
 uuid = { version = "1", features = ["v4"] }
 be-tool-drive = { path = "../be-tool-drive" }
 beui-layer-drive = { path = "../beui-layer-drive" }
+beui-paint-format = { path = "../beui-paint-format" }
 beui-paint-snapshot = { path = "../beui-paint-snapshot" }
+
+[dev-dependencies]
+# The root its root test runs, for where it places the triangle's screen.
+be-sdk-root-testing = { path = "../be-sdk-root-testing" }
 
 [lints]
 workspace = true

@@ -77,7 +77,7 @@ pub(crate) fn Gallery(review: Review) -> NodeId {
                                         wrap=true
                                         @test_id={"paint_review.grid"}
                                     >
-                                        <ForEach keys={keys}>|index: usize|
+                                        <ForEach value={keys}>|index: usize|
                                             <Tile review index />
                                         </ForEach>
                                     </List>
@@ -126,7 +126,6 @@ fn Tile(review: Review, index: usize) -> NodeId {
             None => missing(status, side).to_owned(),
         }
     });
-    let noticed = create_memo(move || !notice.get().is_empty());
     let tile_id = format!("paint_review.painting.{name}");
     let label = name.clone();
     view! {
@@ -149,17 +148,20 @@ fn Tile(review: Review, index: usize) -> NodeId {
                     review.hovered.set(None);
                 }
             });
-            let fill = create_memo(move || match hovered.get() {
-                true => ColorRole::Hover,
-                false => ColorRole::None,
-            });
-            let border = create_memo(move || {
-                hovered
-                    .get()
-                    .then(|| Border::new(ColorRole::Accent).width(Stroke::Focus))
-            });
             view! {
-                <Frame padding=TILE_PADDING fill={fill} border={border} focus={handle.focused}>
+                <Frame
+                    padding=TILE_PADDING
+                    fill={move || match hovered.get() {
+                        true => ColorRole::Hover,
+                        false => ColorRole::None,
+                    }}
+                    border={move || {
+                        hovered
+                            .get()
+                            .then(|| Border::new(ColorRole::Accent).width(Stroke::Focus))
+                    }}
+                    focus={handle.focused}
+                >
                     <List spacing=Space::Xs>
                         <Frame
                             width={Size::Custom(THUMBNAIL_WIDTH)}
@@ -170,7 +172,7 @@ fn Tile(review: Review, index: usize) -> NodeId {
                         >
                             <Layers>
                                 <Picture image={image} fit=ImageFit::ScaleDown />
-                                <Show condition={noticed}>
+                                <Show value={move || !notice.with(String::is_empty)}>
                                     <Frame align=Align::Center>
                                         <Text
                                             style=TextStyle::CAPTION
@@ -218,7 +220,6 @@ fn Preview(review: Review, size: ReadSignal<Vec2>) -> NodeId {
             (painting.name.clone(), painting.status, side, picture)
         })
     });
-    let showing = create_memo(move || shown.with(Option::is_some));
     let picture = create_memo(move || shown.get().and_then(|(_, _, _, picture)| picture));
     let image = create_memo(move || {
         let picture = picture.get()?;
@@ -230,7 +231,6 @@ fn Preview(review: Review, size: ReadSignal<Vec2>) -> NodeId {
             },
         }
     });
-    let pictured = create_memo(move || picture.with(Option::is_some));
     let fitted = create_memo(move || {
         let picture = picture.get()?;
         Some(fitted(&picture, size.get()))
@@ -251,31 +251,26 @@ fn Preview(review: Review, size: ReadSignal<Vec2>) -> NodeId {
     });
     view! {
         <Frame align={Align2::CENTER}>
-            <List spacing=Space::None>
-                <Show condition={showing}>
-                    <Frame
-                        fill=ColorRole::Surface
-                        border={Some(Border::DEFAULT)}
-                        radius=Radius::Md
-                        padding=Space::Sm
-                        @test_id={"paint_review.preview"}
-                    >
-                        <List spacing=Space::Xs align=Align::Center>
-                            <Show condition={pictured}>
-                                <Frame width={width} height={height}>
-                                    <Picture image={image} fit=ImageFit::Fill smooth=false />
-                                </Frame>
-                            </Show>
-                            <Text
-                                style=TextStyle::CAPTION
-                                @test_id={"paint_review.preview.caption"}
-                            >
-                                {caption}
-                            </Text>
-                        </List>
-                    </Frame>
-                </Show>
-            </List>
+            <Show value={move || shown.with(Option::is_some)}>
+                <Frame
+                    fill=ColorRole::Surface
+                    border={Some(Border::DEFAULT)}
+                    radius=Radius::Md
+                    padding=Space::Sm
+                    @test_id={"paint_review.preview"}
+                >
+                    <List spacing=Space::Xs align=Align::Center>
+                        <Show value={move || picture.with(Option::is_some)}>
+                            <Frame width={width} height={height}>
+                                <Picture image={image} fit=ImageFit::Fill smooth=false />
+                            </Frame>
+                        </Show>
+                        <Text style=TextStyle::CAPTION @test_id={"paint_review.preview.caption"}>
+                            {caption}
+                        </Text>
+                    </List>
+                </Frame>
+            </Show>
         </Frame>
     }
 }

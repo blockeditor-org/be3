@@ -5,7 +5,7 @@ use be_sdk_type_guest::editor::EditorOperation;
 use be_type_example_counter::{Counter, CounterContent};
 
 fn counted(block: Uuid, expected: i64) {
-    be_host_stack::wait_until(|shared| {
+    be_host_stack::wait_until(&format!("counted {expected}"), |shared| {
         let held = shared.blocks.get(&block)?;
         let counter =
             <CounterContent as be_block_content::BlockContent>::decode(held.bytes()).ok()?;
@@ -48,20 +48,30 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
     assert!(to_replica(
         &mut instances,
         block,
-        &FromEditor::Operate(own.clone())
+        &FromEditor::Operate {
+            gesture: None,
+            operation: own.clone()
+        }
     ));
     counted(block, 2);
     let sent = replica_sent_until(&mut instances, block, |sent| !operations(sent).is_empty());
     assert_eq!(
         operations(&sent),
         [EditorOperation {
-            operation: own,
+            landed: be_block_content::Landed::On {
+                operation: own,
+                // Its own edit stays unsettled until the server's order holds it.
+                unsettled: 1,
+            },
             mine: true,
-            unsettled: 0,
-            beneath: None,
         }]
     );
 
+    // Once the server orders the editor's edit the block owes a seal, so the host's edit below
+    // is the only one of this device's the server lacks.
+    be_host_stack::wait_until("the server ordered the editor's edit", |shared| {
+        (shared.owing > 0).then_some(())
+    });
     let elsewhere = CounterContent::encode_operation(&Counter::add(5));
     be_host_stack::operate(block, elsewhere.clone());
     counted(block, 7);
@@ -69,10 +79,12 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
     assert_eq!(
         operations(&sent),
         [EditorOperation {
-            operation: elsewhere,
+            landed: be_block_content::Landed::On {
+                operation: elsewhere,
+                // The host's edit is this device's too: unsettled until the server orders it.
+                unsettled: 1,
+            },
             mine: false,
-            unsettled: 0,
-            beneath: None,
         }]
     );
     assert!(replica_sends(&mut instances, block).is_empty());

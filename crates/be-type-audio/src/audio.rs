@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use be_block_content::blob::{Blob, BlobKind};
-use be_block_content::plain::media_type_of;
+use be_block_content::plain::{extension, media_type_of};
 use be_sdk_type_guest::BlobFile;
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -25,30 +25,20 @@ impl BlobKind for AudioFile {
 
 pub type AudioContent = Blob<AudioFile>;
 
-impl AudioFile {
-    pub fn from_file(
-        source_name: impl Into<String>,
-        media_type: impl Into<String>,
-        data: Vec<u8>,
-    ) -> Result<AudioContent, String> {
-        if data.is_empty() {
-            return Err("audio data must not be empty".into());
-        }
-        Ok(AudioContent::new(
-            AudioHeader {
-                source_name: source_name.into(),
-                media_type: media_type.into(),
-            },
-            data,
-        ))
-    }
-}
-
 impl BlobFile for AudioFile {
+    const FILE_EXTENSIONS: &'static [&'static str] = &["mp3", "wav", "ogg", "oga", "flac", "m4a"];
+    const MIME_TYPES: &'static [&'static str] = &["audio/*"];
+
+    /// Its media type by its extension; one with none of its extensions is taken as MP3, the
+    /// commonest.
     fn header(name: &str, _: &[u8]) -> AudioHeader {
+        let media_type = match Self::FILE_EXTENSIONS.contains(&extension(name).as_str()) {
+            true => media_type_of(name),
+            false => "audio/mpeg",
+        };
         AudioHeader {
             source_name: name.to_owned(),
-            media_type: media_type_of(name).to_owned(),
+            media_type: media_type.to_owned(),
         }
     }
 
@@ -57,6 +47,6 @@ impl BlobFile for AudioFile {
     }
 
     fn claims(name: &str, first: &[u8]) -> bool {
-        media_type_of(name).starts_with("audio/") && !first.is_empty()
+        Self::FILE_EXTENSIONS.contains(&extension(name).as_str()) && !first.is_empty()
     }
 }

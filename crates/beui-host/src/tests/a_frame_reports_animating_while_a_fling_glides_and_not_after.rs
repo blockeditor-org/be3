@@ -11,8 +11,8 @@ fn a_frame_reports_animating_while_a_fling_glides_and_not_after() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @node_ref=&scroll>
-                        <ForEach keys={indices(400)}>|_: usize|
+                    <Scroll @node_ref=&scroll style={plain_scroll()}>
+                        <ForEach value={indices(400)}>|_: usize|
                             <Frame padding={Sides::symmetric(0.0, 20.0)}>
                                 <Frame />
                             </Frame>

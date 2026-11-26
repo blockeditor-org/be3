@@ -11,19 +11,13 @@ fn stage_names_libraries_by_their_sha256_and_apps_by_their_id() {
         r#"{"id": "be3.notes", "block_types": {"note": {"module": "notes_types.wasm"}}, "entry_point": "notes.wasm"}"#,
     )
     .unwrap();
-    for name in [
-        "notes.wasm",
-        "notes.cwasm",
-        "notes_types.wasm",
-        "data/files/a.txt",
-    ] {
+    for name in ["notes.wasm", "notes_types.wasm", "data/files/a.txt"] {
         std::fs::write(path(name), name).unwrap();
     }
     let staged = layout(&[
         format!("--library={}", path("library.wasm")),
         format!("{}={}", path("manifest.json"), path("notes.wasm")),
         format!("--data={}", path("data")),
-        format!("--artifact={}", path("notes.cwasm")),
         format!("--app-type={}", path("notes_types.wasm")),
         "--index".into(),
     ])
@@ -35,7 +29,6 @@ fn stage_names_libraries_by_their_sha256_and_apps_by_their_id() {
             "be3.notes.app.json",
             "data/be3.notes/files/a.txt",
             "lib-ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad.wasm",
-            "notes.cwasm",
             "notes.wasm",
             "notes_types.sha256",
             "notes_types.wasm",

@@ -10,7 +10,7 @@ fn a_released_sheet_springs_to_its_stop_or_closed() {
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
     harness.settle();
     let sheet = sheet.get();
-    let height = |harness: &Harness| harness.rect(sheet).height();
+    let height = |harness: &Harness| sheet_raised(harness, sheet);
 
     harness.finger_drag_and_hold(pos2(200.0, 450.0), pos2(200.0, 270.0));
     let let_go = height(&harness);

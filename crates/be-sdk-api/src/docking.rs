@@ -232,12 +232,16 @@ impl DockNodes {
         panes
     }
 
-    fn spliced(&self) -> bool {
-        let mut keys = Vec::new();
+    pub fn groups(&self) -> Vec<&DockGroup> {
+        let mut groups = Vec::new();
         for root in self.roots() {
-            root.groups(&mut keys);
+            root.groups(&mut groups);
         }
-        keys.iter().any(|group| group.child.is_some())
+        groups
+    }
+
+    fn spliced(&self) -> bool {
+        self.groups().iter().any(|group| group.child.is_some())
     }
 }
 

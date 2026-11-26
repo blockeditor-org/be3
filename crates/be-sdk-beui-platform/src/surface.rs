@@ -17,6 +17,27 @@ use beui_renderer_wgpu::Repaint;
 #[cfg(target_arch = "wasm32")]
 use beui_types::Pos2;
 
+/// The loss of `device`, the app's: watched once, by the device's one lost callback, which the
+/// guest calls when the host reports the device lost.
+#[cfg(target_arch = "wasm32")]
+fn watched(device: &wgpu::Device) -> beui_renderer_wgpu::Lost {
+    thread_local! {
+        static WATCHED: std::cell::RefCell<Option<(wgpu::Device, beui_renderer_wgpu::Lost)>> =
+            const { std::cell::RefCell::new(None) };
+    }
+    WATCHED.with(|watched| {
+        let mut watched = watched.borrow_mut();
+        match &*watched {
+            Some((on, lost)) if on == device => lost.clone(),
+            _ => {
+                let lost = beui_renderer_wgpu::Lost::watch(device);
+                *watched = Some((device.clone(), lost.clone()));
+                lost
+            }
+        }
+    })
+}
+
 #[derive(Default)]
 pub(crate) struct Painter {
     look: Option<(f32, Vec2, Color32)>,
@@ -91,7 +112,8 @@ pub(crate) fn paint(
     {
         return None;
     }
-    let resources = resources(gpu);
+    let resources =
+        beui_renderer_wgpu::Resources::shared(&gpu.device, gpu.format, &watched(&gpu.device));
     if painter
         .renderer
         .as_ref()
@@ -102,22 +124,15 @@ pub(crate) fn paint(
     let renderer = painter
         .renderer
         .get_or_insert_with(|| beui_renderer_wgpu::Renderer::new(&resources));
-    let prepared = renderer.prepare(&gpu.device, &gpu.queue, output, screen, scale, repaint);
-    if matches!(repaint, Repaint::Region { .. }) && matches!(prepared, Repaint::Everything) {
-        renderer.prepare(&gpu.device, &gpu.queue, output, screen, scale, whole);
-    }
-    let mut encoder = gpu
-        .device
-        .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
-    renderer.render(
+    renderer.draw_onto(
         &gpu.device,
         &gpu.queue,
-        &mut encoder,
+        output,
+        (screen, scale),
+        (repaint, whole),
         target.view,
         (target.width, target.height),
-        wgpu::LoadOp::Load,
     );
-    gpu.queue.submit([encoder.finish()]);
     Some(match renderer.scissors() {
         Some(scissors) => scissors
             .iter()
@@ -129,31 +144,6 @@ pub(crate) fn paint(
             })
             .collect(),
         None => target.whole(),
-    })
-}
-
-#[cfg(target_arch = "wasm32")]
-thread_local! {
-    static RESOURCES: std::cell::RefCell<Option<(wgpu::Device, beui_renderer_wgpu::Resources)>> =
-        const { std::cell::RefCell::new(None) };
-}
-
-#[cfg(target_arch = "wasm32")]
-fn resources(gpu: &SurfaceGpu) -> beui_renderer_wgpu::Resources {
-    RESOURCES.with(|held| {
-        let mut held = held.borrow_mut();
-        match &*held {
-            Some((device, resources))
-                if *device == gpu.device && resources.format() == gpu.format =>
-            {
-                resources.clone()
-            }
-            _ => {
-                let resources = beui_renderer_wgpu::Resources::new(&gpu.device, gpu.format);
-                *held = Some((gpu.device.clone(), resources.clone()));
-                resources
-            }
-        }
     })
 }
 
@@ -220,6 +210,7 @@ impl Renderer for ModuleRenderer {
         #[cfg(target_arch = "wasm32")]
         if let Some(gpu) = be_sdk::surface_gpu() {
             _setup.provide(beui_renderer_wgpu::present::GpuSetup {
+                lost: watched(&gpu.device),
                 device: gpu.device,
                 queue: gpu.queue,
                 format: gpu.format,

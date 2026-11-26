@@ -6,7 +6,7 @@ use beui_runner::renderer;
 use beui_types::Color32;
 use beui_types::Vec2;
 
-use crate::present::{GpuSetup, surface_format};
+use crate::present::{FRAME_LATENCY, GpuSetup, surface_format};
 use crate::{Renderer, Repaint, renderer_info, wgpu_color_in};
 
 #[derive(Clone, Debug)]
@@ -29,6 +29,7 @@ pub struct CanvasSurface {
     config: wgpu::SurfaceConfiguration,
     renderer: Renderer,
     prepared: Option<(Vec2, f32, Color32)>,
+    lost: crate::Lost,
 }
 
 impl CanvasSurface {
@@ -44,6 +45,7 @@ impl CanvasSurface {
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
                 force_fallback_adapter: false,
+                apply_limit_buckets: false,
                 compatible_surface: Some(&surface),
             })
             .await
@@ -73,16 +75,19 @@ impl CanvasSurface {
                 .unwrap_or(wgpu::CompositeAlphaMode::Auto),
         };
         let info = renderer_info(&adapter.get_info(), format);
-        let renderer = Renderer::new(&crate::Resources::new(&device, format));
+        let lost = crate::Lost::watch(&device);
+        lost.panic_on_errors(&device);
+        let renderer = Renderer::new(&crate::Resources::new(&device, format, &lost));
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format,
             width: 0,
             height: 0,
             present_mode: wgpu::PresentMode::Fifo,
-            desired_maximum_frame_latency: 2,
+            desired_maximum_frame_latency: FRAME_LATENCY,
             alpha_mode,
-            view_formats: Vec::new(),
+            color_space: wgpu::SurfaceColorSpace::Auto,
+            view_formats: crate::view_formats(format).to_vec(),
         };
         Ok(Self {
             canvas,
@@ -95,6 +100,7 @@ impl CanvasSurface {
             config,
             renderer,
             prepared: None,
+            lost,
         })
     }
 
@@ -103,6 +109,7 @@ impl CanvasSurface {
             device: self.device.clone(),
             queue: self.queue.clone(),
             format: self.config.format,
+            lost: self.lost.clone(),
         }
     }
 
@@ -135,7 +142,7 @@ impl CanvasSurface {
             wgpu::LoadOp::Clear(clear),
         );
         self.queue.submit(Some(encoder.finish()));
-        frame.present();
+        self.queue.present(frame);
         false
     }
 }
@@ -150,6 +157,10 @@ impl renderer::Renderer for CanvasSurface {
     }
 
     fn resize(&mut self, width: u32, height: u32) {
+        // Sizing a canvas clears it, and configuring its surface waits for the GPU.
+        if (width, height) == (self.config.width, self.config.height) {
+            return;
+        }
         self.canvas.set_width(width);
         self.canvas.set_height(height);
         self.config.width = width;

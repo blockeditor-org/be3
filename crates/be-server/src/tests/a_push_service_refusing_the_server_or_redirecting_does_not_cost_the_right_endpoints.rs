@@ -19,8 +19,7 @@ async fn a_push_service_refusing_the_server_or_redirecting_does_not_cost_the_rig
         _ => (201, String::new()),
     })
     .await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     let organization = owner.personal().await;
     let block = owner.create_block(BlockParent::Root).await;
     let (mut member, account) = viewer_of(&harness, &mut owner, block, "member@example.com").await;

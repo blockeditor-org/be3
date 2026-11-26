@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::*;
-use crate::unstyled::BackSlide;
+use crate::styled::BackSlide;
 use crate::{PreferenceLayer, PreferenceSource};
 use beui::BackGesture;
 

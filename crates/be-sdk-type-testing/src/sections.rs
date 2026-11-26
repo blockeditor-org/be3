@@ -61,6 +61,9 @@ impl Default for Sections {
 pub struct SetSection {
     pub index: usize,
     pub bytes: Vec<u8>,
+    /// A saved part the section becomes instead of `bytes`, named by its ref, as an operation
+    /// names a part put before it (guides/type_modules.md, "Parts named by hash").
+    pub part: Option<PartRef>,
 }
 
 impl Sections {
@@ -80,6 +83,7 @@ impl Sections {
         self.apply(&SetSection {
             index,
             bytes: text.as_bytes().to_vec(),
+            part: None,
         });
     }
 
@@ -124,8 +128,8 @@ impl BlockContent for Sections {
         let header = bytes.get(..HEADER).ok_or(ContentError::Truncated)?;
         let mut at = HEADER;
         let mut sections = Vec::with_capacity(SECTIONS);
-        for length in header.chunks_exact(4) {
-            let length = u32::from_le_bytes(length.try_into().unwrap_or_default()) as usize;
+        for length in header.as_chunks::<4>().0 {
+            let length = u32::from_le_bytes(*length) as usize;
             let held = bytes.get(at..at + length).ok_or(ContentError::Truncated)?;
             at += length;
             sections.push(Section::Held {
@@ -214,9 +218,12 @@ impl LiveEdit for Sections {
 
     fn apply(&mut self, operation: &SetSection) {
         if let Some(section) = self.sections.get_mut(operation.index) {
-            *section = Section::Held {
-                bytes: operation.bytes.clone(),
-                saved: None,
+            *section = match operation.part {
+                Some(part) => Section::Unloaded(part),
+                None => Section::Held {
+                    bytes: operation.bytes.clone(),
+                    saved: None,
+                },
             };
         }
     }
@@ -314,8 +321,8 @@ impl MergeParts for Sections {
                     bytes.push(match side {
                         Section::Held { bytes, .. } => bytes,
                         Section::Unloaded(part) => {
-                            if !read.contains_key(&part) {
-                                read.insert(part, parts.read_all(part).await?);
+                            if let std::collections::hash_map::Entry::Vacant(e) = read.entry(part) {
+                                e.insert(parts.read_all(part).await?);
                             }
                             read[&part].clone()
                         }

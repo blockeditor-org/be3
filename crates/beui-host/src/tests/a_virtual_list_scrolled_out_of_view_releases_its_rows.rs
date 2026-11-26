@@ -16,7 +16,7 @@ fn a_virtual_list_scrolled_out_of_view_releases_its_rows() {
                         <List spacing=0.0>
                             <VirtualList
                                 @node_ref=&list
-                                keys={indices(ROWS)}
+                                value={indices(ROWS)}
                                 item_size=VIRTUAL_ITEM_HEIGHT
                             >|key: ReadSignal<usize>| {
                                 create_binding(move || {

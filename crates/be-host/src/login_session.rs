@@ -10,8 +10,8 @@ mod sleep;
 use std::time::Duration;
 
 use be_host_base::host::{Desk, Mailbox, Post};
-use be_host_base::password::Password;
 use be_host_desktop::desktop_host::{DesktopHost, Host};
+use be_wasm_password::Password;
 pub(crate) use environment::export as export_environment;
 pub(crate) use install::{apply_elevated as apply_install_changes, install, uninstall};
 use lock::{Authenticate, Lock, Verdict};
@@ -99,7 +99,8 @@ impl ScreenLock {
         };
     }
 
-    fn shown(&self) -> bool {
+    /// Whether the lock screen has been drawn the frames a suspend waits for.
+    pub(crate) fn shown(&self) -> bool {
         self.locked() && self.drawn >= SHOWN_FRAMES
     }
 
@@ -109,6 +110,21 @@ impl ScreenLock {
 
     pub(crate) fn user(&self) -> &str {
         &self.user
+    }
+
+    /// The lock as a root guest is shown it (`be3:root`'s `lock-state`): whether a password is
+    /// being checked, why the last was refused, and when on the host's clock the wait after
+    /// failed ones ends, which the root counts down itself.
+    pub(crate) fn checking(&self) -> bool {
+        self.lock.checking()
+    }
+
+    pub(crate) fn refused(&self) -> Option<&str> {
+        self.lock.refused()
+    }
+
+    pub(crate) fn retry_at(&self) -> Option<Duration> {
+        self.lock.retry_at(be_host_base::host::now())
     }
 }
 
@@ -150,8 +166,12 @@ impl Authenticate for Pam {
         let spawned = std::thread::Builder::new()
             .name("authenticate".to_owned())
             .spawn(move || {
-                let checked = be_host_base::panic_guard::contain(|| {
-                    pam::authenticate(service, &user, password.as_str())
+                let checked = be_wasm_panic::contain(|| {
+                    match password.as_str() {
+                        Some(typed) => pam::authenticate(service, &user, typed),
+                        // PAM checks text: a password that is not is no one's.
+                        None => Verdict::Failed("the password is not text".to_owned()),
+                    }
                 });
                 let verdict = checked.unwrap_or_else(|_| {
                     Verdict::Failed("the check stopped unexpectedly".to_owned())

@@ -4,7 +4,7 @@ use be_sdk_beui::beui::icons::Glyph;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::popover::{PANEL_MAX_WIDTH, PANEL_PADDING};
 use be_sdk_beui::beui::styled::*;
-use beui::Direction;
+use beui::{Direction, Placement};
 
 use super::bar::{bar_bounds, bar_direction};
 
@@ -16,17 +16,10 @@ pub(crate) fn BarPopup(
     #[prop(default = PANEL_MAX_WIDTH)] width: Prop<Size>,
     #[prop(default = false)] open: Binding<bool>,
     leading: Option<Child>,
-    #[prop(children)] content: RenderFn<PopoverHandle>,
+    #[prop(children)] content: RenderFn<PopoverHandle, NodeId>,
 ) -> NodeId {
     let direction = bar_direction();
     let bar = use_dock_bar();
-    if let Some(bar) = bar {
-        create_effect(move || {
-            let shown = open.get();
-            untrack(|| bar.hold_band(shown));
-        });
-        on_cleanup(move || bar.hold_band(false));
-    }
     let band = bar.map(|bar| bar.surface());
     let bounds = bar_bounds();
     let max_length = create_memo(move || {
@@ -34,10 +27,6 @@ pub(crate) fn BarPopup(
         bounds
             .get()
             .map(|bounds| Size::Custom((bounds.height() - inset).max(0.0)))
-    });
-    let placement = create_memo(move || match direction.get() {
-        Direction::Horizontal => PopoverPlacement::Below,
-        Direction::Vertical => PopoverPlacement::Beside,
     });
     view! {
         <Popover
@@ -47,7 +36,10 @@ pub(crate) fn BarPopup(
             variant=ButtonVariant::Ghost
             max_width=width
             open
-            placement
+            placement={move || match direction.get() {
+                Direction::Horizontal => Placement::BELOW_START,
+                Direction::Vertical => Placement::RIGHT_START,
+            }}
             band
             bounds
             leading

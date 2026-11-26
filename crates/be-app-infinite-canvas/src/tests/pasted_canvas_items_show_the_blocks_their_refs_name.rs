@@ -11,7 +11,6 @@ fn pasted_canvas_items_show_the_blocks_their_refs_name() {
     let mut editor = editor(&[]);
     let center = editor.rect_of("infinite-canvas.canvas").center();
     editor.click(center);
-    editor.run();
     let translated = Uuid::from_u128(5);
     let items = CanvasItems {
         canvas: Uuid::new_v4(),

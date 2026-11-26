@@ -7,6 +7,7 @@ use be_sdk_api::{
 };
 
 mod a_child_block_asks_the_host_for_the_frame_it_will_own;
+mod a_descendants_restore_waiting_for_a_group_the_child_stops_declaring_is_dropped_and_counted;
 mod a_docked_editor_builds_a_tab_body_only_where_the_host_shows_it_and_keeps_it;
 mod a_docked_editor_declares_its_dock_and_draws_no_tab_body_in_its_frame;
 mod a_docked_editor_follows_the_roots_focus_and_closes_what_it_closes;
@@ -18,6 +19,7 @@ mod a_docked_editors_popover_is_an_anchored_view_of_its_tab;
 mod a_focused_beui_child_gets_the_whole_frame_not_just_its_embedded_rect;
 mod a_focused_beui_childs_reported_content_is_its_own_canvas_not_the_whole_view;
 mod a_nested_docks_own_bar_is_declared_with_the_tab_its_group_shows;
+mod a_restore_still_queued_when_the_root_lets_its_child_go_is_counted_taken;
 mod a_root_dock_hosts_the_dock_its_child_declares_in_place_of_the_childs_tab;
 mod a_root_draws_a_joined_editors_bar_and_moves_it_as_the_editor_asks;
 mod a_root_focuses_the_joined_empty_pane_the_host_focuses;
@@ -26,11 +28,14 @@ mod a_root_gives_a_tab_two_levels_down_its_owners_menu_block_and_dialog;
 mod a_root_hosts_a_childs_dock_again_after_the_child_withdraws_and_redeclares_it;
 mod a_root_places_bars_of_one_kind_together_and_others_apart;
 mod a_root_shows_the_joined_tab_whose_body_the_host_focuses;
+mod a_root_takes_a_descendants_restore_once_it_hosts_its_group_and_counts_it;
 mod a_visible_editor_shows_its_user_as_active;
 mod a_window_opened_in_a_docked_tab_body_opens_over_that_tab;
+mod an_alert_in_a_view_that_opens_windows_dims_the_whole_view;
 mod an_editor_not_docked_draws_its_dock_itself_and_declares_nothing;
 mod an_open_beui_overlay_is_reported_over_the_child_it_covers;
 mod each_frame_of_a_session_moves_its_clock_on_by_one_step;
+mod nested_restores;
 mod the_frame_and_the_preview_of_one_block_both_load_its_content;
 
 fn session<A: BeuiRoot>(block_type: Uuid) -> EditorSession {
@@ -70,6 +75,7 @@ fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
                 top_bar,
                 dialog: None,
                 anchor: None,
+                phone: false,
             }),
             windows: false,
             host_place: None,
@@ -194,6 +200,7 @@ fn hosted_tabs(tabs: &[u64], visible: &[u64], focused: Option<u64>) -> be_sdk_ap
             fullscreen: None,
             mode: be_sdk_api::DockMode::Tiled,
             covers: Vec::new(),
+            restored: 0,
         }),
     })
 }
@@ -201,6 +208,8 @@ fn hosted_tabs(tabs: &[u64], visible: &[u64], focused: Option<u64>) -> be_sdk_ap
 thread_local! {
     static BODIES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static CLOSED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    // Each dock tab's block and menu, recorded by the test editor for these tests to read.
+    #[allow(clippy::type_complexity)]
     static DOCK_TABS: std::cell::RefCell<Vec<(Option<Uuid>, beui::reactive::Memo<Vec<beui::reactive::MenuNode>>)>> =
         const { std::cell::RefCell::new(Vec::new()) };
     static LAYOUT: std::cell::Cell<Option<beui::dock::DockingLayout<u64>>> =
@@ -490,6 +499,7 @@ fn joined_dock() -> be_sdk_api::DockDeclaration {
             glyph: String::new(),
             closable: false,
             back_closes: true,
+            unread: 0,
             menu: Vec::new(),
         }],
         dialogs: Vec::new(),

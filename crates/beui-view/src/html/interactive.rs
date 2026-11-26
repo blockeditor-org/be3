@@ -103,11 +103,7 @@ pub(crate) fn interactive(
     }
     drop(cursor_image);
     bind(cursor, move |cursor| {
-        set_style(
-            node,
-            "cursor",
-            cursor.map(|cursor| cursor.name().to_owned()),
-        );
+        set_style(node, "cursor", cursor.map(|cursor| cursor.css().to_owned()));
     });
     let switches = Rc::new(Switches::default());
     let held = switches.clone();

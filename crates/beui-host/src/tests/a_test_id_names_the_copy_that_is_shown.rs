@@ -7,14 +7,15 @@ fn a_test_id_names_the_copy_that_is_shown() {
     let _root = crate::reactive::RootScope::new();
     let wide = create_signal(true);
     let document = build_node(move || {
-        let narrow = crate::reactive::create_memo(move || !wide.get());
         view! {
             <List spacing=0.0>
-                <Show condition={wide}>
+                <Show
+                    value={wide}
+                    fallback={|| view! {
+                        <Frame @test_id="tool" width=20.0 height=20.0 />
+                    }}
+                >
                     <Frame @test_id="tool" width=10.0 height=10.0 />
-                </Show>
-                <Show condition={narrow}>
-                    <Frame @test_id="tool" width=20.0 height=20.0 />
                 </Show>
             </List>
         }

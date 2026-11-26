@@ -17,7 +17,7 @@ fn a_seal_rejected_after_edits_journaled_during_it_merges_and_publishes_them_onc
     sim.advance(crate::QUIET_INTERVAL);
     sim.type_at(0, 1, 11, "eggs\n");
     sim.settle();
-    sim.advance(crate::APPEND_INTERVAL);
+    sim.settle();
     assert!(sim.devices[0].status.journaled);
     sim.quiet = true;
     sim.publish_elsewhere(&prose_of("soup\nmilk\n"));

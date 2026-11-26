@@ -9,7 +9,7 @@ fn a_band_released_while_moving_along_the_edge_carries_on_along_it() {
     let frame = Duration::from_millis(16);
     let dimensions = vec2(1000.0, 600.0);
     let limit = |at: Pos2| pos2(at.x.max(0.0), at.y.clamp(0.0, 500.0));
-    let mut band = Band::new(WINDOW_SPRING);
+    let mut band = Band::new(PULL);
     band.grab(dimensions);
     band.stretch(pos2(0.0, 300.0), vec2(-100.0, 0.0), dimensions, true, start);
     band.stretch(

@@ -10,7 +10,6 @@ fn middle_click_paste_is_off_until_it_is_switched_on() {
     assert!(!content(&editor).root().middle_click_paste());
 
     editor.click(PASTE);
-    editor.run();
     assert_eq!(content(&editor).root().middle_click_paste, Some(true));
     assert!(content(&editor).root().middle_click_paste());
     editor.snapshot("middle_click_paste_is_off_until_it_is_switched_on");

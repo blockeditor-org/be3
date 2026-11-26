@@ -1,5 +1,4 @@
 use accesskit::{Node, Role};
-use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonHandle};
 use beui_view::reactive::NodeId;
@@ -14,7 +13,7 @@ pub fn ListRow(
     #[prop(default = false)] selected: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = true)] activates: bool,
-    #[prop(children)] content: Render<ButtonHandle>,
+    #[prop(children)] content: Render<ButtonHandle, NodeId>,
     on_click: Callback<()>,
     on_activate: Callback<()>,
 ) -> NodeId {

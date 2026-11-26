@@ -6,7 +6,7 @@ fn left_of(fixture: &Fixture, words: &str) -> f32 {
     let document = fixture.test.document();
     let text = document
         .root()
-        .and_then(|root| text_within(&document, root, words))
+        .and_then(|root| find_text(&document, root, words, Match::Contains))
         .unwrap_or_else(|| panic!("{words:?} is shown"));
     document
         .node_rect(text)

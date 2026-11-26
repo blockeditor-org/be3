@@ -1,6 +1,6 @@
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::icons::{
-    ICON_DOWNLOAD, ICON_EYE, ICON_GRID_3X3, ICON_LAYERS, ICON_PEN_TOOL, ICON_PENCIL, ICON_PLUS,
+    ICON_EYE, ICON_GRID_3X3, ICON_LAYERS, ICON_PEN_TOOL, ICON_PENCIL, ICON_PLUS,
     ICON_SLIDERS_HORIZONTAL,
 };
 use be_sdk_beui::beui::reactive::*;
@@ -38,21 +38,6 @@ fn add_menu(actions: &CanvasActions) -> MenuNode {
             MenuNode::labelled(&actions.add_text, "Text"),
             MenuNode::labelled(&actions.add_image, "Image…"),
             MenuNode::labelled(&actions.add_block, "Block…"),
-        ],
-    )
-}
-
-fn export_menu(actions: &CanvasActions) -> MenuNode {
-    MenuNode::submenu(
-        "canvas.export",
-        "Export",
-        ICON_DOWNLOAD,
-        vec![
-            act(&actions.copy_png),
-            act(&actions.copy_svg),
-            MenuNode::Separator,
-            act(&actions.export_png),
-            act(&actions.export_svg),
         ],
     )
 }
@@ -128,7 +113,7 @@ fn profile_menu(actions: &CanvasActions) -> MenuNode {
     )
 }
 
-fn view_menu(actions: &CanvasActions) -> MenuNode {
+fn view_menu(actions: &CanvasActions, fit_all: Option<&Action>) -> MenuNode {
     MenuNode::submenu(
         "canvas.view",
         "View",
@@ -139,12 +124,15 @@ fn view_menu(actions: &CanvasActions) -> MenuNode {
             MenuNode::Separator,
             act(&actions.fit_selection),
             act(&actions.fit_frame),
-            act(&actions.fit_all),
-        ],
+        ]
+        .into_iter()
+        .chain(fit_all.map(|fit| MenuNode::labelled(fit, "Fit all")))
+        .collect(),
     )
 }
 
-pub(crate) fn frame_menu(actions: &CanvasActions) -> Vec<MenuNode> {
+/// The canvas's menu; `fit_all` is the frame's `editor.zoom-fit`, which fits all it holds.
+pub(crate) fn frame_menu(actions: &CanvasActions, fit_all: Option<&Action>) -> Vec<MenuNode> {
     vec![
         MenuNode::submenu(
             "canvas.edit-menu",
@@ -162,10 +150,9 @@ pub(crate) fn frame_menu(actions: &CanvasActions) -> Vec<MenuNode> {
             ],
         ),
         add_menu(actions),
-        export_menu(actions),
         arrange_menu(actions),
         tools_menu(actions),
-        view_menu(actions),
+        view_menu(actions, fit_all),
         profile_menu(actions),
     ]
 }
@@ -183,7 +170,6 @@ fn context_menu(actions: &CanvasActions) -> Vec<MenuNode> {
         act(&actions.paste),
         act(&actions.duplicate),
         act(&actions.delete),
-        export_menu(actions),
         MenuNode::Separator,
         arrange_menu(actions),
         MenuNode::Separator,
@@ -197,7 +183,7 @@ fn context_menu(actions: &CanvasActions) -> Vec<MenuNode> {
 }
 
 #[component]
-pub(crate) fn CanvasMenu(disabled: bool, children: Child) -> NodeId {
+pub(crate) fn CanvasMenu(disabled: bool, children: NodeId) -> NodeId {
     let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
     let nodes = context_menu(&actions);
     view! {

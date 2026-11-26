@@ -26,7 +26,6 @@ fn the_caret_is_shown_to_peers_in_a_color_they_are_not_using() {
             ..beui::Modifiers::NONE
         },
     );
-    editor.run();
     let cursor = shown_cursor(&mut editor)
         .flatten()
         .expect("a new selection is shown to the peers");

@@ -1,6 +1,6 @@
 use super::*;
 
-use crate::transfer::{self, Saved, renumber};
+use crate::transfer::{self, SavedBlock, renumber};
 use be_block_content::{ARTIFACT, Artifact, BlockMetadata};
 
 #[tokio::test]
@@ -16,16 +16,18 @@ async fn an_exported_artifact_imports_pointing_to_its_imported_source() {
         &Artifact {
             source: source.into(),
             source_type: ImageContent::CONTENT_TYPE,
+            exporter: "png".to_owned(),
             settings: b"{}".to_vec(),
         },
     );
-    let saved = |id, parent, metadata| Saved {
+    let saved = |id, parent, metadata| SavedBlock {
         id,
         block_type: ImageContent::CONTENT_TYPE,
         parent,
         metadata,
         references: Vec::new(),
         content: Some(image("export", 64, 2).encode()),
+        log: Vec::new(),
     };
     let blocks = vec![
         saved(folder, None, BlockMetadata::named("Folder")),

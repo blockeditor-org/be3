@@ -66,7 +66,7 @@ fn Rows(region: NodeRef, count: crate::reactive::ReadSignal<usize>) -> NodeId {
     view! {
         <ContextMenu
             items={view! {
-                <ForEach keys={keys}>|index: usize| {
+                <ForEach value={keys}>|index: usize| {
                     let label = create_memo(move || format!("row {index}"));
                     view! {
                         <Row label={label} />

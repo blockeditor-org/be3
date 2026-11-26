@@ -14,7 +14,7 @@ fn reconciling_an_unchanged_list_wakes_nothing() {
         let runs = runs.clone();
         create_effect(move || {
             keys.with(|keys| assert_eq!(keys.len(), 3));
-            item.with(|_| ());
+            item.track();
             runs.set(runs.get() + 1);
         });
     });

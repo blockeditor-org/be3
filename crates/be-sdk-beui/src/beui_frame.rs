@@ -1,10 +1,12 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use be_sdk_api::blocks::HostingHere;
 use be_sdk_api::{MenuCheck, MenuCommand, MenuEntry, MenuPin, MenuSubmenu};
 use beui::NodeId;
 use beui::icons::{
-    ICON_INFO, ICON_PENCIL_LINE, ICON_REDO_2, ICON_SHARE_2, ICON_TERMINAL, ICON_UNDO_2, ICON_X,
+    ICON_DOWNLOAD, ICON_INFO, ICON_PENCIL_LINE, ICON_RADIO_TOWER, ICON_REDO_2, ICON_SHARE_2,
+    ICON_TERMINAL, ICON_UNDO_2, ICON_X,
 };
 use beui::native::{Embed, EmbedSlot};
 use beui::reactive::*;
@@ -14,7 +16,7 @@ use beui::{Key, KeyAt, KeyPhase, Pos2, Rect, Vec2, pos2};
 use crate::chrome::ChromeRoot;
 use crate::docked::DockedTabs;
 use crate::picking::Pickers;
-use crate::{BlockInfo, BlockList, BlockQuery, Editor};
+use crate::{BlockInfo, BlockList, BlockQuery, Editor, Pushed};
 
 const PALETTE: Chord = Chord::ctrl(Key::P).shift();
 
@@ -94,12 +96,15 @@ pub(crate) fn FrameChrome(
     let published = Rc::clone(&chrome.menu);
     let listed = chrome.listed.handle();
     let content_slot_writer = chrome.content.clone();
-    provide_context(PhoneLayout(create_memo(move || bar.get().on_phone)));
+    let phone = create_memo(move || bar.get().on_phone);
+    provide_context(PhoneLayout(phone));
+    // The editor's own commands: only what its view adds, not another editor's in the same
+    // document.
+    let items = menu_scope();
     let anchor = editor.frame_anchor();
     beui::unstyled::provide_frame_anchor(create_memo(move || anchor.get()));
     let placed = editor.placed_content();
     beui::dock::provide_dock_shows_through(create_memo(move || placed.get().is_some()));
-    let phone = create_memo(move || bar.get().on_phone);
     provide_density(create_memo(move || match phone.get() {
         true => Density::Comfortable,
         false => Density::Compact,
@@ -132,7 +137,7 @@ pub(crate) fn FrameChrome(
         }
     });
     let shown_in = create_memo(move || {
-        palette.get();
+        palette.track();
         docked.presenting(&host)
     });
     provide_context(crate::popover::PopoverWindow(shown_in));
@@ -153,7 +158,7 @@ pub(crate) fn FrameChrome(
     );
     let root: Rc<Cell<Option<beui::styled::Root>>> = Rc::default();
     let rooted = Rc::clone(&root);
-    let notices = create_signal(Vec::<Toast>::new());
+    let notices = editor.notices();
     let area = NodeRef::new();
     let block = editor.block_id();
     let frame = view! {
@@ -164,9 +169,9 @@ pub(crate) fn FrameChrome(
                     editor
                     bar={bar.read_only()}
                     palette={opener}
+                    items
                     published
                     listed
-                    notices
                     on_exit={move || exit_writer.set(true)}
                 />
                 <CommandPalette open={palette} shown_in />
@@ -267,7 +272,6 @@ struct Watched {
     editor: Editor,
     list: RefCell<Option<BlockList>>,
     watching: Cell<bool>,
-    notices: Signal<Vec<Toast>>,
 }
 
 /// The notice undo shows when it reaches a session restart.
@@ -322,20 +326,20 @@ impl Watched {
     }
 
     fn history(&self) -> (bool, bool) {
-        self.editor.histories().get();
+        self.editor.pushed(Pushed::Histories).track();
         let history = self.editor.host().history(self.editor.block_id());
         (history.can_undo, history.can_redo)
     }
 
     /// The commit of the session restart undo stopped at, once nothing after it is left.
     fn stopped_at(&self) -> Option<[u8; 32]> {
-        self.editor.histories().get();
+        self.editor.pushed(Pushed::Histories).track();
         let history = self.editor.host().history(self.editor.block_id());
         history.restarted_at.filter(|_| !history.can_undo)
     }
 
     fn lost_edits(&self) -> bool {
-        self.editor.histories().get();
+        self.editor.pushed(Pushed::Histories).track();
         self.editor
             .host()
             .history(self.editor.block_id())
@@ -343,10 +347,7 @@ impl Watched {
     }
 
     fn tell(&self, toast: Toast) {
-        self.notices.update(|notices| {
-            notices.retain(|shown| shown.id != toast.id);
-            notices.push(toast);
-        });
+        self.editor.notify(toast);
     }
 
     fn finger_tap(&self, fingers: usize) -> bool {
@@ -396,12 +397,69 @@ impl Watched {
 
 #[derive(Clone)]
 struct FrameActions {
+    /// None for a Join member, which holds none of the block's content
+    /// (guides/blocks/hosted.md, "Access"): it has nothing to undo, rename, share or export
+    /// (`exports` is empty too).
+    content: Option<ContentActions>,
+    details: Action,
+    /// Only while this device hosts the block (guides/blocks/hosted.md, "Hosting"), so the
+    /// palette lists it only then too.
+    keep_hosting: ReadSignal<Option<Action>>,
+    close: Action,
+    /// `editor.export.<name>` for each exporter the editor declares (`BeuiRoot::exporters`),
+    /// which shows the block's Export dialog.
+    exports: Vec<Action>,
+    /// Zoom in, out, to 100% and fit, while the manifest declares `pan_and_zoom` (`zoom.rs`).
+    _zoom: Option<crate::ZoomActions>,
+}
+
+/// The frame's actions on the block's content, for an editor that holds it.
+#[derive(Clone)]
+struct ContentActions {
     undo: Action,
     redo: Action,
     rename: Action,
-    share: Action,
-    details: Action,
-    close: Action,
+    /// None for a local account, which has no server to share through.
+    share: Option<Action>,
+}
+
+/// `editor.export.<name>` for each exporter `editor` declares, labelled as its manifest names
+/// it: each shows the Export dialog, starting from the settings the exporter picks from the
+/// open editor (`ExporterOf::initial`).
+fn export_actions(editor: Editor, live: Memo<bool>) -> Vec<Action> {
+    let id = editor.block_id();
+    editor
+        .exporters()
+        .iter()
+        .map(|exporter| {
+            let name = exporter.name();
+            // The type's exporter of this name, as the catalog lists it: the host runs the
+            // one of the type's own editor, so an editor that is not it offers none.
+            let listed = create_memo(move || {
+                let types = editor.block_types();
+                editor.host().block_type().and_then(|block_type| {
+                    types
+                        .exporters(block_type)
+                        .iter()
+                        .find(|listed| listed.name == name)
+                        .map(|listed| listed.label.clone())
+                })
+            });
+            let label = create_memo(move || {
+                let label = listed.get().unwrap_or_else(|| name.to_owned());
+                format!("Export as {label}…")
+            });
+            let offered = create_memo(move || live.get() && listed.with(Option::is_some));
+            let exporter = exporter.clone();
+            Action::new(format!("editor.export.{name}"), label, move || {
+                let settings = exporter.initial(editor);
+                editor.host().export_block_with(id, name, settings);
+            })
+            .glyph(ICON_DOWNLOAD)
+            .enabled(offered)
+            .register()
+        })
+        .collect()
 }
 
 fn frame_actions(
@@ -414,7 +472,30 @@ fn frame_actions(
 ) -> FrameActions {
     let id = editor.block_id();
     let can = |read: fn(&BarState) -> bool| create_memo(move || live.get() && state.with(read));
-    FrameActions {
+    let hosting = editor.hosting();
+    let hosted = create_memo(move || hosting.get() != HostingHere::No);
+    let keep_hosting = create_signal(None);
+    // Registered while this device hosts the block and gone with this effect's run when it no
+    // longer does, so neither the menu nor the palette offers it elsewhere.
+    create_effect(move || {
+        let action = hosted.get().then(|| {
+            untrack(|| {
+                Action::new("editor.keep-hosting", "Keep hosting", move || {
+                    editor.keep_hosting(hosting.get_untracked() != HostingHere::Kept);
+                })
+                .glyph(ICON_RADIO_TOWER)
+                .checked(create_memo(move || hosting.get() == HostingHere::Kept))
+                .register()
+            })
+        });
+        keep_hosting.set(action);
+    });
+    let zoom = editor
+        .host()
+        .capabilities()
+        .pan_and_zoom
+        .then(|| crate::zoom::register(editor, live));
+    let content = (!editor.joined()).then(|| ContentActions {
         undo: Action::new("editor.undo", "Undo", move || {
             watched.with(|watched| watched.try_step(false));
         })
@@ -440,22 +521,35 @@ fn frame_actions(
         .pin(Pin::Title)
         .enabled(can(|state| state.can_rename))
         .register(),
-        share: Action::new("editor.share", "Share", move || {
-            editor.host().share_block(id)
-        })
-        .glyph(ICON_SHARE_2)
-        .pin(Pin::Label)
-        .enabled(can(|state| state.can_share))
-        .register(),
+        // A local account has no server to share through, so it is offered no Share.
+        share: editor.host().offers_share().then(|| {
+            Action::new("editor.share", "Share", move || {
+                editor.host().share_block(id)
+            })
+            .glyph(ICON_SHARE_2)
+            .pin(Pin::Label)
+            .enabled(can(|state| state.can_share))
+            .register()
+        }),
+    });
+    FrameActions {
+        content,
         details: Action::new("editor.details", "File details", move || {
             editor.host().show_details()
         })
         .glyph(ICON_INFO)
         .register(),
+        keep_hosting: keep_hosting.read_only(),
         close: Action::new("editor.close", "Close", move || on_exit.call(()))
             .glyph(ICON_X)
             .enabled(closable)
             .register(),
+        // A Join member has no content to export either.
+        exports: match editor.joined() {
+            true => Vec::new(),
+            false => export_actions(editor, live),
+        },
+        _zoom: zoom,
     }
 }
 
@@ -464,9 +558,9 @@ pub(crate) fn FrameMenu(
     editor: Editor,
     bar: ReadSignal<FrameBar>,
     palette: Action,
+    items: Memo<Vec<MenuNode>>,
     published: Rc<RefCell<Vec<MenuNode>>>,
     listed: Signal<Vec<MenuNode>>,
-    notices: Signal<Vec<Toast>>,
     on_exit: Callback<()>,
 ) -> NodeId {
     let on_phone = create_memo(move || bar.get().on_phone);
@@ -476,7 +570,6 @@ pub(crate) fn FrameMenu(
         editor,
         list: RefCell::new(None),
         watching: Cell::new(false),
-        notices,
     });
     let told_lost = Cell::new(false);
     create_effect(move || {
@@ -518,27 +611,37 @@ pub(crate) fn FrameMenu(
             state.set(watched.with(Watched::read));
         }
     });
-    let items = document_menu();
     let FrameActions {
-        undo,
-        redo,
-        rename,
-        share,
+        content,
         details,
+        keep_hosting,
         close,
+        exports,
+        _zoom: _,
     } = actions;
     let menu = create_memo(move || {
         if !live.get() {
             return Vec::new();
         }
-        let mut listed: Vec<MenuNode> = [&undo, &redo, &rename, &share, &palette]
-            .into_iter()
+        let mut listed: Vec<MenuNode> = content
+            .iter()
+            .flat_map(|content| {
+                [&content.undo, &content.redo, &content.rename]
+                    .into_iter()
+                    .chain(&content.share)
+            })
+            .chain([&palette])
             .map(MenuNode::action)
             .collect();
         listed.push(MenuNode::Separator);
         listed.extend(items.get());
         listed.push(MenuNode::Separator);
+        listed.extend(exports.iter().map(MenuNode::action));
+        listed.push(MenuNode::Separator);
         listed.push(MenuNode::action(&details));
+        if let Some(keep_hosting) = keep_hosting.get() {
+            listed.push(MenuNode::action(&keep_hosting));
+        }
         if closable.get() {
             listed.push(MenuNode::action(&close));
         }
@@ -565,7 +668,7 @@ fn PlacedHole(editor: Editor) -> NodeId {
             let strips = create_memo(move || hole_strips(size.get(), placed.get()));
             view! {
                 <Canvas>
-                    <ForEach keys={vec![0usize, 1, 2, 3]}>|strip: usize| {
+                    <ForEach value={vec![0usize, 1, 2, 3]}>|strip: usize| {
                         let rect = create_memo(move || strips.get()[strip]);
                         let x = create_memo(move || rect.get().min.x);
                         let y = create_memo(move || rect.get().min.y);

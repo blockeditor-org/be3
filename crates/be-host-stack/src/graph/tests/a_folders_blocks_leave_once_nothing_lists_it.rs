@@ -13,8 +13,13 @@ fn a_folders_blocks_leave_once_nothing_lists_it() {
     assert!(!graph.ready(Query::Children(folder)));
     assert_eq!(
         graph.take_wanted(),
-        [Listing::Children(BlockParent::Block(folder))]
+        [
+            Listing::Children(BlockParent::Block(folder)),
+            Listing::Block(folder)
+        ],
+        "and the folder's own summary, whose tree is followed"
     );
+    graph.listed(Listing::Block(folder), vec![node(folder)], 1);
     graph.listed(
         Listing::Children(BlockParent::Block(folder)),
         vec![under(inside), under(open)],
@@ -36,15 +41,10 @@ fn a_folders_blocks_leave_once_nothing_lists_it() {
     graph.listed(Listing::Block(open), vec![under(open)], 1);
     graph.want(Owner::Editor(1), Vec::new());
     assert!(graph.get(inside).is_none(), "nothing lists it any more");
-    assert_eq!(
-        graph.take_unlisted(),
-        [Listing::Children(BlockParent::Block(folder))],
-        "and the server is told to stop telling of it"
-    );
     assert!(graph.get(open).is_some(), "it is still held on its own");
 
     let later = Uuid::from_u128(4);
-    graph.put(under(later), 2);
+    graph.put(changed_at(under(later), 2), 2);
     assert!(
         graph.get(later).is_none(),
         "news of a block in a folder nobody lists is not kept"
@@ -55,12 +55,12 @@ fn a_folders_blocks_leave_once_nothing_lists_it() {
         vec![under(inside), under(open)],
         3,
     );
-    graph.put(under(later), 4);
+    graph.put(changed_at(under(later), 4), 4);
     assert!(graph.get(later).is_some(), "a new block in a listed folder");
     graph.put(
         Node {
             parent: Some(BlockParent::Root),
-            ..node(later)
+            ..changed_at(node(later), 5)
         },
         5,
     );

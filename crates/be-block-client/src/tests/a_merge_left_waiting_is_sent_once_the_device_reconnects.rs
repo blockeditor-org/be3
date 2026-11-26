@@ -27,7 +27,7 @@ async fn a_merge_left_waiting_is_sent_once_the_device_reconnects() {
         offline
             .save(note, &TextBlock::of("two, from the laptop"), Some(base))
             .await
-            .is_err()
+            .is_ok_and(|saved| matches!(saved, Saved::Kept(_)))
     );
     let ours = offline.local_head(note).unwrap();
     let phone = harness.second(&owner).await;

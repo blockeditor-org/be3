@@ -99,18 +99,38 @@ pub struct Commit {
     pub metadata: Vec<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub change: Option<ChangeId>,
-    /// For a seal of a live session's owner: the session's generation and the last sequence
-    /// number it holds. What the owner journaled past it while the commit was on its way
-    /// replays on top of it (guides/blocks/client.md, The journal).
+    /// For a seal of a live session's lease holder: the last sequence number of the session's
+    /// order it holds. What the order numbered past it while the commit was on its way replays
+    /// on top of it (guides/blocks/client.md, The journal).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sealed_through: Option<SealedThrough>,
+    /// The head of the block's signed log its maker's device had verified as it made the
+    /// commit, signed with the author's key, which a device reading the commit compares with
+    /// its own (guides/blocks/keys.md, "Forks"). Sealed with the commit, so the server can
+    /// neither change nor drop it, and signed, so no other member can make one up.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub log_through: Option<LogThrough>,
+}
+
+/// A head of a block's signed log (`Commit::log_through`): its size and Merkle root, and the
+/// author's signature over them (`RecoverySecret::sign_log_head`).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LogThrough {
+    pub size: u64,
+    pub root: [u8; 32],
+    #[serde(with = "be_block_store::bytes")]
+    pub signature: Vec<u8>,
 }
 
 /// Where in its session a seal stands (`Commit::sealed_through`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SealedThrough {
-    pub generation: u64,
     pub sequence: u64,
+    /// Sealed from this device's own order, numbered offline, not the server's: its sequence
+    /// counts in that order alone.
+    pub offline: bool,
+    /// How many times the session had started over: `sequence` counts in that run alone.
+    pub restarts: u64,
 }
 
 impl Commit {
@@ -125,7 +145,13 @@ impl Commit {
             metadata: Vec::new(),
             change: None,
             sealed_through: None,
+            log_through: None,
         }
+    }
+
+    pub fn with_log_through(mut self, log_through: Option<LogThrough>) -> Self {
+        self.log_through = log_through;
+        self
     }
 
     pub fn with_sealed_through(mut self, sealed: Option<SealedThrough>) -> Self {

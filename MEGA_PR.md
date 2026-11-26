@@ -1,0 +1,346 @@
+# Collected reviewed work (rebase-merge)
+
+The description of [blockeditor-org/be3#1015](https://github.com/blockeditor-org/be3/pull/1015), kept here so it can be edited like any other file. Delete this file when the pull request merges.
+
+One branch that collects reviewed work, so it lands together instead of as many small pull requests that conflict while CI waits. The commit list shows what is included. Each piece is one or a few commits on a linear history; merge with **rebase** to keep it.
+
+Nothing is added until it has passed review and `./scripts/verify` has passed on the exact commit the branch moves to. The branch is treated like main: rebased onto main when main moves, and force-pushed only for that.
+
+## Open work (resumed 2026-11-24)
+
+Development resumed on 2026-11-24, with eight builders. Nothing below is on this branch yet. Branches are on origin.
+
+**Being built:**
+- Hosted blocks: 4e-2 rebased with its review fixes, then acceptance-2 rebased, then the backlog's "keep hosting through a closed editor, under verify load" flake.
+- Restart carry (b): `journaled-edits-restart-carries` rebased, with its must-fix.
+- `flush-after-revoke`, then the counter-seal flake.
+- `editor-asks-outlive-reopen` (an editor's in-flight put, append or log read answered once across a reopen), fixing review points; then an editor's range read across a reopen.
+- `flakes-server-runtime` rebased for review, then plans/one_way_in_the_block_stack.md.
+- Host adapter 4g7a2, then 4g7b and on.
+- The member list leak through the organization's log, then the owner transfer's accept step.
+
+Landed on 2026-11-24:
+- `chat-stall-3`: an editor's log read in flight when its replica reopens is answered; before, a fresh chat editor could wait forever.
+- `block-rows-columns-2`: every column that names a block is listed with how forget_blocks treats it, and forget_blocks refuses a block a link still grants.
+- `flakes-batch-2`: two flakes fixed at the source (be-server's WAL switch under load waits for the other connection, and a contained panic outside be-host prints one line instead of a 300 MB backtrace); `Streamed` folded into `Blob` with `read_span`; `be_block_type_host::Host` gets no-op defaults.
+- `journaled-edits-restart-carries-4`: a restart carries what was numbered after its seal, on every replica, and journal replay carries a restart whatever seal the journal starts from.
+- `editor-range-reads-outlive-reopen-3`: an editor's log read, part put, append and range read are each answered once across a replica reopen, an append never lands twice, and a release carries no editor calls.
+- `owner-accepts-3`: an owner transfer is an offer the new owner accepts: offer, withdraw and accept are in the log; an acceptance needs the acceptor's current keys and View; a revoke, a ban or a revoked link ends the offer.
+- `host-adapter-4g7a2-3`: be-root is worded and laid out as be-host, fills its window and uses be-host's menu; agent credentials are the host's bundles and the organization is optional (step 4g7a2).
+- `one-way-in-apps-1b`: the frame registers a pan-and-zoom editor's zoom actions and one ZoomBar shows them; the logic grid, map and canvas zoom through it (verify: only the known flaky lease test failed, fixed separately).
+- `seal-states-go-by-part-6`: a session's state seals by its own part, and an editor's put that a replica carries leaves out its own state parts.
+- `windows-restored-chips`: on Windows, windows from last time wait in chips and restore from the start menu; two dead-code errors on Windows fixed.
+- `one-way-in-apps-2`: one replace panel (ContentFileReplace) for the image, audio, PDF and game module editors; each file type says its extensions and MIME types, and pickers filter by them; m4a, oga, pnm and tga are recognised.
+- `one-way-batch-3`: one way each in the block stack: one export of a subtree to a block file (refusing owner-only blocks and unchecked parents), one read-change-write loop (Peer::update), and the type-module WIT maps onto the block stack's own types with one wire form for hashes (verify: only the known flaky lease test failed).
+- `one-way-in-apps-3`: step 5, a name too long is refused and the editor says why (`Editor::notify`); names taken from content are cut with `metadata::clip_name`; file types list their media types.
+- `tools-batch`: one-way-in-the-tools steps 3-8 (browser rasterizer, build helper by content hash, Painting::render takes the original file, Storage::put_content_addressed) and be-tool-local stress. A manifest without an `executable` field, now required in `ManifestFile`, fails to parse, so its build is downloaded again. Untested: a real Chromium rasterization and Bunny storage HEAD.
+- `invitations-no-pending-4`: an invitation is made whenever the organization shares outside (not gated by link sharing) and has no pending grant: its first opener becomes a contact with the access chosen, and a failed contact link leaves no share link. `links.grant_block` is gone.
+- `host-adapter-4g7b1`: a root's embedded editors are served through its host (forwarded instances, relayed ops).
+- `flush-after-revoke-6b`: a flush keeps its mark until a seal settles it, and seals what it answered ahead of once the block owes a seal it can make; fixes the lease flake. Backlog §32: a Host event held during a join can override its answer.
+- `one-way-in-apps-4`: worker messages are typed, and a shared worker's jobs carry tickets so each answer goes to the job it answers (extras dropped).
+- `kept-content-1-3b`: a kept subtree reads its showing Kept's context; overlays and context menus build their body on each open and drop it once gone; Scroll settles a fling or release on its nearest snap stop; an HTML overlay dropped while shown gives the focus back.
+- `counter-seal-flake-2`: every installed host waker is woken; a replica that gains the lease takes a head it heard of while not the holder. (Verify: keep_hosting_outlives_the_editor_until_stop fails on mega too; a_block_just_made_in_a_folder_lists_the_folder_among_its_backrefs flakes ~9% under load on mega too.)
+- `one-way-in-apps-5`: one block-tree walk for the files pane and the block picker (block_tree); a folder's rows get the files pane's row menu (block_menu; can_move_out_of takes a block-type lookup); plans/one_way_in_apps.md done.
+- `host-adapter-4g7b2`: be-host runs its core under --root and serves the root's editors through Forwarded; be-root shows the session's editor full-window and the signed-in block stack; a root's paintings carry its apps' screens; an agent made for a root that stopped waiting is removed; root views compile only where --root does.
+- `backrefs-flake`: the backrefs test waits for the server to make the folder and child before it edits the folder (test timing; 18/200 → 0/800).
+- `host-adapter-4g7b2-tests`: tests for agent undo, a deferred agent and the stop after a protocol break; fixes a deferred agent taking the credentials of the one made before it.
+- `dock-defaults`: docks derive ids (stepping past held keys), a `stage` short form, chrome panes, standard panels and side panel sizes; editors moved to the short form.
+- `host-adapter-4g7b3a`: be-root shows the block children its session's editor places, opens the editor each placement names, settles them by key, and takes presses only where a child shows.
+- `fonts-on-skrifa`: fonts on skrifa, harfrust and zeno in place of FreeType and HarfBuzz; shape plans, coverage and metrics cached; system scan reads only headers and cmap.
+- `missing-object-not-unreadable`: a head whose objects are missing is not-yet, not unreadable; not-yet loads wait on the join, are bounded, and run no jobs on default content; host reads of a not-yet block fail at once.
+- `hosted-blocks-acceptance`: hosted blocks step 4e (be BLOCK host), players carry on with the next host, a closing replica does not rejoin, kept hosts say whether they host now; export checks not-yet beside its content (wasi ICE).
+- `kept-content-4e`: a sheet is one Scroll with sticky items, a bar range and snap stops; its grip lowers it at once keeping the content scrolled; a pull past its end fills with its surface; a scroll never anchors on a sticky item; pagers wheel and key back between stops.
+- `hosted-blocks-followups-2`: the hosted blocks review suggestions; the host menu says whether a kept block is hosted here now; drive prints descriptions and bare text never matches them; export checks not-yet before asking the server.
+- `motion-springs-4`: back slides and toasts move on springs that carry the gesture's speed; toasts swipe to dismiss and one let go after it expired while held still leaves; a toast its owner removes slides off; Movement::Enter/Leave removed.
+- `no-held-keys` + `host-adapter-4g7b3b-4`: the gift system and held keys are gone; an editor asks for the keyboard to move into a child with a growing count in its layout commit, and the host acts at the commit (the child takes it if up, else the placer blurs; an ask that cannot apply ends); be-root moves the keyboard into asked children, tells placers child-focused, and takes active ones back (4g7b3b).
+- `host-adapter-4g7b3c`: under a root, a child that shows takes its placer's frame (taken back from every child of the view by a press outside or Escape), and docks join across apps through one `Docks` and `host.dock`; be-host waits for blocks a root asks for before they are listed.
+- `export-through-artifacts-7`: export goes through artifacts: an export is a block that follows its source, made again by the source's exporter, with its settings and fingerprint under separate keys, standing failures reported, and no parallel export APIs; `transfer::Open::content` returns a boxed future to avoid a rustc ICE on the web.
+- `flakes-6`: a root counts as settled only once no app is starting or compiling and it has stepped with every answer it was given, and a held rejoin takes only its own next entry (same origin, base and sequence), replaying only entries past what it heard.
+- `flakes-7`: only the present of a frame that was asked for meets a need, so a `frame-needed` heard before a present the app made unasked is still drawn (the stale "editor is opening" under be-root); the not-yet export test waits out the references read before holding answers.
+- `flakes-8`: a `next` the sandbox answers inside a root's call counts as an answer the root has yet to step with, so the root does not settle with frames still to take.
+- `host-adapter-4g7b3d`: under a root, previews (shown in their child's place, `ChildPreview::Composited`), blocks opened from root editors, the host's block catalog (`host.block-types`), and a placed pan-and-zoom child's view (`host.place-content`); an app asked for no screens is asked for no frames.
+- `host-adapter-4g7b3e`: under a root, a child placed turned, faded, at its zoom, fitted and under occluders, and one app per staged app and one editor per block shared across places (other places draw copies).
+- `host-adapter-4g7b3f`: under a root, editors' drags carried by the input router (`drag-block`, `drag-accepted`, Escape puts a carry down), and their menus, details, child-menu picks and leave-frame routed as be-host does.
+- `host-adapter-4g7b3g` (dialogs): under a root, pickers, rename forms and Export dialogs as dialog children (`shown` = block or dialog, `host.tell-shell`); creations, artifact settings, host panels and web views are left in the plan.
+- `host-adapter-4g7c`: the root shows the views its apps anchor (menus, pickers) outside their groups, stacked by open order; presses dismiss them as in be-host; keys go to a child an anchored view places and back to its owner on close.
+- `flakes-9`: undo steps timed by when an edit was relayed; a stopping stack closes its connection at once and account reads retry on a new one; an offline edit merges with no base when the ancestor is held nowhere; a preview canvas gets no view until its stage is measured (no stray glyph, no pause).
+- `keys-asserts-webviews`: input for an unannounced screen is dropped (no queue); a view that gets the keyboard is told the held modifiers as state with its focus; duplicate dock ids assert; web view leftovers (GTK/WebKit fixups, bootstrap packages) removed; an export stores the theme shown when its dialog opened.
+- `host-adapter-4g7b3h`: under the root a dialog on a phone opens as a sheet, Escape keeps the keyboard in an active child, and a web view fails with its message as under be-host.
+- `follower-fetches-heads`: a replica following its holder fetches the holder's seals (one at a time per block, skipping its own, cancelled at stop); a canvas with no measured camera takes no input.
+- `sheets-motion-toasts`: springs overshoot once and land (SpringMotion); a sheet thrown or let go settles on its stop with the release speed; content flung past the top moves the sheet; the back gesture slides a dialog away; toasts shrink to fit a narrow screen.
+- `flake-not-numbered`: an entry of the order that waits for its key counts as heard only once it opens, so it is not passed over when the key arrives (one cause of "1 submitted, not yet numbered").
+- `join-left-suspicions`: of a block's joins on their way only the newest still out answers for the session, and a dropped join stops holding events once no other is out.
+- `host-adapter-4g7b3i..k`: under the root each place gets a live editor of its own; a child taking the frame stays in place as its panel opens and closes; a creation child makes its block as under be-host, and a failed creation tries again once committed again.
+- `checklist-on-canvas`: a new canvas card takes the size its child tells in the undo step that added it (one step per add, paste or drop, any resize mode); closing an editor commits its open undo groups; be-host reports no size until its app tells one or presents a frame.
+- `host-adapter-4g7b3l..o`: under the root, an artifact's settings open in a dialog whose list escapes it; every host panel opens through host.show-panel and the root's statistics overlay is gone, with one statistics feed for all Performance panels; dialogs in an edge-anchored view open as sheets; a web browser tab says why it shows no page.
+- `host-adapter-4g7d1..2`: under the root, be-root draws the one command palette (Ctrl+Shift+P or a frame menu's Command palette) with the focused editor's actions and those of each editor around it, gated as be-host gates it and shut while locked or in a dialog; F6 and Shift+F6 move the keyboard between the apps' views in be-host's order.
+- `host-adapter-4g7d fix-ups`: F6 under the root stays within an app's modal dialog or menu and leaves a picker, as under be-host; the Performance panel painting no longer catches live statistics.
+- `host-adapter-4g7e1`: under the root `--desktop` shows the desktop shell as the session's editor, its OS services left for 4g7g; the root tells its apps the host's wall clock and UTC offset.
+- `host-adapter-4g7f`, `host-adapter-4g7e2a`: drive reads the root's accessibility tree under --root (own surfaces described only while asked, changes only); a root frame ending with its apps unstepped wakes its host; a desktop session docked under the root joins the desktop's dock. open/close/raise of app windows deferred to 4g7e3.
+- `host-adapter-4g7e2a` follow-up: the docks learn every docked child before any is asked for its screens; the 4g7e3 plan split into e3a..d.
+- `kept-content-5`, `kept-content-6`: one `Card` under popovers and dialogs (`PopoverPanel` and `DialogCard` gone); the colour wheel stays on the gpu (decision recorded).
+- `headless-retire`: plans/headless_apps.md, fully built, deleted; its references point at guides/apps/runtime.md "Headless", and the real-deploy run is in plans/backlog.md §22.
+- `kept-content-7`, `kept-content-retire`: one find_text and shared dock fixtures; plans/kept_content_and_one_scroller.md retired
+- `headless-noise`: a headless runtime reads only the modules of apps with a host component
+- `signed-logs-6`, `signed-logs-7`: content edits announce nothing, only log entries do; apps' sign/verify services removed; decision recorded, plans/signed_logs.md and plans/chat.md retired
+- `hosted-blocks-5`: the share dialog was already built; step removed from the plan
+- `host-adapter-4g7e3a`: the desktop host runs under be-root and its windows reach the desktop; be-root wakes its host when an app wants a frame after the root's frame was done
+- `pure-guests-1`, `pure-guests-2`: pure guests' few WASI calls are answered natively and on the web, held to RFC 7539's vectors; the pure guests build in the guests' wasip1 plan (opt-level 3, pending the user)
+- `pure-guests-3`: a module from bytes' spawner chooses its seed; the plan is built and deleted
+- `one-way-host-1`, `-2`, `-5`, `-6`: one panic container the hook hears for every guest thread; one RootSettings in be-block; the push device state publishes itself; one FailureBudget for restarted guests and programs
+- `host-adapter-4g7e3b`: the root shows program windows where its apps place them, from pictures the desktop host hands it; drive's settle waits for a shown program window to draw its configure
+- `one-way-host-3`, `-7`: one shared test server fixture in be-host-server; the test harness is ordinary code in be_host_stack::testing (decisions/test_hooks_are_ordinary_code.md); FailureBudget keeps restart counts
+- `dialogs-dock-1`..`3b`: a Window points at its anchor and may block its owner; a DockDialog drags within its window; dialogs are sheets on phones
+- `hosted-blocks-6`, `-7`: the gem hunt, the first hosted block type, played through its host; a Join editor's frame offers no content actions and its row marks it joinable
+- `android-link`: be-host links for Android again (Oboe on the NDK's shared libc++ beside V8's; decisions/one_cpp_runtime_beside_v8_on_android.md); the broad check links be-host's Android library and leaves out wasm test modules
+- `demo-top-bar`: beui-demo's top bar fits a phone-wide window (actions as icons, theme under More); the styled ActionBar takes `labels` as a Prop.
+- `beui-vello-1b`: wgpu 30, the renderer benchmark in the suite, and overlays that keep wasm-bindgen 0.2.130 binding the browser's WASI modules.
+- `authorship-1`: steps 1–3 of the authorship plan: signed log heads compared across devices through sessions, relays and commits; forks and misbehaviour kept as verdicts.
+- `dialogs-dock-5`: dialog plan steps 4c–5b: dialogs as hosted windows anchored in the dock, hidden under the lock, with the review fixes.
+- `clippy-mechanical`: clippy's mechanical fixes across the workspace's crates.
+- `host-adapter-4g7e3c`: the root hands program windows their input; a composited window let go of loses the keyboard; router scales deltas to a zoomed surface.
+- `beui-vello-3`: Vello (vello_gpu, vello_common) linked into the beui app library (+1.2% library size).
+- `authorship-1d`: one person's devices compare log heads through the account's block (bounded at 512, forward only on agreement); log-head signatures bind the organization.
+- `clippy-design`: the clippy lints that need a decision per site, fixed or allowed with a reason at each one.
+- `drag-dock-tabs`: declarative_dragging step 3 landed; the plan keeps only the cross-app step.
+- `authorship-4`: a block's log doubt shows as a bar above it, with Details and Dismiss; dismissing hides only the verdict shown, and only the workspace may dismiss. The authorship plan's open items are set aside in plans/deferred/authorship.md.
+- `keys-backlog`: keys a contact sealed to a replaced key open with retired secrets; an acceptance over the account's bound says why; offers of ownership are listed under "Offered to you" in the files pane.
+- `dialogs-dock-6`: a window of its own points at its anchor, blocks its owner across windows (a no-owner cover blocks only its own window), closes while locked, and pushes the lock state.
+- `fix-type-module-restart-count`: a restarted type module's replica takes no edit before its rejoin opens it, and gets each edit once, offline or through a second restart.
+- `dialogs-dock-9`: a dock dialog is a window of its own where windows are hosted (fitted to its face, no beak, moved by the host, focus kept and given back), and a confirmation stays open on a press in a sibling frame.
+- `keys-followups`: a contact's resealed key stays the contact's, so sender_may runs on every open; a new phrase is shown every key sealed to the account; reseal through intermediate keys and after relink; the offers, mutes and notices reads count under one lock.
+- `member-names`: removing a member, or forgetting an agent, changes and announces every block they could view.
+- `beui-vello-5b`: Vello steps 4-5 (the renderer and rasterizer draw with Vello, a lost device stops the renderer, the filter blurs with Vello) and a surface's view format as an option, so raw apps' surface configuration stays flat.
+- `log-head-flake`: the growing-log comparison test waits for the server's answer at the relay (Relay::held) before the log grows.
+- `pure-guest-opt-s`: a pure guest's own crate builds at opt-level s in a release build (about 5.6% smaller apps).
+- `backlog-30-31`: the shared WIT's hash and uuid, and be3:ui's block-ref, are list<u8> as on the wire; a move into a block's own descendant is refused on the device; a secret shown once survives a stray press on its scrim.
+- `beui-vello-7`: paintings hold paths (Content::Path), the tessellator and lyon go, one merge rule for seamed fills in raster and renderer; plans/beui_on_vello.md is done and deleted (decisions/beui_draws_with_vello.md).
+- `server-protocol-26`: §26 of the server protocol plan, split; a replica's logged input that arrives while it loads is queued as a job.
+- `flakes-15`: an_editor_hears_the_author_go waits for the restarted stack to connect; five §15 flakes no longer reproduce.
+- `host-stack-shared`: be-host-stack tests start from no notices or account reads.
+- `host-adapter-4g7e3d`: program windows' statuses and closes reach their placer under the root; be-host answers close with windows open.
+- `gpu-webgpu`: surface-configuration takes view-formats as a list again; decisions/be3_gpu_matches_webgpu.md and decisions/be3_gpu_is_wasi_webgpu.md, and plans/be3_gpu_is_wasi_webgpu.md (wasi:webgpu 0.3.0-rc.2, pinned and fetched).
+- `host-adapter-4g7e3d-sugg`: 4g7e3d review suggestions: a close answered once the session ended, only the shell's windows worded; under the root the core's repaints stay the root's to ask.
+- `dialogs-10`: a Dialog opens as a window of its own where windows are hosted, at its level (session notices Raised, above the programs' windows); the desk harness lifts no scrim.
+- `dialogs-clear-color`: a dialog's window of its own clears to nothing, not its app's surface; the export dialog's child sits inside the card's border, rounded by the card's inner radius (card tokens RADIUS, BORDER, INSIDE_BORDER, INNER_RADIUS).
+- `backlog-7`: backlog §7 sessions: a reader outside the session replays a journal by parts; a stateless request's scope reads only its own block's parts (Scope::check); hosted channel slow-down (configurable burst), waiting join, newest handshake, inherited players; a recheck drops only the admission it checked; an edit given again by its part goes as its kept submission.
+- `backlog-8`: a list's code lines keep their continuation spaces in their marker, so code lines up with its fence; notes on macOS live resize and a view given the keyboard early.
+- `host-adapter-4g7g1`: be-host serves the screen lock and displays' keep changes under --root; under the root the host's frame is begun for its clock but not ended; survey of the host tests 4g7g2 must pass.
+- `host-adapter-4g7e2`: the root floats the windows its desktop shell opens, moves and resizes them as their apps ask (touch and pen included), keeps them within their opener's work area and clear of the bar; root tests for a joined canvas's tab menu and a joined block's details.
+- `host-adapter-4g7b3f-4g7d1`: files dropped from outside reach the view under the pointer under the root, and quick open runs under the root, the host finding blocks and opening the one chosen.
+- `host-adapter-4g7g2b`: host tests for the root's own members, invite, agents, contacts and share-link UI, using be-host's test ids and layout.
+- `host-adapter-4g7g2a`: the root's accounts, host menu panel (sized to its rows, closed by a pick, a sheet on a phone), Running Apps and session picker on a stopped session app, as be-host's own UI.
+- `backlog-9`: a stopped sandbox keeps saying why, the PDF renderer keeps its documents, children as an array, game layout indexes, a lift wakes only its own readers, a first measurement at once.
+- `one-way-in-the-host`: one grip rule in be-lib-geometry for the window stack, be-host and the dock; the host's windows and program editors are pushed, not polled; why the two shrink rules stay apart.
+- `gpu-wasi-webgpu-3a`: local interfaces take async funcs and streams; be-wasm-gpu-host answers wasi:webgpu; devices keep to their own objects and limits; apps draw through wasi:webgpu; shared textures stay read-only.
+- `host-adapter-4g7d1-rest`: the root's palette lists the host's own rows and names editors' rows after their blocks; Switch account waits for a session chosen.
+- `backlog-10`: a part read for a replica counts as unsettled until it is answered; flake counts recorded in the backlog.
+- `backlog-11`: a large blob's header loads only its first part's path; a failed drain drains again on keys changing or a lane command ending; unread badges on picker rows and tabs; a re-export carries imported history; a block known only through a reference is told when it changes, and its follow goes silently once it may not be known.
+- `gpu-wasi-webgpu-3b`: be3:gpu/device goes, wasi:webgpu is the only app gpu; createView on a destroyed texture is valid as in JS WebGPU; the gpu host's maps use foldhash.
+- `gpu-wasi-webgpu-4`: a canvas is shown as its alpha mode, colour space and tone mapping ask; an unset alpha mode shows opaque.
+- `gpu-wasi-webgpu-5`: a per-draw gpu call records into its pass in place, ~50 ns instead of ~125; the lost-device check takes no lock.
+- `gpu-wasi-webgpu-5b`: review follow-ups: getConfiguration returns what was configured, looks are batched in one submit, and a pass that cannot begin raises once at its encoder's finish.
+- `backlog-10-2`: a host panel tab takes the keyboard under the root; an image read by range after its header grew reads its whole payload.
+- `backlog-12-3`: walks tell thinned history from a root; search waits for the device at rest, follows the indexes it may compact, keeps its answer while it runs again and leaves out blocks shared alone; a block made here is placed by its parents.
+- `backlog-26`: access logs are checked once across restarts, joins and the server's reads, and authority from another log once as of each head. Behaviour change: a key escrowed under a log not yet checked answers Withheld where it answered nothing.
+- `backlog-10-3`: be-host focuses a host panel its placer asks the keyboard for, as the root does.
+- `host-adapter-4g7g2-palette`: under the root, apps draw in the host's preferences, the session's editor takes the keys it intercepts over its children, and be-host's palette host tests run under the root.
+- `backlog-13-3`: organization policies select their own values; Android push notifications carry their own icon; a new phrase keeps a contact's row and reseals in one transaction; a local account offers no Share, Shared with me, contacts or share links, and the web asks to keep its storage; drive's present-late steps a frame between layout and present.
+- `gpu-wasi-webgpu-6`: async pipelines are made natively off the app's thread, on at most two contained worker threads per gpu, with error, out-of-memory and internal scopes; a waiting poll blocks on whichever pipeline is made next.
+- `backlog-12-store-s10-3`: a commit refused as stamped too far ahead is stamped again by the server's clock and sent; the refs keep what replaced what, a seal on a replaced commit is made again holding the replacement's objects, and an exhausted rewrite is retried on the next drain.
+- `gpu-wasi-webgpu-7`: the guest names dropped tickets to the host in `[poll]`, which lets them go; maps and work-done still run, their answers forgotten.
+- `host-adapter-4g7g2c`: a linked root runs on the web page with its own gpu device, its apps draw into canvases their workers are handed, the root wakes its page between frames, and be-host's root serving moves into root::serving.
+- `backlog-32`: `./scripts/test` runs a crate's named test targets as built; Linux windows are named by the installed applications' entries as a signal, with one way to list Linux programs; a Host change held during a join and older than its answer is dropped.
+- `backlog-12-listing`: a cached listing keeps a row per block, so a change writes only what joined or left, and the server pages a folder's children by range; `download-urls` takes a holder, and a replay fetches only its own block's parts.
+- `backlog-25`: edits under a held tentative layer land beneath it; one projection per block per instance, and a block asked for as another type reads as failed; a detaching editor commits its undo groups; a voided drag holds nothing.
+- `backlog-26`: a kept access log writes only the places an append adds, in order and failing closed; authority rests only on paths that hide no lowering and, for a block's log, no retirement (an organization path's is an accepted limit).
+- `host-adapter-4g7g2c4a`: be-host's page runs a root in place of its own UI, its apps saying when they started and starting their hello's while from the frame after, with a bound on loads; web host tests can run their scripts under the root.
+- `backlog-22-24`: apps' audio players move into be-host-audio, so `be` links no ALSA and answers a play with an error; buck2's lost-blob exit is recorded as 3, which retrying never retries.
+- `host-adapter-4g7g2c4b`: on the page, a host frame where the root is still drawing keeps the root's last accessibility tree; an app's module load is bounded at five minutes, for loads that never finish; the failing root counterparts (a picker's Canvas under the root makes no block, contacts on an unfocused page, grown) are recorded in the plan.
+- `root-picker-creation`: under the root, be-host does every block command the root's editors send (placing a picker's block, moving, deleting, undoing), not only leaving, so a canvas made from "New in My files…" lands there.
+- `backlog-21`: `view!` calls one children setter per shape, which asks the slot type for that shape's trait directly, so a children slot's error notes no longer name `ChildShape` or `TakesChildren`; compile-fail cases can pin those notes with `//~ NOTE`.
+- `backlog-17`: both cores drag a press only once it moves 4px (8px for touch), carried drags keep their window, a kept embed moved by a timer is told only where the frame leaves it. Behaviour change: a small vertical wobble on a number input or toast now starts a drag.
+- `backlog-20`: a view given the keyboard before its app has a window for it focuses once it has one, and a catcher taken down with the keyboard tells its app the view lost it.
+- `root-picker-creation-2`: the root names each app's pane after its app; what the host forwards an app the root spawned waits behind the frames that open its editors; the popover and chat web tests run under the root.
+- `backlog-24`: `./scripts/buck` restarts buck2's daemon and tries again when re-relay forgot a lost blob during a failed run.
+- `streamed-merges`: a compaction writes its merged search segments through a part sink, a window and a term at a time, so the idle pass merges tiers of any size; now collected when let go of (guides/blocks/client.md, "Unnamed parts").
+- `backlog-24-rasterizer`: the browser rasterizer drops Mesa, LLVM and all but the en-US locale (683 MB to 408 MB, previews pixel-identical) and carries the libudev it borrowed from the host; sysroot sets take `-PACKAGE`.
+- `backlog-26-3`: a retiring key's administrator bit is proved from each organization log served whole from its root, which a server can neither reduce nor withhold, so an ex-member takes a new phrase too; retired keys bar only records naming a head at or after the retirement.
+- `backlog-34`: the drag threshold's leftovers: the pen tool asks for every sample before its stroke begins, a carry lifted with a dock window open counts only the places it can drop in, the HTML core's drag starts in no window until it moves, and `drive hold` refuses an app that is not running.
+- `backlog-2`: `drive step on` makes a recording of opening a document the same every run, a stopped clock's frame waits for no command held for the server, and a dock bar keeps a deeper pane and slot across a save.
+- `backlog-34-2`: the drag threshold review's follow-ups: `Board::placed_in` shared by `place` and `rests_of`, the canvas pencil asks for every pen sample before its stroke begins, `be_host_runtime::app_ids` for `holdable`, and `drive hold` documented as refusing an app before it starts.
+- `backlog-7-3`: terminal hosts claim the lease from a viewer in turn by client, counting only hosts that may edit and waiting on a stuck host before them for `UNHEARD_HOLDER` at most; a replica's opening carries its device's presence (`opening.shown`), so presence survives reopening and a terminal host shows itself from its first presence; one `below_floor` predicate for passed-over entries; a kept submission carried over a restart goes again under its id.
+- `backlog-15-snapshot`: a restarted app's editor is always sent its snapshot (shown by a be-host-runtime test); the root closes a let-go instance's editors (`Forwarded::close_all`), which had kept their blocks open for good.
+- `backlog-24-cdp`: the browser rasterizer drives chrome-headless-shell over the DevTools protocol pipe itself; Node and Playwright leave the previews (release 424 MB to 281 MB, 54 s to 15 s).
+- `streamed-part-writes`: a type module streams a part through a host part-writer (guides/blocks/client.md, "Unnamed parts"); writers are refused under a stateless request, bounded to 8 MiB unsealed, and let go of when dropped or their module restarts; Peer::put_part is gone.
+- `backlog-15-closeall`: the host's served editors are a `Served` list that closes their instances however one is let go; exiting and a stopped root shell close every instance.
+- `backlog-24-cdp-2`: the browser rasterizer's review suggestions: F_DUPFD_CLOEXEC, Chromium makes its own profile dir, load waits on an evaluate, unanswered requests and a closed pipe's exit status are reported.
+- `canvas-bars-race-3`: a joined dock saves nothing until the root has taken its restores; restores withdrawn, released or reaching no root are answered at once; a descendant's waiting restore holds back only its own owner's requests.
+- `effect-wake-order`: a docked child's declaration and requests go in one effect, since effects woken by one change run in no set order (now said in reactive.md); an unchanged declaration is not declared again.
+- `demo-carry-keys`: the demo's bin and list drag samples carry their own key types, so carrying one no longer lifts the other's row.
+- `root-picker-creation-4`: the share-dialog test waits for the dialog's access data before pressing (a race, not a regression); an app sends frame_needed itself once it lays out anew, and Surfaces drops paintings at a size the new layout no longer has; `redescribed` removed; be-host logs a dialog dropped for want of a shell.
+- `backlog-26-4`: a device signs whether it may administer when it takes a new phrase, proven from the organization log's path; a path keeps whole every retirement that may retire an administrator (organization logs only), so a server cannot hide one; a block's retirements stay off other readers' paths.
+- `carried-behind-in-flight`: an edit waiting behind one in flight over a restart is carried and lands once, without a snapshot to a live editor; keep-carried takes its restarts
+- `review-nits-rp4-b26`: review suggestions for root-picker-creation-4 and backlog-26-5 (be-sdk fit-view frame ask, organization-log path tests, keys guide)
+- `lowered-agent-key`: a bound agent lowered to View keeps reading its block: a rotation seals new epochs to whom key work lists right away, an editor re-asks keys before rotating, and a bound agent follows topic.keys only for its block and those below
+- `backlog-17-face`: a carried item floats as itself through a replica that draws its node at the node's scale (one replica per node; SSR and wasm copies alike), drawn whole where it floats and put down only at home
+- `unnamed-parts`: a part's chunks are kept by name across collections (open writers, outbox entries, older commits, unsealed edits), and a part written in pieces seals as a whole write does.
+- `restart-limit-tests`: host tests can lower a block's replica restart limit at open (tests only), so the slowest restart test drops from 28 s to 0.3 s of CPU.
+- `backlog-17-refit`: the display settings' camera fits the displays, and from a carried display's lift on, every place it can go; a carried source is measured at each point and held where it was grabbed (`Carry::lifted_from`), and keyboard carries retrack when it is laid out again; Canvas consumers use `local_view`.
+- `owner-lowering-rereads`: an owner lowering writes and persists its unsure mark ahead of the send, generations tell a stale reread from a fresh one, withheld drains are capped, and a failed read rereads rather than guessing.
+- `peers-preview-held-edits`: peers see a held edit as a tentative layer (by client, then layer number) before it is released; an absorbed operation drops an earlier set only when nothing else reads the field; layers leave once the order passes their commit, and oversized layers (count or bytes) are not shown.
+- `unnamed-parts-ledger`: a collection passes over parts claimed or pinned while it walked; the ledger keeps an object's first note; presence walks count as one access; a store with no identity is never collected.
+- `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
+
+Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
+
+**Decided by the maintainer, not yet built:**
+- An owner transfer needs an accept step: the new owner accepts before ownership moves.
+- Windows the Windows host restores at start get window chips in the desktop bar, like any other window.
+- Members don't all see the whole member list.
+  - Today `list-members` (`Store::list_members`) already gives the whole list only to administrators; any other member gets only the agents it made.
+  - But there is a leak: a block's creator holds Manage on it, so every member who has made a block is served the organization's whole access log, and that log names every member (guides/blocks/keys.md, "Who is served what", left open there).
+  - To build: narrow what a block's creator is served of the organization's log, for example a proof path of its own right, so that the log no longer reveals the members.
+  - The personal organization is unaffected: it holds every account but has no log.
+
+**Follow-up owed on landed work:**
+- block-rows-guard: also guard the other columns that name a block (`access_log_authorities.above_id`, `block_edges.reference_id`, `blocks.parent_id`), or document that `forget_blocks` takes whole subtrees made by an account that holds no links.
+
+**Hosted blocks 4e and step 4's acceptance** (plans/hosted_blocks.md): stacked on 4d2-5, which is now on this branch, so rebase both onto this branch's tip. Neither is verified.
+- `claude/hosted-blocks-4e-2` @ a06baa44 (review: NOT READY). Still to do from the review:
+  - refuse up front without Edit;
+  - print "hosting" only once `seen.hosted` holds the block;
+  - a second Ctrl-C exits at once;
+  - hold the data-dir lock for the stack's whole life;
+  - wake on `lease_revision` instead of a 250 ms tick;
+  - the standby comment;
+  - key the cache by account;
+  - the S1 race, in the backlog or fixed.
+- `claude/hosted-blocks-acceptance-2` @ 349d920f, on 4e-2 (not reviewed):
+  - The closing test `players_carry_on_with_the_next_host_once_the_first_closes_the_world`, with two raw-peer players (the new `Server::player`) who hear and are answered by the next host.
+  - The host menu's kept row says "Hosting here now" or "Kept here, standing by"; the painting `the_menu_lists_what_this_device_keeps_hosting_with_stop` changed.
+  - Two 4d2 races fixed:
+    - `Replicas::rejoin_block` skips a closing replica, so a reopen no longer waits forever;
+    - `hosting::heard` takes Host only while the replica is open.
+    - Stress went from 5 failures in 8 to 0 in 12.
+  - The `a_joined_channel` flake fixed in its helper: the new `take_member_events_until` and `take_channel_events_until` wait on the page's own record. It went from 10 failures in 32 to 0 in 32.
+  - Not yet written: unit tests for the stale Host after leaving, and for rejoining while closing.
+- Not reproduced: an edit stuck at "1 submitted, not yet numbered" after a sibling device switched organization, which the server never sequenced. A host-test attempt passed 22 of 22 runs and was discarded. Details are in plans/backlog.md §15 on acceptance-2.
+
+**Built, not reviewed or verified:**
+- `claude/flakes-server-runtime` @ 517b9857 (on 0628fbdc): two flakes fixed at the source.
+  - be-server under load: two connections switching a new SQLite database to WAL failed with `SQLITE_BUSY` without calling the busy handler.
+    - The new `be_block_sqlite_schema::use_wal` waits out the other switch and retries; be-server and be-block-client use it.
+    - A deterministic test covers it, and guides/blocks/server.md now says to switch with `use_wal`, never the bare pragma.
+    - It went from 5 failures in 800 runs to 0 in 1,200.
+  - be-host-runtime in parallel: the two tests that panic on purpose symbolized a 360 MB harness's backtrace, about 300 MB per run, until the memory cgroup killed them.
+    - `panic_guard::contain` now prints a contained panic as one line where be-host's hook isn't installed.
+    - It went from 201 failures in 400 runs to 0 in 1,000.
+  - guides/testing_a_gui.md gains how to repeat a crate's own test under load.
+  - Handoff notes:
+    - `Running::with_mail` still returns before the server opens its store;
+    - other places drop a `serve_with_mail` result;
+    - a plain whole-crate be-host-runtime run has pre-existing failures, which is why it is `run_apart`.
+- `claude/journaled-edits-restart-carries` @ b1722b23 (on b5d4bcfa; review: **NOT READY**, one must-fix): restart carry (b), which removes the interim hold-and-reseal now on this branch.
+  - At a due seal the holder restarts at once, based at the seal. Every replica rebuilds the content at the seal and carries each entry numbered after it onto the fresh commit with `LiveEdit::carry_over`. Journal replay does the same.
+  - Removed: the wait for a full seal, `restart_short`, hold-and-reseal and `report_overdue_restart`.
+  - Must-fix: when a journal's base isn't the restart's seal T, `replay_entry` counts the restart but applies the later entries to pre-restart content, silently mis-applying them. This happens when a lost seal's rebase leaves the journal on an earlier seal.
+    - Fix it one of two ways: build the content at the seal from the entry's own state and commit, then carry, in `loaded`'s async path; or refuse and open on the head with an error.
+    - Add a test for that journal shape.
+  - Review suggestions:
+    - a clearer `CARRIED_CLIENTS` comment;
+    - a `debug_assert` that the log covers (T, S);
+    - "logged" not "applied" in the decision's step 3;
+    - a backlog link to plans/seal_states_go_by_part.md.
+  - New tests:
+    - a holder streaming faster than a seal;
+    - a holder whose seal a peer outpaces, where a third replica opening on the journal must match both;
+    - a restart on a seal the order moved past.
+  - Docs:
+    - decisions/a_restart_carries_what_was_numbered_after_its_seal.md is new.
+    - The Restarts section of guides/type_modules.md is updated.
+    - The backlog §7 entry is removed.
+    - What remains of the plan is plans/seal_states_go_by_part.md: the 4 MiB ceiling when not alone.
+
+**Work in progress:**
+- `claude/flush-after-revoke-5`: fixes `a_publish_right_after_a_revoke_lands_without_waiting`, which stalled with "owes a seal: true, holds the lease: true, publishes unanswered: 0".
+  - A flush answered while a block could still come to owe a seal, and nothing asked for that seal before the quiet spell, which a held clock never brings. Two ways, both confirmed with prints:
+    - The edit waited in the lane behind the revoke, and the flush, which needs no block, ran and answered ahead of it (the test's own failure, which by now fails alone on the tip).
+    - The block's replica did not hold the lease when the flush answered, and the lease came to it after.
+  - Fix, in be-block-type-host: `Replicas::flushed` marks the blocks a flush answers on while they are unclean, unreported or not the lease holder, or every open block while commands sent before the flush still wait (`flush_waits`, until the worker's `lane_settled`). A marked block is asked to seal once (`seal_flushed`) when it reports a seal it owes and can make, or when a seal asked of it ends. Status reports and seal answers drive it, so it does not spin. A reload holding seals back clears `owes_seal` until it ends.
+  - Tests in be-host-stack, each failing on the tip with the stall's signature:
+    - `a_flush_that_runs_ahead_of_an_edit_waiting_behind_a_revoke_seals_it_once_it_runs`
+    - `a_flush_answered_before_the_lease_comes_back_seals_once_it_does`
+  - The stall report shows whether the replica holds the lease.
+  - Dropped: the worker's `flushed_ahead` reseal, the earlier attempt test, and a guest-side re-ask (`seal_asked`), which raced the flush's own late keep.
+  - `-6` on top, folding in the review:
+    - A block's flush mark stays while its seal is asked, so an ask never sent or passed over is asked again. It also stays on a block that doesn't hold the lease, until a later flush. A replica opened while a flush waits on the lane starts marked.
+    - `a_device_hosts_only_once_its_component_claims_the_lease` was flaky because the other device could leave before this device's rejoin. The test now waits for the rejoin's answer (`Seen::session_joins`).
+    - Not fixed: a Host event held during a join can replay after the join's answer and override it. A trace showed a late rejoin answered "no one hosts", then a held event made this device host again.
+  - Separate and not started: the counter-seal flake `an_edit_sealed_offline_onto_a_seal_the_server_lost_lands_once` ("never counted 5, last 2"). After reopening, the replica opened on the older seal and was never told the server's newer head, which looks like a lost head announcement.
+
+**Not started:**
+- Host adapter (plans/host_as_platform_adapter.md): 4g7a1 is on this branch, and no branch holds unlanded work. `claude/host-adapter-4g7a` (56ba435c) is superseded and can be deleted.
+  - Next is 4g7a2, be-host's wording and layout:
+    - be-root sizes to the window rather than the fixture's 400×240 `SIZE`, the fixed 152 pt `DIALOG_SIZE` and `MENU_BUTTON`;
+    - be-host's titles and copy;
+    - the menu's entries as be-host shows them, by the organization's role or company, with unsent edits only when there are some;
+    - the core-view fields that needs: organization, role, escrow warning and sync.
+    - Then re-accept the `a_root_opens_its_menu` painting.
+  - Then come 4g7b–f, in order:
+    - app views;
+    - anchored views;
+    - editors and the camera, with the focus chords;
+    - desktop windows;
+    - splitting drive's commands.
+  - Last, 4g7g: be-host brings the host's pieces back under `--root`. The root becomes the default only once 4g7a2's layout and the host tests over be-host's src/ui pass with their paintings compared.
+  - Open questions:
+    - Bare `--root` runs be3.root, but only `:native` stages it. Whether `:dev` or a shipped bundle should stage it before 4g7g is undecided.
+    - Some guest glue is duplicated between be-root and the fixture: the Notice→Toast mapping, answer-notice, and input/Embedder. Move it into be-sdk-root or be-sdk-beui-root if a third root appears.
+- The deploy dry-run (`./scripts/deploy --dry-run`) and the Chromium web test.
+
+**Dropped:** `claude/quieter-unlisted` (01e8bfb2), whose log quieting backrefs-4 superseded.
+
+## Tracker rows to file
+
+`./scripts/be` can't run here: the pinned bootstrap predates "download be unpinned", and only CI re-pins it. File these once it works:
+- A one-off "1 submitted, not yet numbered" host-stack flake, not reproduced.
+- A replica's online flag lags behind its connection's reconnect.
+- A diverged replica's journaled edits after it closes (plans/backlog.md, 7).
+- An administrator's new phrase can race a member's write (plans/backlog.md, 18).
+- A mailbox target for letters a client sends on its own (server API 4b may add it).
+- An `Editor::until_taken` test helper.
+
+## Manual steps for the maintainer
+
+Only what needs a person to do something. Some apply only once the piece named is on this branch; check the commit list.
+
+**Deploy workflow, in order:**
+- [ ] Generate an ed25519 SSH key used only for deploys. Uncomment the "CI deploy key" entry in `servers/common.nix` with its public half, land that, and deploy servers/api by hand (guides/servers.md).
+- [ ] Create the GitHub environment `deploy`, with required reviewers, and add the secrets `BE3_DEPLOY_BUNNY_STORAGE_KEY`, `BE3_DEPLOY_BUNNY_API_KEY`, `BE3_ANDROID_RELEASE_KEYSTORE` (base64; without it, untick the APK), `BE3_DEPLOY_SSH_KEY`, `BE3_DEPLOY_KNOWN_HOSTS` (`ssh-keyscan api.be3.pfg.pw`, checked against the real host key) and `BE3_NL_TOKEN`.
+- [ ] In the Bunny pull zone, send `Service-Worker-Allowed: /` on `/data/*`, and give `/`, `/index.html` and `/live/*` a one-hour TTL and `Cache-Control: no-cache` to browsers. Delete the stale `/web/downloads.html`.
+- [ ] After the first deploy, load https://be3.pfg.pw and check that the service worker's scope is `/`, with a script under `/data/BUILD/web/sw.js`.
+
+**Data:**
+- [ ] Before deploying this branch, stop be-server and delete its data, and delete every device's data directory: the protocol, schema, seal format and local accounts all changed with no migration.
+- [ ] After deploying, make the first account with `be-server login-link --auth-origin https://api.be3.pfg.pw --email YOU` on the server (guides/hosting.md). Passwords are gone, and sign-in codes are delivered only to the server's journal.
+
+**Provider sign-in (OIDC), if wanted:**
+- [ ] Register a web application for each provider, with redirect URI `https://api.be3.pfg.pw/auth/oidc/ID/callback`.
+- [ ] Write the providers file next to the data directory, readable only by be-server (format in guides/hosting.md), add `--oidc-providers FILE` to the be-server service in servers/, and deploy.
+
+**Checks only a device can do:**
+- [ ] Android: install the debug APK and open an app to confirm guests run on V8. Install a UnifiedPush distributor (ntfy also needs `--push-host` on the be-server service) and run the push checks in guides/running/android.md.
+- [ ] Windows: run `BEUI_LAYERS=space ./scripts/buck run //crates/be-host:native -- --desktop` and check that no window is captured until picked from a menu, that only a click in content focuses and locks the mouse, and that Ctrl+Alt+Space defocuses.
+- [ ] Firefox and Safari: in a text area, check that a line just wide enough keeps its last word, and that a selected newline highlights at full height.
+- [ ] After the first deploy, check that `be` downloads its apps and type modules from the release.
+
+**Build server:**
+- [ ] Cap how many host tests a NativeLink worker runs at once by memory, not only CPU. Under a full verify, a crowded worker starves an app's step for 10 s.
+
+**Repository:**
+- [ ] Re-enable the CI workflow. Only CI publishes and pins a new bootstrap (guides/bootstrap.md).
+- [ ] Once CI publishes bootstraps again, build the bootstrap steps of plans/one_way_in_the_tools.md (one acceptance of paintings shared with be-tool-verify, and the bootstrap's shared helpers). They wait on a new bootstrap release and pin.
+- [ ] Delete stale branches: `claude/headless-c-7`, `claude/headless-c-7-rebased`, `feat/menu-intent-typeahead`, `feat/menu-intent-typeahead-2` to `-4`, `fix/stack-test-flakes`, `claude/host-adapter-4g7a`, and other numbered branches whose last number landed.
+- [ ] Optional: AGENTS.md's principle "No in-app reach to strangers" could mention that a share link also counts as an out-of-band start (decisions/share_links_are_an_out_of_band_start.md).
+- [ ] Delete this file, then merge this pull request with **rebase**.

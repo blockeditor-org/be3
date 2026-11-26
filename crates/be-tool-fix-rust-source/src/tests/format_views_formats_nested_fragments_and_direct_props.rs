@@ -1,7 +1,7 @@
 #[test]
 fn format_views_formats_nested_fragments_and_direct_props() {
     let source = br#"fn main() {
-    view! { <><Panel heading=<Heading>"Title"</Heading> blank=<></>><><Show condition=true><><Span>"One"</Span><Span>"Two"</Span></></Show></></Panel></> }
+    view! { <><Panel heading=<Heading>"Title"</Heading> blank=<></>><><Show value=true><><Span>"One"</Span><Span>"Two"</Span></></Show></></Panel></> }
 }
 "#;
     let expected = br#"fn main() {
@@ -9,7 +9,7 @@ fn format_views_formats_nested_fragments_and_direct_props() {
         <>
             <Panel heading=<Heading>"Title"</Heading> blank=<></>>
                 <>
-                    <Show condition=true>
+                    <Show value=true>
                         <>
                             <Span>"One"</Span>
                             <Span>"Two"</Span>

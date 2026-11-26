@@ -271,6 +271,14 @@ impl PlatformServices for AndroidPlatform {
         self.clipboard.paste(formats, answer);
     }
 
+    fn share(&mut self, clip: Clip) {
+        AndroidPlatform::share(self, &clip);
+    }
+
+    fn has_share_sheet(&self) -> bool {
+        true
+    }
+
     fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {
         AndroidPlatform::pick_file(self, request, answer);
     }
@@ -423,6 +431,25 @@ impl AndroidPlatform {
                     jni_str!("setBackHandled"),
                     jni_sig!("(Z)V"),
                     &[JValue::Bool(handled)],
+                )?;
+                Ok(())
+            });
+    }
+
+    /// Sends the clip's plain text with an `ACTION_SEND` intent, through the system's chooser.
+    fn share(&self, clip: &Clip) {
+        let (Some(view), Some(text)) = (&self.view, clip.plain_text()) else {
+            return;
+        };
+        let _ = self
+            .vm
+            .attach_current_thread(|env| -> Result<(), JniError> {
+                let text = env.new_string(&text)?;
+                env.call_method(
+                    view.as_obj(),
+                    jni_str!("share"),
+                    jni_sig!("(Ljava/lang/String;)V"),
+                    &[JValue::Object(&text)],
                 )?;
                 Ok(())
             });

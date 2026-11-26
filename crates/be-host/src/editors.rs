@@ -90,6 +90,60 @@ pub(super) enum ArtifactStatus {
     Failed(String),
 }
 
+/// Why the creation `name` could not make its block, as both of be-host's hosts word it.
+pub(crate) fn creation_failed(name: &str, error: &str) -> String {
+    format!("{name} could not be created: {error}")
+}
+
+/// Steps a creation child, as be-host's own compositor and a root's children do: still
+/// offering its options until its placer commits it; then, once its parent resolves, making its
+/// block (`create`: none while it works on it, or why it could not), which is put where the
+/// commit says and named as it says. A failure lets go of the commit and stays until its placer
+/// commits it again, which tries anew; a block made is final. Answers whether `progress`
+/// changed, which its placer's status says.
+pub(crate) fn step_creation(
+    name: &str,
+    commit: &mut Option<be_host_runtime::ChildCommit>,
+    progress: &mut Option<be_sdk_api::CreationProgress>,
+    create: impl FnOnce() -> Result<Option<Uuid>, String>,
+) -> bool {
+    use be_sdk_api::CreationProgress;
+    let next = match commit.as_ref() {
+        _ if matches!(progress, Some(CreationProgress::Created(_))) => return false,
+        None if matches!(progress, Some(CreationProgress::Failed(_))) => return false,
+        None => CreationProgress::Options,
+        Some(held) => match be_host_stack::app_graph::parent_of(held.parent) {
+            // Only Unfiled resolves to nothing, and only before the host has made it
+            // (`RootSettings::ensure_unfiled`), which waits for the organization's blocks:
+            // offline on a first run that is never, so fail rather than wait.
+            None => {
+                *commit = None;
+                CreationProgress::Failed("Your files are still loading".to_owned())
+            }
+            Some(parent) => {
+                let named = held.name.clone();
+                match create() {
+                    Ok(Some(block)) => {
+                        be_host_stack::set_parent(block, parent);
+                        if let Some(named) = named {
+                            be_host_stack::name_when_created(block, named);
+                        }
+                        CreationProgress::Created(block.into_bytes())
+                    }
+                    Ok(None) => CreationProgress::Working,
+                    Err(error) => {
+                        *commit = None;
+                        CreationProgress::Failed(creation_failed(name, &error))
+                    }
+                }
+            }
+        },
+    };
+    let changed = progress.as_ref() != Some(&next);
+    *progress = Some(next);
+    changed
+}
+
 pub(crate) trait PendingCreation {
     fn region(&self, registry: &EditorRegistry, client_id: Uuid) -> Option<HostedView>;
     fn source(&self) -> app::InstanceSource;
@@ -97,11 +151,17 @@ pub(crate) trait PendingCreation {
     fn dialog(&self) -> be_sdk_api::DialogStatus;
     fn dismiss(&mut self);
     fn height(&self) -> Option<f32>;
+    /// What it makes, as its template names it.
+    fn name(&self) -> &'static str;
+    /// Makes its block once committed: none while it works on it, or why it could not.
     fn create(&mut self) -> Result<Option<Uuid>, String>;
 }
 
 pub(crate) struct TemplateEntry {
     pub(crate) target: app::CreationTarget,
+    /// The app whose editor makes it.
+    #[cfg(not(target_os = "android"))]
+    app: Arc<AppManifest>,
     pub(crate) icon: &'static str,
     pub(crate) category: TemplateCategory,
     pub(crate) debug: bool,
@@ -142,6 +202,8 @@ pub struct EditorRegistry {
     templates: Vec<TemplateEntry>,
     types: HashMap<Uuid, be_sdk_api::BlockTypeDescriptor>,
     app_block_types: Arc<AppCatalog>,
+    /// The host component of each hosted block type (guides/blocks/hosted.md, "Hosting").
+    hosted: crate::hosting::HostedTypes,
 }
 
 impl EditorRegistry {
@@ -155,6 +217,7 @@ impl EditorRegistry {
             templates: Vec::new(),
             types: be_host_stack::discovery::block_types(&manifests),
             app_block_types: Arc::default(),
+            hosted: crate::hosting::HostedTypes::of(&manifests),
         };
         for manifest in manifests {
             for editor in &manifest.editors {
@@ -198,6 +261,20 @@ impl EditorRegistry {
                     name: editor.name.clone(),
                     icon_codepoint: editor.icon.clone(),
                     extensions: Vec::new(),
+                    exporters: editor
+                        .manifest
+                        .editor(editor.id.into_bytes())
+                        .map(|manifest| {
+                            manifest
+                                .exporters
+                                .iter()
+                                .map(|exporter| be_sdk_api::ExporterDescriptor {
+                                    name: exporter.name.clone(),
+                                    label: exporter.label.clone(),
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default(),
                 })
                 .collect(),
         };
@@ -210,6 +287,10 @@ impl EditorRegistry {
 
     pub(super) fn app_block_types(&self) -> &Arc<AppCatalog> {
         &self.app_block_types
+    }
+
+    pub(super) fn hosted(&self) -> &crate::hosting::HostedTypes {
+        &self.hosted
     }
 
     fn register_editor(&mut self, manifest: &Arc<AppManifest>, editor: &EditorManifest) {
@@ -232,6 +313,8 @@ impl EditorRegistry {
             let app = Arc::clone(manifest);
             self.templates.push(TemplateEntry {
                 target,
+                #[cfg(not(target_os = "android"))]
+                app: Arc::clone(&app),
                 icon: Box::leak(template.icon.clone().into_boxed_str()),
                 category: template.category,
                 debug: template.debug,
@@ -252,68 +335,122 @@ impl EditorRegistry {
             .find(|editor| editor.edits == Edits::Type(block_type.into_bytes()))
     }
 
-    pub(super) fn artifact_session(
+    /// The app and editor that make an artifact of a `source_type` block with its exporter
+    /// `exporter`: its session's, and the one whose settings view a root's artifact settings
+    /// child shows.
+    pub(crate) fn artifact_editor(
         &self,
         source_type: Uuid,
-        source: Uuid,
-        target_id: Uuid,
-        target_type: Uuid,
-        client_id: Uuid,
-    ) -> Result<Box<dyn ArtifactSession>, String> {
+        exporter: &str,
+    ) -> Result<(Arc<AppManifest>, Uuid), String> {
         let editor = self
             .default_editor(source_type)
             .ok_or_else(|| format!("unsupported dynamic artifact source type {source_type}"))?;
         let generates = editor
             .manifest
             .editor(editor.id.into_bytes())
-            .is_some_and(|manifest| {
-                manifest
-                    .views
-                    .contains(&be_sdk_api::ParentView::ArtifactSettings)
-            });
+            .is_some_and(|manifest| manifest.exporter(exporter).is_some());
         match generates {
-            true => Ok(Box::new(app::AppArtifact::new(
-                Arc::clone(&editor.manifest),
-                editor.id,
-                source,
-                target_id,
-                target_type,
-                client_id,
-            ))),
+            true => Ok((Arc::clone(&editor.manifest), editor.id)),
             false => Err(format!(
-                "{} blocks do not generate dynamic artifacts",
+                "{} blocks are not exported as \"{exporter}\"",
                 self.display_name(source_type).unwrap_or("These")
             )),
         }
     }
 
+    pub(super) fn artifact_session(
+        &self,
+        source_type: Uuid,
+        source: Uuid,
+        exporter: &str,
+        target_id: Uuid,
+        target_type: Uuid,
+        client_id: Uuid,
+    ) -> Result<Box<dyn ArtifactSession>, String> {
+        let (app, editor) = self.artifact_editor(source_type, exporter)?;
+        Ok(Box::new(app::AppArtifact::new(
+            app,
+            editor,
+            source,
+            exporter.to_owned(),
+            target_id,
+            target_type,
+            client_id,
+        )))
+    }
+
     pub(crate) fn picker(&self, request: be_host_runtime::PickerRequest) -> Option<app::AppPicker> {
+        let (app, editor) = self.accepting(ShellRequest::Pick)?;
+        Some(app::AppPicker::new(app, editor, request))
+    }
+
+    /// The app and editor that run what an editor's manifest says it `accepts` (a pick, a
+    /// rename form): the first that does.
+    pub(crate) fn accepting(&self, request: ShellRequest) -> Option<(Arc<AppManifest>, Uuid)> {
         let editor = self.editors.iter().find(|editor| {
             editor
                 .manifest
                 .editor(editor.id.into_bytes())
-                .is_some_and(|manifest| manifest.accepts.contains(&ShellRequest::Pick))
+                .is_some_and(|manifest| manifest.accepts.contains(&request))
         })?;
-        Some(app::AppPicker::new(
-            Arc::clone(&editor.manifest),
-            editor.id,
+        Some((Arc::clone(&editor.manifest), editor.id))
+    }
+
+    /// The app and editor that run the Export dialog of a block of `block_type` with its
+    /// `exporter`: the type's editor, when it declares it.
+    pub(crate) fn exporting(
+        &self,
+        block_type: Uuid,
+        exporter: &str,
+    ) -> Option<(Arc<AppManifest>, Uuid)> {
+        let editor = self.default_editor(block_type)?;
+        editor
+            .manifest
+            .editor(editor.id.into_bytes())?
+            .exporter(exporter)?;
+        Some((Arc::clone(&editor.manifest), editor.id))
+    }
+
+    /// The Export dialog of `block`, of `block_type`, in the app of the type's editor, which
+    /// declares `request.exporter`.
+    pub(crate) fn export(
+        &self,
+        block: Uuid,
+        block_type: Uuid,
+        request: be_sdk_api::ExportRequest,
+    ) -> Option<app::AppPicker> {
+        let (app, editor) = self.exporting(block_type, &request.exporter)?;
+        Some(app::AppPicker::export(
+            app,
+            editor,
+            be_host_runtime::EditorBlock {
+                id: block,
+                block_type,
+                view_block: None,
+            },
             request,
         ))
     }
 
     pub(crate) fn rename(&self, block: Uuid, sheet: bool) -> Option<app::AppPicker> {
-        let editor = self.editors.iter().find(|editor| {
-            editor
-                .manifest
-                .editor(editor.id.into_bytes())
-                .is_some_and(|manifest| manifest.accepts.contains(&ShellRequest::Rename))
-        })?;
-        Some(app::AppPicker::rename(
-            Arc::clone(&editor.manifest),
-            editor.id,
-            block,
-            sheet,
-        ))
+        let (app, editor) = self.accepting(ShellRequest::Rename)?;
+        Some(app::AppPicker::rename(app, editor, block, sheet))
+    }
+
+    /// The app whose editor `editor` makes a block from its template `template`, and what it
+    /// makes: what a root's creation child opens in that app (`InstanceRole::Creation`).
+    #[cfg(not(target_os = "android"))]
+    pub(crate) fn creation_app(
+        &self,
+        editor: Uuid,
+        template: &str,
+    ) -> Option<(Arc<AppManifest>, app::CreationTarget)> {
+        let entry = self
+            .templates
+            .iter()
+            .find(|entry| entry.target.editor == editor && entry.target.template == template)?;
+        Some((Arc::clone(&entry.app), entry.target))
     }
 
     pub(crate) fn create(
@@ -339,6 +476,20 @@ impl EditorRegistry {
         self.editors
             .iter()
             .find(|registered| registered.id == editor && registered.edits(opened))
+    }
+
+    #[cfg(not(target_os = "android"))]
+    /// The app and editor that `open_with` opens `opened` in, given the editor asked for:
+    /// that one if it edits it, else its type's default. None when no app edits it.
+    pub(crate) fn editor_app(
+        &self,
+        opened: Opened,
+        editor: Option<Uuid>,
+    ) -> Option<(Arc<AppManifest>, Uuid)> {
+        let chosen = editor
+            .and_then(|editor| self.choice(editor, opened))
+            .or_else(|| self.default_editor(opened.block_type))?;
+        Some((Arc::clone(&chosen.manifest), chosen.id))
     }
 
     pub(crate) fn edits(&self, editor: Uuid, opened: Opened) -> bool {

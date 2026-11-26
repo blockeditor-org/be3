@@ -34,11 +34,8 @@ fn with_binding_off_or_ctrl_held_a_line_drawn_onto_a_shape_stays_free() {
     let at = |x: f32, y: f32| -> Pos2 { origin + Vec2::new(x, y) * scale };
 
     editor.click("infinite-canvas.dock.tool.Line");
-    editor.run();
     editor.click("infinite-canvas.bind-lines");
-    editor.run();
     editor.drag(at(-150.0, -60.0), at(160.0, -60.0));
-    editor.run();
     let [free] = &drawn_lines(&editor, &[bound.id])[..] else {
         panic!("the drag drew one line");
     };
@@ -61,14 +58,11 @@ fn with_binding_off_or_ctrl_held_a_line_drawn_onto_a_shape_stays_free() {
         "turning binding off leaves the lines already bound as they were"
     );
     editor.click("infinite-canvas.dock.tool.Line");
-    editor.run();
     editor.snapshot("with_binding_off_a_line_drawn_onto_a_shape_stays_free");
 
     editor.click("infinite-canvas.bind-lines");
-    editor.run();
     editor.hold_modifiers(Modifiers::CTRL);
     editor.drag(at(-150.0, 0.0), at(160.0, 0.0));
-    editor.run();
     editor.hold_modifiers(Modifiers::NONE);
     let drawn = drawn_lines(&editor, &[bound.id, free.id]);
     let [held] = &drawn[..] else {

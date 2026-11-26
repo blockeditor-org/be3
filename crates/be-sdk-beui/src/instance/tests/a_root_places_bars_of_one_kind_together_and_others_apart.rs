@@ -53,6 +53,7 @@ fn barred() -> DockDeclaration {
             glyph: String::new(),
             closable: false,
             back_closes: true,
+            unread: 0,
             menu: Vec::new(),
         }],
         dialogs: Vec::new(),

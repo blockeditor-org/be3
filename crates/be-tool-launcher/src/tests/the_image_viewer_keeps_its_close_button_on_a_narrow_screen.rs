@@ -1,8 +1,8 @@
 use beui::native::WindowSize;
 use beui::reactive::*;
 use beui::{Vec2, native::Context};
-use beui_host::native::FreetypeFonts;
-use beui_host::native::testing::{Showing, Stepped};
+use beui_host::native::SkrifaFonts;
+use beui_host::native::testing::{Gui, Showing, Stepped};
 
 use crate::viewer::ViewerBar;
 use beui_host::native::build;
@@ -29,7 +29,7 @@ fn the_image_viewer_keeps_its_close_button_on_a_narrow_screen() {
             </beui::styled::Root>
         }
     });
-    let context = Context::new(FreetypeFonts::default());
+    let context = Context::new(SkrifaFonts::default());
     let window = WindowSize {
         size: viewport,
         scale: 1.0,

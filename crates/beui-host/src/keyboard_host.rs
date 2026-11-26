@@ -1,3 +1,4 @@
+use beui::reactive::view;
 use beui::window::{WindowId, WindowRole};
 use beui::{Rect, Vec2, vec2};
 use beui_core::context::Context;
@@ -5,7 +6,6 @@ use beui_core::current::enter;
 use beui_core::document::Document;
 use beui_core::software_keyboard::KeyboardHost;
 use beui_keyboard::styled::SoftwareKeyboard;
-use beui_macros::view;
 use beui_view::window::{Window, WindowHandle};
 
 pub const WINDOW_SIZE: Vec2 = vec2(760.0, 280.0);

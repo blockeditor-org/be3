@@ -27,31 +27,29 @@ pub fn HostItemFace(content: Memo<HostItem>) -> NodeId {
         HostItem::Unsupported { block_type, .. } => format!("Type: {block_type}"),
         _ => String::new(),
     });
-    let busy = create_memo(move || matches!(content.get(), HostItem::Notice { busy: true, .. }));
     let glyph = create_memo(move || match content.get() {
         HostItem::Notice { icon, .. } => icon,
         HostItem::Unsupported { .. } => None,
     });
-    let has_glyph = create_memo(move || glyph.get().is_some());
     let unsupported = matches!(kind, HostItem::Unsupported { .. });
     view! {
         <Frame padding=Space::Lg>
             <List spacing=Space::Md align=Align::Center>
-                <Show condition={unsupported}>
+                {unsupported.then(|| view! {
                     <Text style=TextStyle::HEADING align=TextAlign::Center>
                         "Unsupported block type"
                     </Text>
-                </Show>
-                <Show condition={has_glyph}>
+                })}
+                <Show value={move || glyph.with(Option::is_some)}>
                     <Text size=TextSize::Xl color=TextColor::Muted align=TextAlign::Center>
                         <Icon glyph={glyph} />
                     </Text>
                 </Show>
                 <Text align=TextAlign::Center color=TextColor::Muted>{text}</Text>
-                <Show condition={unsupported}>
+                {unsupported.then(|| view! {
                     <Text style=TextStyle::CAPTION align=TextAlign::Center>{detail}</Text>
-                </Show>
-                <Show condition={busy}>
+                })}
+                <Show value={move || matches!(content.get(), HostItem::Notice { busy: true, .. })}>
                     <Progress width=INLINE_PROGRESS_WIDTH />
                 </Show>
             </List>

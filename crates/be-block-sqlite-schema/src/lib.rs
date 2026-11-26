@@ -58,12 +58,82 @@ pub fn open(path: impl AsRef<std::path::Path>) -> rusqlite::Result<Connection> {
     Ok(connection)
 }
 
+/// Puts the database in WAL mode, which it keeps. Of two connections switching one new database
+/// at once, the second fails at once with `SQLITE_BUSY`: it holds a read lock while the first
+/// holds the write lock, so SQLite never runs its busy handler (that could deadlock). That one
+/// then waits for the first's switch to end by taking the write lock with nothing held, which
+/// waits out the busy timeout (`BEGIN IMMEDIATE`), and finds the database in WAL mode already.
+/// It tries once more only: the write lock coexists with another connection's plain read, which
+/// the switch must also wait out (a reader of a rollback-mode database, such as an older build or
+/// the sqlite3 shell), so a switch still refused then answers `SQLITE_BUSY` rather than spin.
+pub fn use_wal(connection: &Connection) -> rusqlite::Result<()> {
+    match connection.pragma_update(None, "journal_mode", "WAL") {
+        Err(rusqlite::Error::SqliteFailure(error, _))
+            if error.code == rusqlite::ErrorCode::DatabaseBusy =>
+        {
+            connection.execute_batch("BEGIN IMMEDIATE; ROLLBACK")?;
+            connection.pragma_update(None, "journal_mode", "WAL")
+        }
+        switched => switched,
+    }
+}
+
 /// Begins a transaction that may write, taking the write lock up front. A deferred
 /// transaction that reads and then writes fails at once with `SQLITE_BUSY` while another
 /// connection holds the lock, since SQLite never runs the busy handler for a read upgrading to
 /// a write; this one waits out the connection's busy timeout (`BUSY_TIMEOUT` from `open`).
-pub fn write_transaction(connection: &Connection) -> rusqlite::Result<rusqlite::Transaction<'_>> {
-    rusqlite::Transaction::new_unchecked(connection, rusqlite::TransactionBehavior::Immediate)
+///
+/// Begun inside a transaction already open on the connection (several writes made as one, as
+/// be-server applies a batch), it is a savepoint of it: committing it keeps its changes in the
+/// outer transaction, and dropping it uncommitted rolls back only its own.
+pub fn write_transaction(connection: &Connection) -> rusqlite::Result<WriteTransaction<'_>> {
+    let nested = !connection.is_autocommit();
+    connection.execute_batch(match nested {
+        true => "SAVEPOINT be_write",
+        false => "BEGIN IMMEDIATE",
+    })?;
+    Ok(WriteTransaction {
+        connection,
+        nested,
+        finished: false,
+    })
+}
+
+/// A transaction `write_transaction` began: rolled back when dropped uncommitted.
+pub struct WriteTransaction<'connection> {
+    connection: &'connection Connection,
+    nested: bool,
+    finished: bool,
+}
+
+impl WriteTransaction<'_> {
+    pub fn commit(mut self) -> rusqlite::Result<()> {
+        self.finished = true;
+        self.connection.execute_batch(match self.nested {
+            true => "RELEASE be_write",
+            false => "COMMIT",
+        })
+    }
+}
+
+impl std::ops::Deref for WriteTransaction<'_> {
+    type Target = Connection;
+
+    fn deref(&self) -> &Connection {
+        self.connection
+    }
+}
+
+impl Drop for WriteTransaction<'_> {
+    fn drop(&mut self) {
+        if self.finished {
+            return;
+        }
+        let _ = self.connection.execute_batch(match self.nested {
+            true => "ROLLBACK TO be_write; RELEASE be_write",
+            false => "ROLLBACK",
+        });
+    }
 }
 
 /// Adds a missing table, index, or a missing column that has a default, and refuses anything

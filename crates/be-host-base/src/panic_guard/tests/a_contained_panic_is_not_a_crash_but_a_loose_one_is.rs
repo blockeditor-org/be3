@@ -4,14 +4,14 @@ use super::*;
 fn a_contained_panic_is_not_a_crash_but_a_loose_one_is() {
     install();
 
-    let contained = contain(|| -> u32 { panic!("a contained editor bug") });
+    let contained = be_wasm_panic::contain(|| -> u32 { panic!("a contained editor bug") });
 
     assert_eq!(contained, Err("a contained editor bug".to_owned()));
     assert!(
         take().is_none_or(|report| !report.contains("a contained editor bug")),
         "a contained panic does not crash the host"
     );
-    assert_eq!(contain(|| 7), Ok(7));
+    assert_eq!(be_wasm_panic::contain(|| 7), Ok(7));
 
     let loose = std::thread::spawn(|| -> u32 { panic!("a loose background bug") }).join();
 

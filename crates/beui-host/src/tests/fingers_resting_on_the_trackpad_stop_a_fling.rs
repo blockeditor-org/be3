@@ -11,8 +11,8 @@ fn fingers_resting_on_the_trackpad_stop_a_fling() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @node_ref=&scroll>
-                        <ForEach keys={indices(300)}>|index: usize|
+                    <Scroll @node_ref=&scroll style={plain_scroll()}>
+                        <ForEach value={indices(300)}>|index: usize|
                             <LabelledButton label={format!("Row {index}")} on_click={|| {}} />
                         </ForEach>
                     </Scroll>

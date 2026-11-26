@@ -4,7 +4,7 @@ use std::{
     collections::HashMap,
     marker::PhantomData,
     rc::Rc,
-    sync::{Condvar, Mutex, OnceLock, PoisonError},
+    sync::{Mutex, OnceLock, PoisonError, RwLock},
     thread::{self, ThreadId},
     time::{Duration, Instant},
 };
@@ -13,26 +13,48 @@ use be_lib_ui_types::{FileFilter, FilePick, FileSave, SavedFile};
 
 type Waker = Box<dyn Fn() + Send + Sync>;
 
-static WAKER: OnceLock<Waker> = OnceLock::new();
+/// Every waker installed (`install_waker`): one per host in a process, and in a test process
+/// each test's own, so none silently goes unwoken. Written only as one is installed.
+static WAKERS: RwLock<Vec<Waker>> = RwLock::new(Vec::new());
 static UNSENT_SAVES: Mutex<Vec<(SavedFile, SaveSlot)>> = Mutex::new(Vec::new());
 
 type Letter = (u64, Box<dyn Any + Send>);
 type Receive = Rc<dyn Fn(&mut dyn Any, Box<dyn Any + Send>)>;
 
-static POSTED: Mutex<Vec<(ThreadId, Letter)>> = Mutex::new(Vec::new());
-/// Told whenever a letter is posted (`wait_for_letter`).
-static POSTED_SIGNAL: Condvar = Condvar::new();
-/// How many letters were ever posted, which `wait_for_letter` waits to see grow.
-static POSTED_COUNT: Mutex<u64> = Mutex::new(0);
+// How a letter reaches the thread that made its mailbox: one API, two transports. Natively
+// every thread shares one locked list. On the web the page takes no lock another thread takes,
+// so a worker's letter comes to the page by `postMessage` and waits in the page's own list.
+#[cfg(not(target_arch = "wasm32"))]
+mod letters_native;
+#[cfg(not(target_arch = "wasm32"))]
+use letters_native as letters;
+#[cfg(not(target_arch = "wasm32"))]
+pub use letters_native::{letters_posted, wait_for_letter};
+#[cfg(target_arch = "wasm32")]
+mod letters_web;
+#[cfg(target_arch = "wasm32")]
+use letters_web as letters;
+
+/// A letter in bytes (`Across`), which the mailbox it is for decodes as it delivers it.
+struct Encoded(Vec<u8>);
+
+type Decode = fn(&[u8]) -> Box<dyn Any + Send>;
 
 thread_local! {
     static HOST: RefCell<Host> = RefCell::new(Host::default());
     static MAILBOXES: RefCell<HashMap<u64, (u64, Receive)>> = RefCell::new(HashMap::new());
+    /// How each mailbox a thread's letters arrive at in bytes decodes them (`Post::across`).
+    static DECODERS: RefCell<HashMap<u64, Decode>> = RefCell::new(HashMap::new());
     static NEXT_MAILBOX: Cell<u64> = const { Cell::new(1) };
 }
 
+/// Adds `waker` to those `wake` calls: each host (or test) installs its own, and a later one
+/// does not take an earlier one's place.
 pub fn install_waker(waker: impl Fn() + Send + Sync + 'static) {
-    let _ = WAKER.set(Box::new(waker));
+    WAKERS
+        .write()
+        .unwrap_or_else(PoisonError::into_inner)
+        .push(Box::new(waker));
 }
 
 static CLOCK: OnceLock<fn() -> Instant> = OnceLock::new();
@@ -46,7 +68,7 @@ pub fn clock() -> Instant {
 }
 
 pub fn wake() {
-    if let Some(waker) = WAKER.get() {
+    for waker in WAKERS.read().unwrap_or_else(PoisonError::into_inner).iter() {
         waker();
     }
 }
@@ -56,6 +78,7 @@ pub struct Mailbox(u64);
 impl Drop for Mailbox {
     fn drop(&mut self) {
         let _ = MAILBOXES.try_with(|mailboxes| mailboxes.borrow_mut().remove(&self.0));
+        let _ = DECODERS.try_with(|decoders| decoders.borrow_mut().remove(&self.0));
     }
 }
 
@@ -86,30 +109,95 @@ impl<T: Send + 'static> Post<T> {
     }
 
     pub fn send(&self, value: T) {
-        POSTED
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .push((self.thread, (self.mailbox, Box::new(value))));
-        *POSTED_COUNT.lock().unwrap_or_else(PoisonError::into_inner) += 1;
-        POSTED_SIGNAL.notify_all();
-        wake();
+        letters::post(self.thread, (self.mailbox, Box::new(value)));
     }
 }
 
-/// How many letters were ever posted: what a caller hands `wait_for_letter` to wait past.
-pub fn letters_posted() -> u64 {
-    *POSTED_COUNT.lock().unwrap_or_else(PoisonError::into_inner)
+impl<T: Send + serde::Serialize + serde::de::DeserializeOwned + 'static> Post<T> {
+    /// The post for another thread to send to this mailbox: its letters travel as bytes, as
+    /// they must to a page whose memory the thread does not share
+    /// (decisions/the_web_page_never_waits.md). Made on the mailbox's own thread.
+    pub fn across(&self) -> Across<T> {
+        assert_eq!(
+            self.thread,
+            thread::current().id(),
+            "a mailbox's post across threads is made on the mailbox's thread"
+        );
+        DECODERS.with_borrow_mut(|decoders| {
+            decoders.insert(self.mailbox, |bytes| {
+                // Encoded from a `T` by `Across::send`: bytes that do not decode are a bug.
+                Box::new(postcard::from_bytes::<T>(bytes).expect("a letter decodes"))
+            })
+        });
+        Across {
+            mailbox: self.mailbox,
+            #[cfg(not(target_arch = "wasm32"))]
+            thread: self.thread,
+            kind: PhantomData,
+        }
+    }
 }
 
-/// Waits until a letter is posted after `seen` (`letters_posted`), up to `limit`, and answers
-/// whether one was: for a test that waits on work another thread answers through a mailbox.
-/// It takes no letter; a desk's `deliver` does.
-pub fn wait_for_letter(seen: u64, limit: Duration) -> bool {
-    let count = POSTED_COUNT.lock().unwrap_or_else(PoisonError::into_inner);
-    let (_count, waited) = POSTED_SIGNAL
-        .wait_timeout_while(count, limit, |count| *count == seen)
-        .unwrap_or_else(PoisonError::into_inner);
-    !waited.timed_out()
+/// A post another thread sends to a mailbox with (`Post::across`): each letter goes as its
+/// bytes, and the mailbox decodes it as it delivers it. On the web this is the only way a
+/// worker's letter reaches the page, and since only the page makes mailboxes there, an `Across`
+/// is its mailbox's number alone: it travels to a worker as bytes too (its serde form), in
+/// what the worker starts from (`be_host_stack::start_in_worker`).
+pub struct Across<T> {
+    mailbox: u64,
+    /// Natively, the thread whose letters the mailbox is among.
+    #[cfg(not(target_arch = "wasm32"))]
+    thread: ThreadId,
+    kind: PhantomData<fn(T)>,
+}
+
+impl<T> Clone for Across<T> {
+    fn clone(&self) -> Self {
+        Self {
+            mailbox: self.mailbox,
+            #[cfg(not(target_arch = "wasm32"))]
+            thread: self.thread,
+            kind: PhantomData,
+        }
+    }
+}
+
+impl<T: serde::Serialize> Across<T> {
+    pub fn send(&self, value: T) {
+        let bytes = postcard::to_stdvec(&value).expect("a letter encodes");
+        #[cfg(not(target_arch = "wasm32"))]
+        letters::post_bytes(self.thread, self.mailbox, bytes);
+        #[cfg(target_arch = "wasm32")]
+        letters::post_bytes(self.mailbox, bytes);
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl<T> serde::Serialize for Across<T> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_u64(self.mailbox)
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl<'de, T> serde::Deserialize<'de> for Across<T> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(Self {
+            mailbox: <u64 as serde::Deserialize>::deserialize(deserializer)?,
+            kind: PhantomData,
+        })
+    }
+}
+
+/// A letter as its mailbox takes it: one that came in bytes decoded (`Across`).
+fn decoded((mailbox, letter): Letter) -> Letter {
+    match letter.downcast::<Encoded>() {
+        Ok(encoded) => match DECODERS.with_borrow(|decoders| decoders.get(&mailbox).copied()) {
+            Some(decode) => (mailbox, decode(&encoded.0)),
+            None => (mailbox, encoded),
+        },
+        Err(letter) => (mailbox, letter),
+    }
 }
 
 fn next_mailbox() -> u64 {
@@ -145,6 +233,13 @@ impl<C: 'static> Desk<C> {
         self,
         receive: impl Fn(&mut C, T) + 'static,
     ) -> (Mailbox, Post<T>) {
+        // A worker's letter reaches only the page on the web (`letters_web.rs`), so only the
+        // page may make a mailbox there.
+        #[cfg(target_arch = "wasm32")]
+        assert!(
+            !be_wasm_threads::may_wait(),
+            "a worker made a mailbox: on the web only the page makes mailboxes"
+        );
         let mailbox = next_mailbox();
         let receive: Receive = Rc::new(move |context, letter| {
             if let (Some(context), Ok(value)) =
@@ -168,25 +263,9 @@ impl<C: 'static> Desk<C> {
             MAILBOXES
                 .with_borrow(|mailboxes| mailboxes.get(&mailbox).map(|(desk, _)| *desk == self.id))
         };
-        let letters: Vec<Letter> = {
-            let mut posted = POSTED.lock().unwrap_or_else(PoisonError::into_inner);
-            let mut letters = Vec::new();
-            posted.retain_mut(|(thread, letter)| {
-                if *thread != here {
-                    return true;
-                }
-                match at_this_desk(letter.0) {
-                    Some(true) => {
-                        letters.push(std::mem::replace(letter, (0, Box::new(()))));
-                        false
-                    }
-                    Some(false) => true,
-                    None => false,
-                }
-            });
-            letters
-        };
-        for (mailbox, letter) in letters {
+        let letters = letters::take(here, at_this_desk);
+        for letter in letters {
+            let (mailbox, letter) = decoded(letter);
             let receive = MAILBOXES.with_borrow(|mailboxes| {
                 mailboxes
                     .get(&mailbox)
@@ -233,6 +312,8 @@ struct Host {
     pass: u64,
     seen: bool,
     clock_stopped: bool,
+    presents_late: bool,
+    held: Option<String>,
     pixels_per_point: f32,
     screen_scale: f32,
     opens_windows: bool,
@@ -250,6 +331,8 @@ impl Default for Host {
             pass: 0,
             seen: true,
             clock_stopped: false,
+            presents_late: false,
+            held: None,
             pixels_per_point: 1.0,
             screen_scale: 1.0,
             opens_windows: false,
@@ -269,6 +352,12 @@ pub struct Frame {
     pub wall: Option<Duration>,
     pub seen: bool,
     pub clock_stopped: bool,
+    /// A driven program's apps' presents are taken in only at the next frame's poll
+    /// (`drive present late`), so a frame is drawn between an app's layout and its present.
+    pub presents_late: bool,
+    /// The app a driven program holds back everything from (`drive hold`), as though it were
+    /// slow to answer.
+    pub held: Option<String>,
     pub preferences: be_sdk_api::Preferences,
     pub pixels_per_point: f32,
     pub screen_scale: f32,
@@ -282,6 +371,8 @@ impl Default for Frame {
             wall: None,
             seen: true,
             clock_stopped: false,
+            presents_late: false,
+            held: None,
             preferences: be_sdk_api::Preferences::default(),
             pixels_per_point: 1.0,
             screen_scale: 1.0,
@@ -296,6 +387,8 @@ pub fn start(frame: Frame) {
         host.pass += 1;
         host.seen = frame.seen;
         host.clock_stopped = frame.clock_stopped;
+        host.presents_late = frame.presents_late;
+        host.held = frame.held;
         if let Some(now) = frame.now {
             let started = *host.started.get_or_insert(now);
             host.now = now.saturating_duration_since(started);
@@ -338,6 +431,16 @@ pub fn seen() -> bool {
 
 pub fn clock_stopped() -> bool {
     with(|host| host.clock_stopped)
+}
+
+/// Whether this frame takes in apps' presents only at the next frame's poll (`Frame::presents_late`).
+pub fn presents_late() -> bool {
+    with(|host| host.presents_late)
+}
+
+/// Whether this frame holds back everything the app `app` sends (`Frame::held`).
+pub fn holds(app: &str) -> bool {
+    with(|host| host.held.as_deref() == Some(app))
 }
 
 pub fn now() -> Duration {

@@ -16,7 +16,7 @@ fn lines(changed: &[(usize, &str)]) -> String {
 
 async fn sections_of(peer: &Peer<MemoryStore>, id: Uuid) -> Sections {
     let head = peer.local_head(id).expect("the block has a head");
-    let commit = peer.load_commit(head).await.unwrap();
+    let commit = peer.load_reached(head).await.unwrap();
     Sections::decode(&peer.read_manifest(&commit.manifest).await.unwrap()).unwrap()
 }
 

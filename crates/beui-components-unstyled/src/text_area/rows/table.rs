@@ -3,6 +3,7 @@ use std::ops::Range;
 use beui_text_editor_core::{SynHlColorScope, SynHlStyle, TableLine, TableRow};
 use beui_view::types::Color;
 use beui_view::types::FontId;
+use beui_view::types::GapWidth;
 use beui_view::types::SpanStyle;
 use beui_view::types::TextLayout;
 
@@ -105,11 +106,18 @@ fn trimmed(bytes: &[u8], range: &Range<usize>) -> Range<usize> {
     start..(range.end - trail).max(start)
 }
 
-fn text_width(text: &str, font: FontId) -> f32 {
+pub(super) fn text_width(text: &str, font: FontId) -> f32 {
     let probe = format!("{text}|");
     let with = lay_out_text(&probe, font, TextLayout::DEFAULT).map_or(0.0, |line| line.size().x);
     let bar = lay_out_text("|", font, TextLayout::DEFAULT).map_or(0.0, |line| line.size().x);
     (with - bar).max(0.0)
+}
+
+/// The width of `text` laid out unseen in `UNSEEN_SIZE`, measured over many copies, since a
+/// laid-out size is rounded up to a whole pixel and one copy would round to nothing.
+pub(super) fn unseen_width(text: &str, font: FontId) -> f32 {
+    const COPIES: usize = 16;
+    text_width(&text.repeat(COPIES), font) / COPIES as f32
 }
 
 fn delimiter_font(inputs: &RowInputs) -> FontId {
@@ -229,15 +237,35 @@ impl Builder<'_> {
 
     fn table_gap(&mut self, width: f32, style: SpanStyle) {
         if width > 0.0 {
-            self.gap(width, style);
+            self.gap(GapWidth::px(width), style);
         }
     }
 
+    /// Lays out the spaces a table row has before its first pipe (past a quote's prefix) as
+    /// text, giving where the row's cells start and how wide the spaces were.
+    pub(super) fn table_lead(&mut self, content: Range<usize>, body: SpanStyle) -> (usize, f32) {
+        let bytes = &self.inputs.snapshot.bytes;
+        let lead = bytes[content.clone()]
+            .iter()
+            .take_while(|byte| matches!(byte, b' ' | b'\t'))
+            .count();
+        if lead == 0 {
+            return (content.start, 0.0);
+        }
+        let spaces = content.start..content.start + lead;
+        let text = String::from_utf8_lossy(&bytes[spaces.clone()]).into_owned();
+        self.push(&text, spaces.clone(), true, body, SpanKind::Text);
+        (spaces.end, text_width(&text, body.font))
+    }
+
+    /// A table row's cells, laid out from `origin` across the row (past a quote's gutter), so
+    /// its grid lines (`RowTable::edges`) are there too.
     pub(super) fn table_row(
         &mut self,
         table: TableLine,
         content: Range<usize>,
         columns: &TableColumns,
+        origin: f32,
         body: SpanStyle,
     ) {
         let inputs = self.inputs;
@@ -249,19 +277,20 @@ impl Builder<'_> {
         let parsed = cells(bytes, content.clone());
         let count = columns.widths.len().max(parsed.cells.len());
         let mut edges = Vec::with_capacity(count + 1);
-        let mut edge = body_pipe / 2.0;
+        let mut edge = origin + body_pipe / 2.0;
         for index in 0..count {
             edges.push(edge);
             edge += padding * 2.0 + columns.widths.get(index).copied().unwrap_or(0.0);
         }
         edges.push(edge);
+        // Each pipe is laid out unseen right after what comes before it, with the room up to
+        // the next cell's content after it, so a caret before a pipe stands beside the content
+        // on its left and one after it beside the content on its right; the grid lines are
+        // drawn at `edges`, apart from the pipes.
         let hidden = Some(Color::TRANSPARENT);
-        let mut x = 0.0;
+        let mut x = origin;
         for (index, cell) in parsed.cells.iter().enumerate() {
-            let at = edges[index] - pipe / 2.0;
             if let Some(pipe_at) = cell.pipe {
-                self.table_gap(at - x, body);
-                x = x.max(at);
                 x += self.table_text(pipe_at..pipe_at + 1, table.row, hidden);
             }
             let shown = trimmed(bytes, &cell.range);
@@ -284,14 +313,14 @@ impl Builder<'_> {
             .cells
             .last()
             .map_or(content.start, |cell| cell.range.end);
+        // A row that closes before the table's last column closes after its own last cell.
+        let closes = parsed.cells.len();
         if let Some(closing) = parsed.closing {
-            let at = edges[count] - pipe / 2.0;
-            self.table_gap(at - x, body);
-            self.table_text(closing..closing + 1, table.row, hidden);
+            x += self.table_text(closing..closing + 1, table.row, hidden);
+            self.table_gap(edges[closes] + pipe / 2.0 - x, body);
             tail = closing + 1;
         }
         self.table_text(tail..content.end, table.row, None);
-        let leading = parsed.cells.first().is_some_and(|cell| cell.pipe.is_some());
         self.row.table = Some(RowTable {
             row: table.row,
             last: table.last,
@@ -299,14 +328,11 @@ impl Builder<'_> {
                 .into_iter()
                 .enumerate()
                 .map(|(index, edge)| {
-                    let drawn = match index {
-                        0 => leading,
-                        _ if index == count => parsed.closing.is_some(),
-                        _ => parsed
-                            .cells
-                            .get(index)
-                            .is_some_and(|cell| cell.pipe.is_some()),
-                    };
+                    let drawn = parsed
+                        .cells
+                        .get(index)
+                        .is_some_and(|cell| cell.pipe.is_some())
+                        || (index == closes && parsed.closing.is_some());
                     (edge, drawn)
                 })
                 .collect(),

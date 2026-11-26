@@ -12,15 +12,24 @@ beui-core = { path = "../beui-core" }
 beui-types = { path = "../beui-types" }
 beui-runner = { path = "../beui-runner" }
 beui-draw = { path = "../beui-draw" }
+beui-vello = { path = "../beui-vello" }
+be-lib-layers = { path = "../be-lib-layers" }
 bytemuck = { version = "1", features = ["derive"] }
 be-lib-stable-hash = { path = "../be-lib-stable-hash" }
-wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
+wgpu = { version = "30", default-features = false, features = ["std", "wgsl"] }
+vello_gpu = { version = "0.4", default-features = false, features = [
+    "wgpu",
+    "wgpu_external_texture",
+    "gradient_sweep",
+    "blurred_rounded_rect",
+    "full_image_support",
+] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pollster = "0.4"
 
 [target.'cfg(any(windows, all(unix, not(target_vendor = "apple"))))'.dependencies]
-wgpu = { version = "29", default-features = false, features = ["vulkan"] }
+wgpu = { version = "30", default-features = false, features = ["vulkan"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys = { version = "0.3", optional = true, features = [
@@ -29,10 +38,11 @@ web-sys = { version = "0.3", optional = true, features = [
 ] }
 
 [dev-dependencies]
+beui-paint-raster = { path = "../beui-paint-raster" }
+be-tool-bench = { path = "../be-tool-bench" }
 beui-components-unstyled = { path = "../beui-components-unstyled" }
-beui-font-freetype = { path = "../beui-font-freetype" }
+beui-font-skrifa = { path = "../beui-font-skrifa" }
 beui-view = { path = "../beui-view" }
-beui-macros = { path = "../beui-macros" }
 pollster = "0.4"
 
 [lints]

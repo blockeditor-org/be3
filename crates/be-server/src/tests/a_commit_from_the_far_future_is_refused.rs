@@ -6,23 +6,20 @@ use super::*;
 #[tokio::test]
 async fn a_commit_from_the_far_future_is_refused() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("future@example.com").await;
+    let mut client = harness.member("future@example.com").await;
+    let account = client.id();
     client.organization("future").await;
     let author = Author::new(account);
     let block = client.create_block(BlockParent::Root).await;
 
-    let far = be_block_commit::now_milliseconds() + 2 * be_block_commit::retention::HOUR;
+    let far = be_block_commit::now_milliseconds() + 2 * be_block_commit::HOUR;
     let (forged, chunks) = author.compose(b"from tomorrow\n", far, None);
     let refused = client
         .publish(&author, block, forged, chunks, None, far)
         .await;
-    assert!(
-        refused_as(&refused, ErrorCode::InvalidRequest),
-        "{refused:?}"
-    );
+    assert!(refused_as(&refused, ErrorCode::CommitAhead), "{refused:?}");
 
-    let soon = be_block_commit::now_milliseconds() + be_block_commit::retention::MINUTE;
+    let soon = be_block_commit::now_milliseconds() + be_block_commit::MINUTE;
     let (fast, chunks) = author.compose(b"from a fast clock\n", soon, None);
     let published = client
         .publish(&author, block, fast, chunks, None, soon)

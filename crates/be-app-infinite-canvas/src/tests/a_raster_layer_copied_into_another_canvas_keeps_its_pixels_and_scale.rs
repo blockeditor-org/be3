@@ -6,7 +6,6 @@ use be_sdk_beui::beui::{Input, Key, Modifiers};
 fn a_raster_layer_copied_into_another_canvas_keeps_its_pixels_and_scale() {
     let (mut source, layer) = painted_scaled_layer();
     source.key(Key::C, Modifiers::CTRL);
-    source.run();
     let [copied] = &source.take_copied(formats::CANVAS_ITEMS)[..] else {
         panic!("Copy puts the layer on the clipboard as canvas items");
     };
@@ -18,7 +17,6 @@ fn a_raster_layer_copied_into_another_canvas_keeps_its_pixels_and_scale() {
     let mut editor = raster_editor(&[]);
     let center = editor.rect_of("infinite-canvas.canvas").center();
     editor.click(center);
-    editor.run();
     editor.step(vec![Input::Paste(copied)]);
     editor.run();
     assert!(

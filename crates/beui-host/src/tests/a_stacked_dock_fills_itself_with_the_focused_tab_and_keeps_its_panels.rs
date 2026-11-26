@@ -8,7 +8,7 @@ const PHONE: Vec2 = Vec2::new(390.0, 600.0);
 fn a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels() {
     let _root = crate::reactive::RootScope::new();
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost>
                 <dock::Docking layout focus=3u64>

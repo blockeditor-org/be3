@@ -36,6 +36,7 @@ fn showing_a_block_with_another_editor_switches_its_tab() {
             name: "Shown".to_owned(),
             icon_codepoint: String::new(),
             extensions: Vec::new(),
+            exporters: Vec::new(),
         },
         be_sdk_beui::EditorDescriptor {
             editor: DEBUG.into_bytes(),
@@ -43,6 +44,7 @@ fn showing_a_block_with_another_editor_switches_its_tab() {
             name: "Debug view".to_owned(),
             icon_codepoint: String::new(),
             extensions: Vec::new(),
+            exporters: Vec::new(),
         },
     ];
     fixture.test.catalog(catalog);

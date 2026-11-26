@@ -1,15 +1,18 @@
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use uuid::Uuid;
 
 use crate::root::PdfRoot;
-use be_type_pdf::PdfContent;
+use be_type_pdf::{BlobFile, PdfContent};
 
 mod a_page_is_rendered_with_pdfium;
 mod a_pdf_on_a_phone_on_its_side_shows_its_sidebar_beside_the_page;
 mod a_pdf_on_a_phone_shows_its_sidebar_below_the_page;
+mod the_renderer_renders_twice_from_one_open;
 
 fn editor(content: PdfContent) -> BeuiTest<PdfRoot> {
     let mut editor = BeuiTest::editing(Uuid::new_v4()).in_viewport();
+    editor.serve_worker::<be_worker_pdf_render::Renderer>(be_worker_pdf::MODULE);
     editor.hold(None, content);
     editor
 }

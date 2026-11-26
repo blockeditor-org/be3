@@ -42,6 +42,8 @@ fn toasts_on_the_top_edge_stack_in_the_top_corner() {
         }
     });
     let mut test = DocumentTest::new(document, size);
+    // The toast slides in from the side before it rests.
+    test.settle();
     let toast = test.rect_of("toast.1");
     assert!(
         toast.top() < size.y / 4.0 && toast.right() > size.x * 3.0 / 4.0,

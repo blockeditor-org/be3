@@ -26,9 +26,7 @@ fn a_played_card_flies_from_the_hand_to_the_discard_pile() {
     let start = editor.rect_of(&held);
 
     editor.click(on_the_card(&editor, &held));
-    editor.run();
     editor.click("game.pile.1");
-    editor.run();
 
     assert_eq!(moves(&editor).len(), actions.len() + 1);
     let landing = editor.rect_of("game.pile.1");

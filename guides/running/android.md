@@ -63,6 +63,29 @@ screen, which is how to find what to tap.
 Tap a text field before typing into it. The keyboard takes the bottom of the screen, and
 be-host's area shrinks to what is left.
 
+## A phone without a device
+
+Without KVM, most phone behaviour still reproduces headless at phone size:
+`./scripts/buck run //crates/be-host:dev -- --size=390x844@3`, driven with touch and swipes
+(guides/running/drive.md).
+
+- Lock and unlock: `drive blur` and `drive focus` stand in.
+- The keyboard opening: `drive resize 390x480@3`. On API 30 and later the keyboard's inset
+  shrinks the area be-host lays out (`BeuiView`'s window insets, crates/beui-platform-android).
+- The back gesture: `drive back` is a whole one; `drive back left` (or `right`) starts one and
+  leaves it running, `drive back 0.5` moves it, and `drive back commit` or `back cancel` ends it.
+- Offline: host tests have `HostTest::offline` (a drop the device notices at once) and
+  `HostTest::unreachable` (connections stay open and carry nothing, noticed only once a ping
+  goes unanswered, about 25 s). Under `:dev`, block the in-process server's listening port with
+  iptables, both directions, `--reject-with tcp-reset`; the port changes on every launch, so
+  find it in `/proc/net/tcp` as the local listener with an established connection from be-host.
+  `drive offline` then waits until be-host sees it, and `drive network` after unblocking. To
+  start with no connection, block SYNs to the ephemeral ports (`32768:60999`) on `lo`, after
+  accepting the build daemon's and the build-server proxy's ports and starting the daemon, or
+  `./scripts/buck` breaks.
+- Smoothness: `drive frames` counts frames headless with no vsync, so a fling runs far more
+  frames a second than a phone draws. Compare ratios between runs, not rates.
+
 ## TalkBack
 
     adb shell settings put secure enabled_accessibility_services com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService
@@ -85,6 +108,53 @@ One touch moves TalkBack's focus to the node under it, and two in a row within o
 `adb shell` are a double tap, which activates the focused node. The double tap's timing
 through `adb` is not reliable, so run it a few times before concluding it is broken, and
 compare against main with `--apk`.
+
+## Push notifications
+
+Through a UnifiedPush distributor the person installs (decisions/android_push_via_unifiedpush.md;
+the Java is `crates/be-host/android/java/com/be3/host/`, the Rust `crates/be-host/src/android_push.rs`).
+
+- *The switch.* The settings list's "Notifications" row (`be_host_base::push_device`, installed
+  by `android_push::install`) reads `MainActivity.pushState`: unsupported with no distributor
+  (one whose receiver takes `org.unifiedpush.android.distributor.REGISTER`, listed under
+  `<queries>` in the manifest), denied once the person refused `POST_NOTIFICATIONS` (Android
+  13+). Turning it on asks for that permission, then sends `REGISTER` with a token kept in the
+  app's preferences and the server's VAPID key, to the distributor chosen before, or the only
+  one installed; with several and none chosen it asks in a plain Android chooser and keeps the
+  answer. Turning it off sends `UNREGISTER`, forgets the endpoint (`device_push::turn_off`), so
+  nothing registers it again, and has the server forget it for the open organization.
+- *Registering.* The distributor answers `NEW_ENDPOINT` to `PushReceiver`, which keeps the
+  endpoint in the host state beside this device's RFC 8291 keys (`push_receiver`, made once,
+  `be_host_stack::device_push::keys`); the host registers it as `PushService::WebPush` for each
+  organization it opens once connected, and again after a new endpoint (`android_push::sync`).
+- *Showing.* `MESSAGE` carries the raw encrypted body. `PushReceiver` may run with no activity:
+  it loads `libbe_host` itself and, on a thread while the broadcast is held (`goAsync`), calls
+  `nativeMessage`, which runs `device_push::receive` on the files directory: decrypt, drop a push
+  already shown (`shown_pushes`, by a hash of the sealed bytes, for
+  `MAX_NOTIFICATION_AGE_MILLISECONDS`; one that does not decrypt is dropped too, as a browser
+  drops it), then open it through the stack when it runs in this
+  process in that organization, or else through a `Peer::cached` built from the refs database
+  (`refs_in`, the handle the process shares, so an activity starting meanwhile uses the same one)
+  for each saved account that kept that organization, naming the sender from the contact names
+  and the block from the summaries kept there. A push that decrypts but that nothing here
+  can open or name shows "New message" naming nothing. It shows on the "Messages" channel, tagged by block, and acknowledges the message
+  (`MESSAGE_ACK`).
+- *Pressing* starts `MainActivity` (or brings it back, `onNewIntent`) through the activity-alias
+  `com.be3.host.OpenNotification`, with the organization and block, which `nativeOpen` holds
+  for the host to open (`pressed_notifications`), as on the web. The alias is not exported and
+  `MainActivity` takes a block only from an intent naming it, since `MainActivity` itself is
+  exported for the launcher and any app could send it extras.
+- *Backups.* `allowBackup="false"`, and `res/xml/data_extraction_rules.xml` excludes every
+  domain from cloud backup and device transfer (Android 12+, where `allowBackup` no longer
+  covers transfers): the host state holds identity secrets and push keys, and the refs
+  database every block's keys.
+- *Signing out* the last saved account sends `UNREGISTER`; every sign-out names the endpoint to
+  `logout`, so the server forgets it (`android_push::sign_out`).
+
+Nothing of this has run on a device or the emulator yet; plans/deferred/notifications_on_a_device.md lists what to
+check there, including that
+`adb shell am start -n com.be3.host.dev/com.be3.host.MainActivity --es com.be3.host.organization ORG --es com.be3.host.block BLOCK`
+opens nothing.
 
 ## Signing the APK
 

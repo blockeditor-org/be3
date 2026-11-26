@@ -26,7 +26,7 @@ fn right_click(harness: &mut Harness, dock: NodeId, title: &str) {
 }
 
 fn pick(harness: &mut Harness, dock: NodeId, row: &str) {
-    let row = text_within(harness.document(), dock, row)
+    let row = find_text(harness.document(), dock, row, Match::Exact)
         .unwrap_or_else(|| panic!("the menu offers {row:?}"));
     harness.click(harness.center(row));
     harness.settle();
@@ -62,7 +62,7 @@ fn a_dock_tab_that_offers_fullscreen_enters_and_leaves_it_from_its_menu_and_pane
 
     right_click(&mut harness, dock, "Plain");
     assert!(
-        text_within(harness.document(), dock, "Full screen").is_none(),
+        find_text(harness.document(), dock, "Full screen", Match::Exact).is_none(),
         "a tab whose content does not offer fullscreen has no such entry"
     );
     harness.key(Key::Escape, Modifiers::NONE);

@@ -106,9 +106,14 @@ fn a_folders_settings_say_what_is_set_here_and_what_comes_from_above() {
                 effective: AccessLevel::View,
                 source: Some(hotbar.into_bytes()),
                 waiting: false,
+                through_link: false,
+                guest: false,
             }],
             company: false,
             set_inside: 0,
+            levels: Vec::new(),
+            host: None,
+            offered: None,
         }),
     );
     editor.run();
@@ -127,12 +132,9 @@ fn a_folders_settings_say_what_is_set_here_and_what_comes_from_above() {
     );
     editor.snapshot("a_folders_settings_say_what_is_set_here_and_what_comes_from_above");
 
-    editor.click(&format!("settings.kind.{HOTBAR}.visibility"));
-    editor.run();
+    editor.click(format!("settings.kind.{HOTBAR}.visibility"));
     editor.key(Key::ArrowDown, Modifiers::NONE);
-    editor.run();
     editor.key(Key::Enter, Modifiers::NONE);
-    editor.run();
     let (reply, changed) = editor
         .take_requests()
         .into_iter()

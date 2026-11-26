@@ -2,10 +2,12 @@ use be_type_workspace::{FolderContent, WorkspaceContent};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-use be_sdk_beui::BlockQuery;
 use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::be_sdk_ui::BlockTypes;
 use be_sdk_beui::beui::reactive::*;
+use be_sdk_beui::block_menu::{MenuBlock, can_move_out_of};
+use be_sdk_beui::sections::workspaces;
+use be_sdk_beui::{AccessLevel, BlockParent, BlockQuery};
 use be_sdk_beui::{ContentProjection, Editor};
 use uuid::Uuid;
 
@@ -18,8 +20,6 @@ pub(crate) enum FolderSort {
 }
 
 impl FolderSort {
-    pub(crate) const ALL: [Self; 3] = [Self::Intrinsic, Self::Name, Self::Type];
-
     pub(crate) fn label(self) -> &'static str {
         match self {
             Self::Intrinsic => "Intrinsic",
@@ -39,6 +39,8 @@ pub(crate) struct Entry {
     pub(crate) glyph: Option<be_sdk_beui::beui::icons::Glyph>,
     pub(crate) automatic: bool,
     pub(crate) loaded: bool,
+    pub(crate) access: AccessLevel,
+    pub(crate) parent: Option<BlockParent>,
 }
 
 #[derive(Clone, Copy)]
@@ -55,7 +57,7 @@ impl Listing {
         }
     }
 
-    fn blocks(self) -> ReadSignal<Vec<Uuid>> {
+    fn blocks(self) -> Memo<Vec<Uuid>> {
         match self {
             Self::Folder(index) => index.project(|index| index.root().blocks()),
             Self::Workspace(index) => index.project(|index| index.root().blocks()),
@@ -78,9 +80,14 @@ impl Listing {
     }
 }
 
+#[derive(Clone, Copy)]
 pub(crate) struct Folder {
+    editor: Editor,
     entries: Memo<Vec<Entry>>,
+    /// The entries by their reference, which a row finds its own in.
+    by_reference: Memo<HashMap<Uuid, Entry>>,
     index: Listing,
+    destinations: Memo<Vec<(Uuid, String)>>,
 }
 
 impl Folder {
@@ -123,13 +130,87 @@ impl Folder {
                         glyph: label.as_ref().and_then(be_sdk_beui::label_glyph),
                         automatic: label.as_ref().is_some_and(|label| label.automatic),
                         loaded: found.is_some(),
+                        access: found.map_or(AccessLevel::None, |found| found.access),
+                        parent: found.and_then(|found| found.parent),
                     }
                 })
                 .collect();
             sort_entries(&mut entries, sort.get(), descending.get());
             entries
         });
-        Self { entries, index }
+        let roots = editor.blocks().watch(BlockQuery::Roots);
+        let host = editor.host();
+        let destinations = create_memo(move || {
+            let types = editor.block_types();
+            workspaces(
+                roots.read().unwrap_or_default(),
+                host.organization_id(),
+                host.account_id(),
+                types.as_ref(),
+            )
+            .into_iter()
+            .map(|workspace| (workspace.id, workspace.label(types.as_ref()).name))
+            .collect()
+        });
+        let by_reference = create_memo(move || {
+            entries.with(|entries| {
+                entries
+                    .iter()
+                    .map(|entry| (entry.reference, entry.clone()))
+                    .collect()
+            })
+        });
+        Self {
+            editor,
+            entries,
+            by_reference,
+            index,
+            destinations,
+        }
+    }
+
+    /// The workspaces an entry can be moved to.
+    pub(crate) fn destinations(&self) -> Memo<Vec<(Uuid, String)>> {
+        self.destinations
+    }
+
+    /// Entry `key`, as it changes.
+    pub(crate) fn entry(&self, key: Uuid) -> Memo<Option<Entry>> {
+        let by_reference = self.by_reference;
+        create_memo(move || by_reference.with(|entries| entries.get(&key).cloned()))
+    }
+
+    /// Entry `key`, read where it tracks.
+    pub(crate) fn entry_tracked(&self, key: Uuid) -> Option<Entry> {
+        self.by_reference.with(|entries| entries.get(&key).cloned())
+    }
+
+    /// Entry `key` as it is now.
+    pub(crate) fn entry_now(&self, key: Uuid) -> Option<Entry> {
+        self.by_reference
+            .with_untracked(|entries| entries.get(&key).cloned())
+    }
+
+    /// Entry `key` as its menu acts on it, as it changes.
+    pub(crate) fn menu_block(&self, key: Uuid) -> Memo<Option<MenuBlock>> {
+        let (editor, by_reference) = (self.editor, self.by_reference);
+        create_memo(move || {
+            by_reference.with(|entries| {
+                entries
+                    .get(&key)
+                    .and_then(|entry| menu_block(editor, entry))
+            })
+        })
+    }
+
+    /// Entry `key` as its menu acts on it now.
+    pub(crate) fn menu_block_now(&self, key: Uuid) -> Option<MenuBlock> {
+        let editor = self.editor;
+        self.by_reference.with_untracked(|entries| {
+            entries
+                .get(&key)
+                .and_then(|entry| menu_block(editor, entry))
+        })
     }
 
     pub(crate) fn entries(&self) -> Memo<Vec<Entry>> {
@@ -147,6 +228,35 @@ impl Folder {
     pub(crate) fn add(&self, block_id: Uuid) {
         self.index.add(block_id);
     }
+}
+
+/// `entry` as its menu acts on it: listed in this folder, which it lives in unless it is a link.
+fn menu_block(editor: Editor, entry: &Entry) -> Option<MenuBlock> {
+    let (id, block_type) = (entry.id?, entry.block_type?);
+    let folder = editor.block_id();
+    let source = BlockParent::Block(folder);
+    let is_reference = entry.parent != Some(source);
+    let types = editor.block_types();
+    let can_delete = can_move_out_of(
+        &editor.blocks(),
+        types.as_ref(),
+        |block| {
+            (block == folder)
+                .then(|| editor.host().block_type())
+                .flatten()
+        },
+        source,
+        id,
+        is_reference,
+    );
+    Some(MenuBlock {
+        id,
+        block_type,
+        source,
+        is_reference,
+        access: entry.access,
+        can_delete,
+    })
 }
 
 fn type_name(types: &dyn BlockTypes, block_type: Uuid) -> String {

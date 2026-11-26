@@ -5,7 +5,7 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
-beui-types = { path = "../beui-types" }
+be-lib-geometry = { path = "../be-lib-geometry" }
 be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 
 [lints]

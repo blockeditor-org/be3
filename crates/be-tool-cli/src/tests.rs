@@ -17,11 +17,16 @@ use crate::cli::{self, Invocation, Outcome};
 use crate::session::Settings;
 use crate::tracker::{Assignment, Body, RowView, Tracker};
 
+mod a_block_only_its_owner_reads_is_not_downloaded;
 mod a_choice_option_takes_a_colour_an_icon_and_closes_rows;
 mod a_csv_export_is_imported_as_rows_with_pages;
+mod a_database_in_a_view_only_its_owner_reads_is_not_downloaded;
 mod a_database_moved_to_another_workspace_takes_its_prefix_along;
+mod a_download_that_cannot_check_the_blocks_above_is_refused;
 mod a_downloaded_block_uploads_as_a_copy_with_new_ids;
+mod a_downloaded_chat_keeps_its_signed_log;
 mod a_folder_syncs_with_a_directory;
+mod a_manifest_says_which_of_its_types_count_what_is_unread;
 mod a_manifest_says_which_of_its_types_have_a_plain_file;
 mod a_merged_pull_request_closes_rows_without_a_done_status;
 mod a_new_row_takes_each_choice_fields_default;
@@ -31,10 +36,16 @@ mod a_reader_sees_edits_a_session_journaled_before_they_are_committed;
 mod a_restarted_terminal_host_keeps_the_history_and_marks_the_restore;
 mod a_row_blocked_by_another_shows_as_blocking_there;
 mod a_row_id_resolves_through_the_workspaces_prefixes;
+mod a_second_be_host_of_an_organization_is_refused;
 mod a_spreadsheet_escaped_cell_is_read_as_written;
 mod a_terminal_host_encodes_keys_for_the_mode_its_program_set;
 mod a_terminal_host_keeps_its_standing_in_its_status_file;
+mod a_terminal_host_leaves_the_lease_to_a_stuck_host_before_it_only_for_a_while;
 mod a_terminal_host_runs_only_on_the_sandbox_it_was_installed_for;
+mod a_terminal_host_shows_it_is_one_from_its_first_presence;
+mod a_terminal_host_stands_by_once_a_late_holders_presence_arrives;
+mod a_terminal_host_waits_on_each_member_before_it_not_heard_from;
+mod a_terminal_host_without_edit_access_holds_no_other_host_off;
 mod a_terminal_host_writes_its_shell_into_the_document_for_its_viewers;
 mod a_token_is_never_sent_unencrypted_to_another_machine;
 mod agent_credentials_are_read_as_one_json_bundle;
@@ -42,35 +53,41 @@ mod an_agent_reads_and_writes_the_rows_shared_with_it;
 mod an_edited_page_keeps_what_someone_else_changed_meanwhile;
 mod an_import_links_rows_to_each_other_by_their_old_ids;
 mod arguments_parse_into_commands;
+mod be_hosts_a_block_while_no_other_device_does;
+mod be_reads_a_block_type_from_the_type_module_staged_beside_it;
+mod be_runs_an_apps_host_component_with_no_display;
+mod be_signs_in_with_only_an_injected_authorization_header;
 mod blocks_are_listed_and_found_by_short_id_or_name;
 mod malformed_agent_credentials_do_not_disclose_secrets;
 mod proxy_credentials_do_not_need_an_account_token;
 mod rows_are_added_filtered_changed_and_given_pages;
 mod terminal;
-mod the_app_bundle_holds_each_manifest_and_its_type_module;
 mod two_terminal_hosts_take_turns_and_the_second_stands_by;
 
+/// Every editor's manifest in place of the apps discovery found, for the whole process, as a
+/// `be` with every app beside it would find them: the tests run the types in process
+/// (`be_type_bundle`), and a module discovery opens is still read from BE_BUNDLE.
 fn manifests() {
-    if !crate::apps::installed().is_empty() {
-        return;
-    }
-    let editors = std::env::var_os("EDITOR_MANIFESTS")
-        .map(PathBuf::from)
-        .expect("EDITOR_MANIFESTS names the editors' manifests");
-    let mut apps = Vec::new();
-    for entry in std::fs::read_dir(&editors).expect("EDITOR_MANIFESTS is a directory") {
-        let path = entry
-            .expect("the entry is readable")
-            .path()
-            .join("manifest.json");
-        let document = std::fs::read_to_string(&path).expect("the manifest is readable");
-        apps.push(crate::apps::App {
-            manifest: be_sdk_manifest::manifest_from_json(&document)
-                .unwrap_or_else(|error| panic!("{}: {error}", path.display())),
-            module: &[],
-        });
-    }
-    crate::apps::install(apps);
+    static INSTALLED: std::sync::Once = std::sync::Once::new();
+    INSTALLED.call_once(|| {
+        let editors = std::env::var_os("EDITOR_MANIFESTS")
+            .map(PathBuf::from)
+            .expect("EDITOR_MANIFESTS names the editors' manifests");
+        let mut documents = Vec::new();
+        for entry in std::fs::read_dir(&editors).expect("EDITOR_MANIFESTS is a directory") {
+            let path = entry
+                .expect("the entry is readable")
+                .path()
+                .join("manifest.json");
+            let document = std::fs::read_to_string(&path).expect("the manifest is readable");
+            documents.push((path.display().to_string(), document));
+        }
+        let documents: Vec<(&str, &str)> = documents
+            .iter()
+            .map(|(source, document)| (source.as_str(), document.as_str()))
+            .collect();
+        std::mem::forget(be_host_stack::discovery::install_for_testing(&documents));
+    });
 }
 
 fn sources() -> crate::tracker::Sources {
@@ -121,32 +138,66 @@ async fn agent(
     harness: &Harness,
     owner: &Tracker<MemoryStore>,
     bound_to: Option<Uuid>,
-) -> (Settings, Uuid, be_block_keys::RecoveryPublic) {
+) -> (Settings, Uuid, be_block_keys::PublicIdentity) {
     let phrase = be_block_keys::RecoveryPhrase::generate();
     let public = phrase.secret().public();
+    let identity = phrase.secret().identity();
     let peer = owner.peer();
     let organization = peer.organization();
-    let be_block_protocol::CreatedAgent { agent, token } =
-        be_block_client::ask(be_block_protocol::client::members::create_agent(
+    let account = Uuid::from_bytes(be_block_keys::agent_account(
+        peer.account().into_bytes(),
+        &phrase.secret().identity(),
+    ));
+    let bound = match bound_to {
+        Some(block) => Some(be_block_protocol::BoundAgent {
+            block,
+            signed: peer
+                .grant_record(
+                    block,
+                    account,
+                    be_block_graph::Access::Edit,
+                    phrase.secret().identity(),
+                )
+                .await
+                .expect("signing the agent's grant failed"),
+        }),
+        None => None,
+    };
+    let be_block_protocol::CreatedAgent { agent, token } = be_block_client::ask(
+        be_block_protocol::write::<be_block_protocol::CreatedAgent, _>(
             &peer.connection(),
-            organization,
-            "Claude".into(),
-            public.0,
-            phrase.secret().signing().0,
-            be_block_client::contacts::card(
-                peer.account(),
-                peer.keys().identity(),
-                "Owner",
-                "owner@example.com",
-            )
-            .seal_own(&phrase.secret()),
-            peer.keys().escrow().map_or_else(Vec::new, |escrow| {
-                be_block_client::contacts::seal_pin(&phrase.secret(), organization, &escrow)
-            }),
-            bound_to,
-        ))
-        .await
-        .expect("creating the agent failed");
+            Some(organization),
+            be_block_protocol::Op::CreateAgent {
+                account,
+                name: "Claude".into(),
+                recovery: public.0,
+                signing: phrase.secret().signing().0,
+                contact: be_block_client::contacts::OwnContact::new(
+                    be_block_client::contacts::card(
+                        peer.account(),
+                        peer.keys().identity(),
+                        "Owner",
+                        "owner@example.com",
+                    ),
+                    0,
+                )
+                .seal(&phrase.secret()),
+                record: Vec::new(),
+                escrow: be_block_client::contacts::seal_pin(
+                    &phrase.secret(),
+                    organization,
+                    &peer.keys().pins(),
+                ),
+                bound_to: bound,
+                member: peer
+                    .agent_record(account, phrase.secret().identity())
+                    .await
+                    .expect("signing the agent in failed"),
+            },
+        ),
+    )
+    .await
+    .expect("creating the agent failed");
     let credentials = serde_json::json!({
         "server": harness.url,
         "organization": organization,
@@ -161,7 +212,7 @@ async fn agent(
         _ => None,
     })
     .unwrap();
-    (settings, agent.account, public)
+    (settings, agent.account, identity)
 }
 
 async fn workspace(peer: &Peer<MemoryStore>, name: &str) -> Uuid {

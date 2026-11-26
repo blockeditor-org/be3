@@ -15,7 +15,7 @@ fn a_blocks_references_listed_before_the_block_itself_are_kept() {
     );
 
     let linking = Node {
-        references: vec![linked],
+        references: Some(vec![linked]),
         ..node(view)
     };
     graph.listed(Listing::Block(view), vec![linking], 1);

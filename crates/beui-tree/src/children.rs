@@ -3,11 +3,12 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 use beui_reactive::{
-    Get, ReadSignal, Scope, ScopeContext, Set, Signal, Stored, create_binding, create_signal, store,
+    ReadSignal, Scope, ScopeContext, Set, Signal, Stored, Trigger, create_binding, create_signal,
+    create_trigger, store,
 };
 
 use crate::child_list::{ChildList, SlotId};
-use crate::component::{ChildValue, ComponentContext};
+use crate::component::{BuildFn, ChildValue, ComponentContext, MissingProp};
 use crate::prop::{IntoProp, Prop};
 
 #[diagnostic::on_unimplemented(
@@ -16,8 +17,13 @@ use crate::prop::{IntoProp, Prop};
 )]
 pub trait SlotChild: Sized + 'static {
     type Stored: Clone + 'static;
+    /// What a kept child is known by to a list's handle (`ForEachRef`): its node, for node
+    /// children of any parent kind, so one handle type serves them all.
+    type Node: Clone + 'static;
 
     fn store(self) -> Self::Stored;
+
+    fn node(stored: &Self::Stored) -> Self::Node;
 }
 
 pub trait SlotHost<C: SlotChild> {
@@ -83,6 +89,240 @@ impl<T: SlotChild> ChildSegment<T> {
     }
 }
 
+/// How many children a built value fills its place with, as a type: `CountOne`,
+/// `CountZeroOrOne` (a `Show` without a `fallback`), `CountMany` (a run), or `CountZero` (a
+/// `fallback` that was not given). It travels as `IntoSegment::Count`, and decides which form
+/// control flow returns (`Form`).
+pub trait Count: 'static {
+    /// The lazy form control flow of this count returns: `OneOf`, `ZeroOrOne` or a run
+    /// (`DynamicSegment`).
+    type Form<C: SlotChild>: IntoSegment<C> + ChildValue;
+
+    fn form<C: SlotChild>(segment: DynamicSegment<C>) -> Self::Form<C>;
+}
+
+pub struct CountOne;
+pub struct CountZeroOrOne;
+pub struct CountMany;
+pub struct CountZero;
+/// No branch at all, so it adds nothing to the other: a `Dynamic` or `Keyed` without a
+/// `fallback` always builds its render.
+pub struct CountNone;
+
+macro_rules! count {
+    ($count:ident, $form:ident, $make:expr) => {
+        impl Count for $count {
+            type Form<C: SlotChild> = $form<C>;
+
+            fn form<C: SlotChild>(segment: DynamicSegment<C>) -> $form<C> {
+                $make(segment)
+            }
+        }
+    };
+}
+
+count!(CountOne, OneOf, OneOf);
+count!(CountZeroOrOne, ZeroOrOne, ZeroOrOne);
+count!(CountZero, ZeroOrOne, ZeroOrOne);
+count!(CountNone, ZeroOrOne, ZeroOrOne);
+count!(CountMany, DynamicSegment, std::convert::identity);
+
+/// The count of a place that holds either of two branches.
+pub trait Or<Other: Count>: Count {
+    type Count: Count;
+}
+
+macro_rules! or_counts {
+    ($($a:ident | $b:ident = $c:ident;)*) => {
+        $(impl Or<$b> for $a {
+            type Count = $c;
+        })*
+    };
+}
+
+or_counts! {
+    CountOne | CountOne = CountOne;
+    CountOne | CountZeroOrOne = CountZeroOrOne;
+    CountOne | CountZero = CountZeroOrOne;
+    CountOne | CountMany = CountMany;
+    CountZeroOrOne | CountOne = CountZeroOrOne;
+    CountZeroOrOne | CountZeroOrOne = CountZeroOrOne;
+    CountZeroOrOne | CountZero = CountZeroOrOne;
+    CountZeroOrOne | CountMany = CountMany;
+    CountZero | CountOne = CountZeroOrOne;
+    CountZero | CountZeroOrOne = CountZeroOrOne;
+    CountZero | CountZero = CountZero;
+    CountZero | CountMany = CountMany;
+    CountMany | CountOne = CountMany;
+    CountMany | CountZeroOrOne = CountMany;
+    CountMany | CountZero = CountMany;
+    CountMany | CountMany = CountMany;
+    CountOne | CountNone = CountOne;
+    CountZeroOrOne | CountNone = CountZeroOrOne;
+    CountZero | CountNone = CountZero;
+    CountMany | CountNone = CountMany;
+}
+
+/// The form control flow over branches `B` and `F` returns, for a parent whose children are
+/// `C`s.
+pub type FormOf<C, B, F> = <<B as Or<F>>::Count as Count>::Form<C>;
+
+/// How many children a built value fills its place with (`Count`), whatever its parent:
+/// the count has to be known before the parent is, since it picks the form a `Show` returns
+/// and the form is how the parent is found.
+#[diagnostic::on_unimplemented(
+    message = "a `{Self}` is not something a branch of a `Show`, `Dynamic` or `Keyed` can build",
+    label = "build children here: tags, a `view!`, or a component's value"
+)]
+pub trait Counted {
+    type Count: Count;
+}
+
+macro_rules! counted {
+    ($count:ident: $(<$($generic:ident),*> $ty:ty),* $(,)?) => {
+        $(impl<$($generic: 'static),*> Counted for $ty {
+            type Count = $count;
+        })*
+    };
+}
+
+counted!(CountOne:
+    <> &'static str,
+    <> String,
+    <T> Prop<T>,
+    <T> beui_reactive::Memo<T>,
+    <T> beui_reactive::ReadSignal<T>,
+    <T> Signal<T>,
+);
+
+impl<T: SlotChild> Counted for OneOf<T> {
+    type Count = CountOne;
+}
+
+impl<T: SlotChild> Counted for ZeroOrOne<T> {
+    type Count = CountZeroOrOne;
+}
+
+impl<T: SlotChild> Counted for DynamicSegment<T> {
+    type Count = CountMany;
+}
+
+impl<T: SlotChild> Counted for Children<T> {
+    type Count = CountMany;
+}
+
+impl<T: SlotChild, const N: usize> Counted for [ChildSegment<T>; N] {
+    type Count = CountMany;
+}
+
+impl<H: Counted> Counted for SingleChild<H> {
+    type Count = H::Count;
+}
+
+impl<H: Counted<Count = CountOne>> Counted for Option<H> {
+    type Count = CountZeroOrOne;
+}
+
+/// What a branch of `Show`, `Dynamic`, `Keyed` or `Loading` builds: one child or a run of
+/// them, for a parent whose children are `C`s. Its count decides the control's form.
+pub trait Branch<C: SlotChild>: IntoSegment<C> + Counted + 'static {
+    fn into_children(self) -> Children<C>;
+}
+
+impl<C: SlotChild, B: IntoSegment<C> + Counted + 'static> Branch<C> for B {
+    fn into_children(self) -> Children<C> {
+        Children::from(self.into_segment())
+    }
+}
+
+/// The `fallback` of a `Show`: a closure building what shows while its condition is false,
+/// or nothing when none is given.
+#[diagnostic::on_unimplemented(
+    message = "a `fallback` is a closure that builds children: `fallback={{|| view! {{ ... }}}}`",
+    label = "write a closure here"
+)]
+pub trait Fallback<C: SlotChild> {
+    type Count: Count;
+
+    fn into_render(self) -> Option<BuildFn<Children<C>>>;
+}
+
+impl<C: SlotChild> Fallback<C> for MissingProp {
+    type Count = CountZero;
+
+    fn into_render(self) -> Option<BuildFn<Children<C>>> {
+        None
+    }
+}
+
+impl<C: SlotChild, F: Fn() -> B + 'static, B: Branch<C>> Fallback<C> for F {
+    type Count = B::Count;
+
+    fn into_render(self) -> Option<BuildFn<Children<C>>> {
+        Some(BuildFn::new(move || self().into_children()))
+    }
+}
+
+/// The `fallback` of a `Dynamic` or `Keyed`: given one, the value is an `Option` and the
+/// fallback builds while it is `None`; without one, the render takes the value as it is.
+#[diagnostic::on_unimplemented(
+    message = "a `fallback` on a `Dynamic` or `Keyed` needs an `Option` value, and is a closure that builds children, or `()` for nothing",
+    label = "give `value` an `Option<_>`, or leave the fallback out"
+)]
+pub trait ValueFallback<V, C: SlotChild> {
+    type Handed: Clone + 'static;
+    type Count: Count;
+
+    fn split(value: V) -> Option<Self::Handed>;
+
+    fn into_render(self) -> Option<BuildFn<Children<C>>>;
+}
+
+impl<V: Clone + 'static, C: SlotChild> ValueFallback<V, C> for MissingProp {
+    type Handed = V;
+    type Count = CountNone;
+
+    fn split(value: V) -> Option<V> {
+        Some(value)
+    }
+
+    fn into_render(self) -> Option<BuildFn<Children<C>>> {
+        None
+    }
+}
+
+/// `fallback=()`: the value is an `Option`, and nothing shows while it is `None`.
+impl<T: Clone + 'static, C: SlotChild> ValueFallback<Option<T>, C> for () {
+    type Handed = T;
+    type Count = CountZero;
+
+    fn split(value: Option<T>) -> Option<T> {
+        value
+    }
+
+    fn into_render(self) -> Option<BuildFn<Children<C>>> {
+        None
+    }
+}
+
+impl<T: Clone + 'static, C: SlotChild, F: Fn() -> B + 'static, B: Branch<C>>
+    ValueFallback<Option<T>, C> for F
+{
+    type Handed = T;
+    type Count = B::Count;
+
+    fn split(value: Option<T>) -> Option<T> {
+        value
+    }
+
+    fn into_render(self) -> Option<BuildFn<Children<C>>> {
+        Some(BuildFn::new(move || self().into_children()))
+    }
+}
+
+/// A run of children that a `Show`, `Dynamic`, `Keyed` or `ForEach` fills in later, and
+/// changes. It fills a place among its parent's children with no node of its own; a slot
+/// that takes one node does not take it (`FixedChild`).
 pub struct DynamicSegment<T: SlotChild> {
     scope: Option<ScopeContext>,
     install: Box<dyn FnOnce(ChildSlot<T>)>,
@@ -124,13 +364,17 @@ impl<T: SlotChild> ChildValue for DynamicSegment<T> {
              (such as `component_placed` or `component_state`) have no node to attach to",
             component.name(),
         );
-        self.scope = Some(scope.clone());
+        // A run handed on through components that wrap it mounts in the innermost one's scope,
+        // which sees the context every one of them provides.
+        if self.scope.is_none() {
+            self.scope = Some(scope.clone());
+        }
     }
 }
 
 #[diagnostic::on_unimplemented(
-    message = "a `Show`, `Dynamic`, `Keyed` or `ForEach` builds a run of children, and this slot takes exactly one child",
-    label = "put it in a parent that keeps a run of children, or return it from a component typed `-> DynamicSegment<_>` and write that component where a run of children fits"
+    message = "a run of children cannot fill a slot that holds one `{T}`: put it in a `<List>` or `<Layers>` to say how the run is laid out, or give each branch exactly one root",
+    label = "this builds a run of children"
 )]
 pub trait FixedChild<T> {
     fn into_fixed_child(self) -> T;
@@ -151,21 +395,168 @@ impl<T: SlotChild> IntoSegment<T> for DynamicSegment<T> {
     }
 }
 
+impl<T: SlotChild> IntoSegment<T> for Option<DynamicSegment<T>> {
+    fn into_segment(self) -> ChildSegment<T> {
+        ChildSegment::Nested(self.map(IntoSegment::into_segment).into_iter().collect())
+    }
+}
+
+/// Exactly one child that control flow swaps: a `Show` with a `fallback` whose branches each
+/// build one, a `Dynamic` or a `Keyed` building one. Among a parent's run it adds no node; in
+/// a slot that takes one node it is held by a host node, a bare frame that sizes to its child
+/// (`LazyChild`), which also takes `@test_id` and `@node_ref`.
+pub struct OneOf<T: SlotChild>(DynamicSegment<T>);
+
+/// At most one child that control flow swaps: a `Show` without a `fallback`. It fits a run,
+/// and a slot that takes an optional node (`Option<Child>`) in a host node.
+pub struct ZeroOrOne<T: SlotChild>(DynamicSegment<T>);
+
+macro_rules! lazy_form {
+    ($form:ident, $count:ident) => {
+        impl<T: SlotChild> $form<T> {
+            /// The child as a lazy child for a host node to hold.
+            pub fn into_lazy(self) -> LazyChild<T> {
+                LazyChild(self.0)
+            }
+        }
+
+        impl<T: SlotChild> ChildValue for $form<T> {
+            fn finish_component(&mut self, component: &ComponentContext, scope: &ScopeContext) {
+                assert!(
+                    !component.has_extensions(),
+                    "component `{}` returns control flow, so the bindings its body made (such \
+                     as `component_placed` or `component_state`) need a node: declare it \
+                     `-> NodeId` and its control flow is held by a host node",
+                    component.name(),
+                );
+                self.0.scope = Some(scope.clone());
+            }
+        }
+
+        impl<T: SlotChild> IntoSegment<T> for $form<T> {
+            fn into_segment(self) -> ChildSegment<T> {
+                ChildSegment::Dynamic(self.0)
+            }
+        }
+
+        /// Control flow built only when a value fixed when the view is built says so
+        /// (`labelled.then(|| view! { <Show ..> })`) fills a run like any `Option` of a child.
+        impl<T: SlotChild> IntoSegment<T> for Option<$form<T>> {
+            fn into_segment(self) -> ChildSegment<T> {
+                ChildSegment::Nested(self.map(IntoSegment::into_segment).into_iter().collect())
+            }
+        }
+    };
+}
+
+lazy_form!(OneOf, CountOne);
+lazy_form!(ZeroOrOne, CountZeroOrOne);
+
+#[diagnostic::on_unimplemented(
+    message = "this slot always holds one `{T}`, and this control flow can build none (a `Show` without a fallback, or `fallback=()`): add `fallback=…` so the slot always holds a child",
+    label = "this can build no child"
+)]
+pub trait NeedsFallback<T> {
+    fn into_fallback_child(self) -> T;
+}
+
+/// The nodes a core holds in a host node (`NodeId`): in a slot that takes one of them, a
+/// `Show` without a `fallback` is reported as needing one.
+pub trait HostedNode: SlotChild {}
+
+impl<T: HostedNode> IntoChild<T> for ZeroOrOne<T>
+where
+    Self: NeedsFallback<T>,
+{
+    fn into_child(self) -> T {
+        self.into_fallback_child()
+    }
+}
+
+/// The child a host node holds and swaps (`OneOf` or `ZeroOrOne`): what a core's host
+/// mounts.
+pub struct LazyChild<T: SlotChild>(DynamicSegment<T>);
+
+impl<T: SlotChild> LazyChild<T> {
+    /// Puts the child in place now, and again whenever it is swapped: `set` is called with
+    /// the stored child, or `None` while there is none.
+    pub fn mount(self, set: impl Fn(Option<T::Stored>) + 'static) {
+        let host: Rc<dyn SlotHost<T>> = Rc::new(SingleHost { set: Box::new(set) });
+        self.0.mount(ChildSlot::in_host(host));
+    }
+
+    /// Mounts the child into a host that keeps a run, as its only child.
+    pub fn mount_in(self, host: impl IntoSlotHost<T>) {
+        Children::from(ChildSegment::Dynamic(self.0)).mount(host);
+    }
+}
+
+struct SingleHost<T: SlotChild> {
+    set: Box<dyn Fn(Option<T::Stored>)>,
+}
+
+impl<T: SlotChild> SlotHost<T> for SingleHost<T> {
+    fn append(&self, stored: T::Stored) {
+        (self.set)(Some(stored));
+    }
+
+    fn open(&self) -> SlotId {
+        SlotId::FIRST
+    }
+
+    fn fill(&self, _slot: SlotId, items: Vec<T::Stored>) {
+        debug_assert!(
+            items.len() <= 1,
+            "a host node that holds one child was filled with {}",
+            items.len()
+        );
+        (self.set)(items.into_iter().next());
+    }
+}
+
+/// What a `#[component]` body becomes to be the type the component declares: itself, or
+/// for one declared `-> NodeId`, control flow held by a host node.
+#[diagnostic::on_unimplemented(
+    message = "this component's body builds a `{Self}`, and it is declared to return a `{T}`",
+    label = "change the declared return type, or what the body builds"
+)]
+pub trait ComponentOutput<T> {
+    fn into_output(self) -> T;
+}
+
+impl<T> ComponentOutput<T> for T {
+    fn into_output(self) -> T {
+        self
+    }
+}
+
+impl<T: SlotChild> ComponentOutput<DynamicSegment<T>> for OneOf<T> {
+    fn into_output(self) -> DynamicSegment<T> {
+        self.0
+    }
+}
+
+impl<T: SlotChild> ComponentOutput<DynamicSegment<T>> for ZeroOrOne<T> {
+    fn into_output(self) -> DynamicSegment<T> {
+        self.0
+    }
+}
+
 struct RunState<S> {
     items: RefCell<ChildList<S>>,
-    filled: Signal<u64>,
+    filled: Trigger,
 }
 
 impl<S> RunState<S> {
     fn new() -> Self {
         Self {
             items: RefCell::new(ChildList::default()),
-            filled: create_signal(0),
+            filled: create_trigger(),
         }
     }
 
     fn changed(&self) {
-        self.filled.update(|filled| *filled += 1);
+        self.filled.notify();
     }
 }
 
@@ -196,7 +587,7 @@ impl<C: SlotChild> Default for Run<C> {
 impl<C: SlotChild> Run<C> {
     #[track_caller]
     pub fn items(&self) -> Vec<C::Stored> {
-        self.state.filled.get();
+        self.state.filled.track();
         self.get_untracked()
     }
 
@@ -206,7 +597,7 @@ impl<C: SlotChild> Run<C> {
 
     #[track_caller]
     pub fn len(&self) -> usize {
-        self.state.filled.get();
+        self.state.filled.track();
         self.state.items.borrow().len()
     }
 
@@ -292,9 +683,7 @@ impl<T: 'static, C: SlotChild<Stored = Rc<T>>> Run<C> {
                         .find_map(|row| row.take_if(|(built, ..)| Rc::ptr_eq(built, &item)));
                     match kept {
                         Some(row) => {
-                            if row.3.get_untracked() != index {
-                                row.3.set(index);
-                            }
+                            row.3.set(index);
                             next.push(row);
                         }
                         None => {
@@ -363,7 +752,15 @@ impl<C: SlotChild> Clone for ChildSlot<C> {
 }
 
 impl<C: SlotChild> ChildSlot<C> {
-    fn in_host(host: Rc<dyn SlotHost<C>>) -> Self {
+    /// The slot this fills in the host it was opened in, if it was opened in a host.
+    pub(crate) fn host_slot(&self) -> Option<SlotId> {
+        match &self.place {
+            Place::Host { slot, .. } => Some(*slot),
+            Place::Run { .. } => None,
+        }
+    }
+
+    pub(crate) fn in_host(host: Rc<dyn SlotHost<C>>) -> Self {
         let slot = host.open();
         Self {
             place: Place::Host { host, slot },
@@ -476,23 +873,47 @@ impl<T: SlotChild> IntoSegment<T> for Children<T> {
     }
 }
 
+impl<T: SlotChild> IntoSegment<T> for Option<Children<T>> {
+    fn into_segment(self) -> ChildSegment<T> {
+        ChildSegment::Nested(self.map(|children| children.0).unwrap_or_default())
+    }
+}
+
 #[macro_export]
 macro_rules! child_type {
-    (<$($generic:ident),*> $ty:ty) => {
-        impl<$($generic: 'static),*> $crate::reactive::IntoChild<$ty> for $ty {
+    (<$($generic:ident $(: $bound:path)?),*> $ty:ty) => {
+        impl<$($generic: 'static $(+ $bound)?),*> $crate::reactive::IntoChild<$ty> for $ty {
             fn into_child(self) -> $ty {
                 self
             }
         }
 
-        impl<$($generic: 'static),*> $crate::reactive::IntoSegment<$ty> for $ty {
+        impl<$($generic: 'static $(+ $bound)?),*> $crate::reactive::IntoSegment<$ty> for $ty {
             fn into_segment(self) -> $crate::reactive::ChildSegment<$ty> {
                 $crate::reactive::ChildSegment::One(self)
             }
         }
 
-        impl<$($generic: 'static),*> ::core::convert::From<$ty> for $crate::reactive::Children<$ty> {
+        impl<$($generic: 'static $(+ $bound)?),*> $crate::reactive::IntoSegment<$ty> for ::core::option::Option<$ty> {
+            fn into_segment(self) -> $crate::reactive::ChildSegment<$ty> {
+                $crate::reactive::ChildSegment::Many(self.into_iter().collect())
+            }
+        }
+
+        $crate::one_child_slot!(<$($generic $(: $bound)?),*> $ty);
+
+        impl<$($generic: 'static $(+ $bound)?),*> $crate::reactive::Counted for $ty {
+            type Count = $crate::reactive::CountOne;
+        }
+
+        impl<$($generic: 'static $(+ $bound)?),*> ::core::convert::From<$ty> for $crate::reactive::Children<$ty> {
             fn from(child: $ty) -> Self {
+                Self::from($crate::reactive::ChildSegment::One(child))
+            }
+        }
+
+        impl<$($generic: 'static $(+ $bound)?),*> $crate::reactive::Takes<$ty, ()> for $crate::reactive::Children<$ty> {
+            fn take(child: $ty) -> Self {
                 Self::from($crate::reactive::ChildSegment::One(child))
             }
         }
@@ -504,16 +925,21 @@ macro_rules! child_type {
 
 #[macro_export]
 macro_rules! value_child_type {
-    (<$($generic:ident),*> $ty:ty) => {
-        $crate::child_type!(<$($generic),*> $ty);
+    (<$($generic:ident $(: $bound:path)?),*> $ty:ty) => {
+        $crate::child_type!(<$($generic $(: $bound)?),*> $ty);
 
-        impl<$($generic: 'static),*> $crate::reactive::ChildValue for $ty {}
+        impl<$($generic: 'static $(+ $bound)?),*> $crate::reactive::ChildValue for $ty {}
 
-        impl<$($generic: 'static),*> $crate::reactive::SlotChild for $ty {
+        impl<$($generic: 'static $(+ $bound)?),*> $crate::reactive::SlotChild for $ty {
             type Stored = ::std::rc::Rc<$ty>;
+            type Node = ::std::rc::Rc<$ty>;
 
             fn store(self) -> Self::Stored {
                 ::std::rc::Rc::new(self)
+            }
+
+            fn node(stored: &Self::Stored) -> Self::Node {
+                stored.clone()
             }
         }
     };
@@ -574,9 +1000,10 @@ impl<T: SlotChild> From<Run<T>> for Children<T> {
     }
 }
 
-impl<T: SlotChild> IntoChild<Children<T>> for Children<T> {
+/// Anything that fills a run fills a `Children` built at once (a render prop's).
+impl<T: SlotChild, H: IntoSegment<T>> IntoChild<Children<T>> for H {
     fn into_child(self) -> Children<T> {
-        self
+        Children(vec![self.into_segment()])
     }
 }
 
@@ -703,6 +1130,56 @@ pub trait IntoSegments<T: SlotChild> {
 
 pub struct SingleChild<H>(pub H);
 
+/// What a component that wraps its children without placing them (to provide context around
+/// them, say) returns: its one child as it is, so a node stays a node, or its run of children.
+#[diagnostic::on_unimplemented(
+    message = "a `{Self}` cannot be handed back as it was built",
+    label = "write the children as tags, or as a block that returns a child"
+)]
+pub trait Unwrapped {
+    type Output: ChildValue;
+
+    fn unwrapped(self) -> Self::Output;
+}
+
+impl<H: ChildValue> Unwrapped for SingleChild<H> {
+    type Output = H;
+
+    fn unwrapped(self) -> H {
+        self.0
+    }
+}
+
+impl<T: SlotChild, const N: usize> Unwrapped for [ChildSegment<T>; N] {
+    type Output = Children<T>;
+
+    fn unwrapped(self) -> Children<T> {
+        let mut segments = Vec::with_capacity(N);
+        self.into_segments(&mut segments);
+        Children(segments)
+    }
+}
+
+impl<H: ChildValue> Unwrapped for H {
+    type Output = H;
+
+    fn unwrapped(self) -> H {
+        self
+    }
+}
+
+impl<T: SlotChild, H: IntoSegment<T>> IntoSegment<T> for SingleChild<H> {
+    fn into_segment(self) -> ChildSegment<T> {
+        self.0.into_segment()
+    }
+}
+
+impl<T: SlotChild, const N: usize> IntoSegment<T> for [ChildSegment<T>; N] {
+    fn into_segment(self) -> ChildSegment<T> {
+        ChildSegment::Nested(Vec::from(self))
+    }
+}
+
 impl<T: SlotChild, H: IntoSegment<T>> IntoSegments<T> for SingleChild<H> {
     fn into_segments(self, segments: &mut Vec<ChildSegment<T>>) {
         segments.push(self.0.into_segment());
@@ -726,6 +1203,13 @@ pub trait OneChild<T> {
 impl<T, H: IntoChild<T>> OneChild<T> for SingleChild<H> {
     fn one_child(self) -> T {
         self.0.into_child()
+    }
+}
+
+/// Several roots, where a render builds a `Children` at once.
+impl<T: SlotChild, const N: usize> OneChild<Children<T>> for [ChildSegment<T>; N] {
+    fn one_child(self) -> Children<T> {
+        Children(Vec::from(self))
     }
 }
 

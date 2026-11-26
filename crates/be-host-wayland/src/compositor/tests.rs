@@ -25,6 +25,7 @@ mod a_frame_callback_waits_for_the_flip_of_the_screen_the_window_is_on;
 mod a_fullscreen_window_covers_only_its_own_screen;
 mod a_global_action_that_does_not_intercept_leaves_the_window_its_keys;
 mod a_key_an_action_takes_from_a_window_makes_the_keyboard_leave_and_enter_it_again;
+mod a_key_held_while_the_keyboard_moves_to_another_window_is_released_there;
 mod a_launched_program_is_given_a_token_that_brings_a_window_forward;
 mod a_locked_pointer_holds_still_and_moves_by_the_platforms_raw_motion_until_the_host_loses_focus;
 mod a_locked_session_gives_no_window_the_keyboard_or_the_pointer;
@@ -57,6 +58,7 @@ mod a_token_is_lost_once_the_keyboard_leaves_its_window;
 mod a_toplevel_and_its_popup_are_panels_of_their_own_in_space;
 mod a_turned_wheel_reaches_a_window_as_wheel_notches_and_a_trackpad_as_a_slide;
 mod a_wake_from_the_host_counts_as_activity;
+mod a_window_a_host_composites_itself_hears_its_input_and_lets_go_of_the_keyboard_once_let_go;
 mod a_window_asked_fullscreen_on_an_output_fills_that_monitor;
 mod a_window_asked_to_take_the_focus_by_its_placer_gets_the_keyboard;
 mod a_window_asking_for_fullscreen_before_it_is_shown_is_answered;
@@ -144,7 +146,7 @@ fn Carried(windows: Windows) -> NodeId {
     let ids = create_memo(clone_list(&windows));
     view! {
         <Layers>
-            <ForEach keys={ids}>|id: WindowId| {
+            <ForEach value={ids}>|id: WindowId| {
                 let carrier = crate::view::Carrier {
                     begin: std::rc::Rc::new(|grab| {
                         BEGUN.with(|begun| begun.borrow_mut().push(grab));
@@ -257,7 +259,7 @@ fn Shown(windows: Windows) -> NodeId {
             >
                 <List spacing=Space::None>
                     <TextInput @test_id={"test.input"} value={text} />
-                    <ForEach keys={ids}>|(id, _): (WindowId, u32)| {
+                    <ForEach value={ids}>|(id, _): (WindowId, u32)| {
                         let list = windows.list();
                         let size = create_memo(move || {
                             list.with(|list| {
@@ -342,6 +344,7 @@ impl Harness {
             device,
             queue,
             format: wgpu::TextureFormat::Bgra8Unorm,
+            lost: Default::default(),
         });
         let space = Box::new(beui_layer_space::Space::new());
         Self {
@@ -559,7 +562,9 @@ impl Painter {
             device: device.clone(),
             queue: queue.clone(),
             renderer: beui_host::native::Renderer::new(&beui_host::native::Resources::new(
-                device, format,
+                device,
+                format,
+                &Default::default(),
             )),
             view: target.create_view(&wgpu::TextureViewDescriptor::default()),
         }

@@ -110,18 +110,6 @@ write_package_value("be3.cargo", {
             "test_deps": [],
             "test_features": [],
         },
-        "wasm32": {
-            "binaries": {},
-            "deps": [
-                "//third-party/rust:proc-macro2-1.0.106",
-                "//third-party/rust:quote-1.0.45",
-                "//third-party/rust:syn-2.0.117",
-            ],
-            "examples": {},
-            "features": [],
-            "test_deps": [],
-            "test_features": [],
-        },
         "windows-arm64": {
             "binaries": {},
             "deps": [

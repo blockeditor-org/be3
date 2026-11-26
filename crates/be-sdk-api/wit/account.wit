@@ -13,10 +13,21 @@ interface account {
         developer: preference-layer,
     }
 
-    /// Whether the account administers the company it belongs to.
-    resource administrator-watch {
+    /// What the account is in the organization open: an administrator of a
+    /// company, a guest (it reaches only what share links gave it, and keeps
+    /// nothing of its own there but its settings), or a member.
+    enum account-role {
+        member,
+        administrator,
+        guest,
+    }
+
+    /// The account's role in the organization open; none until the host knows
+    /// which organization is open and what the account is there, so nothing is
+    /// offered on a guess.
+    resource role-watch {
         constructor();
-        next: async func() -> bool;
+        next: async func() -> option<account-role>;
     }
 
     /// The base links to blocks are made from, empty on a local server.
@@ -56,8 +67,8 @@ interface account {
         off,
     }
 
-    /// A block whose notifications the account set to other than `all`.
-    record block-notify-mode {
+    /// A block the account muted: its notifications set to other than `all`.
+    record block-mute {
         block: block-id,
         mode: notify-mode,
     }
@@ -82,9 +93,9 @@ interface account {
     /// every other block is; none until the server has said (or on a host with
     /// no server). Changes made on other devices arrive as the server tells
     /// the host.
-    resource notify-modes-watch {
+    resource mutes-watch {
         constructor();
-        next: async func() -> option<list<block-notify-mode>>;
+        next: async func() -> option<list<block-mute>>;
     }
 }
 

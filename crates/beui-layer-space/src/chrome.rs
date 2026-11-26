@@ -338,8 +338,8 @@ pub fn layout(metres: Vec2, fit: Fit, slider: bool) -> Layout {
     }
 
     let tip = arm - reach;
-    let label = Some((fit.title + 2.0 * TITLE_PADDING) * scale)
-        .filter(|_| fit.title > 0.0)
+    let label = (fit.title > 0.0)
+        .then_some((fit.title + 2.0 * TITLE_PADDING) * scale)
         .map(|width| width.min(metres.x - 2.0 * tip))
         .filter(|width| *width >= button)
         .map(|width| {

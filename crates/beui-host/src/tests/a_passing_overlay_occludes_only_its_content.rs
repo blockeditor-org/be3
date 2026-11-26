@@ -10,7 +10,7 @@ fn a_passing_overlay_occludes_only_its_content() {
             <Frame>
                 <Overlay
                     anchor=OverlayAnchor::Point(pos2(10.0, 10.0))
-                    placement=Placement::BelowStart
+                    placement=Placement::BELOW_START
                     policy=LayerPolicy::Pass
                     open=true
                     on_dismiss={|_: Dismiss| {}}

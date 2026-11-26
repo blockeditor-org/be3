@@ -13,12 +13,14 @@ fn a_duplicated_block_carries_what_its_source_held() {
     wait_until("heard the source join the graph", |shared| {
         shared.graph.get(source).is_some()
     });
-    let (while_open, _) = duplicate(source).expect("the source is in the graph");
+    let while_open = Uuid::now_v7();
+    duplicate(source, while_open).expect("the source is in the graph");
     open(while_open, CounterContent::CONTENT_TYPE);
     wait_for_count(while_open, 5);
 
     close(source);
-    let (after_closing, _) = duplicate(source).expect("the source is in the graph");
+    let after_closing = Uuid::now_v7();
+    duplicate(source, after_closing).expect("the source is in the graph");
     open(after_closing, CounterContent::CONTENT_TYPE);
     wait_for_count(after_closing, 5);
 

@@ -36,17 +36,22 @@ Things that place relative to the bars:
 
 **Hidden bands** (`root/edges.rs`). A docked band's grip menu offers Auto-hide (every dock of the
 desktop calls `offer_hidden_bands`); an auto-hidden band, and every band over a fullscreen window,
-hides (guides/beui/docking.md, hidden bands). `HiddenBands` reports each one's edge of its display
-to the host in desktop points (`desktop::displays::set_edges`), which walls the pointer there, even
-between displays, and reports pushes and swipes (`ScreenEdgesWatch`; guides/beui/platforms.md,
-screen edges). Pushed distance brings the band out as far, draining once the pushing stops; past
-half its thickness it opens all the way and the wall lifts. Over a fullscreen window
-(`deliberate`) a push first has to cover the band's whole thickness. A swipe follows the finger and
-opens past half when let go. A band opened by the pointer goes once the pointer has been out of the
-band and a thickness around it for `GOES_AFTER`; one opened by a finger goes when a finger lands
-elsewhere. A bar's open panel (`BarPopup`) holds its band out, so Super opens Apps from an
-auto-hidden Apps bar. Without the watch (a windowed desktop) nothing reveals a band but a held
-panel.
+hides (guides/beui/docking.md, hidden bands). `HiddenBands` asks the host, in desktop points, for
+a wall along each hidden band's edge, a strip just inside it that captures fingers, and, while the
+band is out, a region a thickness around it (`desktop::displays::set_screen_input`), and hears
+back what happened at each (`ScreenInputWatch`; guides/beui/platforms.md, screen input). The host
+holds no policy: every rule is in `root/edges.rs`. A push counts only once the pointer has rested
+against the wall for `SETTLE`, and the first band's thickness of it brings nothing out, so a
+pointer overshooting on its way to something by the edge never shows a band. Beyond that, pushed
+distance brings the band out as far, draining once the pushing stops; past half its thickness it
+opens all the way and the wall lifts. A swipe follows the finger and opens past half when let go.
+A band opened by the pointer starts sliding away the moment nothing keeps it out: the pointer has
+left its region and no bar holds it, or the host first reports that region with the pointer
+already out of it. While it slides away the region stays, and the pointer coming
+back brings it out again. One opened by a finger goes when a finger lands outside its region. Any
+menu or panel open from a bar holds its band out (guides/beui/docking.md, hidden bands), so Super
+opens Apps from an auto-hidden Apps bar and a grip's menu stays usable. Without the watch (a
+windowed desktop) nothing reveals a band but a held one.
 
 **Displays.** Bar ids are `bar::Bars::of(display)` (be-sdk-shell's `SHELL_BARS + 3 * display`).
 Display 0's bars are dock bars of the main dock. Each further display's `Display` view holds a
@@ -77,7 +82,7 @@ Apps panel, and Super still opens the panel, centred over the windows' area
 - The clock (`desktop.clock`, `root/clock.rs`) with the unread notification count; it opens a
   calendar month with the day's events beside the notification history (`root/calendar.rs`,
   `root/notifications/history.rs`). The events come from a database calendar view the desktop
-  creates once and remembers in its `desktop.calendar` view state. Toasts make way while it is open.
+  creates once and remembers in its `KeptCalendar` view state. Toasts make way while it is open.
 
 While the session is ending, the ending bar (`root/ending.rs`) names the programs still open, with
 Cancel and End now (guides/desktop/login_session.md, Power and logging out).
@@ -125,7 +130,10 @@ program and block windows alike as floating dock windows. Under them, display 0'
 and one dropped at an edge splits it, tiling the desktop beneath the windows. Each dock of the desktop sits in its own
 `DockHost`; `DeskWindows` passes every display, and its work area, to `DockHostLayout::set_areas`.
 `root/window_keys.rs` binds the dock's `window_actions` at `KeyAt::Window`, capturing, so they work
-over programs; they are disabled while `ScreenLockedWatch` is set. workspace-ui binds none.
+over programs; they are disabled while `ScreenLockedWatch` is set. workspace-ui binds none. The
+desktop's `DockHost` passes `window_keys::tab_keys` (`WindowKeys::tabs`) as its `tab_keys`, moving
+the dock's Next tab and Previous tab off Ctrl+Tab, which a program keeps (Windows takes Super+Tab
+and Ctrl+Alt+Tab itself, so where Super is kept they are on PageDown and PageUp).
 
 | Action | Linux | Where the system keeps Super |
 | --- | --- | --- |
@@ -137,6 +145,7 @@ over programs; they are disabled while `ScreenLockedWatch` is set. workspace-ui 
 | Move to next or previous display | Super+Shift+Right/Left | Ctrl+Alt+Shift+Right/Left |
 | The program's next window | Super+` | Ctrl+Alt+` |
 | Full screen | Super+F | Ctrl+Alt+F |
+| Next or previous tab of the focused pane | Super+Tab, Super+Shift+Tab | Ctrl+Alt+PageDown/PageUp |
 | Window switcher | Alt+Tab, Alt+Shift+Tab | the same |
 | Leave the switcher | Alt+Escape | the same |
 

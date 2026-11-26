@@ -11,7 +11,7 @@ fn a_folder_listed_again_answers_offline_as_of_the_newer_listing() {
     refs.listed(Listing::Children(folder), &[placed(20, folder, 2)], 5)
         .unwrap();
     let made = placed(21, folder, 6);
-    refs.set_listing(Listing::Block(made.id), &[made]).unwrap();
+    refs.note(&made).unwrap();
     assert_eq!(
         offline_ids(&refs, Listing::Children(folder)),
         Some(vec![Uuid::from_u128(20), Uuid::from_u128(21)])
@@ -27,6 +27,6 @@ fn a_folder_listed_again_answers_offline_as_of_the_newer_listing() {
     assert_eq!(
         offline_ids(&scoped(&db), Listing::Children(folder)),
         Some(vec![Uuid::from_u128(20)]),
-        "the revision a listing was read at is kept with it",
+        "the sequence a listing was read at is kept with it",
     );
 }

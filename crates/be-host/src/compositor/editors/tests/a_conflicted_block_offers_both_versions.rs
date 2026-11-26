@@ -1,7 +1,7 @@
 use beui::native::Context;
 use beui::native::WindowSize;
-use beui_host::native::FreetypeFonts;
-use beui_host::native::testing::{Showing, Stepped};
+use beui_host::native::SkrifaFonts;
+use beui_host::native::testing::{Gui, Showing, Snapshots, Stepped};
 
 use super::*;
 use beui_host::native::build;
@@ -20,7 +20,7 @@ fn shown(content: impl FnOnce() -> NodeId + 'static) -> Stepped {
         }
     });
     let mut stepped = Stepped::new(
-        Context::new(FreetypeFonts::default()),
+        Context::new(SkrifaFonts::default()),
         Showing(document),
         WindowSize {
             size: SIZE,

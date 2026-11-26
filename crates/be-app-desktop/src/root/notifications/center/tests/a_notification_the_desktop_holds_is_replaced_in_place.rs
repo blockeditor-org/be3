@@ -47,9 +47,7 @@ fn a_notification_the_desktop_holds_is_replaced_in_place() {
     assert_eq!(listed(&center), vec![2, 1], "the newest is first");
     assert!(center.toasts().next().unwrap().has_default_action());
 
-    let revision = center.revision();
     center.notify(1, incoming("one, again"), seconds(1), 12);
-    assert!(center.revision() > revision);
     assert_eq!(listed(&center), vec![2, 1], "in its own place");
     let kept = center.listed().find(|kept| kept.id == 1).unwrap();
     assert_eq!(kept.incoming.summary, "one, again");

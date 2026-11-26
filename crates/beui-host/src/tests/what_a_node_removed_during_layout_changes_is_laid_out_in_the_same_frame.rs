@@ -22,7 +22,7 @@ fn what_a_node_removed_during_layout_changes_is_laid_out_in_the_same_frame() {
                 </Frame>
                 <Frame width=200.0 height=40.0>
                     <List spacing=0.0>
-                        <Show condition={shown}>
+                        <Show value={shown}>
                             <Interactive @node_ref=&gone focusable=true>
                                 <Frame height=20.0 />
                             </Interactive>

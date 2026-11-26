@@ -1,31 +1,33 @@
 # A menu button opens its menu and a submenu, whose menu stays under the
-# pointer: moving onto another row closes the submenu. It chooses by pointer
-# and by keys;
+# pointer: staying on another row a moment closes the submenu, and staying on
+# Share opens it again. It chooses by pointer and by keys;
 # a select picks an option; a context menu opens on a right click, and on the
 # Menu key or Shift+F10 beneath its card, around the focused button, and only
 # there: the browser's own contextmenu for the key adds no second opening.
 clock stop
-wait 'value="Chose nothing fruit Some(0)"'
+wait 'value="Chose nothing fruit Apple"'
 click 'Button "Actions"'
 wait 'MenuItem "Copy"'
 click 'MenuItem "Share"'
 wait 'MenuItem "Email"'
 move 'MenuItem "Delete"'
+pause 400
 wait not 'MenuItem "Email"'
 move 'MenuItem "Share"'
+pause 400
 wait 'MenuItem "Email"'
 click 'MenuItem "Email"'
-wait 'value="Chose Email fruit Some(0)"'
+wait 'value="Chose Email fruit Apple"'
 wait not 'MenuItem "Copy"'
 key Enter
 wait 'MenuItem "Copy" focused'
 key Enter
-wait 'value="Chose Copy fruit Some(0)"'
+wait 'value="Chose Copy fruit Apple"'
 wait not 'MenuItem "Copy"'
 click '#menus.fruit'
 wait 'ListBoxOption "Cherry"'
 click 'ListBoxOption "Cherry"'
-wait 'value="Chose Copy fruit Some(2)"'
+wait 'value="Chose Copy fruit Cherry"'
 wait not 'ListBoxOption "Cherry"'
 click '#menus.card' right
 wait 'MenuItem "Share"'
@@ -34,7 +36,7 @@ wait 'MenuItem "Share" focused'
 key right
 wait 'MenuItem "Email" focused'
 key Enter
-wait 'value="Chose Email fruit Some(2)"'
+wait 'value="Chose Email fruit Cherry"'
 wait not 'MenuItem "Share"'
 click '#menus.card.focus'
 key ContextMenu

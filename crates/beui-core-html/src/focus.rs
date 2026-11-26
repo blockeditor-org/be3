@@ -41,12 +41,18 @@ pub fn focus_visible() -> bool {
     signals().visible.get_untracked()
 }
 
+pub fn focus_held() -> Memo<bool> {
+    let focused = signals().focused;
+    create_memo(move || focused.get().is_some())
+}
+
 pub fn holds_focus(node: NodeRef) -> Memo<bool> {
     let focused = signals().focused;
     create_memo(move || focused.get().is_some() && node.try_get().is_some_and(focus_is_within))
 }
 
 pub fn set_focus(node: Option<NodeId>) {
+    let node = node.map(|node| crate::document::boxed(node).unwrap_or(node));
     WANTED.with(|wanted| wanted.set(node));
     apply_wanted();
     crate::frame::request_frame();
@@ -118,6 +124,7 @@ fn show_focus(visible: bool) {
     use beui_reactive::Set;
 
     let signal = signals().visible;
+    // Compared first only to skip the flush when nothing changed.
     if signal.get_untracked() != visible {
         signal.set(visible);
         beui_reactive::flush();
@@ -136,12 +143,8 @@ pub(crate) fn watch_document(document: &web_sys::Document) -> Vec<crate::dom::Li
             .is_some_and(|element| element.matches(":focus-visible").unwrap_or(false));
         let node = crate::dom::node_at_or_above(element.map(Into::into));
         let signals = signals();
-        if signals.focused.get_untracked() != node {
-            signals.focused.set(node);
-        }
-        if signals.visible.get_untracked() != visible {
-            signals.visible.set(visible);
-        }
+        signals.focused.set(node);
+        signals.visible.set(visible);
         beui_reactive::flush();
     };
     vec![

@@ -1,6 +1,9 @@
 use std::path::Path;
 
-use be_wasm_threads::Mutex;
+use std::sync::{
+    Mutex,
+    atomic::{AtomicU64, Ordering},
+};
 
 use be_block_store::StoreError;
 use rusqlite::{Connection, params};
@@ -21,6 +24,8 @@ const SCHEMA: &str = "
 
 pub(crate) struct SqliteRefs {
     connection: Mutex<Connection>,
+    /// The bytes of every key and value written, deletions' keys included (`RefsDb::written`).
+    written: AtomicU64,
 }
 
 impl SqliteRefs {
@@ -37,15 +42,14 @@ impl SqliteRefs {
     }
 
     fn with_connection(connection: Connection) -> Result<Self, StoreError> {
-        connection
-            .pragma_update(None, "journal_mode", "WAL")
-            .map_err(failed)?;
+        be_block_sqlite_schema::use_wal(&connection).map_err(failed)?;
         connection
             .pragma_update(None, "synchronous", "NORMAL")
             .map_err(failed)?;
         be_block_sqlite_schema::ensure(&connection, SCHEMA).map_err(failed)?;
         Ok(Self {
             connection: Mutex::new(connection),
+            written: AtomicU64::new(0),
         })
     }
 }
@@ -56,7 +60,8 @@ impl SqliteRefs {
         let mut statement = connection
             .prepare_cached(
                 "SELECT kind, key, value FROM refs
-                 WHERE server = ?1 AND account = ?2 AND organization = ?3",
+                 WHERE server = ?1 AND account = ?2 AND organization = ?3
+                 ORDER BY kind, key",
             )
             .map_err(failed)?;
         let rows = statement
@@ -108,6 +113,8 @@ impl SqliteRefs {
                 )
                 .map_err(failed)?;
             for row in rows {
+                let bytes = row.key.len() + row.value.as_ref().map_or(0, Vec::len);
+                self.written.fetch_add(bytes as u64, Ordering::Relaxed);
                 let account = scope.account.as_bytes().as_slice();
                 let organization = scope.organization.as_bytes().as_slice();
                 let kind = i64::from(row.table.code());
@@ -129,6 +136,65 @@ impl SqliteRefs {
             }
         }
         transaction.commit().map_err(failed)
+    }
+}
+
+impl SqliteRefs {
+    /// Writes `row` unless one with its key is there, and answers the value of the one there.
+    pub(crate) fn insert_new(
+        &self,
+        scope: &Scope,
+        row: &Row,
+    ) -> Result<Option<Vec<u8>>, StoreError> {
+        let Some(value) = &row.value else {
+            return Err(StoreError::Corrupt);
+        };
+        let connection = self.connection.lock().unwrap();
+        let transaction = be_block_sqlite_schema::write_transaction(&connection).map_err(failed)?;
+        let account = scope.account.as_bytes().as_slice();
+        let organization = scope.organization.as_bytes().as_slice();
+        let kind = i64::from(row.table.code());
+        let inserted = transaction
+            .prepare_cached(
+                "INSERT OR IGNORE INTO refs (server, account, organization, kind, key, value)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            )
+            .map_err(failed)?
+            .execute(params![
+                scope.server,
+                account,
+                organization,
+                kind,
+                row.key,
+                value
+            ])
+            .map_err(failed)?;
+        let held = if inserted == 0 {
+            let held: Vec<u8> = transaction
+                .prepare_cached(
+                    "SELECT value FROM refs
+                     WHERE server = ?1 AND account = ?2 AND organization = ?3 AND kind = ?4
+                       AND key = ?5",
+                )
+                .map_err(failed)?
+                .query_row(
+                    params![scope.server, account, organization, kind, row.key],
+                    |row| row.get(0),
+                )
+                .map_err(failed)?;
+            Some(held)
+        } else {
+            self.written
+                .fetch_add((row.key.len() + value.len()) as u64, Ordering::Relaxed);
+            None
+        };
+        transaction.commit().map_err(failed)?;
+        Ok(held)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn written(&self) -> u64 {
+        self.written.load(Ordering::Relaxed)
     }
 }
 

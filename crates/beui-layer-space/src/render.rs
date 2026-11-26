@@ -610,7 +610,7 @@ impl Gpu {
                 blend: None,
             },
         );
-        let resources = beui_renderer_wgpu::Resources::new(&device, setup.format);
+        let resources = beui_renderer_wgpu::Resources::new(&device, setup.format, &setup.lost);
         Self {
             device,
             queue: setup.queue.clone(),
@@ -893,7 +893,7 @@ impl Gpu {
                 | wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_SRC
                 | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
+            view_formats: beui_renderer_wgpu::view_formats(self.format),
         });
         let level = |base: u32| {
             texture.create_view(&wgpu::TextureViewDescriptor {

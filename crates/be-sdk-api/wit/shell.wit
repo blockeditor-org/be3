@@ -85,6 +85,10 @@ interface shell-types {
 
     variant child-preview {
         hosted,
+        /// A child placed as a preview that the host composites in its place,
+        /// as it does a child that runs its editor (a root's): the placer
+        /// leaves a hole for it rather than drawing a picture.
+        composited,
         waiting,
         label,
         image(preview-image),
@@ -175,6 +179,15 @@ interface shell-types {
         /// The file extensions, without the dot, a program editor opens: a
         /// block whose file name ends in one opens in it. Empty for an app.
         extensions: list<string>,
+        /// What the editor exports its block as, in its manifest's order.
+        exporters: list<exporter-descriptor>,
+    }
+
+    /// An exporter an editor's manifest declares: the name its code registers
+    /// it under, and what menus call it.
+    record exporter-descriptor {
+        name: string,
+        label: string,
     }
 
     /// The block types, templates and editors the host has.
@@ -303,20 +316,6 @@ interface shell-types {
         /// answer arrives as its `dialog-status`, and answers at once for a child
         /// that does not handle dismissal.
         dismiss-child(child-id),
-        /// Gives a child the editor placed the keyboard, as the person opening
-        /// it or bringing it forward would: the view that shows the child takes
-        /// the keyboard once the child shows. It only moves the keyboard within
-        /// the editor: while the keyboard is outside the editor's views and the
-        /// children they show, or a view that takes the keyboard (a dialog, a
-        /// popover) is open, it does nothing.
-        focus-child(child-id),
-        /// As `focus-child`, for the child that shows the block once the editor
-        /// places it: an editor that makes a block to type into asks in the
-        /// frame it makes it, before the child exists, so the keys typed while
-        /// the child loads wait for it. The gift ends when the child's view
-        /// takes the keyboard or the person presses in the editor or takes the
-        /// keyboard elsewhere first.
-        focus-block-child(block-id),
         /// The person asked to close a child the editor placed, as closing its
         /// tab. For a program window the host asks its program to close it (or
         /// force-closes one that does not respond); the window leaves the list
@@ -338,6 +337,12 @@ interface shell-types {
         artifact-described(artifact-description),
         /// The user changed the artifact settings the editor shows.
         artifact-edited(list<u8>),
+        /// Why the artifact the editor makes could not be made again as its
+        /// source last changed, or none once it was: said each time it changes.
+        artifact-failed(option<string>),
+        /// Something the user asked the editor for failed, and why, said for
+        /// the user to read. The host shows it as it shows its own failures.
+        report-failure(string),
     }
 
     /// The block an editor's focus is in, and the blocks it is shown through.

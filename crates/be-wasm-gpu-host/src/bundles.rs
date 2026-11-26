@@ -1,14 +1,12 @@
 use std::ops::Range;
 
-use be_wasm_gpu_abi::device as abi;
-
-use crate::{Outcome, convert, slice};
+use crate::{Outcome, slice, vertex_slice};
 
 const MAX_COLOR_ATTACHMENTS: usize = 8;
 
 /// A render bundle the host records itself and replays into wgpu's encoder at `finish`,
 /// since wgpu's bundle encoder borrows what it is given. wgpu has no debug markers on
-/// bundle encoders, so an app cannot ask for them.
+/// bundle encoders: wasi:webgpu's debug groups are only checked to balance.
 pub(crate) struct BundleEncoder {
     label: Option<String>,
     color_formats: Vec<Option<wgpu::TextureFormat>>,
@@ -21,52 +19,53 @@ pub(crate) enum Command {
     Pipeline(wgpu::RenderPipeline),
     BindGroup(u32, Option<wgpu::BindGroup>, Vec<u32>),
     IndexBuffer(wgpu::Buffer, wgpu::IndexFormat, u64, Option<u64>),
-    VertexBuffer(u32, wgpu::Buffer, u64, Option<u64>),
+    VertexBuffer(u32, Option<wgpu::Buffer>, u64, Option<u64>),
     Draw(Range<u32>, Range<u32>),
     DrawIndexed(Range<u32>, i32, Range<u32>),
     DrawIndirect(wgpu::Buffer, u64),
     DrawIndexedIndirect(wgpu::Buffer, u64),
+    Immediates(u32, Vec<u8>),
+    PushDebugGroup,
+    PopDebugGroup,
 }
 
 impl BundleEncoder {
-    pub(crate) fn new(descriptor: abi::RenderBundleEncoderDescriptor) -> Outcome<Self> {
-        let colors = descriptor.color_formats.len();
+    pub(crate) fn with(
+        label: Option<String>,
+        color_formats: Vec<Option<wgpu::TextureFormat>>,
+        depth_stencil: Option<wgpu::RenderBundleDepthStencil>,
+        count: u32,
+    ) -> Outcome<Self> {
+        let colors = color_formats.len();
         if colors > MAX_COLOR_ATTACHMENTS {
             return Err(format!(
                 "a render bundle encoder has {colors} color formats, more than {}",
                 MAX_COLOR_ATTACHMENTS
             ));
         }
-        let count = descriptor.sample_count;
         if count == 0 || count > 32 || !count.is_power_of_two() {
             return Err(format!(
                 "a render bundle encoder cannot have a sample count of {count}"
             ));
         }
         Ok(Self {
-            label: descriptor.label,
-            color_formats: descriptor
-                .color_formats
-                .iter()
-                .map(|format| format.map(wgpu::TextureFormat::from))
-                .collect(),
-            depth_stencil: descriptor
-                .depth_stencil
-                .map(|state| wgpu::RenderBundleDepthStencil {
-                    format: wgpu::TextureFormat::from(state.format),
-                    depth_read_only: state.depth_read_only,
-                    stencil_read_only: state.stencil_read_only,
-                }),
+            label,
+            color_formats,
+            depth_stencil,
             sample_count: count,
             commands: Vec::new(),
         })
     }
 
     pub(crate) fn push(&mut self, command: Command) -> Outcome<()> {
-        if let Command::IndexBuffer(buffer, _, offset, size)
-        | Command::VertexBuffer(_, buffer, offset, size) = &command
-        {
-            slice(buffer, *offset, *size)?;
+        match &command {
+            Command::IndexBuffer(buffer, _, offset, size) => {
+                slice(buffer, *offset, *size)?;
+            }
+            Command::VertexBuffer(slot, buffer, offset, size) => {
+                vertex_slice(buffer.as_ref(), *slot, *offset, *size)?;
+            }
+            _ => {}
         }
         self.commands.push(command);
         Ok(())
@@ -75,11 +74,26 @@ impl BundleEncoder {
     pub(crate) fn finish(
         self,
         device: &wgpu::Device,
-        descriptor: &abi::RenderBundleDescriptor,
+        label: Option<&str>,
     ) -> Outcome<wgpu::RenderBundle> {
+        let mut depth = 0usize;
+        for command in &self.commands {
+            match command {
+                Command::PushDebugGroup => depth += 1,
+                Command::PopDebugGroup => {
+                    depth = depth
+                        .checked_sub(1)
+                        .ok_or("a render bundle pops a debug group it never pushed")?;
+                }
+                _ => {}
+            }
+        }
+        if depth > 0 {
+            return Err(format!("a render bundle leaves {depth} debug groups open"));
+        }
         let mut encoder =
             device.create_render_bundle_encoder(&wgpu::RenderBundleEncoderDescriptor {
-                label: convert::label(&self.label),
+                label: self.label.as_deref(),
                 color_formats: &self.color_formats,
                 depth_stencil: self.depth_stencil,
                 sample_count: self.sample_count,
@@ -94,9 +108,10 @@ impl BundleEncoder {
                 Command::IndexBuffer(buffer, format, offset, size) => {
                     encoder.set_index_buffer(slice(buffer, *offset, *size)?, *format)
                 }
-                Command::VertexBuffer(slot, buffer, offset, size) => {
-                    encoder.set_vertex_buffer(*slot, slice(buffer, *offset, *size)?)
-                }
+                Command::VertexBuffer(slot, buffer, offset, size) => encoder.set_vertex_buffer(
+                    *slot,
+                    vertex_slice(buffer.as_ref(), *slot, *offset, *size)?,
+                ),
                 Command::Draw(vertices, instances) => {
                     encoder.draw(vertices.clone(), instances.clone())
                 }
@@ -107,25 +122,10 @@ impl BundleEncoder {
                 Command::DrawIndexedIndirect(buffer, offset) => {
                     encoder.draw_indexed_indirect(buffer, *offset)
                 }
+                Command::Immediates(offset, data) => encoder.set_immediates(*offset, data),
+                Command::PushDebugGroup | Command::PopDebugGroup => {}
             }
         }
-        Ok(encoder.finish(&wgpu::RenderBundleDescriptor {
-            label: convert::label(&descriptor.label),
-        }))
-    }
-}
-
-impl crate::Gpu {
-    pub(crate) fn bundle(
-        &mut self,
-        this: abi::RenderBundleEncoder,
-        command: impl FnOnce(&Self) -> Outcome<Command>,
-    ) {
-        let result = command(self).and_then(|command| {
-            self.bundle_encoders
-                .get_mut(this.0, "render bundle encoder")?
-                .push(command)
-        });
-        self.fail(result, ());
+        Ok(encoder.finish(&wgpu::RenderBundleDescriptor { label }))
     }
 }

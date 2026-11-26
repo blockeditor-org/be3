@@ -102,6 +102,7 @@ fn a_frame_carries_the_serial_of_the_host_state_it_was_laid_out_against() {
         account_id: [3; 16],
         organization_id: [4; 16],
         client_id: [5; 16],
+        offers_share: true,
         kind: OpeningKind::Block(OpenBlock {
             block_id: [1; 16],
             block_type: [2; 16],

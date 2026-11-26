@@ -22,7 +22,7 @@ fn moving_a_card_within_and_across_kanban_columns() {
     let [a, b, c, d] = [0, 1, 2, 3].map(|index| fixture.row(index));
     let card = |row: ObjectId| format!("database-view.card.{}", row.as_uuid());
     let data = fixture.data();
-    fixture.harness.click(&card(b));
+    fixture.harness.click(card(b));
     fixture.settle();
     assert_eq!(data.selected_row(), Some(b));
 

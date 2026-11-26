@@ -8,14 +8,14 @@ fn the_layout_notice_shows_above_the_desktops_windows() {
     let mut layout = first
         .saved()
         .root()
-        .state("layout")
+        .stored(SavedLayout::ID)
         .cloned()
         .expect("the layout is saved");
     layout.bytes.truncate(layout.bytes.len() / 2);
     let mut saved = EditorView::document(None);
     let edit = saved
         .root()
-        .set_state("layout", Some(&layout), 1, Uuid::nil());
+        .put_stored(SavedLayout::ID, Some(&layout), 1, Uuid::nil());
     saved.apply(&edit);
 
     let mut fixture = Fixture::holding(saved);
@@ -27,12 +27,6 @@ fn the_layout_notice_shows_above_the_desktops_windows() {
     )]);
     fixture.settle();
 
-    let window = fixture
-        .test
-        .desk_windows()
-        .first()
-        .copied()
-        .expect("the program's window is a window of its own on the display");
     let reset = fixture
         .test
         .desk_rects_of("workspace.layout.reset")
@@ -49,10 +43,23 @@ fn the_layout_notice_shows_above_the_desktops_windows() {
         card.contains_rect(reset),
         "the card holds its buttons: {card:?} {reset:?}"
     );
+    // The notice is a window of its own too, so the program's is the one not holding it.
+    let window = fixture
+        .test
+        .desk_windows()
+        .into_iter()
+        .find(|window| !window.contains_rect(card))
+        .expect("the program's window is a window of its own on the display");
     let over = reset.intersect(window);
     assert!(
         over.is_positive(),
         "the notice's button lies over the window: {reset:?} {window:?}"
+    );
+    let lifted = fixture.test.desk_lifted(0);
+    assert!(
+        lifted.iter().all(|rect| !rect.intersects(window)),
+        "nothing of the display is lifted over the program's window, which still shows: \
+         {lifted:?} over {window:?}"
     );
     fixture
         .test

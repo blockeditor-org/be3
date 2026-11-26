@@ -18,6 +18,7 @@ fn a_spec_seeds_the_layout_it_describes() {
         key: "float".to_owned(),
         rect: Rect::from_min_size(Pos2::new(10.0, 20.0), Vec2::new(300.0, 200.0)),
         placed: Some("desktop 10 20".to_owned()),
+        hidden: false,
         root: Some(pane("floating", &[4])),
     });
     state.reconcile(&spec);

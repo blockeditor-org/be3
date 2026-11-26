@@ -177,6 +177,9 @@ impl InteractiveNode {
     }
 }
 
+/// A press at `pos` in a node laid out at `rect`. Its `pointer` is a stand-in (the mouse,
+/// or for `touch` a finger 0); a pointer session overrides it with its own, and only a
+/// session's press reaches a drag.
 pub fn press_at(
     rect: Rect,
     scale: f32,
@@ -198,6 +201,14 @@ pub fn press_at(
         pen: None,
         predicted: None,
         time,
+        pointer: if touch {
+            beui_types::input::PointerId::Touch(beui_types::TouchId {
+                device: 0,
+                finger: 0,
+            })
+        } else {
+            beui_types::input::PointerId::Mouse
+        },
     }
 }
 
@@ -223,6 +234,11 @@ fn fraction(rect: Rect, pos: Pos2) -> Vec2 {
 impl Element for InteractiveNode {
     fn paints_from_layout(&self) -> bool {
         false
+    }
+
+    fn sizes_itself(&self, doc: &Document, axis: beui_types::Direction) -> bool {
+        self.child
+            .is_some_and(|child| crate::layout::sizes_itself(doc, child, axis))
     }
 
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {

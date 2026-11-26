@@ -14,7 +14,7 @@ fn a_window_launched_from_a_placeholder_takes_its_place() {
 
     resumed
         .test
-        .click(&format!("workspace.placeholder.{newer}.open"));
+        .click(format!("workspace.placeholder.{newer}.open"));
     resumed.settle();
     assert_eq!(
         resumed

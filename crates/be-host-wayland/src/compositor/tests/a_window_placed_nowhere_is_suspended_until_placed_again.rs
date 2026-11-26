@@ -11,9 +11,9 @@ fn Placeable(windows: Windows) -> NodeId {
     let ids = create_memo(clone_list(&windows));
     view! {
         <Layers>
-            <Show condition={placed}>
+            <Show value={placed}>
                 <List spacing=Space::None>
-                    <ForEach keys={ids}>|id: WindowId|
+                    <ForEach value={ids}>|id: WindowId|
                         <Frame width={Size::Custom(SHOWN.x)} height={Size::Custom(SHOWN.y)}>
                             <WindowView windows id />
                         </Frame>

@@ -14,8 +14,12 @@ fn resizing_rows_preserves_the_scroll_anchor() {
         let rows = rows.clone();
         move || {
             view! {
-                <Scroll @node_ref=&scroll on_change={move |position| reported.set(Some(position))}>
-                    <ForEach keys={indices(rows.len())}>|index: usize|
+                <Scroll
+                    @node_ref=&scroll
+                    on_change={move |position| reported.set(Some(position))}
+                    style={plain_scroll()}
+                >
+                    <ForEach value={indices(rows.len())}>|index: usize|
                         <Frame
                             @node_ref={&rows[index]}
                             padding={Sides::symmetric(0.0, 10.0 + (index % 3) as f32)}

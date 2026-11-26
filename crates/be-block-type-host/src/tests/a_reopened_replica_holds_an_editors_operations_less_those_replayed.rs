@@ -19,16 +19,37 @@ fn a_reopened_replica_holds_an_editors_operations_less_those_replayed() {
         from: Endpoint::Editor(from),
         bytes: sent.encode(),
         at: 0,
-        delivery: None,
+        held: None,
     };
     let replay = [
-        message(editor, FromEditor::Operate(vec![1])),
-        message(other, FromEditor::Operate(vec![2])),
         message(
             editor,
-            FromEditor::Gesture(be_sdk_type_guest::editor::Gesture::Begin),
+            FromEditor::Operate {
+                gesture: None,
+                operation: vec![1],
+            },
         ),
-        message(editor, FromEditor::Operate(vec![3])),
+        message(
+            other,
+            FromEditor::Operate {
+                gesture: None,
+                operation: vec![2],
+            },
+        ),
+        message(
+            editor,
+            FromEditor::Gesture {
+                id: 0,
+                gesture: be_sdk_type_guest::editor::Gesture::Begin,
+            },
+        ),
+        message(
+            editor,
+            FromEditor::Operate {
+                gesture: None,
+                operation: vec![3],
+            },
+        ),
     ];
     assert_eq!(
         acknowledged(&forwarded, block, &replay, editor),

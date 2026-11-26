@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use be_block_content::presence::{ChannelKind, PresenceKind};
-use be_block_content::{EditorViewContent, ViewState};
+use be_block_content::{EditorViewContent, ViewStateKind};
 use be_lib_geometry::{CanvasView, Pos2, Rect, Vec2};
 use be_sdk_api::{ChildContent, FitArea, HostPanel, HostWindowId, WebViewId};
 use uuid::Uuid;
@@ -97,6 +97,13 @@ pub enum SubregionContent {
     },
     DockTab(be_sdk_api::DockTabPath),
     Rename(Uuid),
+    /// The Export dialog of `block`, running its editor's exporter `exporter` from `settings`
+    /// (empty for the exporter's defaults), which the host runs in that editor's app.
+    Export {
+        block: Uuid,
+        exporter: String,
+        settings: Vec<u8>,
+    },
 }
 
 impl From<ChildTarget> for SubregionContent {
@@ -130,6 +137,17 @@ impl SubregionContent {
             },
             Self::DockTab(tab) => ChildContent::DockTab(tab.clone()),
             Self::Rename(block) => ChildContent::Rename(block.into_bytes()),
+            Self::Export {
+                block,
+                exporter,
+                settings,
+            } => ChildContent::Export {
+                block_id: block.into_bytes(),
+                request: be_sdk_api::ExportRequest {
+                    exporter: exporter.clone(),
+                    settings: settings.clone(),
+                },
+            },
         }
     }
 }
@@ -206,9 +224,10 @@ pub struct ContentCache {
     contents: RefCell<HashMap<Option<Uuid>, Box<dyn Any>>>,
     pumps: RefCell<HashMap<Option<Uuid>, Pump>>,
     due: Rc<RefCell<Vec<Option<Uuid>>>>,
+    /// The projections refused, by block and content type, so asking again is answered alike.
+    refused: RefCell<HashMap<(Option<Uuid>, std::any::TypeId), Box<dyn Any>>>,
 }
 
-type ReplaceChild = Rc<dyn Fn(Uuid, Uuid) -> bool>;
 type Wake = (u64, Arc<AtomicU64>, Rc<dyn Fn(u64)>);
 
 #[derive(Clone)]
@@ -219,7 +238,6 @@ struct Inner {
     block: Uuid,
     scale: Rc<Cell<PointScale>>,
     contents: Rc<ContentCache>,
-    replace: RefCell<Option<ReplaceChild>>,
     content_rect: Cell<Rect>,
     intrinsic: Cell<Option<Vec2>>,
     pending_resize: Cell<Option<Vec2>>,
@@ -254,7 +272,6 @@ impl EditorCore {
             block,
             scale,
             contents,
-            replace: RefCell::new(None),
             content_rect: Cell::new(Rect::ZERO),
             intrinsic: Cell::new(None),
             pending_resize: Cell::new(None),
@@ -312,21 +329,40 @@ impl EditorCore {
         C: be_block_content::LiveEdit + Clone + Default,
     {
         let contents = &self.0.contents;
-        let cached = contents
-            .contents
-            .borrow()
-            .get(&block)
-            .and_then(|held| held.downcast_ref::<LiveContent<C>>())
-            .cloned();
-        if let Some(live) = cached {
-            return live;
-        }
-        let live = LiveContent::<C>::new(self.0.host.clone(), block);
-        let due = Rc::downgrade(&contents.due);
-        live.on_due(move || {
-            if let Some(due) = due.upgrade() {
-                due.borrow_mut().push(block);
+        // Block data can name a block of another type than it is held as: it reads as failed,
+        // kept out of every cache, so what holds it already goes on taking its updates.
+        let refused = || {
+            let key = (block, std::any::TypeId::of::<C>());
+            if let Some(held) = contents.refused.borrow().get(&key)
+                && let Some(live) = held.downcast_ref::<LiveContent<C>>()
+            {
+                return live.clone();
             }
+            let named = block.unwrap_or(self.0.block);
+            let live = LiveContent::<C>::refused(block, crate::host::another_type(named));
+            contents
+                .refused
+                .borrow_mut()
+                .insert(key, Box::new(live.clone()));
+            live
+        };
+        if let Some(held) = contents.contents.borrow().get(&block) {
+            return match held.downcast_ref::<LiveContent<C>>() {
+                Some(live) => live.clone(),
+                None => refused(),
+            };
+        }
+        // Another editor of the instance may hold it: they share it.
+        let Some(live) = self.0.host.projection::<C>(block) else {
+            return refused();
+        };
+        let due = Rc::downgrade(&contents.due);
+        live.on_due_while(move || {
+            let Some(due) = due.upgrade() else {
+                return false;
+            };
+            due.borrow_mut().push(block);
+            true
         });
         let pumped = live.clone();
         contents
@@ -348,8 +384,23 @@ impl EditorCore {
         if block == self.0.block {
             return self.content(None);
         }
-        self.0.host.watch_content(block, C::CONTENT_TYPE);
-        self.content(Some(block))
+        self.watched_content(block)
+    }
+
+    /// The content of `block` as the host sends it to an instance that holds it open, even
+    /// when `block` is this editor's: an editor reading a block not its instance's own (an
+    /// exporter's source) holds it so.
+    pub fn watched_content<C>(&self, block: Uuid) -> LiveContent<C>
+    where
+        C: be_block_content::LiveEdit + Clone + Default,
+    {
+        let live = self.content(Some(block));
+        // One refused as another type than the block is held as watches nothing: the watch
+        // names the block's type, and the projection held follows it.
+        if !live.is_refused() {
+            self.0.host.watch_content(block, C::CONTENT_TYPE);
+        }
+        live
     }
 
     pub fn view_content(&self) -> Option<LiveContent<EditorViewContent>> {
@@ -359,25 +410,19 @@ impl EditorCore {
             .map(|block| self.content_of::<EditorViewContent>(block))
     }
 
-    pub fn view_state(&self, key: &str) -> Option<ViewState> {
-        self.view_content()?
-            .read(|view| view.root().state(key).cloned())
-            .ok()
-            .flatten()
-    }
-
-    pub fn set_view_state(&self, key: &str, state: Option<&ViewState>) {
+    /// Keeps `value` as the `K` in the view block (none removes it), unless it is kept already.
+    pub fn set_view_state<K: ViewStateKind>(&self, value: Option<&K>) {
         let Some(view) = self.view_content() else {
             return;
         };
         let client = self.0.host.client_id();
         let now = now_milliseconds();
-        let edit = view.read(|held| {
-            let root = held.root();
-            (root.state(key) != state).then(|| root.set_state(key, state, now, client))
-        });
-        if let Some(edit) = edit.ok().flatten() {
-            view.operate_anyway(edit);
+        let edit = view.read(|held| held.root().set_view_state(value, now, client));
+        match edit {
+            Ok(Ok(Some(edit))) => view.operate_anyway(edit),
+            Ok(Ok(None)) | Err(_) => {}
+            // A kind that cannot be encoded is a bug in its type: what is kept stays.
+            Ok(Err(error)) => debug_assert!(false, "a view state cannot be encoded: {error}"),
         }
     }
 
@@ -471,15 +516,6 @@ impl EditorCore {
 
     pub fn report_reveal(&self, client_id: u64) {
         self.0.pending_reveal.set(Some(client_id));
-    }
-
-    pub fn on_replace_child(&self, replace: impl Fn(Uuid, Uuid) -> bool + 'static) {
-        *self.0.replace.borrow_mut() = Some(Rc::new(replace));
-    }
-
-    pub fn replace_child(&self, old: Uuid, new: Uuid) -> bool {
-        let replace = self.0.replace.borrow().clone();
-        replace.is_some_and(|replace| replace(old, new))
     }
 
     pub fn content_rect(&self) -> Rect {

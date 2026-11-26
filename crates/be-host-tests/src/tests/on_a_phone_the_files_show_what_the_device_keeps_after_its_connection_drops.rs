@@ -4,7 +4,7 @@ use super::*;
 /// keeps whether or not it is connected.
 #[test]
 fn on_a_phone_the_files_show_what_the_device_keeps_after_its_connection_drops() {
-    let server = Server::start();
+    let server = server();
     let dev = server.account("Dev");
     let mut phone = HostTest::device(&dev);
     add_to_my_files(&mut phone, "Text");

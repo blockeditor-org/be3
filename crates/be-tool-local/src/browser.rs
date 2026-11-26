@@ -1,24 +1,20 @@
 use std::path::Path;
 use std::process::Command;
 
-pub fn rasterize(input: &Path, output: &Path, renderer: Option<&Path>) -> Result<(), String> {
-    let mut command = match renderer {
-        Some(renderer) => Command::new(renderer),
+/// The browser rasterizer that draws a browser painting (`BrowserSnapshot::render`): the one in
+/// `built`, the directory its `:release` is laid out in (browser_program in
+/// buck/program/drive.bzl) as CI downloads it, or else built and run through buck.
+pub fn renderer(built: Option<&Path>) -> Command {
+    match built {
+        Some(renderer) => Command::new(renderer.join("browser-rasterizer")),
         None => {
             let mut command = Command::new("./scripts/buck");
-            command.args(["run", "//crates/be-tool-browser-rasterizer:bin", "--"]);
+            command.args([
+                "run",
+                "//crates/be-tool-browser-rasterizer:browser-rasterizer",
+                "--",
+            ]);
             command
         }
-    };
-    let result = command
-        .args([input, output])
-        .output()
-        .map_err(|error| error.to_string())?;
-    if !result.status.success() {
-        return Err(format!(
-            "browser rasterizer failed: {}",
-            String::from_utf8_lossy(&result.stderr)
-        ));
     }
-    Ok(())
 }

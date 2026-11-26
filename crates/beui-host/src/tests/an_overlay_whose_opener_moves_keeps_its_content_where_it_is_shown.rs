@@ -12,7 +12,7 @@ fn an_overlay_whose_opener_moves_keeps_its_content_where_it_is_shown() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Frame height={create_memo(move || Extent::px(above.get()))} />
+                <Frame height={move || Extent::px(above.get())} />
                 <Frame>
                     <Overlay
                         anchor=OverlayAnchor::Point(pos2(10.0, 10.0))

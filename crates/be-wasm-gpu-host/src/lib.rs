@@ -1,21 +1,20 @@
 mod bundles;
-mod convert;
-mod host;
+mod looks;
 mod queries;
 mod settling;
 mod tables;
 pub mod transport;
+mod webgpu;
 
 #[cfg(test)]
 mod tests;
 
-use std::collections::{HashMap, HashSet};
 use std::future::Future;
-use std::pin::{Pin, pin};
+use std::pin::pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
+use tables::{HashMap, HashSet};
 
-use be_wasm_gpu_abi::device as abi;
 use settling::Settling;
 use tables::Table;
 
@@ -35,7 +34,6 @@ pub type Imports = Arc<Mutex<HashMap<u64, wgpu::Texture>>>;
 pub struct Gpu {
     device: wgpu::Device,
     queue: wgpu::Queue,
-    limits: abi::SupportedLimits,
     buffers: Table<wgpu::Buffer>,
     textures: Table<wgpu::Texture>,
     made_textures: HashSet<u32>,
@@ -45,35 +43,43 @@ pub struct Gpu {
     groups: Table<wgpu::BindGroup>,
     pipeline_layouts: Table<wgpu::PipelineLayout>,
     modules: Table<wgpu::ShaderModule>,
-    compilations: HashMap<u32, Compilation>,
     pipelines: Table<wgpu::RenderPipeline>,
     settling: Settling,
-    destroyed: bool,
     encoders: Table<wgpu::CommandEncoder>,
     command_buffers: Table<wgpu::CommandBuffer>,
-    passes: Table<wgpu::RenderPass<'static>>,
+    passes: Table<webgpu::Recording<wgpu::RenderPass<'static>>>,
     compute_pipelines: Table<wgpu::ComputePipeline>,
-    compute_passes: Table<wgpu::ComputePass<'static>>,
+    compute_passes: Table<webgpu::Recording<wgpu::ComputePass<'static>>>,
     query_sets: Table<queries::QuerySet>,
     coarsening: Option<queries::Coarsening>,
     bundle_encoders: Table<bundles::BundleEncoder>,
     bundles: Table<wgpu::RenderBundle>,
-    surface_ids: Table<u32>,
     surfaces: HashMap<u32, Surface>,
     imports: Imports,
     presented: Vec<u32>,
+    /// The texture each surface showed when the app last presented it, and its generation:
+    /// what its host draws, whatever the app configured since.
+    last_presented: HashMap<u32, (wgpu::Texture, u64)>,
+    /// The surfaces let go of since `take_released`.
+    released: Vec<u32>,
     error: Option<String>,
+    /// The state of wasi:webgpu's objects beyond the tables above (webgpu.rs).
+    web: webgpu::Web,
+    looks: looks::Looks,
+    /// Surfaces presented since `take_presented` whose look draws what shows them.
+    looking: Vec<u32>,
 }
 
 type Outcome<T> = Result<T, String>;
 
-#[cfg(not(target_arch = "wasm32"))]
-type Compilation = Pin<Box<dyn Future<Output = wgpu::CompilationInfo> + Send>>;
-#[cfg(target_arch = "wasm32")]
-type Compilation = Pin<Box<dyn Future<Output = wgpu::CompilationInfo>>>;
-
 struct Surface {
     textures: Vec<(wgpu::Texture, u64)>,
+    /// The formats its textures may also be viewed as.
+    view_formats: Vec<wgpu::TextureFormat>,
+    /// How its configuration asks it to be shown, and, unless as it is, the textures each of
+    /// `textures` is drawn into at its present, which are what is shown (looks.rs).
+    look: looks::Look,
+    shown: Vec<looks::Shown>,
     drawn: usize,
     ages: Ages,
 }
@@ -108,31 +114,54 @@ impl Ages {
 }
 
 impl Surface {
+    /// The texture last presented, as it is shown.
     fn shown(&self) -> &(wgpu::Texture, u64) {
-        &self.textures[(self.drawn + 1) % self.textures.len()]
+        let last = (self.drawn + 1) % self.textures.len();
+        self.shown
+            .get(last)
+            .map_or(&self.textures[last], |shown| &shown.texture)
     }
+}
+
+/// Whether a gpu import only records into a render pass, compute pass or render bundle (set the
+/// pipeline, a viewport, a buffer, draw, dispatch, replay bundles with `execute-bundles`): a few
+/// nanoseconds of appending to a list, made thousands of times a frame. A host times every other
+/// gpu import for its "GPU calls" total and leaves these untimed, since reading the clock around
+/// each cost far more than the call (about 60 ns of 105 a call in be-wasm-host's
+/// example-gpu-calls); their time counts in the step's. Ending a pass and finishing a bundle are
+/// timed: that is where wgpu validates and encodes everything recorded.
+pub fn only_records(function: &str) -> bool {
+    [
+        "[method]gpu-render-pass-encoder.",
+        "[method]gpu-compute-pass-encoder.",
+        "[method]gpu-render-bundle-encoder.",
+    ]
+    .iter()
+    .find_map(|pass| function.strip_prefix(pass))
+    .is_some_and(|method| !matches!(method, "end" | "finish"))
+}
+
+/// Whether a gpu import submits work to the queue, which a host times apart.
+pub fn submits(function: &str) -> bool {
+    function == "[method]gpu-queue.submit"
 }
 
 impl Gpu {
     pub fn new(device: wgpu::Device, queue: wgpu::Queue) -> Self {
-        let limits = convert::limits(&device.limits());
         Self {
             device,
             queue,
-            limits,
             buffers: Table::new(),
             textures: Table::new(),
-            made_textures: HashSet::new(),
+            made_textures: HashSet::default(),
             views: Table::new(),
             samplers: Table::new(),
             group_layouts: Table::new(),
             groups: Table::new(),
             pipeline_layouts: Table::new(),
             modules: Table::new(),
-            compilations: HashMap::new(),
             pipelines: Table::new(),
             settling: Settling::new(),
-            destroyed: false,
             encoders: Table::new(),
             command_buffers: Table::new(),
             passes: Table::new(),
@@ -142,11 +171,15 @@ impl Gpu {
             coarsening: None,
             bundle_encoders: Table::new(),
             bundles: Table::new(),
-            surface_ids: Table::new(),
-            surfaces: HashMap::new(),
+            surfaces: HashMap::default(),
             imports: Imports::default(),
             presented: Vec::new(),
+            last_presented: HashMap::default(),
+            released: Vec::new(),
             error: None,
+            web: webgpu::Web::default(),
+            looks: looks::Looks::default(),
+            looking: Vec::new(),
         }
     }
 
@@ -178,10 +211,15 @@ impl Gpu {
     }
 
     pub fn attach_surface(&mut self, surface: u32, texture: wgpu::Texture) {
-        self.insert_surface(surface, vec![texture]);
+        self.insert_surface(surface, vec![texture], Vec::new());
     }
 
-    fn insert_surface(&mut self, surface: u32, textures: Vec<wgpu::Texture>) {
+    fn insert_surface(
+        &mut self,
+        surface: u32,
+        textures: Vec<wgpu::Texture>,
+        view_formats: Vec<wgpu::TextureFormat>,
+    ) {
         let textures: Vec<(wgpu::Texture, u64)> = textures
             .into_iter()
             .map(|texture| {
@@ -194,14 +232,75 @@ impl Gpu {
             surface,
             Surface {
                 textures,
+                view_formats,
+                look: looks::Look::default(),
+                shown: Vec::new(),
                 drawn: 0,
                 ages,
             },
         );
     }
 
+    /// Shows `surface` as `look` asks: as it is, or drawn at each present into textures of
+    /// its own, made here when its look or its textures changed.
+    fn look(&mut self, surface: u32, look: looks::Look) {
+        let Some(target) = self.surfaces.get_mut(&surface) else {
+            return;
+        };
+        let kept =
+            target.look == look && (look.plain() || target.shown.len() == target.textures.len());
+        if kept {
+            return;
+        }
+        target.look = look;
+        target.shown = match look.plain() {
+            true => Vec::new(),
+            false => target
+                .textures
+                .iter()
+                .map(|(canvas, _)| {
+                    let generation = GENERATIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    self.looks.shown(&self.device, canvas, generation)
+                })
+                .collect(),
+        };
+    }
+
+    /// Draws what every surface presented since the last call shows, when its look asks, in
+    /// one submit.
+    fn show_presented(&mut self) {
+        if self.looking.is_empty() {
+            return;
+        }
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("canvas looks"),
+            });
+        for surface in std::mem::take(&mut self.looking) {
+            let Some(target) = self.surfaces.get(&surface) else {
+                continue;
+            };
+            let last = (target.drawn + 1) % target.textures.len();
+            if let Some(shown) = target.shown.get(last) {
+                self.looks
+                    .show(&self.device, &mut encoder, target.look, shown);
+            }
+        }
+        self.queue.submit([encoder.finish()]);
+    }
+
     pub fn detach_surface(&mut self, surface: u32) {
-        self.surfaces.remove(&surface);
+        if self.surfaces.remove(&surface).is_some() {
+            self.presented.retain(|presented| *presented != surface);
+            self.last_presented.remove(&surface);
+            self.released.push(surface);
+        }
+    }
+
+    /// The surfaces let go of since the last call, by the app or the host, each once.
+    pub fn take_released(&mut self) -> Vec<u32> {
+        std::mem::take(&mut self.released)
     }
 
     pub fn surface(&self, surface: u32) -> Option<(&wgpu::Texture, u64)> {
@@ -209,7 +308,16 @@ impl Gpu {
         Some((texture, *generation))
     }
 
+    /// The texture `surface` showed when it was last presented, and its generation: a surface
+    /// configured afresh since (a new size) still shows it until it is presented again.
+    pub fn presented_surface(&self, surface: u32) -> Option<(&wgpu::Texture, u64)> {
+        let (texture, generation) = self.last_presented.get(&surface)?;
+        Some((texture, *generation))
+    }
+
+    /// The surfaces presented since the last call, each as it is now shown.
     pub fn take_presented(&mut self) -> Vec<u32> {
+        self.show_presented();
         std::mem::take(&mut self.presented)
     }
 
@@ -223,99 +331,8 @@ impl Gpu {
         }
     }
 
-    fn fail<T>(&mut self, result: Outcome<T>, fallback: T) -> T {
-        match result {
-            Ok(value) => value,
-            Err(message) => {
-                self.report(message);
-                fallback
-            }
-        }
-    }
-
     fn lost(&self) -> bool {
-        self.destroyed || self.settling.lost().is_some()
-    }
-
-    /// Why the app's device is lost: destroyed by the app, or lost by the host. None while it
-    /// is not.
-    pub fn lost_info(&self) -> Option<abi::DeviceLostInfo> {
-        if self.destroyed {
-            return Some(abi::DeviceLostInfo {
-                reason: abi::DeviceLostReason::Destroyed,
-                message: "the app destroyed its device".to_owned(),
-            });
-        }
-        self.settling.lost().map(|message| abi::DeviceLostInfo {
-            reason: abi::DeviceLostReason::Unknown,
-            message,
-        })
-    }
-
-    fn create<T>(
-        &mut self,
-        table: fn(&mut Self) -> &mut Table<T>,
-        act: impl FnOnce(&mut Self) -> Outcome<T>,
-    ) -> Option<u32> {
-        if self.destroyed {
-            return Some(table(self).skip());
-        }
-        let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
-        let created = act(self);
-        let caught = caught(scope.pop());
-        let result = match (created, caught) {
-            (Ok(_), Some(error)) | (Err(error), _) => {
-                table(self).skip();
-                Err(error)
-            }
-            (Ok(value), None) => Ok(table(self).insert(value)),
-        };
-        self.fail(result.map(Some), None)
-    }
-
-    fn guard(&mut self, act: impl FnOnce(&mut Self) -> Outcome<()>) {
-        let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
-        let result = act(self);
-        let result = match caught(scope.pop()) {
-            Some(error) => result.and(Err(error)),
-            None => result,
-        };
-        self.fail(result, ());
-    }
-
-    fn surface_id(&mut self, surface: abi::Surface) -> Option<u32> {
-        let found = self.surface_ids.get(surface.0, "surface").copied();
-        self.fail(found.map(Some), None)
-    }
-}
-
-fn texel_copy_texture(
-    texture: &wgpu::Texture,
-    info: abi::TexelCopyTextureInfo,
-) -> wgpu::TexelCopyTextureInfo<'_> {
-    wgpu::TexelCopyTextureInfo {
-        texture,
-        mip_level: info.mip_level,
-        origin: wgpu::Origin3d {
-            x: info.origin.x,
-            y: info.origin.y,
-            z: info.origin.z,
-        },
-        aspect: wgpu::TextureAspect::from(info.aspect),
-    }
-}
-
-fn texel_copy_buffer(
-    buffer: &wgpu::Buffer,
-    layout: abi::TexelCopyBufferLayout,
-) -> wgpu::TexelCopyBufferInfo<'_> {
-    wgpu::TexelCopyBufferInfo {
-        buffer,
-        layout: wgpu::TexelCopyBufferLayout {
-            offset: layout.offset,
-            bytes_per_row: layout.bytes_per_row,
-            rows_per_image: layout.rows_per_image,
-        },
+        self.settling.is_lost()
     }
 }
 
@@ -334,7 +351,27 @@ fn slice(buffer: &wgpu::Buffer, offset: u64, size: Option<u64>) -> Outcome<wgpu:
     }
 }
 
-fn caught(popped: impl Future<Output = Option<wgpu::Error>>) -> Option<String> {
+/// The slice a vertex buffer slot is set to, or `None` to unbind it, which takes no offset or
+/// size, as WebGPU's `setVertexBuffer(slot, null)` and wgpu-core say.
+fn vertex_slice(
+    buffer: Option<&wgpu::Buffer>,
+    slot: u32,
+    offset: u64,
+    size: Option<u64>,
+) -> Outcome<Option<wgpu::BufferSlice<'_>>> {
+    match (buffer, size) {
+        (Some(buffer), _) => slice(buffer, offset, size).map(Some),
+        (None, _) if offset != 0 => Err(format!(
+            "unbinding the vertex buffer at slot {slot} takes an offset of 0, not {offset}"
+        )),
+        (None, Some(size)) if size != 0 => Err(format!(
+            "unbinding the vertex buffer at slot {slot} takes no size, not {size}"
+        )),
+        (None, _) => Ok(None),
+    }
+}
+
+pub(crate) fn caught(popped: impl Future<Output = Option<wgpu::Error>>) -> Option<String> {
     match pin!(popped).poll(&mut Context::from_waker(Waker::noop())) {
         Poll::Ready(error) => error.map(|error| error.to_string()),
         Poll::Pending => None,

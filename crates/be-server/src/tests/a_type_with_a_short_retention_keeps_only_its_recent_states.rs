@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block_commit::retention::{DAY, MINUTE};
+use be_block_commit::{DAY, MINUTE};
 use be_block_graph::SEARCH_INDEX_TYPE;
 
 /// Publishes a commit at each age, oldest first, and answers them in that order.
@@ -29,8 +29,8 @@ async fn publish_aged(
 #[tokio::test]
 async fn a_type_with_a_short_retention_keeps_only_its_recent_states() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("indexer@example.com").await;
+    let mut client = harness.member("indexer@example.com").await;
+    let account = client.id();
     client.organization("notes").await;
     let author = Author::new(account);
     let workspace = client.create_block(BlockParent::Root).await;

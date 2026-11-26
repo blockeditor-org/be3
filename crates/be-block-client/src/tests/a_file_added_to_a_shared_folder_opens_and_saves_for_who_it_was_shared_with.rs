@@ -14,7 +14,7 @@ async fn a_file_added_to_a_shared_folder_opens_and_saves_for_who_it_was_shared_w
         .create::<FolderContent>(BlockParent::Block(mine))
         .await
         .unwrap();
-    let public = owner.keys().contact(guest.account()).unwrap();
+    let public = owner.verified_identity(guest.account()).unwrap();
     owner
         .share(folder, guest.account(), Access::Edit, &public)
         .await

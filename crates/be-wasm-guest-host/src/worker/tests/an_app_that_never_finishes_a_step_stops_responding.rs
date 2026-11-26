@@ -30,6 +30,7 @@ fn produced() -> Produced<std::convert::Infallible> {
     Produced {
         outbound: Vec::new(),
         presented: Vec::new(),
+        released: Vec::new(),
         painted: false,
         took: StepTime::default(),
     }

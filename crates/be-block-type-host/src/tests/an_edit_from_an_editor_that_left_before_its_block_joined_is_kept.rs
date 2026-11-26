@@ -39,7 +39,8 @@ fn an_edit_from_an_editor_that_left_before_its_block_joined_is_kept() {
         .expect("the block is kept here");
         replicas
             .open((&peer, &shared), block, TextContent::CONTENT_TYPE, true)
-            .await;
+            .await
+            .expect("the block opens");
         replicas.pump((&peer, &shared)).await;
         assert!(!replicas.joining());
 
@@ -58,7 +59,11 @@ fn an_edit_from_an_editor_that_left_before_its_block_joined_is_kept() {
         replicas.relay_from_editor(
             block,
             editor,
-            FromEditor::Operate(TextContent::encode_operation(&typed)).encode(),
+            FromEditor::Operate {
+                gesture: None,
+                operation: TextContent::encode_operation(&typed),
+            }
+            .encode(),
             Instant::now(),
         );
         // It leaves before the replica has said what it journaled.

@@ -1,4 +1,4 @@
-use beui_types::{Direction, Pos2};
+use be_lib_geometry::{Direction, Pos2};
 
 use super::joined::joined_host;
 
@@ -118,15 +118,53 @@ impl DockBarPlacement {
     }
 }
 
+/// A tab whose pane shows a bar: `tab`, of the dock reached from this one through the hosting
+/// tabs `via`, outermost first (each a tab of the dock the one before it hosts); with no `via`, a
+/// tab of this dock. A saved layout names a pane of a dock joined below its own this way, since
+/// it keeps none of that dock's tabs; a live dock holds `via` only until the dock it names joins.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct DockBarPane {
+    pub via: Vec<TabId>,
+    pub tab: TabId,
+}
+
+impl DockBarPane {
+    pub fn own(tab: TabId) -> Self {
+        Self {
+            via: Vec::new(),
+            tab,
+        }
+    }
+
+    /// This tab of this dock: `None` while `via` still names a dock to reach it through.
+    pub fn resolved(&self) -> Option<TabId> {
+        self.via.is_empty().then_some(self.tab)
+    }
+
+    /// The same pane in the ids of the dock `tab` maps into: its first step (`via`'s first
+    /// tab, else `tab`) mapped, the rest kept, as they name tabs of docks below.
+    pub fn mapped(&self, tab: &dyn Fn(TabId) -> Option<TabId>) -> Option<Self> {
+        let mut mapped = self.clone();
+        match mapped.via.first_mut() {
+            Some(first) => *first = tab(*first)?,
+            None => mapped.tab = tab(mapped.tab)?,
+        }
+        Some(mapped)
+    }
+}
+
 /// `pane` is a tab of the joined dock its owner hosts: the bar shows on the pane that holds that
-/// tab, else on the joined dock's first pane.
+/// tab, else on the joined dock's first pane. `slot` is where a saved layout had the bar among
+/// its pane's bars, counting every layer's: a restore puts the bars of layers saved apart back
+/// in that order, whichever layer comes back first.
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct Bar {
     pub(super) bar: TabId,
     pub(super) owner: Option<TabId>,
     pub(super) placement: DockBarPlacement,
     pub(super) hidden: bool,
-    pub(super) pane: Option<TabId>,
+    pub(super) pane: Option<DockBarPane>,
+    pub(super) slot: Option<usize>,
 }
 
 impl DockState {
@@ -180,6 +218,7 @@ impl DockState {
                     placement,
                     hidden: false,
                     pane: None,
+                    slot: None,
                 };
                 let at = self.layer_place(&added);
                 self.bars.insert(at, added);
@@ -300,8 +339,8 @@ impl DockState {
     /// are shown by `staying`, a tab still in that pane.
     pub(super) fn repoint_bars(&mut self, left: TabId, staying: TabId) {
         for held in &mut self.bars {
-            if held.pane == Some(left) {
-                held.pane = Some(staying);
+            if held.pane.as_ref().and_then(DockBarPane::resolved) == Some(left) {
+                held.pane = Some(DockBarPane::own(staying));
             }
         }
     }
@@ -341,7 +380,10 @@ impl DockState {
         let mut moved = self.bars.remove(from);
         moved.placement = placement;
         if let (Some(pane), Some(owner)) = (pane, moved.owner) {
-            moved.pane = self.pane_under(owner, pane).is_some().then_some(pane);
+            moved.pane = self
+                .pane_under(owner, pane)
+                .is_some()
+                .then(|| DockBarPane::own(pane));
         }
         let pane = |held: &Bar| self.bar_pane(held).map(|(tab, _)| tab);
         let tab = pane(&moved);
@@ -362,6 +404,74 @@ impl DockState {
             (None, None) => from.min(self.bars.len()),
         };
         self.bars.insert(at, moved);
+        self.number_bar_slots();
+    }
+
+    /// Where each bar is among its pane's bars (`Bar::slot`), counting every layer's bars: the
+    /// outermost dock, which holds them all, numbers them as a bar moves, and the joined docks'
+    /// states and snapshots carry its numbers.
+    fn number_bar_slots(&mut self) {
+        let shown: Vec<Option<TabId>> = self.bars.iter().map(|held| self.slot_pane(held)).collect();
+        for (at, held) in self.bars.iter_mut().enumerate() {
+            held.slot = shown[at].map(|tab| {
+                shown[..at]
+                    .iter()
+                    .filter(|other| **other == Some(tab))
+                    .count()
+            });
+        }
+    }
+
+    /// The tab whose pane a bar counts on for its slot: where it shows, or, for a joined dock's
+    /// own bar placed on one of its panes, that pane.
+    fn slot_pane(&self, held: &Bar) -> Option<TabId> {
+        if held.owner.is_some() {
+            return self.bar_pane(held).map(|(tab, _)| tab);
+        }
+        let pane = held.pane.as_ref()?.resolved()?;
+        self.leaf_pane(self.find(pane)?.leaf, 0).map(|(tab, _)| tab)
+    }
+
+    /// Puts a bar that came with a saved slot among its pane's bars by slot: before the first
+    /// with a later one, else after the last with an earlier one. A pane's bars are those
+    /// `number_bar_slots` counted on it (`slot_pane`). With no slot, or none of the
+    /// pane's others with one, it stays where it is, or goes where a new bar would.
+    pub fn place_by_slot(&mut self, bar: TabId) {
+        let Some(from) = self.bars.iter().position(|held| held.bar == bar) else {
+            return;
+        };
+        let Some(slot) = self.bars[from].slot else {
+            return;
+        };
+        let moved = self.bars.remove(from);
+        let tab = self.slot_pane(&moved);
+        let slotted: Vec<(usize, usize)> = self
+            .bars
+            .iter()
+            .enumerate()
+            .filter(|(_, held)| tab.is_some() && self.slot_pane(held) == tab)
+            .filter_map(|(at, held)| Some((at, held.slot?)))
+            .collect();
+        let at = match (
+            slotted.iter().find(|(_, other)| *other > slot),
+            slotted.iter().rev().find(|(_, other)| *other <= slot),
+        ) {
+            (Some((at, _)), _) => *at,
+            (None, Some((at, _))) => at + 1,
+            (None, None) => from,
+        };
+        self.bars.insert(at, moved);
+    }
+
+    /// The tab a bar is placed on, as `place_bar_on` or a restore placed it.
+    pub fn bar_pane_tab(&self, bar: TabId) -> Option<&DockBarPane> {
+        self.bar(bar)?.pane.as_ref()
+    }
+
+    pub fn set_bar_pane_tab(&mut self, bar: TabId, pane: Option<DockBarPane>) {
+        if let Some(held) = self.bars.iter_mut().find(|held| held.bar == bar) {
+            held.pane = pane;
+        }
     }
 
     pub fn bar_slot(&self, bar: TabId) -> usize {
@@ -447,6 +557,8 @@ impl DockState {
     fn bar_pane(&self, held: &Bar) -> Option<(TabId, usize)> {
         let owner = held.owner?;
         held.pane
+            .as_ref()
+            .and_then(DockBarPane::resolved)
             .and_then(|pane| self.pane_under(owner, pane))
             .or_else(|| self.owner_pane(owner))
     }

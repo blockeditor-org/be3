@@ -16,6 +16,22 @@ pub struct Metadata {
     /// app's (guides/terminal.md) must be of the same build. Empty in other builds.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub terminal_hosts: Vec<TerminalHostBinary>,
+    /// Where a deployed build's apps are and the SHA-256 of the list of their hashes, which
+    /// `./scripts/deploy` writes beside every executable it ships, `be`'s too: `be` downloads
+    /// the app whose host component it runs from there and trusts what this names, as be-host
+    /// trusts the apps it ships with (guides/apps/runtime.md, "Headless"). None in other builds,
+    /// which read the apps staged beside them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub apps: Option<ReleaseApps>,
+}
+
+/// A deployed build's apps: the URL of the directory they are staged in (the web bundle's,
+/// without a trailing slash) and the SHA-256 in lower-case hex of its `app-hashes.json`, which
+/// lists every file's.
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+pub struct ReleaseApps {
+    pub url: String,
+    pub sha256: String,
 }
 
 /// A deployed `be` for one architecture: `x86_64` or `arm64`, its URL and its SHA-256 in
@@ -53,7 +69,7 @@ impl Metadata {
     }
 
     /// This metadata as the `build-info.json` of a `be` of the same build: what names the
-    /// build, without the deployment's own `be`s.
+    /// build and its apps, without the deployment's own `be`s.
     pub fn for_be(&self) -> String {
         let mut metadata = self.clone();
         metadata.terminal_hosts.clear();
@@ -89,6 +105,7 @@ pub fn install(id: &str) {
         program_id: "be-host-dev".to_owned(),
         default_server: None,
         terminal_hosts: Vec::new(),
+        apps: None,
     }));
 }
 

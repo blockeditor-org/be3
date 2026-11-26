@@ -38,9 +38,7 @@ fn a_line_is_bound_while_it_is_drawn_onto_a_shape() {
     let at = |x: f32, y: f32| -> Pos2 { origin + Vec2::new(x, y) * scale };
 
     editor.click("infinite-canvas.dock.tool.Arrow");
-    editor.run();
     editor.down(at(-150.0, 0.0), PointerButton::Primary);
-    editor.run();
     editor.step(vec![Input::PointerMoved(at(0.0, 0.0))]);
     assert_eq!(
         bound_to(&line_of(&editor)),
@@ -63,7 +61,6 @@ fn a_line_is_bound_while_it_is_drawn_onto_a_shape() {
     editor.snapshot("a_line_is_bound_while_it_is_drawn_onto_a_shape");
 
     editor.up(at(160.0, 10.0), PointerButton::Primary);
-    editor.run();
     let landed = line_of(&editor);
     assert_eq!(
         (bound_to(&landed), path_ends(&landed)),
@@ -72,7 +69,6 @@ fn a_line_is_bound_while_it_is_drawn_onto_a_shape() {
     );
 
     editor.down(at(head.x, head.y), PointerButton::Primary);
-    editor.run();
     editor.step(vec![Input::PointerMoved(at(140.0, 150.0))]);
     editor.run();
     let dragging = line_of(&editor);
@@ -89,7 +85,6 @@ fn a_line_is_bound_while_it_is_drawn_onto_a_shape() {
         "the dragged head stops short of the ellipse, got {moved:?}"
     );
     editor.up(at(140.0, 150.0), PointerButton::Primary);
-    editor.run();
     assert_eq!(
         path_ends(&line_of(&editor)),
         path_ends(&dragging),

@@ -17,7 +17,7 @@ fn an_escaped_overlay_under_a_moved_opener_is_described_where_it_is_shown() {
                     <Frame @test_id="opener" width=50.0 height=20.0>
                         <Overlay
                             anchor=OverlayAnchor::Point(pos2(40.0, 70.0))
-                            placement=Placement::BelowStart
+                            placement=Placement::BELOW_START
                             open=true
                         >
                             <Frame @test_id="escaped" width=40.0 height=30.0 />

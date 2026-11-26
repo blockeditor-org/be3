@@ -16,7 +16,7 @@ fn an_unchanged_container_is_not_walked_again_for_accessibility_but_a_moved_one_
             let inner = document.create_list(Direction::Vertical, 0.0);
             document.append_child(inner, label.id(), ItemSize::Intrinsic);
             let group = document.create_frame();
-            document.set_frame_child(group, inner.id());
+            document.set_frame_child(group, Some(inner.id()));
             document.append_child(list, group.id(), ItemSize::Intrinsic);
             label
         })

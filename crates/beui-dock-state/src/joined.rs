@@ -1,13 +1,15 @@
 use be_lib_stable_hash::{HashMap, HashSet};
 
-use beui_types::Rect;
+use be_lib_geometry::Rect;
 
 use super::{
-    Bar, DockCompact, DockHome, DockSpecNode, DockState, DockVisit, Entry, Group, GroupId, Home,
-    LeafId, Node, Split, SplitId, TabId, Tree,
+    Bar, DockBarPane, DockCompact, DockHome, DockSpecNode, DockState, DockVisit, Entry, Group,
+    GroupId, Home, LeafId, Node, Split, SplitId, TabId, Tree,
 };
 
 const JOINED: &str = "joined:";
+/// How many joined groups `standing_in` follows outwards, as nesting is bounded.
+const MAX_STANDING_DEPTH: usize = 16;
 
 pub fn joined_key(host: TabId) -> String {
     format!("{JOINED}{}", host.value())
@@ -38,6 +40,17 @@ pub struct DockMapping<'a> {
     pub tab: &'a dyn Fn(TabId) -> Option<TabId>,
     pub key: &'a dyn Fn(&str) -> Option<String>,
     pub group: &'a dyn Fn(&str) -> Option<TabId>,
+    /// Maps the pane a bar shows on (`DockBarPane`); `None` maps its first step with `tab`.
+    pub pane: Option<&'a dyn Fn(&DockBarPane) -> Option<DockBarPane>>,
+}
+
+impl DockMapping<'_> {
+    fn pane(&self, pane: &DockBarPane) -> Option<DockBarPane> {
+        match self.pane {
+            Some(map) => map(pane),
+            None => pane.mapped(self.tab),
+        }
+    }
 }
 
 #[derive(Default)]
@@ -252,6 +265,60 @@ impl DockState {
             .map(|group| group.id)
     }
 
+    /// The tab `tab` stands in for: itself, or, while it shows in the bare stage of a joined group
+    /// (`joined_stage`), the tab that group took the place of, followed outwards. What a stacked
+    /// dock names and counts, so a document reads as itself, not as its editor's stage.
+    pub fn standing_in(&self, tab: TabId) -> TabId {
+        let mut standing = tab;
+        let mut entry = Entry::Tab(tab);
+        for _ in 0..MAX_STANDING_DEPTH {
+            let Some((leaf, _)) = self.locate(entry) else {
+                break;
+            };
+            let Some((group, host)) = self.joined_stage(leaf) else {
+                break;
+            };
+            // The host tab gave way to the group, so the group is what stands in the dock
+            // around it: go on outwards from where the group is.
+            standing = host;
+            entry = Entry::Group(group);
+        }
+        standing
+    }
+
+    /// The pane whose tabs `leaf`'s tab commands (next, previous) walk: itself, or, while it is the
+    /// bare stage of a joined group (`joined_stage`), the pane that group sits in as the tab it took
+    /// the place of, followed outwards. So with a joined editor's stage focused, the keys walk the
+    /// documents beside it, not the stage's one tab.
+    pub fn standing_leaf(&self, leaf: LeafId) -> LeafId {
+        let mut standing = leaf;
+        for _ in 0..MAX_STANDING_DEPTH {
+            let Some((outer, _)) = self
+                .joined_stage(standing)
+                .and_then(|(group, _)| self.locate(Entry::Group(group)))
+            else {
+                break;
+            };
+            standing = outer;
+        }
+        standing
+    }
+
+    /// The joined group `leaf` is the bare stage of, and the tab the group took the place of: its
+    /// only bare pane, or the bare pane beside its side panes (`stage_of`).
+    fn joined_stage(&self, leaf: LeafId) -> Option<(GroupId, TabId)> {
+        let Some(Tree::Group(group)) = self.tree_of(leaf) else {
+            return None;
+        };
+        let host = joined_host(self.group(group)?.key.as_deref()?)?;
+        let tree = Tree::Group(group);
+        let stage = match self.tree_leaves(tree)[..] {
+            [only] => self.is_bare(only).then_some(only),
+            _ => self.stage_of(tree),
+        };
+        (stage == Some(leaf)).then_some((group, host))
+    }
+
     /// A group of one bare pane stands for its hosting tab: its tab wears the host's title, icon and
     /// close, and the host's home holds it.
     pub fn stands_for(&self, group: GroupId) -> Option<TabId> {
@@ -336,7 +403,8 @@ impl DockState {
                     owner,
                     placement: bar.placement,
                     hidden: bar.hidden,
-                    pane: bar.pane.and_then(|pane| (map.tab)(pane)),
+                    pane: bar.pane.as_ref().and_then(|pane| map.pane(pane)),
+                    slot: bar.slot,
                 })
             })
             .collect();
@@ -476,7 +544,13 @@ impl DockState {
             self.set_bar_placement(moved, bar.placement);
             self.set_bar_hidden(moved, bar.hidden);
             if let Some(held) = self.bars.iter_mut().find(|held| held.bar == moved) {
-                held.pane = bar.pane.and_then(|pane| (map.tab)(pane));
+                held.pane = bar.pane.as_ref().and_then(|pane| map.pane(pane));
+                held.slot = bar.slot;
+            }
+        }
+        for bar in &from.bars {
+            if let Some(moved) = (map.tab)(bar.bar) {
+                self.place_by_slot(moved);
             }
         }
         let unlocked: Vec<DockHome> = from

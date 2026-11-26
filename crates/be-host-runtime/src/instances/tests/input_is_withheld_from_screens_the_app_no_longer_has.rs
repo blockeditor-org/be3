@@ -6,7 +6,7 @@ fn input_is_withheld_from_screens_the_app_no_longer_has() {
     let mut instances = placed();
     let screens = instances.next_screens(PASS).screens;
     assert_eq!(screens.len(), 1);
-    instances.screen_set(screens);
+    instances.announce(screens);
 
     let (messages, _) = instances.forward(
         INSTANCE,
@@ -19,7 +19,7 @@ fn input_is_withheld_from_screens_the_app_no_longer_has() {
     let messages = instances.back(INSTANCE, REGION, beui::BackGesture::Invoked);
     assert_eq!(input_events(&messages), [Input::Back(BackGesture::Invoked)]);
 
-    instances.screen_set(Vec::new());
+    instances.announce(Vec::new());
 
     let (messages, _) = instances.forward(
         INSTANCE,

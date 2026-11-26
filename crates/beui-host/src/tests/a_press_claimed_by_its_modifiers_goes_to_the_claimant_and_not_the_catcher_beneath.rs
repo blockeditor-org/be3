@@ -4,7 +4,7 @@ use crate::primitives::*;
 use crate::reactive::*;
 use crate::{Claim, HitRegion};
 
-fn presses(log: ReadSignal<Vec<Event>>) -> usize {
+fn presses(log: impl Get<Vec<Event>>) -> usize {
     log.with_untracked(|log| {
         log.iter()
             .filter(|event| matches!(event, Event::PointerButton { .. }))
@@ -49,20 +49,20 @@ fn a_press_claimed_by_its_modifiers_goes_to_the_claimant_and_not_the_catcher_ben
 
     harness.click(hole);
     assert_eq!(
-        presses(child.read_only()),
+        presses(child),
         2,
         "a plain click in the hole is the child's"
     );
-    assert_eq!(presses(parent.read_only()), 0);
+    assert_eq!(presses(parent), 0);
 
     drag_with(&mut harness, hole, pos2(70.0, 90.0), Modifiers::LOGO);
     assert_eq!(
-        presses(child.read_only()),
+        presses(child),
         2,
         "the child hears nothing of a press the parent claimed"
     );
     assert_eq!(
-        presses(parent.read_only()),
+        presses(parent),
         2,
         "the parent hears the press it claimed and its release"
     );

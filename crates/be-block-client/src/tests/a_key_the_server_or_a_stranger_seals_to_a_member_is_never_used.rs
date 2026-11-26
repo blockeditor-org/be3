@@ -52,7 +52,7 @@ async fn a_key_the_server_or_a_stranger_seals_to_a_member_is_never_used() {
     let stranger = harness.member(&owner, "stranger@example.com").await;
     let organization = owner.organization();
     let team = workspace(&owner, "Team").await;
-    let public = owner.keys().contact(victim.account()).unwrap();
+    let public = owner.verified_identity(victim.account()).unwrap();
     owner
         .share(team, victim.account(), Access::Edit, &public)
         .await
@@ -68,7 +68,21 @@ async fn a_key_the_server_or_a_stranger_seals_to_a_member_is_never_used() {
         5,
         victim.account(),
         owner.account(),
-        |_| victim_public.seal_anonymous(&known_to_the_server),
+        // Sealed as from the owner by a key the server made up.
+        |key| {
+            be_block_keys::RecoveryPhrase::generate()
+                .secret()
+                .seal_for(
+                    owner.account().into_bytes(),
+                    &Party {
+                        account: victim.account().into_bytes(),
+                        public: victim_public,
+                    },
+                    key.as_bytes(),
+                    &known_to_the_server,
+                )
+                .unwrap()
+        },
     );
     let from_a_stranger = inject(
         &harness,
@@ -78,15 +92,19 @@ async fn a_key_the_server_or_a_stranger_seals_to_a_member_is_never_used() {
         victim.account(),
         stranger.account(),
         |key| {
-            stranger.keys().identity().seal_for(
-                stranger.account().into_bytes(),
-                &Party {
-                    account: victim.account().into_bytes(),
-                    public: victim_public,
-                },
-                key.as_bytes(),
-                &known_to_the_server,
-            )
+            stranger
+                .keys()
+                .identity()
+                .seal_for(
+                    stranger.account().into_bytes(),
+                    &Party {
+                        account: victim.account().into_bytes(),
+                        public: victim_public,
+                    },
+                    key.as_bytes(),
+                    &known_to_the_server,
+                )
+                .unwrap()
         },
     );
 

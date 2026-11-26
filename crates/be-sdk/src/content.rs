@@ -15,6 +15,15 @@ type Run<C> = dyn Fn(&C, &[Touched]);
 
 pub use be_sdk_type_guest::editor::Projected;
 
+/// A gesture an editor holds open in a block's content: an undo group
+/// (`LiveContent::begin_gesture`), whose edits are written as they happen and undo as one step,
+/// or a tentative gesture (`LiveContent::begin_tentative`), whose edits are shown at once on
+/// this device but held from peers and the journal until it commits
+/// (decisions/tentative_edits_wait_for_release.md). An editor may hold several at once, each
+/// ending on its own.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct ContentGesture(u64);
+
 struct Projection<C: LiveEdit> {
     host: EditorHost,
     block: Option<uuid::Uuid>,
@@ -27,8 +36,13 @@ struct Projection<C: LiveEdit> {
     lacking_revision: Cell<u64>,
     lacking_followed: Cell<bool>,
     lacking_changes: Callbacks<(), dyn Fn()>,
-    due: RefCell<Option<Rc<dyn Fn()>>>,
+    ended: Callbacks<(), dyn Fn(ContentGesture)>,
+    /// Asks each editor's cache holding the projection to pump it (`on_due`), each answering
+    /// whether it still holds it: those that do not are let go.
+    due: RefCell<Vec<Rc<dyn Fn() -> bool>>>,
     reads: RefCell<HashMap<u64, Box<Read>>>,
+    /// Asked for as another content type than its block is held as (`refused`).
+    refused: Cell<bool>,
 }
 
 type Read = dyn FnOnce(Result<Vec<u8>, String>);
@@ -36,6 +50,9 @@ type Read = dyn FnOnce(Result<Vec<u8>, String>);
 impl<C: LiveEdit> Drop for Projection<C> {
     fn drop(&mut self) {
         self.host.unfollow(self.block);
+        if let Some(block) = self.block {
+            self.host.forget_projection(block);
+        }
     }
 }
 
@@ -55,8 +72,23 @@ impl<C: LiveEdit> PartialEq for LiveContent<C> {
 
 impl<C: LiveEdit> Eq for LiveContent<C> {}
 
+impl<C: LiveEdit + 'static> LiveContent<C> {
+    /// The projection, held weakly whatever its content type (`EditorHost::projection`).
+    pub(crate) fn hold(&self) -> std::rc::Weak<dyn std::any::Any> {
+        let any: Rc<dyn std::any::Any> = self.0.clone();
+        Rc::downgrade(&any)
+    }
+
+    /// The projection `held` holds weakly, while it is alive: none if gone, or `Err` if it is
+    /// of another content type.
+    pub(crate) fn upgrade(held: &std::rc::Weak<dyn std::any::Any>) -> Option<Result<Self, ()>> {
+        let any = held.upgrade()?;
+        Some(any.downcast::<Projection<C>>().map(Self).map_err(|_| ()))
+    }
+}
+
 impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
-    pub fn new(host: EditorHost, block: Option<uuid::Uuid>) -> Self {
+    pub(crate) fn new(host: EditorHost, block: Option<uuid::Uuid>) -> Self {
         host.follow(block);
         Self(Rc::new(Projection {
             host,
@@ -70,8 +102,10 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
             lacking_revision: Cell::new(0),
             lacking_followed: Cell::new(false),
             lacking_changes: Callbacks::default(),
-            due: RefCell::new(None),
+            ended: Callbacks::default(),
+            due: RefCell::new(Vec::new()),
             reads: RefCell::new(HashMap::default()),
+            refused: Cell::new(false),
         }))
     }
 
@@ -101,16 +135,44 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
     }
 
     pub fn on_due(&self, due: impl Fn() + 'static) {
-        *self.0.due.borrow_mut() = Some(Rc::new(due));
+        self.on_due_while(move || {
+            due();
+            true
+        });
+    }
+
+    /// As `on_due`, for as long as `due` answers true.
+    pub(crate) fn on_due_while(&self, due: impl Fn() -> bool + 'static) {
+        self.0.due.borrow_mut().push(Rc::new(due));
+    }
+
+    /// Whether this was refused as another content type than its block is held as.
+    pub(crate) fn is_refused(&self) -> bool {
+        self.0.refused.get()
+    }
+
+    /// A projection of `block` that never loads, failing with `reason`, on a host of its own:
+    /// it takes none of the block's updates and sends nothing.
+    pub(crate) fn refused(block: Option<uuid::Uuid>, reason: String) -> Self {
+        let live = Self::new(EditorHost::default(), block);
+        live.0.refused.set(true);
+        let _ = live
+            .0
+            .mirror
+            .borrow_mut()
+            .receive(be_sdk_type_guest::editor::ToEditor::Failed(reason));
+        live
     }
 
     pub fn ready(&self) -> Result<(), Unready> {
         self.adopt_lazily();
-        let told = self.0.told.get() || self.0.due.borrow().is_none();
+        let told = self.0.told.get() || self.0.due.borrow().is_empty();
         if self.loaded() && told {
-            Ok(())
-        } else {
-            Err(Unready::Loading)
+            return Ok(());
+        }
+        match self.0.mirror.borrow().failure() {
+            Some(reason) if !self.loaded() => Err(Unready::Failed(reason.to_owned())),
+            _ => Err(Unready::Loading),
         }
     }
 
@@ -181,56 +243,199 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
     }
 
     /// Reads a range of the block's stored form as its replica holds it, including what it
-    /// has not saved; `done` runs once the replica answers. A type that loads only its first
-    /// part reads the rest this way.
+    /// has not saved: the future ends once the replica answers. The request is sent at once,
+    /// whether or not the future is awaited. A type that loads only its first part reads the
+    /// rest this way.
     pub fn read_range(
         &self,
         offset: u64,
         length: u64,
-        done: impl FnOnce(Result<Vec<u8>, String>) + 'static,
-    ) {
+    ) -> impl std::future::Future<Output = Result<Vec<u8>, String>> + use<C> {
         let (token, message) = self.0.mirror.borrow_mut().read_range(offset, length);
-        self.0.reads.borrow_mut().insert(token, Box::new(done));
+        // One read's answer and waker, shared only between this future and the reply handler just
+        // below.
+        #[allow(clippy::type_complexity)]
+        let answer: Rc<
+            RefCell<(Option<Result<Vec<u8>, String>>, Option<std::task::Waker>)>,
+        > = Rc::default();
+        let answered = Rc::clone(&answer);
+        self.0.reads.borrow_mut().insert(
+            token,
+            Box::new(move |read| {
+                let mut answered = answered.borrow_mut();
+                answered.0 = Some(read);
+                if let Some(waker) = answered.1.take() {
+                    waker.wake();
+                }
+            }),
+        );
+        self.0.host.send_to_replica(self.0.block, message);
+        std::future::poll_fn(move |context| {
+            let mut answer = answer.borrow_mut();
+            match answer.0.take() {
+                Some(read) => std::task::Poll::Ready(read),
+                None => {
+                    answer.1 = Some(context.waker().clone());
+                    std::task::Poll::Pending
+                }
+            }
+        })
+    }
+
+    /// Appends `bytes` to the block's signed log (a type with a log): the host signs them as
+    /// this app's, for the person. Where it went is taken with `take_appended` under the token
+    /// this answers; the entry joins `with_log` as it reaches the log, which moves the
+    /// revision. What goes `along` with it is done once the server takes it.
+    pub fn append(&self, bytes: Vec<u8>, along: be_block_content::Along) -> u64 {
+        let (token, message) = self.0.mirror.borrow_mut().append(bytes, along);
+        self.0.host.send_to_replica(self.0.block, message);
+        token
+    }
+
+    /// Where the entries `append` asked for went, by token, since this was last asked: their
+    /// place and arrival, none while one waits on the device, or why it was refused.
+    pub fn take_appended(&self) -> Vec<(u64, Result<be_block_content::LogAppended, String>)> {
+        self.0.mirror.borrow_mut().take_appended()
+    }
+
+    /// Asks for at most `limit` entries of the block's signed log from `from`, which join `log`
+    /// as they arrive.
+    pub fn read_log(&self, from: u64, limit: u32) {
+        let (_, message) = self.0.mirror.borrow_mut().read_log(from, limit);
         self.0.host.send_to_replica(self.0.block, message);
     }
 
+    /// Reads the entries of the block's signed log this editor holds, in the log's order, each
+    /// id once at its first place: the latest it heard or read, up to `editor::LOG_HELD`, and
+    /// every one from where it paged back to.
+    pub fn with_log<R>(
+        &self,
+        read: impl FnOnce(&mut dyn Iterator<Item = &be_block_content::LogItem>) -> R,
+    ) -> R {
+        read(&mut self.0.mirror.borrow().log())
+    }
+
+    /// The log's length as this editor last heard it.
+    pub fn log_size(&self) -> u64 {
+        self.0.mirror.borrow().log_size()
+    }
+
+    /// Reads the entries this device appended that the server has not taken yet, in order:
+    /// each id and the bytes the app appended (`EditorMirror::kept`).
+    pub fn with_kept<R>(
+        &self,
+        read: impl FnOnce(&mut dyn Iterator<Item = (uuid::Uuid, &[u8])>) -> R,
+    ) -> R {
+        read(&mut self.0.mirror.borrow().kept())
+    }
+
+    /// Reads the entries not appended, by the token of the `append`: the bytes and why
+    /// (`EditorMirror::refused`). Those the server refused the device keeps until dismissed, so
+    /// they are here again when the editor opens again.
+    pub fn with_refused<R>(
+        &self,
+        read: impl FnOnce(&mut dyn Iterator<Item = (u64, &[u8], &str)>) -> R,
+    ) -> R {
+        read(&mut self.0.mirror.borrow().refused())
+    }
+
+    /// Lets go of a refused entry, here and on the device: sent again as a new one, or given
+    /// up.
+    pub fn dismiss_refused(&self, token: u64) {
+        let let_go = self.0.mirror.borrow_mut().dismiss_refused(token);
+        if let Some(message) = let_go {
+            self.0.host.send_to_replica(self.0.block, message);
+        }
+        self.announce();
+    }
+
+    /// Makes an edit outside any gesture.
     pub fn operate(&self, operation: C::Op) {
         if !self.0.host.editable() || !self.loaded() {
             return;
         }
-        self.operate_anyway(operation);
+        self.send_operation(None, operation);
     }
 
-    fn gesture(&self, gesture: Gesture) {
-        if self.0.host.editable() && self.loaded() {
-            self.0
-                .host
-                .send_to_replica(self.0.block, FromEditor::Gesture(gesture));
+    /// Makes an edit in the open gesture `gesture`. One in a gesture the replica ended
+    /// (`on_gesture_ended`) is dropped.
+    pub fn operate_in(&self, gesture: ContentGesture, operation: C::Op) {
+        if !self.0.host.editable() || !self.loaded() {
+            return;
+        }
+        self.send_operation(Some(gesture.0), operation);
+    }
+
+    fn gesture(&self, id: u64, gesture: Gesture) {
+        if !self.0.host.editable() || !self.loaded() {
+            return;
+        }
+        let message = self.0.mirror.borrow_mut().gesture(id, gesture);
+        if let Some(message) = message {
+            self.0.host.send_to_replica(self.0.block, message);
         }
     }
 
-    pub fn begin_gesture(&self) {
-        self.gesture(Gesture::Begin);
+    fn begin(&self, gesture: Gesture) -> ContentGesture {
+        let id = self.0.host.next_gesture();
+        self.gesture(id, gesture);
+        ContentGesture(id)
     }
 
-    pub fn commit_gesture(&self) {
-        self.gesture(Gesture::Commit);
+    /// Opens an undo group: the edits made in it (`operate_in`) are written as they happen
+    /// and undo as one step.
+    pub fn begin_gesture(&self) -> ContentGesture {
+        self.begin(Gesture::Begin)
+    }
+
+    /// Opens a tentative gesture: the edits made in it (`operate_in`) show at once in every
+    /// view of the block on this device, but are sent and saved only when it commits.
+    /// Cancelling it, the editor closing or a crash leaves no trace of them. Its edits only
+    /// move or change what exists; anything it creates is created on commit.
+    pub fn begin_tentative(&self) -> ContentGesture {
+        self.begin(Gesture::BeginTentative)
+    }
+
+    /// Ends `gesture`, keeping its edits.
+    pub fn commit_gesture(&self, gesture: ContentGesture) {
+        self.gesture(gesture.0, Gesture::Commit);
+    }
+
+    /// Puts back what `gesture` wrote and leaves no history. When the instance closes, the
+    /// host commits the undo groups still open and cancels the tentative gestures.
+    pub fn cancel_gesture(&self, gesture: ContentGesture) {
+        self.gesture(gesture.0, Gesture::Cancel);
+    }
+
+    /// Whether `gesture` is open: begun, and ended neither here nor by the replica.
+    pub fn gesture_open(&self, gesture: ContentGesture) -> bool {
+        self.0.mirror.borrow().gesture_open(gesture.0)
+    }
+
+    /// Runs `run` for each of this editor's gestures the replica ended (`ToEditor::GestureEnded`):
+    /// an undo cancelled the tentative layer, or what its edits moved was replaced. The gesture
+    /// is cancelled already, and its later edits are dropped: the editor only stops it, as a
+    /// drag lets go of what it carried.
+    pub fn on_gesture_ended(&self, run: impl Fn(ContentGesture) + 'static) -> Subscription {
+        self.0.ended.add((), Rc::new(run))
     }
 
     /// Ends the current undo step, so the next edit starts one of its own however soon it
     /// comes, without opening a gesture.
     pub fn break_step(&self) {
-        self.gesture(Gesture::Break);
+        if self.0.host.editable() && self.loaded() {
+            self.0.host.send_to_replica(self.0.block, FromEditor::Break);
+        }
     }
 
-    /// Puts back what the open gesture wrote and leaves no history. The host cancels a
-    /// gesture still open when the instance closes.
-    pub fn cancel_gesture(&self) {
-        self.gesture(Gesture::Cancel);
-    }
-
+    /// Makes an edit outside any gesture even where the block is not editable here: a viewer's
+    /// own view state, which a read-only editor still keeps.
     pub fn operate_anyway(&self, operation: C::Op) {
-        let sent = self.0.mirror.borrow_mut().operate(operation);
+        self.send_operation(None, operation);
+    }
+
+    fn send_operation(&self, gesture: Option<u64>, operation: C::Op) {
+        let sent = self.0.mirror.borrow_mut().operate(gesture, operation);
         let Some(sent) = sent else {
             return;
         };
@@ -306,8 +511,12 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
             return;
         }
         let due = self.0.due.borrow().clone();
-        if let Some(due) = due {
-            due();
+        let gone: Vec<_> = due.into_iter().filter(|due| !due()).collect();
+        if !gone.is_empty() {
+            self.0
+                .due
+                .borrow_mut()
+                .retain(|due| !gone.iter().any(|gone| Rc::ptr_eq(due, gone)));
         }
     }
 
@@ -317,6 +526,12 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
             let answer = self.0.mirror.borrow_mut().receive(update);
             if let Some(answer) = answer {
                 self.0.host.send_to_replica(self.0.block, answer);
+            }
+        }
+        let ended = self.0.mirror.borrow_mut().take_ended();
+        for id in ended {
+            for run in self.0.ended.all() {
+                run(ContentGesture(id));
             }
         }
         // A replica that sends a snapshot may be new, or may not have heard the first ask.

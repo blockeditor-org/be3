@@ -24,6 +24,8 @@ impl BlobKind for GameModuleFile {
 
 pub type GameModuleContent = Blob<GameModuleFile>;
 
+/// Not a `BlobFile`: a game module has no plain-file form, so "Import a file…" never makes one
+/// of a `.wasm` (most are not game modules); the game's editor picks one with these.
 impl GameModuleFile {
     pub const FILE_EXTENSIONS: &'static [&'static str] = &["wasm"];
     pub const MIME_TYPES: &'static [&'static str] = &["application/wasm"];

@@ -11,7 +11,7 @@ use beui::styled::*;
 use beui::{Key, NodeId};
 
 use super::{HostUiStore, UiCommand, send};
-use be_host_base::password::Password;
+use be_wasm_password::Password;
 use beui::{Align, Align2, Direction, Extent};
 
 const SECONDS_PER_MINUTE: u64 = 60;
@@ -41,7 +41,9 @@ fn action(power: PowerAction) -> LockAction {
     }
 }
 
-fn clock() -> ReadSignal<DateTime> {
+/// The wall clock to the minute, read afresh whenever `open` turns true, so a lock screen made
+/// long before it shows (or before drive pins the wall clock) shows the time it opened at.
+fn clock(open: Memo<bool>) -> ReadSignal<DateTime> {
     let unix = beui::reactive::wall_clock;
     let shown = move || {
         let seconds = i64::try_from(unix().as_secs()).unwrap_or(0)
@@ -58,6 +60,14 @@ fn clock() -> ReadSignal<DateTime> {
         Some(until_next_minute())
     });
     ticking.start(until_next_minute());
+    create_effect(move || {
+        if open.get() {
+            untrack(|| {
+                clock.set(shown());
+                ticking.restart(until_next_minute());
+            });
+        }
+    });
     clock.read_only()
 }
 
@@ -76,7 +86,8 @@ pub(crate) fn SessionLock(view: HostUiStore, #[prop(default = true)] shortcut: b
         .enabled(available)
         .register();
     }
-    let clock = clock();
+    let open = create_memo(move || lock.get().locked);
+    let clock = clock(open);
     let time = create_memo(move || clock.get().time.format(HourCycle::H24));
     let date = create_memo(move || {
         let date = clock.get().date;
@@ -87,7 +98,6 @@ pub(crate) fn SessionLock(view: HostUiStore, #[prop(default = true)] shortcut: b
             date.month_name()
         )
     });
-    let open = create_memo(move || lock.get().locked);
     let user = create_memo(move || lock.get().user);
     let error = create_memo(move || lock.get().error);
     let busy = create_memo(move || lock.get().busy);
@@ -105,7 +115,7 @@ pub(crate) fn SessionLock(view: HostUiStore, #[prop(default = true)] shortcut: b
             busy
             actions
             id="session.lock"
-            on_submit={|typed: String| send(UiCommand::Unlock(Password::new(typed)))}
+            on_submit={|typed: String| send(UiCommand::Unlock(Password::from(typed)))}
             on_action={move |index: usize| {
                 if let Some(power) = powers.with_untracked(|powers| powers.get(index).copied()) {
                     send(UiCommand::LockPower(power));
@@ -144,15 +154,10 @@ pub(crate) fn LockScreen(
         on_submit.call(typed);
     });
     view! {
-        <Modal
-            open
-            scrim=Scrim::Opaque
-            placement=ModalPlacement::Fill
-            level=LayerLevel::Lock
-            motion=ModalMotion::Still
-        >|| {
+        <Modal open scrim=Scrim::Opaque level=LayerLevel::Lock>|| {
             let focused = create_memo(move || open.get() && !busy.get());
             let submit = submit.clone();
+            let id = id.clone();
             let viewport = use_viewport_size();
             let height = create_memo(move || Length::Extent(Extent::at_least(viewport.get().y)));
             view! {
@@ -167,7 +172,7 @@ pub(crate) fn LockScreen(
                             actions
                             password
                             focused
-                            id={id.clone()}
+                            id
                             on_submit={move |typed: String| submit(typed)}
                             on_action
                         />
@@ -197,9 +202,6 @@ fn LockCard(
         node.set_label("Locked");
         node
     }));
-    let failed = create_memo(move || error.get().is_some());
-    let checking = create_memo(move || busy.get() && error.get().is_none());
-    let reason = create_memo(move || error.get().unwrap_or_default());
     let slots = create_memo(move || (0..actions.with(Vec::len)).collect::<Vec<usize>>());
     let error_id = format!("{id}.error");
     let action_id = id.clone();
@@ -224,10 +226,10 @@ fn LockCard(
                         on_submit={on_submit}
                     />
                 </Frame>
-                <Show condition={checking}>
+                <Show value={move || busy.get() && error.with(Option::is_none)}>
                     <Text style=TextStyle::CAPTION>"Checking…"</Text>
                 </Show>
-                <Show condition={failed}>
+                <Show value={error}>|reason: ReadSignal<String>|
                     <Text
                         style=TextStyle::CAPTION
                         color=TextColor::Danger
@@ -238,7 +240,7 @@ fn LockCard(
                 </Show>
             </List>
             <List direction=Direction::Horizontal spacing=ACTION_SPACING>
-                <ForEach keys={slots}>|index: usize| {
+                <ForEach value={slots}>|index: usize| {
                     let glyph = create_memo(move || {
                         actions.with(|actions| actions.get(index).map(|action| action.glyph))
                     });

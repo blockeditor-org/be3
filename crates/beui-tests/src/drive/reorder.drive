@@ -15,20 +15,30 @@ up
 wait 'value="Order: cherry apple date banana"'
 pause 1000
 pause 16
-# Carried towards a list that takes it, an item leaves its own list, and the
-# gap it leaves closes over time rather than at once.
+# Carried towards a list that takes it, an item folds out of its own list,
+# and the gap it leaves closes over time rather than at once.
 down '#shelf.kale+10,2'
 move '#shelf.1+60,120'
-wait not '#shelf.kale'
 wait 'value="Shelf full"'
 pause 40
 wait 'value="Shelf closing"'
 pause 1000
 pause 16
 wait 'value="Shelf closed"'
+# Its row folded away, the list draws the carried item's preview under the
+# pointer, where it was pressed: once, so a screen reader finds it once.
+wait '#shelf.preview' over '#shelf.1+60,120'
+find '#shelf.preview'
+find 'Label value="kale"'
 move '#shelf.corn+10,25'
 up
 wait 'value="Shelves: leek okra | corn kale"'
+# Taken by the other list, the item is drawn there as its row, and its
+# preview is gone.
+pause 1000
+pause 16
+find 'Label value="kale"'
+wait not '#shelf.preview'
 # Held at the edge of the scroll it is in, a carried item scrolls it, and
 # lands where it is let go among the rows that scrolled into view.
 pause 1000

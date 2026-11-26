@@ -1,7 +1,6 @@
 use be_lib_stable_hash::HashMap;
 use std::cell::Cell;
 
-use beui_macros::{component, view};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
@@ -207,15 +206,15 @@ where
 #[component]
 pub fn DockDocumentTabs<K, T, I>(
     documents: DockDocuments<K, T, I>,
-    #[prop(children)] tab: RenderFn<DockDocument<K, T, I>, DockEntry<K>>,
-) -> DynamicSegment<DockEntry<K>>
+    #[prop(children)] tab: RenderFn<DockDocument<K, T, I>, DockEntry>,
+) -> DynamicSegment<DockEntry>
 where
     K: DockKey,
     T: Clone + PartialEq + 'static,
     I: PartialEq + 'static,
 {
     view! {
-        <ForEach keys={documents.slots()}>|slot: DockSlot| {
+        <ForEach value={documents.slots()}>|slot: DockSlot| {
             let content = documents.contents.get(&slot);
             tab.call(DockDocument {
                 documents,
@@ -231,7 +230,7 @@ where
 #[component]
 pub fn DockDocumentBody<K, T, I>(
     document: DockDocument<K, T, I>,
-    #[prop(children)] body: RenderFn<ReadSignal<T>>,
+    #[prop(children)] body: RenderFn<ReadSignal<T>, NodeId>,
 ) -> NodeId
 where
     K: DockKey,
@@ -239,10 +238,12 @@ where
     I: PartialEq + 'static,
 {
     let documents = document.documents;
-    let identity = Func::new(move |content: T| documents.identity(&content));
     view! {
         <List spacing=0.0>
-            <Keyed value={document.content} key={identity}>|content: ReadSignal<T>| {
+            <Keyed
+                value={document.content}
+                key={move |content: &T| documents.identity(content)}
+            >|content: ReadSignal<T>| {
                 let body = body.call(content);
                 view! {
                     <ListItem grow=1.0>{body}</ListItem>

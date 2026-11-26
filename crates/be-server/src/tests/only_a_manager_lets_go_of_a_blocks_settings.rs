@@ -7,58 +7,73 @@ async fn set_references(
     references: Vec<Uuid>,
 ) -> Result<BlockSummary, Error> {
     client
-        .call(|peer| client::blocks::set_metadata(peer, block, b"named".to_vec(), references))
+        .call(|peer| {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::Publish {
+                block,
+                expected: None,
+                commit: None,
+                references: be_block_protocol::ReferenceChange::between(&[], &references),
+                metadata: b"named".to_vec(),
+                journal: None,
+            })
+        })
         .await
 }
 
 #[tokio::test]
 async fn only_a_manager_lets_go_of_a_blocks_settings() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.personal().await;
-    let mut editor = harness.client().await;
-    let editor_id = editor.register("editor@example.com").await;
+    let mut editor = harness.member("editor@example.com").await;
+    let editor_id = editor.id();
     editor.personal().await;
-    let link = owner.link(None).await;
+    let link = owner.link().await;
     let _ = editor.accept(link, &[]).await;
 
     let workspace = owner.create_block(BlockParent::Root).await;
     let settings = Uuid::new_v4();
     let key = Uuid::new_v4();
+    let root = owner.root(settings);
+    let placement = owner
+        .placement(settings, BlockParent::Block(workspace))
+        .await;
     let created = owner
         .call(|peer| {
-            client::blocks::create_block(
-                peer,
-                settings,
-                SETTINGS_TYPE,
-                BlockParent::Block(workspace),
-                Vec::new(),
-                Vec::new(),
-                key,
-                KeySet {
+            peer.write_all::<be_block_protocol::BlockSummary>(vec![
+                be_block_protocol::Op::CreateBlock {
+                    block: settings,
+                    content_type: SETTINGS_TYPE,
+                    parent: BlockParent::Block(workspace),
+                    metadata: Vec::new(),
+                    references: Vec::new(),
+                    key,
+                    owner_only: false,
+                    root,
+                    placement,
+                },
+                be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
                     keys: vec![row(key, settings, KeyKind::Data)],
                     wrapped: Vec::new(),
-                },
-                false,
-            )
+                })),
+            ])
         })
         .await;
-    assert!(matches!(created, Ok(_)), "{created:?}");
+    assert!(created.is_ok(), "{created:?}");
     let held = set_references(&mut owner, workspace, vec![settings]).await;
-    assert!(matches!(held, Ok(_)), "{held:?}");
+    assert!(held.is_ok(), "{held:?}");
 
     let granted = owner.grant(workspace, editor_id, Access::Edit).await;
     assert!(matches!(granted, Ok(())), "{granted:?}");
     let kept = set_references(&mut editor, workspace, vec![settings]).await;
-    assert!(matches!(kept, Ok(_)), "{kept:?}");
+    assert!(kept.is_ok(), "{kept:?}");
     let dropped = set_references(&mut editor, workspace, Vec::new()).await;
     assert!(
         refused_as(&dropped, ErrorCode::PermissionDenied),
         "an editor let go of the workspace's settings: {dropped:?}"
     );
     let dropped = set_references(&mut owner, workspace, Vec::new()).await;
-    assert!(matches!(dropped, Ok(_)), "{dropped:?}");
+    assert!(dropped.is_ok(), "{dropped:?}");
 
     harness.stop().await;
 }

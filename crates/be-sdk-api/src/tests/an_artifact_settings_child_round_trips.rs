@@ -24,6 +24,7 @@ fn an_artifact_settings_child_round_trips() {
             docks: None,
             anchor: None,
             fullscreen: false,
+            keyboard_ask: 0,
         }],
         occluders: Vec::new(),
     });

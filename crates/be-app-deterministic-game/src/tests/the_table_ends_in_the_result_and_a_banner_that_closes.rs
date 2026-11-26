@@ -25,7 +25,6 @@ fn the_table_ends_in_the_result_and_a_banner_that_closes() {
     editor.snapshot("the_table_ends_in_the_result_and_a_banner_that_closes");
 
     editor.click("game.banner.close");
-    editor.run();
 
     assert!(!editor.shown("game.banner"));
     assert!(editor.shown("game.result"));

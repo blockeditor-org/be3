@@ -1,0 +1,16 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_package", "cargo_test")
+
+cargo_package()
+
+# The programs installed on a Linux desktop (freedesktop.org's desktop entries and icon
+# themes), read through Unix file permissions: Linux's alone, so `//crates/...` for another
+# platform skips it rather than failing on it.
+linux = ["prelude//os:linux"]
+
+cargo_library(
+    target_compatible_with = linux,
+)
+
+cargo_test(
+    target_compatible_with = linux,
+)

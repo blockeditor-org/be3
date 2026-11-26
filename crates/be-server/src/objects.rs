@@ -260,19 +260,20 @@ pub struct BucketConfig {
 pub enum Objects {
     /// A `FileStore` under `DATA/objects`, when no bucket is configured.
     Local(FileStore),
-    /// A bucket, with the objects read or written most recently kept on disk.
-    Bucket(Cached),
+    /// A bucket, with the objects read or written most recently kept on disk. Boxed: its client
+    /// and cache are far larger than a `FileStore`, and the server opens one store.
+    Bucket(Box<Cached>),
 }
 
 impl Objects {
     pub fn open(data_dir: &Path, bucket: Option<&BucketConfig>) -> Result<Self, StoreError> {
         Ok(match bucket {
             None => Self::Local(FileStore::open(data_dir.join("objects"))?),
-            Some(config) => Self::Bucket(Cached::open(
+            Some(config) => Self::Bucket(Box::new(Cached::open(
                 S3Store::new(config.bucket.clone()),
                 data_dir.join("object-cache"),
                 config.cache_bytes,
-            )?),
+            )?)),
         })
     }
 

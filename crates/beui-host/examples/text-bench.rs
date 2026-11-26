@@ -164,9 +164,9 @@ fn resize_paragraphs(frames: usize) -> Report {
             let text = PARAGRAPH.repeat(4);
             view! {
                 <Root>
-                    <Frame width={create_memo(move || Length::Size(Size::Custom(read.get())))}>
+                    <Frame width={move || Length::Size(Size::Custom(read.get()))}>
                         <List spacing=Space::Md>
-                            <ForEach keys={(0..20).collect::<Vec<usize>>()}>|_: usize| {
+                            <ForEach value={(0..20).collect::<Vec<usize>>()}>|_: usize| {
                                 let text = text.clone(); view! {
                                     <Text>{text}</Text>
                                 }
@@ -201,9 +201,9 @@ fn resize_labels(frames: usize) -> Report {
             *width.borrow_mut() = Some(read);
             view! {
                 <Root>
-                    <Frame width={create_memo(move || Length::Size(Size::Custom(read.get())))}>
+                    <Frame width={move || Length::Size(Size::Custom(read.get()))}>
                         <List spacing=Space::None>
-                            <ForEach keys={(0..2000).collect::<Vec<usize>>()}>|index: usize|
+                            <ForEach value={(0..2000).collect::<Vec<usize>>()}>|index: usize|
                                 <Text overflow=Overflow::Ellipsis>
                                     {format!("label number {index}")}
                                 </Text>
@@ -282,7 +282,7 @@ fn edit_one_span(frames: usize) -> Report {
             view! {
                 <Root>
                     <Text>
-                        <ForEach keys={keys}>|index: usize| {
+                        <ForEach value={keys}>|index: usize| {
                             let word = create_memo(move || {
                                 read.get().get(index).cloned().unwrap_or_default()
                             });

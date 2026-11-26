@@ -1,4 +1,4 @@
-use be_host_accounts_ui::{AccountDetails, Column, ErrorText};
+use be_root_accounts_ui::{AccountDetails, Column, ErrorText};
 use beui::icons::{
     ICON_BOXES, ICON_CHECK, ICON_CHEVRON_DOWN, ICON_CLOUD, ICON_COPY, ICON_ELLIPSIS, ICON_MONITOR,
     ICON_PLUS, ICON_REFRESH_CW, ICON_USER_PLUS, ICON_USERS_ROUND,
@@ -8,41 +8,47 @@ use beui::styled::*;
 use beui::{NodeId, TextAlign};
 use uuid::Uuid;
 
-use super::{AccountForm, ErrorAction, HostUiStore, OrganizationsState, UiCommand, send};
+use super::{
+    AccountForm, ErrorAction, HostUiStore, JoiningRow, OrganizationsState, UiCommand, send,
+};
 use crate::root_settings::{SESSION_TYPES, session_type_name};
 use be_host_base::platform;
 use beui::{Align, Direction};
+
+/// What making a local account says of where it lives: on the web, only in this browser's
+/// storage, which clearing the site's data or a private window loses with no phrase to recover
+/// it (guides/hosting.md, Local accounts and the default server).
+const LOCAL_ACCOUNT_NOTE: &str = match cfg!(target_arch = "wasm32") {
+    true => {
+        "Your data stays in this browser only. Clearing this site's data, or a private \
+             window, deletes the account and everything in it. You only need a display name."
+    }
+    false => "Your data stays on this device. You only need a display name.",
+};
 
 #[component]
 pub(super) fn ErrorScreen(view: HostUiStore) -> NodeId {
     let message = create_memo(move || view.error.get().message);
     let pending = create_memo(move || view.error.get().pending);
-    let asking = create_memo(move || pending.get().is_some());
     let title = create_memo(move || match pending.get() {
         Some(ErrorAction::DeleteClientDatabase) => "Delete client database?".to_owned(),
-        #[cfg(not(target_arch = "wasm32"))]
-        Some(ErrorAction::DeleteServerDatabase) => "Delete local server database?".to_owned(),
         None => String::new(),
     });
     let unsaved = create_memo(move || view.error.get().unsaved);
-    let confirmation = create_memo(move || {
-        match pending.get() {
+    let confirmation = create_memo(move || match pending.get() {
         Some(ErrorAction::DeleteClientDatabase) => {
-            let accounts =
-                "This removes every saved account and its key on this device. You will need to sign in again, and unlock each account with its recovery phrase or another device.";
+            let accounts = "This removes every saved account and its key on this device. You will need to sign in again, and unlock each account with its recovery phrase or another device.";
             match unsaved.get() {
                 0 => accounts.to_owned(),
-                1 => format!("{accounts} One block has changes that have not reached the server yet, and they will be lost."),
-                count => format!("{accounts} {count} blocks have changes that have not reached the server yet, and they will be lost."),
+                1 => format!(
+                    "{accounts} One block has changes that have not reached the server yet, and they will be lost."
+                ),
+                count => format!(
+                    "{accounts} {count} blocks have changes that have not reached the server yet, and they will be lost."
+                ),
             }
         }
-        #[cfg(not(target_arch = "wasm32"))]
-        Some(ErrorAction::DeleteServerDatabase) => {
-            "This permanently deletes every organization and block stored on this device's local server."
-                .to_owned()
-        }
         None => String::new(),
-    }
     });
     view! {
         <Column>
@@ -68,16 +74,6 @@ pub(super) fn ErrorScreen(view: HostUiStore) -> NodeId {
                     variant=ButtonVariant::Secondary
                     on_click={|| send(UiCommand::AskErrorAction(ErrorAction::DeleteClientDatabase))}
                 />
-                <Show condition={platform::HAS_EMBEDDED_SERVER}>
-                    <Button
-                        label="Delete local server database..."
-                        variant=ButtonVariant::Secondary
-                        on_click={|| {
-                            #[cfg(not(target_arch = "wasm32"))]
-                            send(UiCommand::AskErrorAction(ErrorAction::DeleteServerDatabase));
-                        }}
-                    />
-                </Show>
                 <Button
                     label="Exit"
                     variant=ButtonVariant::Ghost
@@ -85,7 +81,7 @@ pub(super) fn ErrorScreen(view: HostUiStore) -> NodeId {
                 />
             </List>
             <Dialog
-                open={asking}
+                open={move || pending.with(Option::is_some)}
                 kind=DialogKind::Alert
                 title={title}
                 actions={vec![
@@ -108,14 +104,58 @@ pub(super) fn AccountsScreen(view: HostUiStore) -> NodeId {
         false => view.account_error.get(),
     });
     view! {
-        <be_host_accounts_ui::AccountsScreen
-            accounts
-            error
-            on_add={|| send(UiCommand::OpenAddAccount)}
-            on_open={|key: String| send(UiCommand::OpenAccount(key))}
-            on_choose_organization={|key: String| send(UiCommand::ChooseOrganization(key))}
-            on_log_out={|key: String| send(UiCommand::LogOut(key))}
-        />
+        <List spacing=Space::None>
+            <InvitationBanner view />
+            <ListItem grow=1.0>
+                <be_root_accounts_ui::AccountsScreen
+                    accounts
+                    error
+                    on_add={|| send(UiCommand::OpenAddAccount)}
+                    on_open={|key: String| send(UiCommand::OpenAccount(key))}
+                    on_choose_organization={|key: String| send(UiCommand::ChooseOrganization(key))}
+                    on_log_out={|key: String| send(UiCommand::LogOut(key))}
+                />
+            </ListItem>
+        </List>
+    }
+}
+
+/// An invite link opened before signing in: whose invitation it is and into what. Its code is
+/// held while the person signs in or makes an account, and the invitation waits for them in
+/// Join an organization after.
+#[component]
+fn InvitationBanner(view: HostUiStore) -> NodeId {
+    let joining = create_memo(move || view.organizations.get().joining);
+    view! {
+        <Show value={joining}>|row: ReadSignal<JoiningRow>| {
+            let title = create_memo(move || {
+                row.with(|row| format!("{} invited you to join {}", row.inviter, row.organization))
+            });
+            let lead = create_memo(move || {
+                row.with(|row| match row.problem.is_empty() {
+                    true => "Sign in, or add an account, to accept it. You join as an editor."
+                        .to_owned(),
+                    false => row.problem.clone(),
+                })
+            });
+            view! {
+                <Frame padding={Padding::all(Space::Lg)} @test_id={"host.invited"}>
+                    <Card>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                            <Text size=TextSize::Lg color=TextColor::Accent>
+                                <Icon glyph=ICON_USER_PLUS />
+                            </Text>
+                            <ListItem grow=1.0>
+                                <List spacing=Space::Xs2>
+                                    <Text weight=Weight::Bold>{title}</Text>
+                                    <Text style=TextStyle::CAPTION>{lead}</Text>
+                                </List>
+                            </ListItem>
+                        </List>
+                    </Card>
+                </Frame>
+            }
+        }</Show>
     }
 }
 
@@ -131,32 +171,34 @@ pub(super) fn AddAccountDialog(
     let pending = create_memo(move || view.add_account.get().pending);
     let error = create_memo(move || view.add_account.get().error);
     let browser = create_memo(move || view.add_account.get().browser);
-    let waiting = create_memo(move || browser.get().is_some());
+    let waiting = create_memo(move || browser.with(Option::is_some));
     let browser_url = create_memo(move || browser.get().map(|login| login.url).unwrap_or_default());
     let browser_code =
         create_memo(move || browser.get().map(|login| login.code).unwrap_or_default());
+    // The Copy handle the render closures below share: the server is not `Copy`.
     let default = create_memo(move || default_server.clone());
     let has_default = default.get_untracked().is_some();
     let default_name =
         create_memo(move || default.get().map(|server| server.name).unwrap_or_default());
-    let selection = create_signal(None::<u8>);
-    let remote_url = create_signal(String::new());
-    let authorization = create_signal(String::new());
-    let display_name = create_signal(String::new());
-    create_effect(move || {
-        generation.get();
-        untrack(|| {
-            selection.set(None);
-            remote_url.set(String::new());
-            authorization.set(String::new());
-            display_name.set(String::new());
-        });
+    let selection = create_linked_signal(move || {
+        generation.track();
+        None::<u8>
     });
-    let choosing = create_memo(move || selection.get().is_none() && !pending.get());
-    let editing = create_memo(move || selection.get().is_some() && !pending.get());
+    let remote_url = create_linked_signal(move || {
+        generation.track();
+        String::new()
+    });
+    let authorization = create_linked_signal(move || {
+        generation.track();
+        String::new()
+    });
+    let display_name = create_linked_signal(move || {
+        generation.track();
+        String::new()
+    });
+    let editing = create_memo(move || selection.with(Option::is_some) && !pending.get());
     let local = create_memo(move || selection.get() == Some(1));
-    let custom = create_memo(move || selection.get() == Some(2));
-    let remote = create_memo(move || selection.get().is_some() && !local.get());
+    let remote = create_memo(move || selection.with(Option::is_some) && !local.get());
     let gateway_required = create_memo(move || {
         selection.get() == Some(0) && default.get().is_some_and(|server| server.gateway_required)
     });
@@ -189,7 +231,6 @@ pub(super) fn AddAccountDialog(
                 _ => false,
             }
     });
-    let not_ready = create_memo(move || !ready.get());
     let submit_label = create_memo(move || {
         if local.get() {
             "Create account"
@@ -236,15 +277,6 @@ pub(super) fn AddAccountDialog(
             String::new()
         }
     });
-    let primary_disabled = create_memo(move || !waiting.get() && not_ready.get());
-    let default_address = create_memo(move || {
-        default
-            .get()
-            .map(|server| server.api_url)
-            .unwrap_or_default()
-    });
-    let is_default = create_memo(move || selection.get() == Some(0));
-    let show_gateway = create_memo(move || remote.get() && platform::SENDS_HEADERS);
     let connecting = create_memo(move || pending.get() && !waiting.get());
     view! {
         <Dialog
@@ -270,14 +302,14 @@ pub(super) fn AddAccountDialog(
                         submit();
                     }
                 })
-                .disabled(primary_disabled)
+                .disabled(move || !waiting.get() && !ready.get())
                 .busy(connecting)
-                .shown(create_memo(move || !footer_primary.get().is_empty())),
+                .shown(create_memo(move || !footer_primary.with(String::is_empty))),
             ]}
             on_dismiss={|| send(UiCommand::CloseAddAccount)}
         >
             <List spacing=Space::Xl2>
-                <Show condition={choosing}>
+                <Show value={move || selection.with(Option::is_none) && !pending.get()}>
                     <List spacing=Space::Lg>
                         <Text style=TextStyle::PARAGRAPH>"Choose where to keep your account."</Text>
                         <Frame
@@ -287,24 +319,27 @@ pub(super) fn AddAccountDialog(
                             padding=Space::Sm
                         >
                             <List spacing=Space::Xs>
-                                <Show condition={has_default}>
+                                {has_default.then(|| view! {
                                     <ActionRow
                                         label={default_name}
-                                        detail={default_address}
+                                        detail={move || {
+                                            default
+                                                .get()
+                                                .map(|server| server.api_url)
+                                                .unwrap_or_default()
+                                        }}
                                         glyph=ICON_CLOUD
                                         @test_id="account.default"
                                         on_click={move || selection.set(Some(0))}
                                     />
-                                </Show>
-                                <Show condition={platform::HAS_EMBEDDED_SERVER}>
-                                    <ActionRow
-                                        label="On this device"
-                                        detail="A local account, stored on this device"
-                                        glyph=ICON_MONITOR
-                                        @test_id="account.local"
-                                        on_click={move || selection.set(Some(1))}
-                                    />
-                                </Show>
+                                })}
+                                <ActionRow
+                                    label="On this device"
+                                    detail="A local account, stored on this device"
+                                    glyph=ICON_MONITOR
+                                    @test_id="account.local"
+                                    on_click={move || selection.set(Some(1))}
+                                />
                                 <ActionRow
                                     label="Another server"
                                     detail="Connect using a server address"
@@ -316,44 +351,44 @@ pub(super) fn AddAccountDialog(
                         </Frame>
                     </List>
                 </Show>
-                <Show condition={editing}>
+                <Show value={editing}>
                     <List spacing=Space::Xl>
-                        <Show condition={local}>
-                            <List spacing=Space::Xl>
-                                <Text style=TextStyle::PARAGRAPH>
-                                    "Your data stays on this device. You only need a display name."
-                                </Text>
+                        <Match value={selection}>
+                            <Case is={Some(1)}>
+                                <List spacing=Space::Xl>
+                                    <Text style=TextStyle::PARAGRAPH>{LOCAL_ACCOUNT_NOTE}</Text>
+                                    <List spacing=Space::Sm>
+                                        <Text style=TextStyle::CAPTION>"Display name"</Text>
+                                        <TextInput
+                                            value={display_name}
+                                            label="Display name"
+                                            placeholder="Your name"
+                                            @test_id="account.name"
+                                            on_submit={move |_| submit()}
+                                        />
+                                    </List>
+                                </List>
+                            </Case>
+                            <Case is={Some(0)}>
+                                <List spacing=Space::Xs>
+                                    <Text size=TextSize::Lg>{default_name}</Text>
+                                    <Text style=TextStyle::CAPTION>{server_name}</Text>
+                                </List>
+                            </Case>
+                            <Case is={Some(2)}>
                                 <List spacing=Space::Sm>
-                                    <Text style=TextStyle::CAPTION>"Display name"</Text>
+                                    <Text style=TextStyle::CAPTION>"Server address"</Text>
                                     <TextInput
-                                        value={display_name}
-                                        label="Display name"
-                                        placeholder="Your name"
-                                        @test_id="account.name"
+                                        value={remote_url}
+                                        label="Server address"
+                                        placeholder="https://example.com"
+                                        @test_id="account.server"
                                         on_submit={move |_| submit()}
                                     />
                                 </List>
-                            </List>
-                        </Show>
-                        <Show condition={is_default}>
-                            <List spacing=Space::Xs>
-                                <Text size=TextSize::Lg>{default_name}</Text>
-                                <Text style=TextStyle::CAPTION>{server_name}</Text>
-                            </List>
-                        </Show>
-                        <Show condition={custom}>
-                            <List spacing=Space::Sm>
-                                <Text style=TextStyle::CAPTION>"Server address"</Text>
-                                <TextInput
-                                    value={remote_url}
-                                    label="Server address"
-                                    placeholder="https://example.com"
-                                    @test_id="account.server"
-                                    on_submit={move |_| submit()}
-                                />
-                            </List>
-                        </Show>
-                        <Show condition={show_gateway}>
+                            </Case>
+                        </Match>
+                        <Show value={move || remote.get() && platform::SENDS_HEADERS}>
                             <List spacing=Space::Sm>
                                 <Text style=TextStyle::CAPTION>{gateway_label}</Text>
                                 <TextInput
@@ -365,14 +400,14 @@ pub(super) fn AddAccountDialog(
                                 />
                             </List>
                         </Show>
-                        <Show condition={remote}>
+                        <Show value={remote}>
                             <Text style=TextStyle::CAPTION>
                                 "Next, you’ll sign in or create an account in your browser."
                             </Text>
                         </Show>
                     </List>
                 </Show>
-                <Show condition={waiting}>
+                <Show value={waiting}>
                     <List spacing=Space::Xl>
                         <Text style=TextStyle::PARAGRAPH>
                             "Sign in and approve this code in your browser. You can also use a browser on another device. This is checked every few seconds; once you have approved it, choose Check now."
@@ -441,10 +476,10 @@ pub(super) fn AddAccountDialog(
                         </Text>
                     </List>
                 </Show>
-                <Show condition={connecting}>
+                <Show value={connecting}>
                     <Text style=TextStyle::PARAGRAPH>"Connecting to the server…"</Text>
                 </Show>
-                <Show condition={create_memo(move || error.get().is_some())}>
+                <Show value={move || error.with(Option::is_some)}>
                     <ErrorText text={error} />
                 </Show>
             </List>
@@ -464,7 +499,6 @@ pub(super) fn OrganizationsScreen(view: HostUiStore) -> NodeId {
             .map(|(id, _)| id)
             .collect::<Vec<_>>()
     });
-    let empty = create_memo(move || keys.get().is_empty());
     let state = create_memo(move || organizations.get().state);
     let error = create_memo(move || organizations.get().error);
     let created = create_memo(move || organizations.get().created);
@@ -483,7 +517,7 @@ pub(super) fn OrganizationsScreen(view: HostUiStore) -> NodeId {
                     arrow=false
                     items={view! {
                         <MenuItem
-                            label={create_memo(move || be_host_accounts_ui::leave_label(account.get().local).to_owned())}
+                            label={move || be_root_accounts_ui::leave_label(account.get().local).to_owned()}
                             on_click={|| send(UiCommand::LogOutCurrent)}
                         />
                     }}
@@ -513,7 +547,14 @@ pub(super) fn OrganizationsScreen(view: HostUiStore) -> NodeId {
                 </List>
             </Card>
             <Text style=TextStyle::HEADING>"Open an organization"</Text>
-            <ForEach keys={keys}>|id: Uuid| {
+            <ForEach
+                value={keys}
+                fallback={move || view! {
+                    <Card>
+                        <OrganizationsPlaceholder state />
+                    </Card>
+                }}
+            >|id: Uuid| {
                 let label = create_memo(move || {
                     organizations.get()
                         .organizations
@@ -541,11 +582,6 @@ pub(super) fn OrganizationsScreen(view: HostUiStore) -> NodeId {
                     </List>
                 }
             }</ForEach>
-            <Show condition={empty}>
-                <Card>
-                    <OrganizationsPlaceholder state />
-                </Card>
-            </Show>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <Text align=TextAlign::Center>
                     <Icon glyph=ICON_USER_PLUS />
@@ -563,20 +599,6 @@ pub(super) fn OrganizationsScreen(view: HostUiStore) -> NodeId {
 #[component]
 fn JoinOrganization(view: HostUiStore, busy: Memo<bool>) -> NodeId {
     let joining = create_memo(move || view.organizations.get().joining);
-    let asking = create_memo(move || joining.get().is_some());
-    let pasting = create_memo(move || !asking.get());
-    let title = create_memo(move || {
-        joining
-            .get()
-            .map(|row| format!("Join {} as {}?", row.organization, row.role))
-            .unwrap_or_default()
-    });
-    let invited = create_memo(move || {
-        joining
-            .get()
-            .map(|row| format!("Invited as {}", row.email))
-            .unwrap_or_default()
-    });
     let link = create_signal(String::new());
     let cannot = create_memo(move || busy.get() || link.get().trim().is_empty());
     let open = move || {
@@ -586,54 +608,97 @@ fn JoinOrganization(view: HostUiStore, busy: Memo<bool>) -> NodeId {
     };
     view! {
         <List spacing=Space::Md @test_id={"host.join"}>
-            <Show condition={asking}>
-                <Card>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                        <ListItem grow=1.0>
-                            <List spacing=Space::Xs2>
-                                <Text size=TextSize::Lg>{title}</Text>
-                                <Text style=TextStyle::CAPTION>{invited}</Text>
-                            </List>
-                        </ListItem>
-                        <Button
-                            label="Cancel"
-                            variant=ButtonVariant::Secondary
-                            disabled={busy}
-                            on_click={|| send(UiCommand::CancelJoin)}
-                        />
-                        <Button
-                            label="Join"
-                            variant=ButtonVariant::Primary
-                            disabled={busy}
-                            @test_id={"host.join.confirm"}
-                            on_click={|| send(UiCommand::JoinInvited)}
-                        />
-                    </List>
-                </Card>
-            </Show>
-            <Show condition={pasting}>
-                <List spacing=Space::Md>
-                    <Text style=TextStyle::CAPTION>"Paste the invite link someone sent you."</Text>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                        <ListItem grow=1.0>
-                            <TextInput
-                                value={link}
-                                label="Invite link"
-                                placeholder="https://…/#invite/…"
-                                @test_id={"host.join.link"}
-                                on_submit={move |_value: String| open()}
+            <Show
+                value={joining}
+                fallback={move || view! {
+                    <List spacing=Space::Md>
+                        <Text style=TextStyle::CAPTION>
+                            "Paste the invite link someone sent you."
+                        </Text>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                            <ListItem grow=1.0>
+                                <TextInput
+                                    value={link}
+                                    label="Invite link"
+                                    placeholder="https://…/#invite/…"
+                                    @test_id={"host.join.link"}
+                                    on_submit={move |_value: String| open()}
+                                />
+                            </ListItem>
+                            <Button
+                                label="Open"
+                                variant=ButtonVariant::Secondary
+                                disabled={cannot}
+                                @test_id={"host.join.open"}
+                                on_click={open}
                             />
-                        </ListItem>
-                        <Button
-                            label="Open"
-                            variant=ButtonVariant::Secondary
-                            disabled={cannot}
-                            @test_id={"host.join.open"}
-                            on_click={open}
-                        />
+                        </List>
                     </List>
-                </List>
-            </Show>
+                }}
+            >|row: ReadSignal<JoiningRow>| {
+                let title = create_memo(move || row.with(|row| format!("Join {}?", row.organization)));
+                let invited = create_memo(move || {
+                    row.with(|row| format!("Invited by {}. You join as an editor.", row.inviter))
+                });
+                let problem = create_memo(move || row.with(|row| row.problem.clone()));
+                let can_join = create_memo(move || row.with(|row| row.can_join));
+                let refused = create_memo(move || !problem.with(String::is_empty));
+                view! {
+                    <Card>
+                        <List spacing=Space::Md>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=Space::Md
+                            >
+                                <ListItem grow=1.0>
+                                    <List spacing=Space::Xs2>
+                                        <Text size=TextSize::Lg>{title}</Text>
+                                        <Text style=TextStyle::CAPTION>{invited}</Text>
+                                    </List>
+                                </ListItem>
+                                <Button
+                                    label="Cancel"
+                                    variant=ButtonVariant::Secondary
+                                    disabled={busy}
+                                    on_click={|| send(UiCommand::CancelJoin)}
+                                />
+                                <Show value={can_join}>
+                                    <Button
+                                        label="Join"
+                                        variant=ButtonVariant::Primary
+                                        disabled={busy}
+                                        @test_id={"host.join.confirm"}
+                                        on_click={|| send(UiCommand::JoinInvited)}
+                                    />
+                                </Show>
+                            </List>
+                            <Show value={refused}>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=Space::Md
+                                >
+                                    <ListItem grow=1.0>
+                                        <Text
+                                            style=TextStyle::CAPTION
+                                            @test_id={"host.join.problem"}
+                                        >
+                                            {problem}
+                                        </Text>
+                                    </ListItem>
+                                    <Button
+                                        label="Use another account"
+                                        variant=ButtonVariant::Secondary
+                                        @test_id={"host.join.another"}
+                                        on_click={|| send(UiCommand::OpenAddAccount)}
+                                    />
+                                </List>
+                            </Show>
+                        </List>
+                    </Card>
+                }
+            }</Show>
         </List>
     }
 }
@@ -662,12 +727,10 @@ pub(super) fn SessionsScreen(view: HostUiStore) -> NodeId {
     let title = create_memo(move || status.get().organization);
     let every_type = create_memo(move || status.get().every_session_type);
     let session_type = create_memo(move || status.get().session_type);
-    let new_label =
-        create_memo(move || format!("New {} session", session_type_name(session_type.get())));
     view! {
         <Column>
             <Text style=TextStyle::TITLE>{title}</Text>
-            <Show condition={loading}>
+            <Show value={loading}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <Progress width=INLINE_PROGRESS_WIDTH />
                     <Text style=TextStyle::CAPTION>"Loading sessions and profiles…"</Text>
@@ -677,7 +740,7 @@ pub(super) fn SessionsScreen(view: HostUiStore) -> NodeId {
             <Text style=TextStyle::CAPTION>
                 "The settings this device uses. Each device starts with a profile of its own."
             </Text>
-            <ForEach keys={profile_keys}>|id: Uuid| {
+            <ForEach value={profile_keys}>|id: Uuid| {
                 let row = create_memo(move || {
                     status.get().profiles.into_iter().find(|profile| profile.id == id)
                 });
@@ -721,7 +784,7 @@ pub(super) fn SessionsScreen(view: HostUiStore) -> NodeId {
             <Text style=TextStyle::CAPTION>
                 "The blocks you had open. Start a new session to begin again with the same settings."
             </Text>
-            <ForEach keys={session_keys}>|id: Uuid| {
+            <ForEach value={session_keys}>|id: Uuid| {
                 let label = create_memo(move || {
                     status.get()
                         .sessions
@@ -745,16 +808,16 @@ pub(super) fn SessionsScreen(view: HostUiStore) -> NodeId {
                 }
             }</ForEach>
             <SplitButton
-                label={new_label}
+                label={move || format!("New {} session", session_type_name(session_type.get()))}
                 glyph=ICON_PLUS
                 variant=ButtonVariant::Secondary
                 menu_label="New session of another type"
                 disabled={loading}
                 items={view! {
-                    <ForEach keys={(0..SESSION_TYPES.len()).collect::<Vec<_>>()}>|index: usize|
+                    <ForEach value={SESSION_TYPES.to_vec()}>|(kind, name): (Uuid, &'static str)|
                         <MenuItem
-                            label={format!("New {} session", SESSION_TYPES[index].1)}
-                            on_click={move || send(UiCommand::OpenNewSession(SESSION_TYPES[index].0))}
+                            label={format!("New {name} session")}
+                            on_click={move || send(UiCommand::OpenNewSession(kind))}
                         />
                     </ForEach>
                 }}
@@ -779,42 +842,40 @@ pub(super) fn SessionsScreen(view: HostUiStore) -> NodeId {
 
 #[component]
 fn OrganizationsPlaceholder(state: Memo<OrganizationsState>) -> NodeId {
-    let loaded = create_memo(move || state.get() == OrganizationsState::Loaded);
-    let failed = create_memo(move || state.get() == OrganizationsState::Failed);
-    let loading = create_memo(move || state.get() == OrganizationsState::Loading);
     view! {
         <List spacing=Space::None>
-            <Show condition={loaded}>
-                <Text style=TextStyle::CAPTION>
-                    "You do not have any organizations yet. Create one below."
-                </Text>
-            </Show>
-            <Show condition={failed}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <Text style=TextStyle::CAPTION>"Could not load organizations."</Text>
-                    <Button
-                        label="Retry"
-                        variant=ButtonVariant::Secondary
-                        on_click={|| send(UiCommand::ReloadOrganizations)}
-                    />
-                </List>
-            </Show>
-            <Show condition={loading}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <Progress width=INLINE_PROGRESS_WIDTH />
-                    <Text style=TextStyle::CAPTION>"Loading organizations…"</Text>
-                </List>
-            </Show>
+            <Match value={state}>
+                <Case is={OrganizationsState::Loaded}>
+                    <Text style=TextStyle::CAPTION>
+                        "You do not have any organizations yet. Create one below."
+                    </Text>
+                </Case>
+                <Case is={OrganizationsState::Failed}>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                        <Text style=TextStyle::CAPTION>"Could not load organizations."</Text>
+                        <Button
+                            label="Retry"
+                            variant=ButtonVariant::Secondary
+                            on_click={|| send(UiCommand::ReloadOrganizations)}
+                        />
+                    </List>
+                </Case>
+                <Case is={OrganizationsState::Loading}>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                        <Progress width=INLINE_PROGRESS_WIDTH />
+                        <Text style=TextStyle::CAPTION>"Loading organizations…"</Text>
+                    </List>
+                </Case>
+            </Match>
         </List>
     }
 }
 
 #[component]
 fn CreateOrganization(busy: Memo<bool>, created: Memo<u64>) -> NodeId {
-    let name = create_signal(String::new());
-    create_effect(move || {
-        created.get();
-        untrack(|| name.set(String::new()));
+    let name = create_linked_signal(move || {
+        created.track();
+        String::new()
     });
     let cannot = create_memo(move || busy.get() || name.get().trim().is_empty());
     let create = move || {
@@ -845,7 +906,7 @@ fn CreateOrganization(busy: Memo<bool>, created: Memo<u64>) -> NodeId {
 #[component]
 pub(super) fn ReauthDialog(view: HostUiStore) -> NodeId {
     let reauth = view.reauth;
-    let open = create_memo(move || reauth.get().is_some() && !view.add_account.get().open);
+    let open = create_memo(move || reauth.with(Option::is_some) && !view.add_account.get().open);
     let busy = create_memo(move || reauth.get().is_some_and(|reauth| reauth.busy));
     let error = create_memo(move || reauth.get().and_then(|reauth| reauth.error));
     let message = create_memo(move || {
@@ -870,7 +931,7 @@ pub(super) fn ReauthDialog(view: HostUiStore) -> NodeId {
         >
             <List spacing=Space::Xl2>
                 <Text style=TextStyle::PARAGRAPH>{message}</Text>
-                <Show condition={create_memo(move || error.get().is_some())}>
+                <Show value={move || error.with(Option::is_some)}>
                     <ErrorText text={error} />
                 </Show>
             </List>
@@ -884,7 +945,7 @@ mod tests;
 #[component]
 pub(super) fn RemoveAccountDialog(view: HostUiStore) -> NodeId {
     let removing = view.removing_account;
-    let open = create_memo(move || removing.get().is_some());
+    let open = create_memo(move || removing.with(Option::is_some));
     let title = create_memo(move || format!("Remove {}?", removing.get().unwrap_or_default()));
     view! {
         <Dialog

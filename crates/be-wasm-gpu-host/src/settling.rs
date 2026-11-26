@@ -1,9 +1,7 @@
-use std::collections::HashMap;
+use crate::tables::HashMap;
 use std::ops::Range;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::task::Waker;
-
-use be_wasm_gpu_abi::device as abi;
 
 pub type Wake = Arc<dyn Fn() + Send + Sync>;
 
@@ -38,6 +36,8 @@ struct Held {
 #[derive(Default)]
 pub(crate) struct Shared {
     held: Mutex<Held>,
+    /// Whether `held.lost` is set: read on every per-draw call, which takes no lock for it.
+    lost: std::sync::atomic::AtomicBool,
     changed: Condvar,
 }
 
@@ -108,10 +108,18 @@ impl Settling {
                 (_, true) => "the host's gpu device was lost".to_owned(),
             };
             shared.held().lost.get_or_insert(message);
+            shared
+                .lost
+                .store(true, std::sync::atomic::Ordering::Release);
             if let Some(wake) = &wake {
                 wake();
             }
         }
+    }
+
+    /// Whether the host's device is lost, without reading why.
+    pub(crate) fn is_lost(&self) -> bool {
+        self.shared.lost.load(std::sync::atomic::Ordering::Acquire)
     }
 
     pub(crate) fn lost(&self) -> Option<String> {
@@ -149,23 +157,18 @@ impl Settling {
         )
     }
 
-    /// A ticket for a map that fails before it starts, settled at once.
-    pub(crate) fn failed_map(&mut self) -> u64 {
-        let ticket = {
-            let mut held = self.shared.held();
-            let ticket = held.ticket();
-            held.maps.push((ticket, false));
-            ticket
-        };
-        self.wake();
-        ticket
+    /// Puts back what `take_settled` took that another interface's poll answers.
+    pub(crate) fn give_back(&self, maps: Vec<(u64, bool)>, work_done: Vec<u64>) {
+        let mut held = self.shared.held();
+        held.maps.extend(maps);
+        held.work_done.extend(work_done);
     }
 
-    pub(crate) fn forget_every_map(&mut self) {
-        let mut held = self.shared.held();
-        let buffers: Vec<u32> = held.states.keys().copied().collect();
-        for buffer in buffers {
-            let _ = held.forget(buffer);
+    /// Whether a buffer is mapping (`Some(false)`), mapped (`Some(true)`) or neither.
+    pub(crate) fn map_state(&self, buffer: u32) -> Option<bool> {
+        match self.shared.held().states.get(&buffer)? {
+            State::Pending(_) => Some(false),
+            State::Mapped { .. } => Some(true),
         }
     }
 
@@ -184,7 +187,7 @@ impl Settling {
         device: &wgpu::Device,
         buffer: &wgpu::Buffer,
         handle: u32,
-        mode: abi::MapMode,
+        mode: wgpu::MapMode,
         range: Range<u64>,
     ) -> Result<u64, String> {
         let number = {
@@ -201,12 +204,8 @@ impl Settling {
         };
         let shared = Arc::clone(&self.shared);
         let wake = self.wake.clone();
-        let writable = mode == abi::MapMode::Write;
+        let writable = mode == wgpu::MapMode::Write;
         let mapped = range.clone();
-        let mode = match mode {
-            abi::MapMode::Read => wgpu::MapMode::Read,
-            abi::MapMode::Write => wgpu::MapMode::Write,
-        };
         buffer.map_async(mode, range, move |result| {
             {
                 let mut held = shared.held();

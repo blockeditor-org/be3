@@ -13,15 +13,10 @@ fn a_choice_option_takes_an_icon_and_can_be_closed_and_the_default() {
     harness.run();
 
     harness.click(format!("database-schema.enum.{status}.{done}.icon"));
-    harness.run();
     harness.click(format!("database-schema.enum.{status}.{done}.icon.done"));
-    harness.run();
     harness.click(format!("database-schema.enum.{status}.{done}.closed"));
-    harness.run();
     harness.click(format!("database-schema.enum.{status}.{backlog}.default"));
-    harness.run();
     harness.click(format!("database-schema.enum.{status}.{done}.up"));
-    harness.run();
 
     let field = schema(&harness).fields()[0].clone();
     let finished = field.option(done).unwrap();

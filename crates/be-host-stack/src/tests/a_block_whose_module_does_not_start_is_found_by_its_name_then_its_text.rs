@@ -12,7 +12,7 @@ fn finds(text: &str, blocks: &[Uuid]) {
         within: None,
     };
     want_searches(Owner::Host, vec![ask.clone()]);
-    crate::wait_until(|shared| {
+    crate::wait_until(&format!("found {text:?} in what it should"), |shared| {
         let answer = shared.search.answer(&ask)?;
         let found: Vec<Uuid> = answer.hits.iter().map(|hit| hit.block).collect();
         (answer.complete && found == blocks).then_some(())
@@ -43,14 +43,11 @@ fn workspace_with_note(name: &str, text: &str) -> (Uuid, Uuid) {
         Some(TextBlock::of(text).encode()),
         false,
     );
-    assert_eq!(
-        change_child(
-            workspace,
-            WorkspaceContent::CONTENT_TYPE,
-            ChildChange::Add(note)
-        ),
-        Some(true)
-    );
+    assert!(made(change_child(
+        workspace,
+        WorkspaceContent::CONTENT_TYPE,
+        ChildChange::Add(note)
+    )));
     flush();
     (workspace, note)
 }

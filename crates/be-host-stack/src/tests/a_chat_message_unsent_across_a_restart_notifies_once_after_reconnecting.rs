@@ -4,20 +4,19 @@ use super::*;
 fn a_chat_message_unsent_across_a_restart_notifies_once_after_reconnecting() {
     let mut harness = Harness::pushing();
     let room = ChatRoom::start(&harness, &[]);
-    let address = harness.address();
 
     harness.stop_server();
     wait_until("noticed the server was gone", |shared| !shared.connected);
     let mut editor = room.editor();
     room.send(&mut editor, "Running late", None);
-    editor.until("took the message", |editor| {
-        editor.content().messages().len() == 2
+    editor.until("kept the message", |editor| {
+        editor.kept() == ["Running late"]
     });
     drop(editor);
     stop();
 
     room.restart(&harness);
-    harness.start_server(&address);
+    harness.start_server();
     retry_now();
     wait_until("reconnected and drained the outbox", |shared| {
         shared.connected && shared.waiting == 0 && !shared.draining

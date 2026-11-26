@@ -12,7 +12,7 @@ fn a_restarted_app_lets_go_of_its_revision_previews_and_numbers_them_afresh() {
     });
     let (first, _) = previews_of(block)[0];
 
-    instances.reopen();
+    restart(&mut instances);
     assert!(
         previews_of(block).contains(&(first, 1)),
         "the old app's preview is let go with it"

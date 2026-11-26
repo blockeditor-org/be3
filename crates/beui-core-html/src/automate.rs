@@ -158,7 +158,14 @@ mod web {
                 true => self.viewport,
                 false => clip,
             };
-            let rect = rect_of(element, self.ratio);
+            // A host node has no box of its own: it stands where the child it holds is, and
+            // holding none it has no box at all.
+            let Some(rect) = crate::document::boxed(about.node)
+                .and_then(crate::dom::element)
+                .map(|boxed| rect_of(&boxed, self.ratio))
+            else {
+                return;
+            };
             let focused = self.focused.as_ref() == Some(dom);
             let text = about
                 .kinds
@@ -197,6 +204,9 @@ mod web {
                         role: &role,
                         label,
                         value: value.as_deref(),
+                        description: node
+                            .and_then(accesskit::Node::description)
+                            .filter(|said| !said.is_empty()),
                         toggled: toggled.as_deref(),
                         disabled: node.is_some_and(accesskit::Node::is_disabled),
                         selected: node.is_some_and(|node| node.is_selected() == Some(true)),
@@ -268,6 +278,7 @@ mod web {
                 role: "Window",
                 label: Some(&title),
                 value: None,
+                description: None,
                 toggled: None,
                 disabled: false,
                 selected: false,

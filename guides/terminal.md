@@ -31,11 +31,26 @@ that need a real terminal on a real machine, such as `claude`, from inside be-ho
 The host writes its emulator's state into `Terminal` as ordinary edits through its `Session`,
 after every PTY read: rows that scrolled off move into `history`, then every shown row that
 differs, the cursor, size, colours and title are set. The replica seals on its own schedule like
-any owner (guides/type_modules.md). Viewers just render the document.
+any lease holder (guides/type_modules.md). Viewers just render the document.
 
-Who writes is decided by the live session's lease: a host writes only while its replica owns the
-session, stands by while another `TerminalHost` owns it, and otherwise claims every few seconds
-(`CLAIM_INTERVAL`). A host that becomes the writer and finds a shell in the document that isn't
+Who writes is decided by the live session's lease: a host writes only while its replica holds the
+lease, stands by while another `TerminalHost` holds it, and otherwise claims every few seconds
+(`CLAIM_INTERVAL`). A claim takes the lease at once, so a host first waits on a new holder's
+presence, which says whether it is another host: it decides once the replica says that
+holder's presence has arrived (`Session::heard`), and claims anyway only after
+`UNHEARD_HOLDER` for a holder never heard from. Hosts that all hear a holder that is none of
+them would claim together and take the lease from each other, so they go in turn by client,
+among only the members that may hold the lease, with edit access and the session's build
+(`Session::editors`): a host with view access, whose claims the server refuses, holds no other
+off. A host leaves the lease to another host before it that is there, which claims instead,
+but for `UNHEARD_HOLDER` at most, so one connected but stuck does not hold it off for good. It
+waits `CLAIM_INTERVAL` for each member before it not heard from yet, which may be a host, and
+at least once until it has heard every member, one of which may hold the lease by a claim it
+has yet to hear. A host opens its session showing `TerminalHost` (`Session::open`), so a
+member heard in full that shows none is no host, and a lone host takes the lease back from a
+viewer at once. Claims are timed on `Host::on_clock`
+(the system's by default, a manual one in tests), and `Host::standing` says where a host
+stands. A host that becomes the writer and finds a shell in the document that isn't
 its own restores: the old screen goes into history behind a faint `Restored session: <date>`
 line and a new shell starts. After the shell exits, the next key starts another.
 
@@ -79,13 +94,16 @@ sandbox (decisions/a_sandboxs_terminal_host_is_a_block_bound_agent.md):
    (the settings haven't loaded) the agent and the block are removed again.
 3. `uname -m`, then `terminal-host-binary(arch)`: a deployed build answers the URL and SHA-256 of
    its own `be` (`build-info.json`'s `terminal_hosts`, which `./scripts/deploy` writes into the
-   downloads); a development build answers the bytes of a `be` built into
-   `~/.cache/be3/terminal-host/ARCH` (`./scripts/buck build //crates/be-tool-cli:native
-   --target-platforms root//buck/platforms:linux_ARCH --out ~/.cache/be3/terminal-host/ARCH`; the
-   failure names it), which goes up through an https upload URL unless the sandbox has it already.
-   Either way a command checks the SHA-256 before `be` can run, fetching nothing when a `be` with
-   that hash is there and staging under a name of the terminal's own, so two installs in one sandbox
-   never share a file. Each build's `be` and `build-info.json` go in
+   downloads), which reads its apps from the release; a development build answers the files of
+   `//crates/be-tool-cli:terminal-host` built into `~/.cache/be3/terminal-host/ARCH`
+   (`./scripts/buck build //crates/be-tool-cli:terminal-host --target-platforms
+   root//buck/platforms:linux_ARCH --out ~/.cache/be3/terminal-host/ARCH`; the failure names it):
+   `be` with every app's manifest and type module beside it, which it reads blocks through as a
+   `be` staged here does (guides/apps/runtime.md, "Headless"). Each goes up through an https
+   upload URL unless the sandbox has all of them with their SHA-256 already. Either way a command
+   checks each file's SHA-256 before `be` can run, fetching nothing when they are there, staging
+   each under a name of the terminal's own, so two installs in one sandbox never share a file,
+   and moving `be` into place last. Each build's files and `build-info.json` go in
    `/home/user/.local/lib/be3/builds/BUILD`, and `blocks/BLOCK` links the build a terminal runs, so
    a terminal connected from another build never replaces another's `be`.
 4. The units `be-terminal@.service` and `be-terminal@.path` and the credentials file (the agent's

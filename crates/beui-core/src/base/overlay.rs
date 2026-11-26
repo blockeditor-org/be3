@@ -321,19 +321,11 @@ impl OverlayNode {
             _ => area,
         };
         let anchor_rect = self.inner(window_anchor);
-        let inside = matches!(
-            self.placement,
-            Placement::InsideTop
-                | Placement::InsideTopStart
-                | Placement::InsideTopEnd
-                | Placement::InsideBottom
-                | Placement::InsideBottomStart
-                | Placement::InsideBottomEnd
-        );
+        let inside = self.placement.inside();
         let available = match (inside, self.placement) {
             (true, _) => anchor_rect.intersect(area).size().max(Vec2::ZERO),
-            (false, Placement::Popover { margin, .. }) => {
-                area.shrink(f32::from(margin)).size().max(Vec2::ZERO)
+            (false, Placement::Beside { .. }) => {
+                beui_types::layer::room(area, anchor_rect, self.placement)
             }
             (false, _) => area.size(),
         };
@@ -376,7 +368,7 @@ impl OverlayNode {
         area: Rect,
         out: &Rects,
     ) {
-        if !matches!(self.placement, Placement::Popover { .. }) {
+        if !self.points() {
             return;
         }
         let Some(frame) = self
@@ -411,7 +403,7 @@ impl OverlayNode {
         });
         let reach = doc.arena.get_as::<BeakNode>(beak).reach;
         let pointing = placed.and_then(|rect| {
-            if !matches!(self.placement, Placement::Popover { .. }) {
+            if !self.points() {
                 return None;
             }
             let (lowest, highest) = beak_room(reach, &style, rect);
@@ -438,6 +430,15 @@ impl OverlayNode {
         if let Some(rect) = placed {
             crate::layout::layout(doc, painter, beak.id(), rect, out);
         }
+    }
+
+    /// Whether the content stands off its anchor by its pointer frame and points a beak at it:
+    /// above or below its anchor, where the beak can point.
+    fn points(&self) -> bool {
+        matches!(
+            self.placement,
+            Placement::Beside { side, .. } if side.vertical()
+        )
     }
 
     pub(crate) fn dims(&self) -> bool {
@@ -487,7 +488,7 @@ impl Element for OverlayNode {
             .window
             .as_ref()
             .filter(|window| doc.hosts_window(window));
-        let shown_in = self.shown_in.filter(|window| doc.shows_in(*window));
+        let shown_in = self.shown_in.and_then(|window| doc.shown_window(window));
         let painter = &painter.ctx().window_painter(match (real, shown_in) {
             (Some(window), _) => window.id,
             (None, Some(window)) => window,
@@ -502,9 +503,9 @@ impl Element for OverlayNode {
                 .ctx()
                 .keyboard_trimmed(window.id, Rect::from_min_size(Pos2::ZERO, size));
             self.placed_in = None;
-            let outer = doc.swap_window_viewport(Some((window.id, rect)));
-            crate::layout::layout(doc, painter, content, rect, out);
-            doc.swap_window_viewport(outer);
+            doc.laying_out_window(window.id, rect, |doc| {
+                crate::layout::layout(doc, painter, content, rect, out);
+            });
             return;
         }
         let outer = shown_in.map(|window| {
@@ -739,6 +740,16 @@ impl Document {
         Some(self.arena.get_as::<OverlayNode>(overlay).beak.id())
     }
 
+    /// Where the beak paints its tip, from the left of its pointer frame, or `None` while it
+    /// points at nothing: what the next paint draws, not what layout last asked for.
+    pub fn overlay_beak_points_at(&self, overlay: NodeOf<OverlayNode>) -> Option<f32> {
+        let beak = self.arena.get_as::<OverlayNode>(overlay).beak;
+        let node = self.arena.get_as::<BeakNode>(beak);
+        node.pointing
+            .filter(|_| node.reach > 0.0)
+            .map(|pointing| pointing.at)
+    }
+
     pub fn set_overlay_scrim(&mut self, overlay: NodeOf<OverlayNode>, color: impl Into<Color>) {
         let color = color.into();
         let node = self.arena.get_as::<OverlayNode>(overlay);
@@ -783,6 +794,10 @@ impl Document {
     pub fn set_overlay_traps_focus(&mut self, overlay: NodeOf<OverlayNode>, traps_focus: bool) {
         if self.arena.get_as::<OverlayNode>(overlay).traps_focus != traps_focus {
             self.arena.touch_mut_as::<OverlayNode>(overlay).traps_focus = traps_focus;
+            // An open layer that starts or stops trapping keeps the focus it gives back.
+            if self.arena.get_as::<OverlayNode>(overlay).open {
+                self.set_layer_scope_traps(overlay.id(), traps_focus);
+            }
             self.layers_changed();
         }
     }

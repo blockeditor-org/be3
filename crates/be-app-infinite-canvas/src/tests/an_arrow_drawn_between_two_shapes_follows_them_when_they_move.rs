@@ -42,9 +42,7 @@ fn an_arrow_drawn_between_two_shapes_follows_them_when_they_move() {
         .center();
 
     editor.click("infinite-canvas.dock.tool.Arrow");
-    editor.run();
     editor.drag(start, end);
-    editor.run();
 
     let arrow = arrow_of(&editor);
     assert_eq!(arrow.style.end_arrowhead, CanvasArrowhead::Arrow);
@@ -78,9 +76,7 @@ fn an_arrow_drawn_between_two_shapes_follows_them_when_they_move() {
     editor.snapshot("an_arrow_drawn_between_two_shapes_follows_them_when_they_move");
 
     editor.click("infinite-canvas.dock.tool.Select");
-    editor.run();
     editor.drag(start, start + Vec2::new(0.0, -120.0));
-    editor.run();
     let [tail, _] = ends(&editor);
     assert!(
         tail.y < -60.0,

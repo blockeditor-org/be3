@@ -402,7 +402,7 @@ pub(crate) fn nearest_upscaled(width: u16, height: u16, rgba: &[u8], factor: u32
     for y in 0..height {
         let row = &rgba[y * width * 4..(y + 1) * width * 4];
         let mut scaled = Vec::with_capacity(width * factor * 4);
-        for pixel in row.chunks_exact(4) {
+        for pixel in row.as_chunks::<4>().0 {
             for _ in 0..factor {
                 scaled.extend_from_slice(pixel);
             }

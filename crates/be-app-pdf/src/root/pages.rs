@@ -64,7 +64,7 @@ impl Pages {
     pub(crate) fn pump(
         &self,
         block: &ContentProjection<PdfContent>,
-        payload: ReadSignal<Ready<Payload>>,
+        payload: impl Get<Ready<Payload>>,
         performance: &PerformanceReporter,
         waker: Waker,
         viewport: Viewport,

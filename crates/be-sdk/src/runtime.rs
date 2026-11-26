@@ -36,6 +36,30 @@ impl Runtime {
         }
     }
 
+    /// A runtime over screens already set up, its session told what the screens were: the
+    /// deliveries that accepted the app and opened its instances.
+    #[cfg(test)]
+    pub(crate) fn from_parts(
+        screens: Screens,
+        surfaces: Surfaces,
+        waker: Waker,
+        told: &[Delivery],
+    ) -> Self {
+        let mut session = ClientSession::new("test", "test", "0");
+        for delivery in told {
+            session.receive(delivery).expect("the session takes them");
+        }
+        Self {
+            session,
+            screens,
+            surfaces: Some(surfaces),
+            laid: None,
+            waker,
+            asked: false,
+            told: false,
+        }
+    }
+
     pub(crate) fn hello(&self) -> be_sdk_api::Hello {
         self.session.hello()
     }
@@ -85,6 +109,10 @@ impl Runtime {
                     self.laid = Some((commit.serial, ran));
                     be_sdk_api::guest::host::laid_out(commit).detach();
                     self.waker.wake();
+                }
+                if surfaces.take_owed() {
+                    self.asked = true;
+                    be_sdk_api::guest::host::frame_needed().detach();
                 }
             } else if (changed || replaced) && !self.asked {
                 self.asked = true;

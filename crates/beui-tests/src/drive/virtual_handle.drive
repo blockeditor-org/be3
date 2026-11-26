@@ -1,0 +1,8 @@
+# A virtual list's handle holds each built row's key and place, knows a key shown twice by
+# its first place, follows the keys as they move, and is empty once the list is gone.
+clock stop
+wait 'value="Handle: 0 first at 0, rows 0@0 1@1 0@2 2@3"'
+click '#handle.rotate'
+wait 'value="Handle: 0 first at 1, rows 2@0 0@1 1@2 0@3"'
+click '#handle.hide'
+wait 'value="Handle: empty"'

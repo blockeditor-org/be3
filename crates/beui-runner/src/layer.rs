@@ -64,6 +64,13 @@ pub trait Layer {
         now
     }
 
+    /// A layer that steps the program (a driven session whose clock is stopped, between its
+    /// commands) holds its frames: none runs, and the input and events waiting keep for the next
+    /// frame the layer lets run. It wakes the runner when it lets them run again.
+    fn holds_frames(&self) -> bool {
+        false
+    }
+
     fn input(&mut self, _incoming: &mut Vec<Incoming>, _frame: &mut LayerFrame<'_>) {}
 
     fn output(&mut self, _shown: &mut Shown, _output: &FrameOutput, _frame: &mut LayerFrame<'_>) {}
@@ -99,6 +106,10 @@ pub trait Layer {
         below.copy(clip);
     }
 
+    fn share(&mut self, clip: Clip, below: &mut dyn PlatformServices) {
+        below.share(clip);
+    }
+
     fn paste(&mut self, formats: &[String], answer: PasteAnswer, below: &mut dyn PlatformServices) {
         below.paste(formats, answer);
     }
@@ -127,6 +138,10 @@ pub trait Layer {
 
     fn shows_keyboard(&self, below: &dyn PlatformServices) -> bool {
         below.shows_keyboard()
+    }
+
+    fn has_share_sheet(&self, below: &dyn PlatformServices) -> bool {
+        below.has_share_sheet()
     }
 
     fn show_window(
@@ -205,6 +220,13 @@ impl PlatformServices for Below<'_> {
         }
     }
 
+    fn share(&mut self, clip: Clip) {
+        match self.split() {
+            Some((top, mut below)) => top.share(clip, &mut below),
+            None => self.platform.share(clip),
+        }
+    }
+
     fn paste(&mut self, formats: &[String], answer: PasteAnswer) {
         match self.split() {
             Some((top, mut below)) => top.paste(formats, answer, &mut below),
@@ -232,6 +254,10 @@ impl PlatformServices for Below<'_> {
 
     fn shows_keyboard(&self) -> bool {
         self.beneath().shows_keyboard()
+    }
+
+    fn has_share_sheet(&self) -> bool {
+        self.beneath().has_share_sheet()
     }
 
     fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
@@ -295,6 +321,16 @@ impl PlatformServices for Beneath<'_> {
             None => self.platform.shows_keyboard(),
         }
     }
+
+    fn has_share_sheet(&self) -> bool {
+        match self.layers.split_last() {
+            Some((top, rest)) => top.has_share_sheet(&Beneath {
+                layers: rest,
+                platform: self.platform,
+            }),
+            None => self.platform.has_share_sheet(),
+        }
+    }
 }
 
 pub struct Above<'a> {
@@ -345,6 +381,10 @@ impl<L: Layer> Layer for std::rc::Rc<std::cell::RefCell<L>> {
         self.borrow_mut().pace()
     }
 
+    fn holds_frames(&self) -> bool {
+        self.borrow().holds_frames()
+    }
+
     fn now(&mut self, now: Instant) -> Instant {
         self.borrow_mut().now(now)
     }
@@ -389,6 +429,10 @@ impl<L: Layer> Layer for std::rc::Rc<std::cell::RefCell<L>> {
         self.borrow_mut().copy(clip, below);
     }
 
+    fn share(&mut self, clip: Clip, below: &mut dyn PlatformServices) {
+        self.borrow_mut().share(clip, below);
+    }
+
     fn paste(&mut self, formats: &[String], answer: PasteAnswer, below: &mut dyn PlatformServices) {
         self.borrow_mut().paste(formats, answer, below);
     }
@@ -417,6 +461,10 @@ impl<L: Layer> Layer for std::rc::Rc<std::cell::RefCell<L>> {
 
     fn shows_keyboard(&self, below: &dyn PlatformServices) -> bool {
         self.borrow().shows_keyboard(below)
+    }
+
+    fn has_share_sheet(&self, below: &dyn PlatformServices) -> bool {
+        self.borrow().has_share_sheet(below)
     }
 
     fn show_window(

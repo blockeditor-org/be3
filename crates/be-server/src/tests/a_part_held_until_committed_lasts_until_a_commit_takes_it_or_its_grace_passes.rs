@@ -1,4 +1,4 @@
-use be_block_protocol::{JournalBase, JournalEntry};
+use be_block_protocol::JournalBase;
 use rusqlite::{OptionalExtension, params};
 
 use super::*;
@@ -6,7 +6,13 @@ use super::*;
 async fn hold(client: &mut TestClient, block: Uuid, objects: &[Hash], hold: Hold) {
     let objects = objects.to_vec();
     let held = client
-        .call(|peer| client::objects::hold_objects(peer, block, objects, hold))
+        .call(|peer| {
+            peer.write::<()>(be_block_protocol::Op::HoldObjects {
+                block,
+                objects,
+                hold,
+            })
+        })
         .await;
     assert!(matches!(held, Ok(())), "{held:?}");
 }
@@ -14,7 +20,7 @@ async fn hold(client: &mut TestClient, block: Uuid, objects: &[Hash], hold: Hold
 async fn held(directory: &std::path::Path, identity: Identity) -> u64 {
     ServerStore::open(directory)
         .unwrap()
-        .storage_usage(identity)
+        .storage_usage(identity.account)
         .await
         .unwrap()
         .held
@@ -23,8 +29,8 @@ async fn held(directory: &std::path::Path, identity: Identity) -> u64 {
 #[tokio::test]
 async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("indexer@example.com").await;
+    let mut client = harness.member("indexer@example.com").await;
+    let account = client.id();
     let organization = client.organization("index").await;
     let identity = Identity {
         account,
@@ -47,6 +53,7 @@ async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_
     let (_, kept_objects) = part(b"a part held again for as long as the block lasts");
     let (_, shared_objects) = part(b"a part another block holds for good");
     let (_, named_objects) = part(b"a part an operation in the journal names");
+    let (_, based_objects) = part(b"a part the journal's base names, a session state");
     let bytes_of = |objects: &[Hash]| -> u64 {
         objects
             .iter()
@@ -59,6 +66,7 @@ async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_
         &kept_objects,
         &shared_objects,
         &named_objects,
+        &based_objects,
     ] {
         client.upload(&author.store, objects).await;
     }
@@ -69,6 +77,7 @@ async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_
     hold(&mut client, block, &shared_objects, Hold::UntilCommitted).await;
     hold(&mut client, other, &shared_objects, Hold::Lasting).await;
     hold(&mut client, other, &named_objects, Hold::UntilCommitted).await;
+    hold(&mut client, other, &based_objects, Hold::UntilCommitted).await;
 
     let directory = harness.directory.clone();
     let before = held(&directory, identity).await;
@@ -123,24 +132,30 @@ async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_
         None,
     )
     .unwrap();
-    let generation = 1;
     let tag = Hash::from_bytes([3; 32]);
     impatient
-        .append_journal(
+        .submit_journal(
             organization,
             other,
-            generation,
             tag,
-            vec![JournalEntry {
-                generation,
-                sequence: 1,
+            be_block_session::Submission {
+                id: be_block_session::OpId {
+                    origin: 1,
+                    counter: 1,
+                },
+                base: 0,
+                barrier: false,
                 payload: b"an operation naming a part".to_vec(),
-            }],
+            },
         )
         .await
         .unwrap();
 
-    let before = impatient.storage_usage(identity).await.unwrap().held;
+    let before = impatient
+        .storage_usage(identity.account)
+        .await
+        .unwrap()
+        .held;
     assert_eq!(
         impatient.collect_uploads().await.unwrap(),
         left_objects.len(),
@@ -153,6 +168,7 @@ async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_
         &kept_objects,
         &shared_objects,
         &named_objects,
+        &based_objects,
     ] {
         assert!(objects.iter().all(has));
     }
@@ -162,31 +178,61 @@ async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_
         "the block's hold ended though another block keeps the part"
     );
     assert_eq!(
-        impatient.storage_usage(identity).await.unwrap().held,
+        impatient
+            .storage_usage(identity.account)
+            .await
+            .unwrap()
+            .held,
         before - bytes_of(&left_objects),
         "the block stops being charged for what it no longer holds"
     );
 
-    impatient
-        .rebase_journal(
-            organization,
-            other,
-            generation,
-            tag,
-            JournalBase {
-                commit: None,
-                sequence: 1,
-                state: Vec::new(),
-            },
-        )
-        .await
-        .unwrap();
+    let rebase = |parts: Vec<Hash>| {
+        impatient.with_database(move |_, database| {
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
+            crate::journal::rebase(
+                &transaction,
+                organization,
+                other,
+                &crate::journal::Seal {
+                    tag,
+                    run: 0,
+                    base: JournalBase {
+                        commit: None,
+                        sequence: 1,
+                        state: Vec::new(),
+                        parts,
+                    },
+                    new_commit: false,
+                },
+            )?;
+            transaction.commit()?;
+            Ok(())
+        })
+    };
+    assert!(
+        rebase(taken_objects.clone()).await.is_err(),
+        "a base may not name objects its block does not hold"
+    );
+    rebase(based_objects.clone()).await.unwrap();
     assert_eq!(
         impatient.collect_uploads().await.unwrap(),
         named_objects.len(),
         "a part the journal named ends once the journal no longer holds the operation"
     );
     assert!(!named_objects.iter().any(has));
+    assert!(
+        based_objects.iter().all(has),
+        "a part the journal's base names lasts past its grace with no entry naming it"
+    );
+
+    rebase(Vec::new()).await.unwrap();
+    assert_eq!(
+        impatient.collect_uploads().await.unwrap(),
+        based_objects.len(),
+        "and ends once a base no longer names it"
+    );
+    assert!(!based_objects.iter().any(has));
 
     drop(database);
     drop(impatient);

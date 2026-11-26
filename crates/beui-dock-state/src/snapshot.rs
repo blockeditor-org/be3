@@ -19,6 +19,7 @@ impl DockState {
                     key: surface.key.clone().unwrap_or_default(),
                     rect,
                     placed: surface.placed.clone(),
+                    hidden: false,
                     root: Some(root),
                 }),
                 (_, None) => {}
@@ -44,7 +45,8 @@ impl DockState {
                 owner: bar.owner,
                 placement: bar.placement,
                 hidden: bar.hidden,
-                pane: bar.pane,
+                pane: bar.pane.clone(),
+                slot: bar.slot,
             })
             .collect();
         spec.outside = self.outside.clone();
@@ -155,7 +157,8 @@ impl DockState {
                 owner: bar.owner,
                 placement: bar.placement,
                 hidden: bar.hidden,
-                pane: bar.pane,
+                pane: bar.pane.clone(),
+                slot: bar.slot,
             })
             .collect();
         state.outside = spec.outside.clone();

@@ -85,8 +85,8 @@ mod web {
 
     use beui_types::clipboard::formats;
     use beui_types::input::{
-        ImeEvent, Input, KeyPress, PointerButton, PointerId, PointerInput, PointerPhase,
-        PointerPress, PointerStage, ScrollGesture, TouchId, WheelInput, ZoomGesture, scrolled,
+        ImeEvent, Input, KeyPress, PointerButton, PointerInput, PointerPhase, PointerPress,
+        PointerStage, ScrollGesture, WheelInput, ZoomGesture, scrolled,
     };
     use beui_types::{ClipItem, Pos2, Rect, Vec2, WindowId, pos2, vec2};
     use wasm_bindgen::JsCast;
@@ -108,12 +108,37 @@ mod web {
         activating: Cell<bool>,
         repeating: Cell<Option<crate::frame::Timer>>,
         release: RefCell<Vec<Listener>>,
+        /// A press this node drags but has not captured yet, as a node inside it takes its
+        /// click: the pointer and where it went down. It captures once the press moves a
+        /// drag's threshold.
+        uncaptured: Cell<Option<(i32, Pos2)>>,
+        /// Where the press went down, and whether it has moved a drag's threshold from there:
+        /// `on_drag` hears it only from then, first at the move that crossed it.
+        origin: Cell<Option<Pos2>>,
+        dragging: Cell<bool>,
     }
 
     const CAPTURED: &str = "beuiCaptured";
 
+    /// How far a press moves before it drags: a click's or a tap's jitter is no drag.
+    fn threshold(at: &PointerPress) -> f32 {
+        match at.touch {
+            true => beui_types::input::TOUCH_DRAG_THRESHOLD,
+            false => beui_types::input::DRAG_THRESHOLD,
+        }
+    }
+
     fn captured(event: &web_sys::PointerEvent) -> bool {
         js_sys::Reflect::get(event, &CAPTURED.into()).is_ok_and(|held| held.is_truthy())
+    }
+
+    /// Set on a press by a node that takes its click, so a node around it that drags does
+    /// not capture the pointer at once: a captured pointer's click goes to the capturing
+    /// node, and the inner node would never hear it.
+    const CLICKED: &str = "beuiClicked";
+
+    fn clicked(event: &web_sys::PointerEvent) -> bool {
+        js_sys::Reflect::get(event, &CLICKED.into()).is_ok_and(|held| held.is_truthy())
     }
 
     const REPEAT: std::time::Duration = std::time::Duration::from_millis(16);
@@ -197,6 +222,7 @@ mod web {
             pen: None,
             predicted: None,
             time: crate::frame::now(),
+            pointer: crate::drags::pointer_of(event.dyn_ref::<web_sys::PointerEvent>()),
         }
     }
 
@@ -234,14 +260,7 @@ mod web {
         stage: PointerStage,
     ) -> PointerInput {
         let at = placed(element, event.client_x().into(), event.client_y().into());
-        let pointer = match event.pointer_type().as_str() {
-            "touch" => PointerId::Touch(TouchId {
-                device: 0,
-                finger: event.pointer_id() as u64,
-            }),
-            "pen" => PointerId::Pen,
-            _ => PointerId::Mouse,
-        };
+        let pointer = crate::drags::pointer_of(Some(event));
         PointerInput {
             pointer,
             button: button(event.button()),
@@ -387,7 +406,10 @@ mod web {
         }
 
         fn repeat(&self) -> Option<std::time::Duration> {
-            if self.pressed.get().is_none() || !self.switches.repeat_drag.get() {
+            if self.pressed.get().is_none()
+                || !self.switches.repeat_drag.get()
+                || !self.dragging.get()
+            {
                 return None;
             }
             let press = self.last_press.borrow().clone()?;
@@ -412,12 +434,26 @@ mod web {
                 self.pressed.set(Some(event.pointer_id()));
                 let at = press(element, event);
                 *self.last_press.borrow_mut() = Some(at.clone());
+                self.origin.set(Some(at.pos));
+                self.dragging.set(false);
                 let drags = !self.handlers.on_drag.is_empty() || self.switches.grabs_pointer.get();
+                self.uncaptured.set(None);
                 if drags && !captured(event) {
-                    let _ = element.set_pointer_capture(event.pointer_id());
+                    match clicked(event) {
+                        true => self.uncaptured.set(Some((event.pointer_id(), at.pos))),
+                        false => {
+                            let _ = element.set_pointer_capture(event.pointer_id());
+                        }
+                    }
                     let _ = js_sys::Reflect::set(event, &CAPTURED.into(), &true.into());
                 }
+                if !self.handlers.on_click.is_empty() || !self.handlers.on_click_at.is_empty() {
+                    let _ = js_sys::Reflect::set(event, &CLICKED.into(), &true.into());
+                }
                 self.watch_release(element, event.pointer_id());
+                if self.uncaptured.get().is_some() {
+                    self.watch_uncaptured(element);
+                }
                 if self.switches.pointer_locked.get() {
                     element.request_pointer_lock();
                 }
@@ -472,16 +508,85 @@ mod web {
             }
         }
 
+        /// Follows an uncaptured press on the window, as its first moves can leave the node
+        /// before it captures: one past the threshold outside the node captures the pointer
+        /// and is the node's drag, as a move over it would be.
+        /// A move outside the node below the threshold is not passed on: `on_drag` hears
+        /// only moves over the node until the press crosses it.
+        fn watch_uncaptured(self: &Rc<Self>, element: &web_sys::Element) {
+            let Some(window) = crate::dom::window() else {
+                return;
+            };
+            let held = Rc::downgrade(self);
+            let element = element.clone();
+            let moved = crate::dom::listen(
+                window.as_ref(),
+                "pointermove",
+                true,
+                move |event: web_sys::PointerEvent| {
+                    let Some(held) = held.upgrade() else {
+                        return;
+                    };
+                    let inside = event
+                        .target()
+                        .and_then(|target| target.dyn_into::<web_sys::Node>().ok())
+                        .is_some_and(|target| element.contains(Some(&target)));
+                    if inside || held.pressed.get() != Some(event.pointer_id()) {
+                        return;
+                    }
+                    let at = press(&element, &event);
+                    if held.capture_late(&element, &at) && held.drags_at(&at) {
+                        *held.last_press.borrow_mut() = Some(at.clone());
+                        held.handlers.on_drag.call(at);
+                        beui_reactive::flush();
+                    }
+                },
+            );
+            self.release.borrow_mut().push(moved);
+        }
+
+        /// Whether the press drags at `at`: it has moved a drag's threshold from where it
+        /// went down, now or before.
+        fn drags_at(&self, at: &PointerPress) -> bool {
+            // A node that keeps every sample (a pen's stroke) drags from the first move, so a
+            // short stroke keeps every point.
+            if self.dragging.get() {
+                return true;
+            }
+            let past = self
+                .origin
+                .get()
+                .is_none_or(|origin| (at.pos - origin).length() >= threshold(at));
+            self.dragging.set(past);
+            past || self.switches.every_sample.get()
+        }
+
+        /// Captures the pointer of an uncaptured press once it has moved a drag's
+        /// threshold, and says whether it did.
+        fn capture_late(&self, element: &web_sys::Element, at: &PointerPress) -> bool {
+            let Some((pointer, from)) = self.uncaptured.get() else {
+                return false;
+            };
+            if (at.pos - from).length() < threshold(at) {
+                return false;
+            }
+            self.uncaptured.set(None);
+            let _ = element.set_pointer_capture(pointer);
+            true
+        }
+
         fn released(&self, pointer: i32, stage: PointerStage) {
             drop(std::mem::take(&mut *self.release.borrow_mut()));
             if self.pressed.get() != Some(pointer) {
                 return;
             }
             self.pressed.set(None);
-            self.handlers.on_active_change.call(false);
+            self.uncaptured.set(None);
+            // A press called off hears so before it hears it ended, as on the native core.
             if stage == PointerStage::Cancel {
                 self.handlers.on_cancel.call(());
             }
+            self.handlers.on_active_change.call(false);
         }
 
         fn claims(&self, element: &web_sys::Element, event: &web_sys::PointerEvent) -> bool {
@@ -549,6 +654,10 @@ mod web {
                     return Some(Pasted::File(format.clone(), file));
                 }
                 let text = data.get_data(format).ok().filter(|text| !text.is_empty())?;
+                let text = match format.as_str() {
+                    formats::TEXT => beui_types::clip::text_from_system(text),
+                    _ => text,
+                };
                 Some(Pasted::Now(ClipItem::new(
                     format.clone(),
                     text.into_bytes(),
@@ -852,8 +961,11 @@ mod web {
                     let at = press(&element, sample);
                     match held.pressed.get() {
                         Some(pointer) if pointer == event.pointer_id() => {
-                            *held.last_press.borrow_mut() = Some(at.clone());
-                            held.handlers.on_drag.call(at);
+                            held.capture_late(&element, &at);
+                            if held.drags_at(&at) {
+                                *held.last_press.borrow_mut() = Some(at.clone());
+                                held.handlers.on_drag.call(at);
+                            }
                         }
                         _ => held.handlers.on_hover_move.call(at),
                     }
@@ -1020,7 +1132,10 @@ mod web {
                     (true, false) => vec![formats::TEXT.to_owned()],
                     (true, true) => return,
                 };
-                let text = data.get_data("text").ok();
+                let text = data
+                    .get_data("text")
+                    .ok()
+                    .map(beui_types::clip::text_from_system);
                 let ours = crate::page::held(text.as_deref()).filter(|clip| {
                     clip.formats()
                         .any(|format| taken.iter().any(|t| t == format))
@@ -1067,6 +1182,9 @@ mod web {
             activating: Cell::new(false),
             repeating: Cell::new(None),
             release: RefCell::default(),
+            uncaptured: Cell::new(None),
+            origin: Cell::new(None),
+            dragging: Cell::new(false),
         });
         let held = state.clone();
         state

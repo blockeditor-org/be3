@@ -1,3 +1,5 @@
+load("@root//buck/platforms:cross.bzl", "cross_setting")
+
 # What buck/cargo/third_party.bzl is told about a third-party crate that it
 # cannot work out from cargo's plans alone, by crate name. Features and
 # dependencies are cargo's, per platform, so nothing here is about those unless
@@ -38,8 +40,6 @@ FIXUPS = {
     # build.
     "accesskit_android": {"rustc_flags": ["-Coverflow-checks=off"]},
     "alsa-sys": _PKG_CONFIG,
-    "atk-sys": _PKG_CONFIG,
-    "cairo-sys-rs": _PKG_CONFIG,
     # The build script runs bindgen over the SDK's CoreAudio headers. It asks
     # xcrun where the SDK is unless it is told, and bindgen loads libclang from
     # the path it is given; both come from buck/tools. libclang does not find
@@ -52,40 +52,17 @@ FIXUPS = {
             "LIBCLANG_PATH": "$(location //buck/tools:llvm)/lib",
         },
     },
-    # The arm64 backend beside the host's own. The apps beside an arm64 host
-    # (Android's APK, the Macs, Windows and Linux on arm64) are compiled for its
-    # wasmtime ahead of time, on the workers - crates/be-host's app and
-    # android-assets - with the one wasmtime built for them, so it is this one
-    # that has to know arm64.
-    "cranelift-codegen": {"features": {"linux-x86_64": ["arm64"]}},
-    # The overlay's build script always compiles the FreeType the crate vendors,
-    # which an app paints with too, and compiles libpng and zlib beside it
-    # for FreeType to load the colour glyphs emoji fonts keep as PNG images.
-    "freetype-sys": {
-        "build_script_env": {
-            "LIBPNG_SOURCE": "$(location //third-party/libpng:source)",
-            "ZLIB_SOURCE": "$(location //third-party/zlib:source)",
+    # wasm-bindgen 0.2.123 and later compile every binding away on WASI targets
+    # (wasm-bindgen#5175), and the browser build is wasm32-wasip1-threads run
+    # through wasm-bindgen, so its exports and imports vanished. These overlays
+    # gate them on `target_family = "wasm"` alone, as 0.2.122 did. Refresh them
+    # with each wasm-bindgen and js-sys, until wasm-bindgen can be asked to
+    # bind a WASI module.
+    "js-sys": {
+        "overlay": {
+            "src/futures/mod.rs": "overlays/js-sys/src/futures/mod.rs",
         },
-        "deps": ["//third-party/system:stdc++"],
-        "overlay": {"build.rs": "overlays/freetype-sys/build.rs"},
     },
-    "gdk-pixbuf-sys": _PKG_CONFIG,
-    "gdk-sys": _PKG_CONFIG,
-    "gdkx11-sys": _PKG_CONFIG,
-    # A pure guest (wasm32-unknown-unknown) has no entropy of its own; the
-    # type-module library seeds a generator from its host and is getrandom's
-    # custom backend (crates/be-sdk-type-guest/src/entropy.rs).
-    "getrandom": {"plan_rustc_flags": {"wasm32": ["--cfg", 'getrandom_backend="custom"']}},
-    "gio-sys": _PKG_CONFIG,
-    "glib-sys": _PKG_CONFIG,
-    "gobject-sys": _PKG_CONFIG,
-    "gtk-sys": _PKG_CONFIG,
-    # The same as freetype-sys, for HarfBuzz.
-    "harfbuzz-sys": {
-        "build_script_env": {"HARFBUZZ_NO_PKG_CONFIG": "1"},
-        "deps": ["//third-party/system:stdc++"],
-    },
-    "javascriptcore-rs-sys": _PKG_CONFIG,
     # The build script lists the WebGL extensions for the library to include,
     # by absolute path into the directory it ran in. That directory is the
     # build script's own action's and is gone by the time the library
@@ -110,7 +87,6 @@ FIXUPS = {
     # The build script compiles Oboe against the NDK. PROFILE only names a
     # prebuilt it would otherwise fetch.
     "oboe-sys": {"build_script_env": _ANDROID_API | {"PROFILE": "debug"}},
-    "pango-sys": _PKG_CONFIG,
     # The build script asks pkg-config for gbm and compiles a probe against its
     # headers, with warnings as errors, to learn which of gbm's newer functions
     # the compositor can call. The compiler it is given carries the link's
@@ -126,31 +102,57 @@ FIXUPS = {
         },
         "overlay": {"src/xwayland/xwm/mod.rs": "overlays/smithay/xwm.rs"},
     },
-    "soup3-sys": _PKG_CONFIG,
-    # bindgen! adds an include_bytes! of every WIT file it reads, by absolute
-    # path, so that cargo rebuilds when one changes; buck2 knows the files
-    # already. An included file's path is part of the crate's hash, and that path
-    # is in the directory each compile runs in, which made the -Zno-codegen
-    # metadata wasmtime-wasi's dependents compile against and the rlib they link
-    # disagree. The overlay leaves the includes out.
-    "wasmtime-internal-component-macro": {"overlay": {"src/bindgen.rs": "overlays/wasmtime-internal-component-macro/bindgen.rs"}},
-    "webkit2gtk-sys": _PKG_CONFIG,
-    # What the app GPU API needs of wgpu 29. It cannot finish a custom backend's
-    # render bundle encoder: `finish` takes the encoder by value, which a `dyn`
-    # encoder cannot be called with, and the custom arm is `unimplemented!()`.
-    # The overlay adds `finish_custom(&mut self)` to the encoder's interface,
-    # which an app's backend (crates/be-wasm-gpu-guest) implements. And wgpu-core's
-    # backend panics on a bundle that fails validation, where the host must
-    # report an app's mistake as WebGPU does: the overlay sends it to the
-    # device's error sink. And wgpu's WebGPU backend leaves a render pass's
-    # occlusion query set out of the pass it begins in a browser. Drop each
-    # change once wgpu has it.
+    # V8, prebuilt and pinned per platform in third-party/v8, where cargo's
+    # build script downloads it or builds it from source.
+    "v8": {
+        "build_script_env": {
+            "RUSTY_V8_ARCHIVE": "$(location //third-party/v8:library)",
+            "RUSTY_V8_SRC_BINDING": select({
+                "DEFAULT": "",
+                cross_setting("android_arm64"): "$(location //third-party/v8:android_arm64_binding)",
+            }),
+        },
+        "overlay": {
+            "build.rs": "overlays/v8/build.rs",
+            "src/binding.rs": "overlays/v8/src/binding.rs",
+        },
+    },
+    # vello_gpu 0.4 panics when a staging buffer has no mapped range, as on a
+    # device lost in the middle of a frame (before wgpu reports it at the next
+    # poll): the overlays skip the write instead, so the frame draws nothing.
+    # Drop them once vello_gpu has it.
+    "vello_gpu": {
+        "overlay": {
+            "src/render/wgpu/passes/strip.rs": "overlays/vello_gpu/render/wgpu/passes/strip.rs",
+            "src/render/wgpu/resources.rs": "overlays/vello_gpu/render/wgpu/resources.rs",
+        }
+    },
+    # Bindings on WASI targets, as for js-sys.
+    "wasm-bindgen": {
+        "overlay": {
+            "src/externref.rs": "overlays/wasm-bindgen/src/externref.rs",
+            "src/lib.rs": "overlays/wasm-bindgen/src/lib.rs",
+            "src/rt/marker.rs": "overlays/wasm-bindgen/src/rt/marker.rs",
+            "src/rt/mod.rs": "overlays/wasm-bindgen/src/rt/mod.rs",
+        },
+    },
+    "wasm-bindgen-macro-support": {
+        "overlay": {
+            "src/codegen.rs": "overlays/wasm-bindgen-macro-support/src/codegen.rs",
+        },
+    },
+    # What the app GPU API needs of wgpu 30. wgpu-core's backend panics on a
+    # bundle that fails validation, where the host must report an app's
+    # mistake as WebGPU does: the overlay sends it to the device's error sink.
+    # And wgpu's WebGPU backend leaves a render pass's occlusion query set out
+    # of the pass it begins in a browser. And `create_buffer_init` panics on a
+    # lost device, whose buffers have no mapped range: the overlay returns the
+    # buffer unfilled. Drop each change once wgpu has it.
     "wgpu": {
         "overlay": {
-            "src/api/render_bundle_encoder.rs": "overlays/wgpu/render_bundle_encoder.rs",
             "src/backend/webgpu.rs": "overlays/wgpu/webgpu.rs",
             "src/backend/wgpu_core.rs": "overlays/wgpu/wgpu_core.rs",
-            "src/dispatch.rs": "overlays/wgpu/dispatch.rs",
+            "src/util/device.rs": "overlays/wgpu/util/device.rs",
         }
     },
     # Windows API imports as raw-dylib, which rustc turns into import stubs
@@ -163,12 +165,4 @@ FIXUPS = {
         "deps": [":windows-link-0.2.1"],
         "rustc_flags": ["--cfg=windows_raw_dylib"],
     },
-    # The snapshot lookup, which nothing here calls, starts from
-    # env!("CARGO_MANIFEST_DIR"): an absolute path into the directory each
-    # compile runs in. That made the -Zno-codegen metadata a dependent compiles
-    # against and the rlib it links disagree about the crate's hash, failing
-    # the link of wiggle's proc macro. The overlay starts from no directory, so
-    # the lookup needs WASI_REPO, as it does wherever the WASI repository is not
-    # two directories up.
-    "witx": {"overlay": {"src/phases.rs": "overlays/witx/phases.rs"}},
 }

@@ -42,7 +42,7 @@ pub fn run(arguments: &[String]) -> Result<ExitCode, String> {
     let mut guest_arguments: Vec<&str> = vec![
         "--mode=--target-platforms=root//buck/platforms:wasi_guest",
         "--rustc-target",
-        "wasm32-wasip1-threads",
+        "wasm32-wasip1",
     ];
     guest_arguments.extend(apps.iter().map(String::as_str));
     guest_arguments.push("//crates/be-sdk:be-sdk");

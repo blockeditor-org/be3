@@ -12,11 +12,13 @@ name = "be-drive"
 path = "src/main.rs"
 
 [dependencies]
+beui-paint-raster = { path = "../beui-paint-raster" }
 be-host-archive = { path = "../be-host-archive" }
 beui-runner = { path = "../beui-runner" }
 beui-layer-drive = { path = "../beui-layer-drive" }
 image = { version = "0.25", default-features = false, features = ["png"] }
 libc = "0.2"
+beui-paint-format = { path = "../beui-paint-format" }
 beui-paint-snapshot = { path = "../beui-paint-snapshot" }
 
 [lints]

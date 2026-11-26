@@ -11,10 +11,10 @@ fn a_stale_card_does_not_make_a_replaced_signing_key_current() {
         .unwrap();
     let account = Uuid::new_v4();
     let (old, new) = ([1u8; 32], [2u8; 32]);
-    refs.add_signer(account, old, true).unwrap();
-    refs.add_signer(account, new, true).unwrap();
+    refs.add_signer(account, old, true, None).unwrap();
+    refs.add_signer(account, new, true, None).unwrap();
     // A server replays the card from before the new phrase.
-    refs.add_signer(account, old, true).unwrap();
+    refs.add_signer(account, old, true, None).unwrap();
     let keys: Vec<[u8; 32]> = refs
         .signers(account)
         .iter()

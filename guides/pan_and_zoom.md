@@ -35,9 +35,11 @@ What to fit is the editor's; keeping it fitted is the host's.
 same frame whenever the content band, the world or the chrome changes, with
 nothing round-tripped through the editor (`FitArea::fit` in be-sdk-api, never
 above scale one, shared by be-host's camera and be-sdk-test's). It returns a
-`Fitting` whose `fit()` is the editor's Fit button. `editor.fit(world, room,
-max_scale)` (`crates/be-sdk/src/editor_state/fitting.rs`) is a one-off move
-instead, as the canvas's Fit all and the logic grid's recenter use.
+`Fitting` whose `fit()` fits it again, and makes that the frame's
+`editor.zoom-fit`. `editor.fit(world, room, max_scale)`
+(`crates/be-sdk/src/editor_state/fitting.rs`) is a one-off move instead; an
+editor whose fit is its own hands it to `editor.fit_with(..)` (the canvas's fit
+all, the logic grid's return to the origin).
 
 The host's camera stops following the fit once moved by anything - a wheel, a
 pinch, a pan-drag, or the editor's own `pan`, `zoom` and `fit` - until
@@ -46,6 +48,17 @@ be-host runs (not in the view block), so a block reopens where the person left
 it, or fitted if they never moved it. It follows only while the editor has a
 frame and its chrome drawn; placed on a canvas, `fit()` is a single
 `editor.fit` through the camera it is placed in.
+
+## Zoom controls
+
+The editor writes none. For an editor whose manifest declares `pan_and_zoom`
+(be-sdk hands it the manifest's `EditorHost::capabilities`), the be-sdk-beui
+frame registers `editor.zoom-in`, `editor.zoom-out` (by `unstyled::ZOOM_STEP`,
+the `+` and `-` keys' step), `editor.zoom-reset` and `editor.zoom-fit` (enabled
+once the editor keeps a fit or hands one to `fit_with`), so the palette lists
+them, and `be_sdk_beui::ZoomBar` shows them on a dock bar: out, the zoom (which
+resets it), in, and fit. `editor.zoom_actions()` hands them to a menu of the
+editor's own.
 
 ## Gestures
 
@@ -90,7 +103,10 @@ block is placed:
   it at and that rectangle's scale over its intrinsic size, and every pan or
   zoom it asks for goes to the nearest frame above that owns a camera
   (`CameraOwner`), never through the parent. That is why zooming while focused
-  into a card moves the canvas under it. A placed child without pan and zoom
+  into a card moves the canvas under it. Under a root (guides/apps/children.md,
+  Under a root) the root tells the host where such a child's content shows and
+  the size it wants (`be3:root`'s `host.place-content`), and the host hands a
+  pan-and-zoom editor its view from them (`Forwarded::set_view`). A placed child without pan and zoom
   is scaled by the host instead: laid out at the assigned size and rendered at
   the rectangle's scale, with input mapped back.
 
@@ -112,10 +128,23 @@ An editor hands its `CanvasView` to `<Canvas view={...}>`
 `crates/beui-core/src/base/canvas.rs`). Each `CanvasItem` carries a rectangle
 in world coordinates mapped through the view (`origin + point * scale`),
 ignoring the `Canvas` node's own laid-out rect, so items track the shared
-camera however the layout around the canvas changes. Placing is not
-transforming: text in an ordinary item keeps its size, so an item that should
-grow with the zoom reads `scale` and sizes itself (the pan-zoom example's
-cards), and is laid out and painted again on every frame of a zoom.
+camera however the layout around the canvas changes. A canvas whose camera is
+its own rather than the frame's (one under `PanZoom`, whose handle's `view` is
+in its content's points; Settings' display arrangement, fitted to its displays
+inside a scrolled page) sets `local_view`, which puts the view's origin in the
+canvas's own points, so its items move with the layout. Never fold a measured
+rect's `min` into a view instead: that follows the layout a frame late, and
+inside a scroll the measure and the view chase each other.
+
+An editor's `editor.canvas()` stays in its frame's points, and its canvas leaves
+`local_view` off, for now: be-sdk knows where the editor's content is but not where
+each of its canvases sits in it (the PDF's beside its sidebar, the video's timeline
+in a row), and a child that took the frame is mapped by the host from the view in
+frame points (`follows_view`, above). Making local the only meaning is in
+plans/backlog.md (34). Placing is not transforming: text in an ordinary item keeps
+its size, so an item that should grow with the zoom reads `scale` and sizes itself
+(the pan-zoom example's cards), and is laid out and painted again on every frame of a
+zoom.
 
 `<CanvasItem scales=true>` is transformed instead: laid out in the canvas's
 own units inside a scaled space (`Rects::set_scaled_space`,

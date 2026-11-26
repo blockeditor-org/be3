@@ -24,7 +24,7 @@ fn a_focused_node_whose_portal_is_removed_is_told_it_lost_the_focus() {
         moved = Some(control);
         view! {
             <List spacing=0.0>
-                <Show condition={held}>
+                <Show value={held}>
                     <List spacing=0.0>
                         <Portal node={Some(control)} />
                     </List>

@@ -24,6 +24,14 @@ fn the_host_menu_opens_under_its_button() {
     // The menu's first row says whether everything is saved: the edits the host made opening
     // the workspace may still be on their way to the server.
     host.synced();
+    let (_, menu_top, _, menu_height) = host.place("#host-menu.child");
+    let (_, last_y, _, last_height) = host.place("#host.menu.inspector");
+    assert!(
+        last_y + last_height <= menu_top + menu_height + 0.5,
+        "the menu grows to fit every row rather than scrolling: its last row ends at {} inside {}",
+        last_y + last_height,
+        menu_top + menu_height
+    );
     host.snapshot("the_host_menu_opens_under_its_button");
     host.key("Escape");
     host.gone("#host.menu.status");

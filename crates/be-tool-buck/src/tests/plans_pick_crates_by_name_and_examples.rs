@@ -1,4 +1,4 @@
-use crate::plan::{Member, PLANS, cargo_arguments};
+use crate::plan::{Member, PLANS, builds_programs, cargo_arguments};
 
 #[test]
 fn plans_pick_crates_by_name_and_examples() {
@@ -26,13 +26,27 @@ fn plans_pick_crates_by_name_and_examples() {
     );
     assert!(!host.contains("be-app-canvas"));
     assert!(plan("wasi-guest").contains("-p be-app-canvas -p be-app-text "));
-    let wasm32 = plan("wasm32");
-    assert!(wasm32.starts_with(
-        "build --target TRIPLE -p tabletop-rules-chess -p be-type-text -p be-wasm-gpu-shim"
-    ));
-    assert!(!wasm32.contains("be-type-bundle"));
+    assert!(
+        !builds_programs("wasi-guest"),
+        "the guests' binaries and examples run on the host, not as guests"
+    );
+    assert!(builds_programs("linux-x86_64"));
+    assert!(
+        builds_programs("windows-x86_64"),
+        "a cross platform is the host's plan"
+    );
+    let guests = plan("wasi-guest");
+    assert!(guests.contains("-p tabletop-rules-chess "));
+    assert!(guests.contains("-p be-type-text "));
+    assert!(guests.contains("-p be-lib-remap-module "));
+    assert!(!guests.contains("be-type-bundle"));
+    assert!(
+        !guests.contains("be-wasm-gpu-shim"),
+        "the gpu shim, which imports JavaScript, has a plan of its own"
+    );
+    assert!(plan("wasm32-bindgen").starts_with("build --target TRIPLE -p be-wasm-gpu-shim "));
     assert!(
         plan("wasi-html")
-            .ends_with("-p beui-demo-html --lib --unit-graph -Z unstable-options --locked")
+            .ends_with("-p beui-host-window --lib --unit-graph -Z unstable-options --locked")
     );
 }

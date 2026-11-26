@@ -1,12 +1,17 @@
-use crate::test::has_test_target;
+use crate::test::test_targets;
 
 #[test]
 fn a_crate_has_a_test_target_unless_its_macro_is_told_not_to() {
-    assert!(has_test_target("load(\"x\")\ncargo_crate()\n"));
-    assert!(!has_test_target("cargo_crate(test = False)\n"));
-    assert!(has_test_target(
-        "cargo_library()\n\ncargo_test(\n    paints = True,\n)\n"
-    ));
-    assert!(has_test_target("type_module(module = \"m\")\n"));
-    assert!(!has_test_target("cargo_library()\ncargo_binary()\n"));
+    assert_eq!(test_targets("load(\"x\")\ncargo_crate()\n"), ["test"]);
+    assert!(test_targets("cargo_crate(test = False)\n").is_empty());
+    assert_eq!(
+        test_targets("cargo_library()\n\ncargo_test(\n    paints = True,\n)\n"),
+        ["test"]
+    );
+    assert_eq!(test_targets("type_module(module = \"m\")\n"), ["test"]);
+    assert!(test_targets("cargo_library()\ncargo_binary()\n").is_empty());
+    assert_eq!(
+        test_targets("cargo_test(resources = glob([\"wit/*.wit\"]))\n"),
+        ["test"]
+    );
 }

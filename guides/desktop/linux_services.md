@@ -142,3 +142,12 @@ The VM has no Wi-Fi device. To see the UI, run `python3 -m dbusmock --system --t
 networkmanager` on a `dbus-daemon` of your own, add a device and access points with its
 `AddWiFiDevice` and `AddAccessPoint`, and start `:dev` with the same `DBUS_SYSTEM_BUS_ADDRESS`. The
 mock does not signal properties it sets, so call its `EmitSignal` after flipping the switch.
+
+## Power
+
+`src/battery.rs` follows UPower's `OnBattery` on the system bus (its `PropertiesChanged`) and
+reports whether the device is on mains power. It is no watch: be-host's login session starts it
+and hands each answer to the block stack (`be_host_stack::set_rest`; the person is away while the
+screen is locked or the screens are off), whose search index compacts only at rest
+(guides/blocks/host.md, Search). The session counts as on battery until the first answer; with no
+system bus or no UPower that answer is "on power", at once.

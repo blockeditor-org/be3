@@ -8,21 +8,8 @@ fn report(instances: &mut Instances, view: ViewId, backdrop: Option<Color>) {
         .screen_id(INSTANCE, view)
         .expect("the view has a screen");
     instances.set_frame_reports(vec![be_sdk_api::FrameReport {
-        screen,
-        content: None,
-        painted: Vec::new(),
-        floating: Vec::new(),
-        floating_painted: Vec::new(),
-        marks: Vec::new(),
-        marks_painted: Vec::new(),
-        scrims: Vec::new(),
-        drawing: Vec::new(),
-        claims: Vec::new(),
-        description: None,
-        actions: None,
-        anchored: None,
-        work_area: None,
         backdrop,
+        ..frame_report(screen)
     }]);
 }
 
@@ -39,7 +26,7 @@ fn a_view_not_reported_yet_is_backed_by_what_its_instance_last_reported() {
         alpha: 255,
     };
     assert_eq!(instances.backdrop(INSTANCE), None, "nothing reported yet");
-    report(&mut instances, ViewId::MAIN, Some(surface.clone()));
+    report(&mut instances, ViewId::MAIN, Some(surface));
 
     let role = InstanceRole::Editor(
         Uuid::nil(),
@@ -64,7 +51,7 @@ fn a_view_not_reported_yet_is_backed_by_what_its_instance_last_reported() {
         PASS,
     );
     let screens = instances.next_screens(PASS).screens;
-    instances.screen_set(screens);
+    instances.announce(screens);
     assert!(
         instances.frame_report(INSTANCE, TAB).is_none(),
         "the new view has no frame yet"

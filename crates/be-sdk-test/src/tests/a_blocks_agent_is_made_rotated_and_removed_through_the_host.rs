@@ -39,10 +39,9 @@ impl BeuiRoot for AgentRoot {
                 }
             },
         );
-        let shown = create_memo(move || status.get());
         view! {
             <Root>
-                <Text @test_id={"agent.status"}>{shown}</Text>
+                <Text @test_id={"agent.status"}>{status}</Text>
             </Root>
         }
     }
@@ -107,3 +106,5 @@ fn a_blocks_agent_is_made_rotated_and_removed_through_the_host() {
     test.settle();
     assert_eq!(test.label("agent.status"), Failure::Denied.to_string());
 }
+
+test_editor!(AgentRoot);

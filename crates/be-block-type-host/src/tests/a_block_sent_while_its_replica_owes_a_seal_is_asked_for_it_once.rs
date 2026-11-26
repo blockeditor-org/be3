@@ -24,7 +24,8 @@ fn a_block_sent_while_its_replica_owes_a_seal_is_asked_for_it_once() {
         .expect("the block is kept here");
         replicas
             .open((&peer, &shared), block, TextContent::CONTENT_TYPE, true)
-            .await;
+            .await
+            .expect("the block opens");
         replicas.pump((&peer, &shared)).await;
 
         let editor = 7;
@@ -42,7 +43,11 @@ fn a_block_sent_while_its_replica_owes_a_seal_is_asked_for_it_once() {
         replicas.relay_from_editor(
             block,
             editor,
-            FromEditor::Operate(TextContent::encode_operation(&typed)).encode(),
+            FromEditor::Operate {
+                gesture: None,
+                operation: TextContent::encode_operation(&typed),
+            }
+            .encode(),
             Instant::now(),
         );
         replicas.pump((&peer, &shared)).await;

@@ -53,6 +53,12 @@ pub const BENCHMARKS: &[Benchmark] = &[
         about: "an editor decoding and adopting the snapshot of a 1 MB text",
     },
     Benchmark {
+        name: "renderer",
+        program: "render-bench",
+        arguments: &[],
+        about: "beui's wgpu renderer drawing text, a 10,000-shape canvas, blurs, opacity groups and a damaged rect offscreen; nothing on a software adapter",
+    },
+    Benchmark {
         name: "access",
         program: "access-bench",
         arguments: &[],
@@ -120,6 +126,16 @@ impl Suite {
                 metrics.display()
             )
         })?;
+        if text.is_empty() {
+            match verbose {
+                true => eprintln!("{} reported nothing; its output says why", benchmark.name),
+                false => eprintln!(
+                    "{} reported nothing; its output, in {}, says why",
+                    benchmark.name,
+                    log.display()
+                ),
+            }
+        }
         crate::parse(&text)
     }
 }

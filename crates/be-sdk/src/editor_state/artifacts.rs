@@ -6,9 +6,6 @@ use uuid::Uuid;
 use crate::state::{Callbacks, Subscription};
 use crate::{Artifact, BlockGraph, EditorHost};
 
-type Regenerate = Rc<dyn Fn(&[u8])>;
-type PollArtifact = Rc<dyn Fn() -> Option<Result<(), String>>>;
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Changed {
     Settings,
@@ -21,11 +18,11 @@ pub struct ArtifactsCore(Rc<Inner>);
 struct Inner {
     host: EditorHost,
     artifact: Artifact,
-    regenerate: RefCell<Option<Regenerate>>,
-    poll: RefCell<Option<PollArtifact>>,
     settings: RefCell<Vec<u8>>,
     saved: RefCell<Vec<u8>>,
     edit: RefCell<Option<Vec<u8>>>,
+    // Callbacks keyed by `Changed`, each handed the artifact's new bytes.
+    #[allow(clippy::type_complexity)]
     changed: Callbacks<Changed, dyn Fn(&[u8])>,
 }
 
@@ -34,8 +31,6 @@ impl ArtifactsCore {
         Self(Rc::new(Inner {
             host,
             artifact,
-            regenerate: RefCell::new(None),
-            poll: RefCell::new(None),
             settings: RefCell::default(),
             saved: RefCell::default(),
             edit: RefCell::new(None),
@@ -107,23 +102,12 @@ impl ArtifactsCore {
         self.0.artifact.source
     }
 
-    pub fn on_regenerate(&self, work: impl Fn(&[u8]) + 'static) {
-        *self.0.regenerate.borrow_mut() = Some(Rc::new(work));
+    pub fn artifact(&self) -> &Artifact {
+        &self.0.artifact
     }
 
-    pub fn on_poll(&self, work: impl Fn() -> Option<Result<(), String>> + 'static) {
-        *self.0.poll.borrow_mut() = Some(Rc::new(work));
-    }
-
-    pub fn regenerate(&self, data: &[u8]) {
-        let work = self.0.regenerate.borrow().clone();
-        if let Some(work) = work {
-            work(data);
-        }
-    }
-
-    pub fn poll(&self) -> Option<Result<(), String>> {
-        let work = self.0.poll.borrow().clone();
-        work.and_then(|work| work())
+    /// The exporter of the source's editor that makes the artifact.
+    pub fn exporter(&self) -> &str {
+        &self.0.artifact.exporter
     }
 }

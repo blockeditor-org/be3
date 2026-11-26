@@ -1,35 +1,28 @@
+//! A filter (`Group::Filter`): what it covers is drawn into a scene texture, Vello blurs that
+//! into a second texture (a Gaussian blur of σ, clamped at the filter's region), and a pass of
+//! ours composes either over the target, applying the contrast and the colour vision matrix
+//! within the region (vello_gpu 0.4 has no colour matrix filter).
+
 use bytemuck::{Pod, Zeroable};
 
 use beui_core::filter::Filter;
 use beui_types::Vec2;
-
-const MAX_LEVELS: usize = 6;
-const MIN_OFFSET: f32 = 0.5;
-const MAX_OFFSET: f32 = 4.0;
-const MAX_PASSES: u64 = (MAX_LEVELS * 2) as u64;
-const UNIFORM_STRIDE: u64 = 256;
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct BlurUniforms {
-    texel: [f32; 4],
-    bounds: [f32; 4],
-}
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct CombineUniforms {
     region: [f32; 4],
     rows: [[f32; 4]; 3],
-    params: [f32; 4],
+    /// The contrast, and whether the target stores linear values.
+    params: [f32; 2],
+    pad: [f32; 2],
 }
 
 #[derive(Clone, Copy, PartialEq)]
 pub(super) struct Prepared {
     region: [f32; 4],
-    levels: usize,
-    offset: f32,
-    strength: f32,
+    /// The blur's standard deviation, in pixels.
+    sigma: f32,
     reach: f32,
     contrast: f32,
     matrix: [[f32; 3]; 3],
@@ -38,7 +31,7 @@ pub(super) struct Prepared {
 impl Prepared {
     pub(super) fn new(filter: &Filter, pixels_per_point: f32, screen: Vec2) -> Self {
         let region = filter.region;
-        let (levels, offset, strength) = steps(filter.blur * pixels_per_point, screen);
+        let sigma = (filter.blur * pixels_per_point).max(0.0);
         Self {
             region: [
                 (region.left() * pixels_per_point).max(0.0),
@@ -46,10 +39,12 @@ impl Prepared {
                 (region.right() * pixels_per_point).min(screen.x),
                 (region.bottom() * pixels_per_point).min(screen.y),
             ],
-            levels,
-            offset,
-            strength,
-            reach: reach(levels, offset),
+            sigma,
+            // A Gaussian holds all but 0.3% of its weight within 3σ, as Vello's blur reaches.
+            reach: match sigma > 0.0 {
+                true => (sigma * 3.0).ceil() + 1.0,
+                false => 0.0,
+            },
             contrast: filter.contrast.clamp(0.0, 1.0),
             matrix: filter.vision.matrix(),
         }
@@ -57,6 +52,10 @@ impl Prepared {
 
     pub(super) fn region(&self) -> [f32; 4] {
         self.region
+    }
+
+    pub(super) fn sigma(&self) -> f32 {
+        self.sigma
     }
 
     pub(super) fn widen(&self, damage: [f32; 4]) -> [f32; 4] {
@@ -96,50 +95,21 @@ fn covers(rect: [f32; 4]) -> bool {
     rect[0] < rect[2] && rect[1] < rect[3]
 }
 
-struct Layer {
-    view: wgpu::TextureView,
-    bind: wgpu::BindGroup,
-    size: (u32, u32),
-}
-
 pub(super) struct Effects {
     format: wgpu::TextureFormat,
     sampler: wgpu::Sampler,
-    blur_layout: wgpu::BindGroupLayout,
-    combine_layout: wgpu::BindGroupLayout,
-    downsample: wgpu::RenderPipeline,
-    upsample: wgpu::RenderPipeline,
+    layout: wgpu::BindGroupLayout,
     compose: wgpu::RenderPipeline,
-    blur_uniforms: wgpu::Buffer,
-    combine_uniforms: wgpu::Buffer,
-    scene: Option<Layer>,
-    chain: Vec<Layer>,
+    uniforms: wgpu::Buffer,
+    /// What the filter covers, unfiltered, and blurred.
+    scene: Option<(wgpu::TextureView, wgpu::TextureView)>,
     size: (u32, u32),
-    combine_bind: Option<wgpu::BindGroup>,
+    bind: Option<wgpu::BindGroup>,
 }
 
 impl Effects {
     pub(super) fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
-        let blur_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("beui blur layout"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: true,
-                        min_binding_size: wgpu::BufferSize::new(
-                            std::mem::size_of::<BlurUniforms>() as u64,
-                        ),
-                    },
-                    count: None,
-                },
-                texture_entry(1),
-                sampler_entry(2),
-            ],
-        });
-        let combine_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("beui combine layout"),
             entries: &[
                 wgpu::BindGroupLayoutEntry {
@@ -157,30 +127,11 @@ impl Effects {
                 sampler_entry(3),
             ],
         });
-        let blur_shader = device.create_shader_module(wgpu::include_wgsl!("blur.wgsl"));
-        let combine_shader = device.create_shader_module(wgpu::include_wgsl!("combine.wgsl"));
-        let downsample = pipeline(
-            device,
-            &blur_layout,
-            &blur_shader,
-            format,
-            "beui downsample",
-            "downsample",
-            None,
-        );
-        let upsample = pipeline(
-            device,
-            &blur_layout,
-            &blur_shader,
-            format,
-            "beui upsample",
-            "upsample",
-            None,
-        );
+        let shader = device.create_shader_module(wgpu::include_wgsl!("combine.wgsl"));
         let compose = pipeline(
             device,
-            &combine_layout,
-            &combine_shader,
+            &layout,
+            &shader,
             format,
             "beui combine",
             "compose",
@@ -197,27 +148,17 @@ impl Effects {
                 min_filter: wgpu::FilterMode::Linear,
                 ..Default::default()
             }),
-            blur_layout,
-            combine_layout,
-            downsample,
-            upsample,
+            layout,
             compose,
-            blur_uniforms: device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("beui blur uniforms"),
-                size: MAX_PASSES * UNIFORM_STRIDE,
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            }),
-            combine_uniforms: device.create_buffer(&wgpu::BufferDescriptor {
+            uniforms: device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("beui combine uniforms"),
                 size: std::mem::size_of::<CombineUniforms>() as u64,
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             }),
             scene: None,
-            chain: Vec::new(),
             size: (0, 0),
-            combine_bind: None,
+            bind: None,
         }
     }
 
@@ -226,124 +167,64 @@ impl Effects {
             return;
         }
         self.size = size;
-        self.chain.clear();
-        self.combine_bind = None;
+        self.bind = None;
         self.scene = match size.0 == 0 || size.1 == 0 {
             true => None,
-            false => Some(self.layer(device, size, "beui filter scene")),
+            false => Some((
+                self.layer(device, size, "beui filter scene"),
+                self.layer(device, size, "beui filter blur"),
+            )),
         };
     }
 
+    /// The texture what the filter covers is drawn into.
     pub(super) fn scene(&self) -> Option<&wgpu::TextureView> {
-        self.scene.as_ref().map(|layer| &layer.view)
+        self.scene.as_ref().map(|(scene, _)| scene)
     }
 
+    /// The texture Vello blurs the scene into.
+    pub(super) fn blurred(&self) -> Option<&wgpu::TextureView> {
+        self.scene.as_ref().map(|(_, blurred)| blurred)
+    }
+
+    /// Readies the pass that composes the scene, blurred when `prepared` blurs, over the
+    /// target.
     pub(super) fn record(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
         prepared: &Prepared,
         stored_linear: bool,
-        scissor: Option<[u32; 4]>,
     ) {
         let (width, height) = self.size;
-        if width == 0 || height == 0 || self.scene.is_none() {
-            self.combine_bind = None;
+        let Some((scene, blurred)) = &self.scene else {
+            self.bind = None;
             return;
-        }
+        };
         let region = [
             prepared.region[0] / width as f32,
             prepared.region[1] / height as f32,
             prepared.region[2] / width as f32,
             prepared.region[3] / height as f32,
         ];
-        let (levels, offset) = (prepared.levels, prepared.offset);
-        if levels > 0 {
-            self.grow(device, levels);
-        }
-        for (pass, (source, target)) in Self::route(levels).into_iter().enumerate() {
-            let size = self.source_size(source);
-            let texel = [1.0 / size.0 as f32, 1.0 / size.1 as f32, offset, 0.0];
-            let bounds = [
-                region[0] + texel[0],
-                region[1] + texel[1],
-                (region[2] - texel[0]).max(region[0] + texel[0]),
-                (region[3] - texel[1]).max(region[1] + texel[1]),
-            ];
-            queue.write_buffer(
-                &self.blur_uniforms,
-                pass as u64 * UNIFORM_STRIDE,
-                bytemuck::bytes_of(&BlurUniforms { texel, bounds }),
-            );
-            let down = target > source;
-            let clip = scissor.map(|scissor| narrowed(scissor, target, self.chain[target].size));
-            if clip.is_some_and(|[_, _, width, height]| width == 0 || height == 0) {
-                continue;
-            }
-            let mut render = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("beui blur pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &self.chain[target].view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: match clip {
-                            Some(_) => wgpu::LoadOp::Load,
-                            None => wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                        },
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-            if let Some([left, top, width, height]) = clip {
-                render.set_scissor_rect(left, top, width, height);
-            }
-            render.set_pipeline(match down {
-                true => &self.downsample,
-                false => &self.upsample,
-            });
-            render.set_bind_group(
-                0,
-                self.source_bind(source),
-                &[(pass as u64 * UNIFORM_STRIDE) as u32],
-            );
-            render.draw(0..3, 0..1);
-        }
+        let blurs = prepared.sigma > 0.0;
         queue.write_buffer(
-            &self.combine_uniforms,
+            &self.uniforms,
             0,
             bytemuck::bytes_of(&CombineUniforms {
                 region,
                 rows: rows(prepared.matrix),
-                params: [
-                    prepared.contrast,
-                    if stored_linear { 1.0 } else { 0.0 },
-                    prepared.strength,
-                    0.0,
-                ],
+                params: [prepared.contrast, if stored_linear { 1.0 } else { 0.0 }],
+                pad: [0.0; 2],
             }),
         );
-        let scene = &self
-            .scene
-            .as_ref()
-            .expect("the scene layer is present")
-            .view;
-        let blurred = match levels {
-            0 => scene,
-            _ => &self.chain[0].view,
-        };
         let bind = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("beui combine bind group"),
-            layout: &self.combine_layout,
+            layout: &self.layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: self.combine_uniforms.as_entire_binding(),
+                    resource: self.uniforms.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
@@ -351,7 +232,10 @@ impl Effects {
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: wgpu::BindingResource::TextureView(blurred),
+                    resource: wgpu::BindingResource::TextureView(match blurs {
+                        true => blurred,
+                        false => scene,
+                    }),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
@@ -359,11 +243,11 @@ impl Effects {
                 },
             ],
         });
-        self.combine_bind = Some(bind);
+        self.bind = Some(bind);
     }
 
     pub(super) fn compose(&self, pass: &mut wgpu::RenderPass<'_>) {
-        let Some(bind) = &self.combine_bind else {
+        let Some(bind) = &self.bind else {
             return;
         };
         pass.set_pipeline(&self.compose);
@@ -371,132 +255,29 @@ impl Effects {
         pass.draw(0..3, 0..1);
     }
 
-    fn route(levels: usize) -> Vec<(usize, usize)> {
-        let mut route = Vec::new();
-        for level in 1..=levels {
-            route.push((level - 1, level));
-        }
-        for level in (0..levels).rev() {
-            route.push((level + 1, level));
-        }
-        route
-    }
-
-    fn source_size(&self, source: usize) -> (u32, u32) {
-        match source {
-            0 => self.size,
-            level => self.chain[level].size,
-        }
-    }
-
-    fn source_bind(&self, source: usize) -> &wgpu::BindGroup {
-        match source {
-            0 => {
-                &self
-                    .scene
-                    .as_ref()
-                    .expect("the scene layer is present")
-                    .bind
-            }
-            level => &self.chain[level].bind,
-        }
-    }
-
-    fn grow(&mut self, device: &wgpu::Device, levels: usize) {
-        while self.chain.len() <= levels {
-            let level = self.chain.len() as u32;
-            let size = ((self.size.0 >> level).max(1), (self.size.1 >> level).max(1));
-            let layer = self.layer(device, size, "beui blur layer");
-            self.chain.push(layer);
-        }
-    }
-
-    fn layer(&self, device: &wgpu::Device, size: (u32, u32), label: &str) -> Layer {
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some(label),
-            size: wgpu::Extent3d {
-                width: size.0.max(1),
-                height: size.1.max(1),
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: self.format,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let bind = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some(label),
-            layout: &self.blur_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: &self.blur_uniforms,
-                        offset: 0,
-                        size: wgpu::BufferSize::new(std::mem::size_of::<BlurUniforms>() as u64),
-                    }),
+    fn layer(&self, device: &wgpu::Device, size: (u32, u32), label: &str) -> wgpu::TextureView {
+        device
+            .create_texture(&wgpu::TextureDescriptor {
+                label: Some(label),
+                size: wgpu::Extent3d {
+                    width: size.0.max(1),
+                    height: size.1.max(1),
+                    depth_or_array_layers: 1,
                 },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Sampler(&self.sampler),
-                },
-            ],
-        });
-        Layer {
-            view,
-            bind,
-            size: (size.0.max(1), size.1.max(1)),
-        }
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: self.format,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: crate::view_formats(self.format),
+            })
+            .create_view(&wgpu::TextureViewDescriptor::default())
     }
-}
-
-fn narrowed(scissor: [u32; 4], level: usize, size: (u32, u32)) -> [u32; 4] {
-    let [left, top, width, height] = scissor;
-    let shift = u32::try_from(level).unwrap_or(u32::MAX).min(u32::BITS - 1);
-    let start = ((left >> shift).min(size.0), (top >> shift).min(size.1));
-    let end = (
-        (((left + width) >> shift) + 1).min(size.0),
-        (((top + height) >> shift) + 1).min(size.1),
-    );
-    [
-        start.0,
-        start.1,
-        end.0.saturating_sub(start.0),
-        end.1.saturating_sub(start.1),
-    ]
 }
 
 fn rows(matrix: [[f32; 3]; 3]) -> [[f32; 4]; 3] {
     matrix.map(|row| [row[0], row[1], row[2], 0.0])
-}
-
-fn steps(radius: f32, screen: Vec2) -> (usize, f32, f32) {
-    if radius <= 0.0 {
-        return (0, 0.0, 0.0);
-    }
-    let affordable = (screen.x.min(screen.y).max(1.0).log2() as usize).clamp(1, MAX_LEVELS);
-    let wanted = ((radius / 2.0).max(1.0).log2().ceil() as usize).clamp(1, MAX_LEVELS);
-    let levels = wanted.min(affordable);
-    let asked = radius / (1u32 << levels) as f32;
-    let offset = asked.clamp(MIN_OFFSET, MAX_OFFSET);
-    (levels, offset, (asked / offset).min(1.0))
-}
-
-fn reach(levels: usize, offset: f32) -> f32 {
-    if levels == 0 {
-        return 0.0;
-    }
-    let span = (1u32 << levels) as f32;
-    let down = (offset * 0.5 + 0.5) * (span - 1.0);
-    let up = (offset + 0.5) * (span * 2.0 - 2.0);
-    down + up + 1.0
 }
 
 fn texture_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {

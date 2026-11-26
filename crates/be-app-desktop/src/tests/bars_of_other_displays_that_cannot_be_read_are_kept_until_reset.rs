@@ -1,15 +1,18 @@
-use be_sdk_beui::be_block_content::ViewState;
+use be_sdk_beui::be_block_content::{ViewState, ViewStateKind};
+
+use crate::root::bar::SavedBars;
 use be_sdk_beui::beui::pos2;
 
 use super::*;
 
 const FIRST: Rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(800.0, 600.0));
 const SECOND: Rect = Rect::from_min_max(pos2(800.0, 0.0), pos2(1600.0, 600.0));
-const STATE: &str = "display-bars-by-monitor";
 
 fn holding(bars: &ViewState) -> EditorViewContent {
     let mut saved = EditorView::document(None);
-    let edit = saved.root().set_state(STATE, Some(bars), 1, Uuid::nil());
+    let edit = saved
+        .root()
+        .put_stored(SavedBars::ID, Some(bars), 1, Uuid::nil());
     saved.apply(&edit);
     saved
 }
@@ -22,7 +25,7 @@ fn status_down_the_left(fixture: &Fixture) -> bool {
 }
 
 fn saved_bars(fixture: &Fixture) -> Option<ViewState> {
-    fixture.saved().root().state(STATE).cloned()
+    fixture.saved().root().stored(SavedBars::ID).cloned()
 }
 
 #[test]

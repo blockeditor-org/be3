@@ -18,6 +18,7 @@ fn opens_in_keeps_an_editor_for_one_block() {
         name: name.to_owned(),
         icon_codepoint: String::new(),
         extensions: Vec::new(),
+        exporters: Vec::new(),
     };
     fixture.test.catalog(Catalog {
         types: vec![BlockTypeDescriptor {

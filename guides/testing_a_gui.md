@@ -41,21 +41,24 @@ An id counts only on a node in the tree: a copy hidden by a `Show`, a dock panel
 closed overlay does not. Two nodes in the tree with one id fail any test that asks for it, so a
 control drawn in two places gives each copy its own id.
 
+What has no id of its own (a menu's row, a dock tab's title) a test finds by its text with
+`find_text(document, root, text, Match::Exact)` or `Match::Contains` (beui's
+`native::testing`, in be-sdk-test's prelude), which finds only text that is laid out. beui's
+tests and the space layer's share their dock and pan-zoom fixtures there too (`windowed_dock`,
+`dock_tab`, `PanZoomStage`, `build_node`).
+
 ## 3. Write the test
 
 Tests live in the editor's crate, one test per file under `src/tests/`
-(`./scripts/verify` splits them).
+(`./scripts/verify` splits them), and import `be_sdk_test::prelude::*`.
 
     let mut test = BeuiTest::<ChecklistRoot>::editing(Uuid::new_v4());
     test.hold(None, ChecklistContent::default());
     test.run();
 
     test.click("checklist.draft");
-    test.run();
-    test.text("buy milk");
-    test.run();
+    test.type_text("buy milk");
     test.click("checklist.add");
-    test.run();
 
     let items = test.content::<ChecklistContent>(None);
     assert_eq!(items.root().items[0].text, "buy milk");
@@ -69,6 +72,12 @@ else the app sent (the `take_*` methods). Give it host-side state (view, chrome,
 its own calls (`set_view`, `set_chrome`, `drag_block`): setting it on the `EditorHost` directly
 skips the protocol, and the session overwrites it on the next frame.
 
+A hosted block's two sides (guides/blocks/hosted.md) each have an opening: `BeuiTest::hosting`
+runs the app's host component, with no screen, and `BeuiTest::joined` its editor as a Join
+member, with no content. `hear_member` and `hear_channel` speak to each as be-host does, and
+`take_block_commands` reads what they tell (`tell-member`, `tell-host`). be-app-gem-hunt's tests
+use both.
+
 `BeuiTest` has no hosted or floated window for an editor's main view (`module.window(view.id)` is
 none), so `ModuleProgram::update`'s fit-window path (`fit_window_to`, and the repaint when the fit
 changed during the frame) cannot be unit tested there. Cover it with a host test that opens the
@@ -76,14 +85,26 @@ window, and with `stress`.
 
 ### Gestures
 
-- A gesture only queues events: nothing it causes shows in `shown()`, `label()` or the model
-  until the next `run()`. Call `run()` after each gesture.
+Both harnesses, `BeuiTest` and `DocumentTest`, are a `Gui` (beui-platform-headless's
+`testing::Gui`, in `be_sdk_test::prelude` with `Snapshots`): gestures, reading by test id
+(`shown`, `label`, `rect_of`, `point_of`, `reveal`, ...) and settling are written once there,
+and a harness supplies its document, the tree of its last frame, how a gesture reaches the
+program, one frame (`run`) and its clock. A fixture of a test's own that derefs to a harness
+says `impl Wraps for Fixture {}` to be one too.
+
+- A gesture paints the frames that take it before it returns, so what it caused is in
+  `shown()`, `label()` and the model at once. `run()` paints one more frame. `BeuiTest`'s input
+  that is no drive gesture (`pen`, `eraser`, `predict`, `host_key`, `host_tap`,
+  `hold_modifiers`) paints its own frame too; to give several in one frame, as a device that
+  coalesces its pen samples does, give them inside `in_one_frame(|test| ...)`.
 - Typing goes to what has focus, so click a text field first.
 - `click()` first scrolls a target that a scroll hides or cuts into view, as a person would,
   so a test need not know how much fits on screen. It panics when no node has that id: usually
   one never given an id, or a row a virtualized list has not built.
-- Gestures are drive's (`Gestures` in crates/beui-layer-drive). After a `tap`, keep touching:
-  a mouse arriving after a finger can change what a phone layout shows.
+- Gestures are drive's commands (`plan` and `Gestures` in crates/beui-layer-drive), and a
+  failure prints the steps as `drive` commands. The pointer stays where the last gesture left
+  it, as in drive, so a painting after a click shows the clicked control hovered. After a
+  `tap`, keep touching: a mouse arriving after a finger can change what a phone layout shows.
 
 ### Waiting and time
 
@@ -93,9 +114,15 @@ window, and with `stress`.
   editor stalls it until the deadline, as it would in be-host.
 - `settle()` paints until a frame stops asking for another at once. Call it before a snapshot
   of something that animates in.
+- A `be_host_stack` reply (a served command's answer, a listing, members) reaches its callback
+  only while the stack's updates are taken. A test that blocks on a channel the callback sends
+  on (`recv()`) takes none, so it hangs: loop on
+  `be_host_stack::take_updates_or_wait(what, || received())`, which takes them and waits for
+  the worker to hand over more until `received` holds.
 - The editor's clock (`timer::now()`) is the harness's: each frame is one frame interval
   later, so an animation lands on the same frame everywhere. `advance(by)` moves it on and
-  paints; `wait(by)` moves it on and delivers queued host calls without painting.
+  delivers queued host calls without painting; the next `run()` or gesture paints the frame
+  that takes them.
 - The date and time of day are pinned too, to `beui_core::timer::TEST_WALL_CLOCK`: editors
   read `be_sdk_beui::wall_clock()` and beui `beui::reactive::wall_clock()`, never
   `SystemTime::now()`, which would paint differently every run.
@@ -105,7 +132,11 @@ window, and with `stress`.
 The region is 800×600 points at scale 1; `with_size`, `with_scale_factor` and `set_raster`
 change it (a phone, a high-density screen, a VR panel drawn finer than it is laid out). An
 editor whose manifest claims `pan_and_zoom` calls `in_viewport()`, and the harness then holds
-a zoom and offset and answers pan, zoom and fit as the host does (guides/pan_and_zoom.md).
+a zoom and offset and answers pan, zoom and fit as the host does (guides/pan_and_zoom.md),
+within the `max_zoom` the manifest gives the editor: `beui_app!` implements `AppEditor` for
+each root it names (`a | b => Root` for one root two editors share), which tells the harness
+the app's manifest and the root's editors in it. A root a test defines for itself becomes an
+editor of a bare test manifest with `be_sdk_test::test_editor!(Root)`.
 
 ## 4. Snapshots of the painting
 
@@ -114,6 +145,14 @@ Cargo.toml: the shapes and glyphs beui's renderer would hand the GPU, each glyph
 coverage image, compressed to a few kilobytes and compared exactly
 (decisions/paint_snapshots_instead_of_screenshots.md). `record()` keeps the current frame, and
 `snapshot` then writes every kept frame, so a test can show how the editor got somewhere.
+A host test's `record_frame()` keeps the next frame as it is, without settling
+(`--no-settle paint`), for frames stepped one at a time. Turn on `step on` first (with the clock
+stopped, as host tests start): each command then runs only its own frames, and each frame starts
+once the apps and the block store have done what the last one set off (guides/running/drive.md,
+The clock, which gives the measured rates); without it, which frame takes in what a thread did
+depends on how soon the next command came. Check a recording of single steps under `stress`
+before trusting it. Leave it off in a test with another device that needs this one between
+commands.
 Every frame is compared, so keep recordings to the frames that say something.
 
 - A painting never holds glyph atlases, so text an earlier frame drew cannot change it. Text
@@ -124,7 +163,10 @@ Every frame is compared, so keep recordings to the frames that say something.
 - A frame is tidied before it is kept (beui-paint-format's `Frame::tidy`): what paints no pixel
   (a shape under a later opaque rect or over its own colour, a clip that cuts nothing) is
   dropped or made plain, so a change only those see leaves the painting's bytes alone. Tidying
-  must never change a pixel `rasterize` paints.
+  must never change a pixel `rasterize` (beui-paint-raster) paints.
+- A painting holds what beui drew as beui drew it: rects, glyphs, paths (`Content::Path`, placed
+  in points, filled or stroked), groups and fades, and meshes only for what was drawn as
+  triangles (images, colour glyphs, lines, a 3D scene's panels).
 - The format is beui-paint-format's types as CBOR. Grow it by adding (a variant, or a field that
   skips its default) so existing paintings keep their bytes; renaming, removing or reshaping a
   field bumps `VERSION` (beui-paint-snapshot's format.rs) and verify rewrites every painting.
@@ -134,7 +176,9 @@ Every frame is compared, so keep recordings to the frames that say something.
 `snapshot` and `record` also fail on what the frame shows out of bounds (beui-core's
 `Document::overflows`): a node cut off by a clip that no scroll or pannable canvas can move it
 out from under, text drawn outside its box, or an outline (a focus ring) cut by a clip while
-its frame shows whole. Each line names the node, its nearest ancestor with a test id and both
+its frame shows whole. A clip is checked moved by the `translate` of the frames between it and
+the node, so something sliding under a clip (a swiped toast, a page going back) is in motion,
+not cut off. Each line names the node, its nearest ancestor with a test id and both
 rectangles. Fix the layout, not the test: wrap or ellipsize the text, let the row shrink
 (`<ListItem shrink=1.0>`), scroll it, put padding inside the scroll, or give a scroll
 in a padded surface `bleed` so a ring at its edge has room. beui-demo's
@@ -144,12 +188,22 @@ in a padded surface `bleed` so a ring at its edge has room. beui-demo's
 
 - `./scripts/verify` accepts new and changed paintings, fails on one a test names but never
   wrote, and deletes paintings no test compared (`--check` fails instead). CI on a pull request
-  does the same and pushes what it wrote.
+  does the same and pushes what it wrote. A test's paintings are at a fixed path in buck-out,
+  so one that did not run leaves an earlier build's there: when the build fails, verify accepts
+  only the paintings of tests whose compare ran in it, by the event log, and names the rest it
+  left as they are, to accept once a build succeeds (crates/be-tool-verify's failures.rs). A test that did not run fails the
+  build, so verify fails too.
 - Under verify and `./scripts/test --update` a test never reads its accepted painting: it writes
   what it painted (`MADE_PAINTINGS`), and an action after it compares that with `snapshots/`
   (guides/buck2.md, Tests). So the test's result is cached on its code alone, and a test that
   paints nondeterministically keeps one painting until its code changes instead of flipping on
-  every run. Such a painting still flips when the test reruns (plans/flaky_paintings.md).
+  every run. To catch such a test, verify runs a test once more whenever it makes a painting
+  that is new or changed, and CI on a pull request does the same for every painting the pull
+  request changed (buck2.md, Tests). Where the two runs differ, or the second run fails, verify
+  prints the painting with what changed and keeps going, and the pull request's summary comment
+  lists it under "Flaky paintings". The first run's painting is the one accepted. Fix what the
+  test reads that varies (6, Writing a test that does not flake). A painting that changes when
+  nothing it shows or runs has changed is a sign of the same flake.
 - Git never merges a painting. On a conflict take either side (`git checkout --theirs`) and let
   verify repaint it.
 - Changed paintings need no explanation in your work: a person reviews them on the pull
@@ -162,10 +216,13 @@ in a padded surface `bleed` so a ring at its edge has room. beui-demo's
 
 `be_sdk_test::DocumentTest` paints any beui document (crates/beui-demo paints every demo page
 this way). It is beui's `testing::Stepped` (guides/beui/core.md, Test and verify changes), running the real `Runner`
-with drive's gestures and a frame clock. `click` and `scroll` reveal their target first and
-then move the pointer out of the window, so a painting shows hover only where the test hovers.
-`settle()` never finishes on a page that animates forever, such as a spinner. `record()` keeps
-the current frame for a recording, as an editor's does.
+with drive's gestures and a frame clock, and the same `Gui` as `BeuiTest`. Its gestures go
+through the drive layer, which reveals their targets; a target may also be a line of the
+tree (`Target::text("Tab \"Layers\"")`), as in drive. With the clock stopped, `settle()` is
+`drive settle`: it waits for input to be handled, not for animations, which move only with
+`advance` or `pause`. `pause(by)` is `drive pause`: it lets `by` pass over painted frames
+(a long one in bigger steps, ending a frame interval apart), as a person waiting would see it;
+`advance(by)` jumps the clock without painting, and the next frame lands `by` later.
 
 ### Browser pages
 
@@ -178,14 +235,27 @@ A page rendered as HTML (crates/be-server-portal-ui's portal) is snapshotted wit
 
 The `.browser` name makes the painting a text file of the viewport, the document and every
 resource it loads (beui's fonts excepted), one token per JSON line so Git diffs read well. Tests
-compare the bytes without a browser; crates/be-tool-browser-rasterizer renders them for review
-and says how to set it up locally. Fix dynamic ids, form tokens and times in fixtures.
+compare them without a browser; crates/be-tool-browser-rasterizer renders them for review
+(the previews, and `be-tool-local rasterize`) in the browser tests' pinned headless Chromium,
+which it starts and drives itself over the DevTools protocol on `--remote-debugging-pipe`, with
+the launch switches and page settings Playwright uses. Its `:browser-rasterizer` lays Chromium
+and its libraries out beside it, so it needs nothing installed. A few pages with rounded cards
+draw one of two images a run, a step apart in a colour at the corners. Fix dynamic ids, form
+tokens and times in fixtures.
+
+Whatever reads a painting file (the comparison, `rasterize`, the pull request's previews)
+decodes it as beui-paint-snapshot's `Painting`, `Native` or `Browser`, whose `frames` and
+`difference` cover both kinds, and draws it with beui-paint-raster's `render_painting`: a native
+painting with vello_cpu, a browser one with the browser rasterizer it is given
+(`BrowserSnapshot::render`). beui-paint-snapshot draws no native painting itself, since it sits
+in the beui library and vello_cpu must not.
 
 ## 5. Running them
 
-An app's tests are compiled to wasm32-wasip1-threads and run by crates/be-sdk-test-runner,
-the same wasmtime runtime be-host opens apps with, so what they paint is what the shipped app
-paints (decisions/app_tests_run_as_wasm_guests.md). A native build or test of an editor package
+An app's tests are compiled to wasm32-wasip1, single-threaded as the app is, and run by crates/be-sdk-test-runner,
+the same V8 runtime (be-wasm-host) be-host opens apps with, against the libraries the app ships with
+(guides/app_libraries.md, Tests), so what they paint is what the shipped app paints
+(decisions/app_tests_run_as_wasm_guests.md). A native build or test of an editor package
 checks something that never ships. The host's own crates (be-host and its desktop and
 accounts crates, beui-layer-space) paint natively with `cargo_test(paints = True)`. Each crate's
 tests run in exactly one of these places.
@@ -207,7 +277,10 @@ build log.
 - A panic aborts the wasm guest. The runner then reruns each test in its own instance and lists
   every failure with its panic message and call stack (function names, no line numbers: wasm
   has no Rust backtraces).
-- Each module is precompiled to a cached `.cwasm` once, so a rerun takes seconds. The runner
+- A `#[should_panic]` test in a crate tested as wasm is reported as ignored and never runs, since
+  a panic aborts the guest: assert on what the code returns instead (a read that fails, an
+  error) rather than on a panic.
+- V8 compiles the module and its libraries when the runner loads them. The runner
   opens a GPU adapter only when a test calls the gpu ABI; nothing a test compares passes
   through a GPU.
 
@@ -237,8 +310,34 @@ app in it. A test fails unless the host exits cleanly at `close()`.
 - Every step settles as `drive` does, and the clock is stopped, so carets and animations paint
   the same every run; time passes only with `pause`. A pause runs a frame only once
   the apps have answered the one before (they work on threads of their own), so an animation
-  that spans a pause ends under load as it does idle. `HostTest`'s doc comments cover cropping, and
+  that spans a pause ends under load as it does idle. A closing dialog or alert animates out,
+  so `gone` after closing one needs a `pause` past its exit first. `HostTest`'s doc comments cover cropping, and
   `Options` covers the desktop, previews, space and rendering.
+- To make an app slow to answer, `host.run(&["hold", APP_ID])` (such as `be3.text`) has be-host
+  hear nothing the app sends, counting it settled, until `host.run(&["hold", "off"])` hands it
+  all over in order: what the host does meanwhile (giving a view the keyboard before the app
+  has caught up with it, say) happens as it does when an app falls behind
+  (`a_text_shown_while_its_app_is_slow_takes_the_caret_once_it_catches_up`).
+- `HostTest::root(APP)` runs be-host with a root guest in place of its UI (`--root=APP`), drawn
+  through lavapipe, with no workspace; `HostTest::root_with_dev_workspace(APP)` opens the dev
+  workspace under it too (`--root=APP --dev-workspace`), whose session's view the root shows. A
+  snapshot paints what the root's surfaces painted (`be3:root`'s `paintings`) where its layers
+  show them: its own (be-sdk-beui-root's `BeuiSurface::painting` answers for one drawn with
+  beui), and the screens of the apps it embeds when the root asks them for theirs
+  (`Embedded::paintings`, which be-root does and be-sdk-root-testing does not; a test of that
+  one reads them from the window's pixels with `shot()`). The root is staged by naming its
+  package's label in `APPS`.
+- Under `Options::desktop`, `HostTest::open_test_window(TITLE)` runs a program window in the
+  desktop's compositor: be-tool-wayland-window (`WAYLAND_TEST_WINDOW` in the tests' environment),
+  one window titled TITLE filled with one color at whatever size it is configured to (green once
+  pressed and red once a key reached it, with `.pressed` or `.typed` added to its app id, which
+  names its chip: a test waits for that before it snapshots), started
+  with the variables `drive env` gives programs. Its window is still open as the host closes,
+  which closes it first as its session ends (`close` answers once it has); before
+  `restart_as_root` the test's programs stop, and it waits for the desktop to list no window, so
+  the root starts without their placeholders. drive's `settle` waits for a
+  program window shown to draw what it was last configured to (be-host-wayland's
+  `Compositor::busy`), so a painting of it is settled once its program answered.
 - Paintings are `drive paint` and fail on overflow (`drive overflows`) in the host or any app
   shown, whatever the crop.
 - Each test names the apps it uses in `APPS` in crates/be-host-tests/BUCK (the comment there
@@ -262,10 +361,11 @@ app in it. A test fails unless the host exits cleanly at `close()`.
 ### Devices of one account
 
 `HostTest::start` has each host embed a private server. A test of what happens between devices
-(sync, going offline, restarting) owns one instead: `Server` (crates/be-host-tests/src/server.rs)
-runs be-server in the test's process on a directory of its own, and hosts join it as devices.
+(sync, going offline, restarting) owns one instead: `server()`, the block-stack tests' `Server`
+(`be_host_server::testing`) on the test's clock, runs be-server in the test's process on a
+directory of its own, and hosts join it as devices, each through a fault relay of its own.
 
-    let server = Server::start();
+    let server = server();
     let dev = server.account("Dev");
     let mut laptop = HostTest::device(&dev);
     let mut phone = laptop.another_device();
@@ -298,6 +398,13 @@ runs be-server in the test's process on a directory of its own, and hosts join i
   sent, and everything it missed asked for. What another device changes arrives by push after
   that, so wait for it to show. Never pause for sync.
 - Each device is a host: keep a test to two unless it needs more.
+- `Server::player(name)` is an account with no device: a raw be-block-client peer in the test's
+  process (crates/be-host-tests/src/player.rs), as a hosted block's own client would be. It
+  opens a share link a device's dialog showed (`open_share_link`, then joining that
+  organization, as a guest if need be), joins the block's session as a Join member (`join`),
+  waits for the server to name a new host (`host_other_than`), and handshakes with the host,
+  saying a first message on the channel it opens (`handshake`). It is how a test plays a hosted
+  block from outside, as in `players_carry_on_with_the_next_host_once_the_first_closes_the_world`.
 
 Debugging:
 
@@ -306,14 +413,19 @@ Debugging:
   host's log with every panic in full. A step that times out while the tree shows nothing
   pending means something asks for a frame every frame.
 - A flake that shows only under load: `./scripts/buck run //crates/be-tool-local:bin -- stress
-  NAME [--repeat N] [--parallel K] [--limit SECONDS] [--apps A,B] [--latency MS]` builds the
-  host tests' harness once and runs the tests whose names contain NAME N times (20), K at a
-  time (twice the cores), killing a run that takes more than SECONDS (300). It prints how many
+  NAME [--repeat N] [--parallel K] [--limit SECONDS] [--apart] [--latency MS]` builds the
+  host tests once and runs the tests whose names contain NAME N times (20), K at a time (twice
+  the cores). Each run is the test's own command, its `[command]` sub-target (buck/dev/test.bzl:
+  crates/be-tool-run-test with the test's environment), which stops the run and everything it
+  started once it takes more than SECONDS (300). It prints how many
   runs failed, grouped by the panic's message with the numbers blurred and the first logs of
-  each group, which are under target/stress/NAME/. Every run uses the host that has every app
-  unless `--apps` lists the apps the test names in `APPS`; verify stages only those, which
-  changes the timing, so try both. `--apps` builds the host apps.bzl defines for that set, so
-  it takes only a set some test in `APPS` names already. `--latency` delays each read of what
+  each group, which are under target/stress/NAME/: a failing run's output as N.log, and in
+  N.logs/ the whole log of each program it drove, which each writes there as it runs, so a run
+  stopped for passing SECONDS keeps them too (a failure carries only the end of one, and says
+  when it logged nothing). Every run uses `:test`, the host that has every app, unless
+  `--apart`: then each test runs as its own `:test-NAME`, staging only the apps it names in
+  `APPS`, as verify does, which changes the timing, so try both (with several tests matched,
+  N.log is N-I.log, I the test). `--latency` delays each read of what
   the server sends a device of a test's `Server` (`HostTest::device`, through its relay), as a
   build server busy with other tests does: a flake that shows there with the CPU idle (the
   run-test line says a few seconds of CPU in forty) is a slow server, not load, and shows here
@@ -322,9 +434,22 @@ Debugging:
   once slows every step down, but at 7 or more per core single steps pass 30 seconds with
   nothing wrong. Report a fix with its failure counts before and after, such as "3 of 200
   before, 0 of 800 after": a rate of one in a few hundred needs hundreds of runs.
-  A run whose painting differs from the accepted one fails with what changed, and keeps that
-  variant in target/stress/NAME/N/changed/ with a `.why` beside it (`rasterize`, then compare
-  the pictures).
+  A run whose painting differs from the accepted one, as be-tool-paint-compare compares them
+  for verify, fails with what changed, and keeps that variant in target/stress/NAME/N/changed/
+  with a `.why` beside it (`rasterize`, then compare the pictures).
+- A crate's own test under load (`stress` runs host tests only): build its harness,
+  `./scripts/buck build //crates/NAME:test-harness --show-full-output`, and run it as verify's
+  part does, through `//crates/be-tool-run-test:bin` with `--one-test`, the sysroot's
+  `--library-path` and `-- HARNESS --exact MODULE::TEST`, many copies at once (`xargs -P 32`),
+  keeping only failing runs' output; count failures before and after as for `stress`. A test
+  that panics on purpose costs a symbolized backtrace locally when `RUST_BACKTRACE` is set in
+  your shell, but not on the build server, so unset it unless the backtrace is the point.
+- A symptom that shows only in a log (a warning line, no failure): `./scripts/test` prints
+  nothing of a passing host test, and `stress` keeps only failing runs' logs, so make the line
+  panic for the moment (an `eprintln!` turned `panic!`) and run `stress NAME`: each run that
+  logs it fails and keeps its logs, and the failure count is the symptom's rate. Take the panic
+  out before committing; with it in place, the whole `//crates/be-host-tests:test` passing says
+  no host test logs the line.
 
 Writing a test that does not flake (decisions/host_tests_stay_flake_free.md says why these):
 
@@ -354,6 +479,11 @@ Writing a test that does not flake (decisions/host_tests_stay_flake_free.md says
   runs in a hundred then time out at the very first `wait` (the Files pane still showing
   "Loading the files" after 30 seconds, nothing wrong): they pass at `--parallel` equal to
   the cores. Count such a timeout as load, not as the test's flake, and raise nothing.
+- A `wait` still unmet after 5 seconds looks at the tree, and fails at once with what it finds:
+  a block type no staged editor edits, or an app's stop toast (`NAME stopped: REASON`, guides/apps/runtime.md,
+  When an app stops). "The app stopped responding" is a step that ran past `STEP_TIMEOUT`; a
+  test whose CPU (the `run-test` line) is mostly system time was starved by its machine, which
+  is load, not the test's flake.
 - A hang: `gdb -p PID -batch -ex 'thread apply all bt'` on its be-host. Every thread parked with
   the window waiting on data means something changed without `host::wake()`: a lost wake, not a
   deadlock.
@@ -387,9 +517,11 @@ it `measure`s in a `Text` (`wait 'Inner 50x20 at 140,50'`). To cross a timeout, 
 - A script both cores run marks a step only the browser can make with `#web COMMAND` (a comment
   natively): the browser-only commands are `attribute`, `history`, `history-state` (the current
   history entry holds the page's own back entry or not), `loads` (how many times the page has
-  loaded), `reload`, `selection`, `highlighted` (what the page's CSS highlights cover),
-  `elements` (how many elements match a selector), `role` and `roles`; web-test.mjs's header
-  says what each takes.
+  loaded), `reload`, `selection`, `elements` (how many elements match a selector; a text's
+  marks are `.beui-mark` boxes), `role`, `roles`, `css` (adds a stylesheet, to stand in for a
+  browser without a feature: `css '* { overflow-anchor: none !important; }'` is Safari's missing
+  scroll anchoring), and `share-sheet` and `shared TEXT` (a stand-in `navigator.share`, which
+  Chromium on Linux lacks, and what it was handed); web-test.mjs's header says what each takes.
 - To see a screen: `./scripts/buck run //crates/beui-tests:dev -- NAME` and `drive`; in a browser,
   serve `:web` with COOP `same-origin` and COEP `require-corp` and open
   `index.html?fixture=NAME`.

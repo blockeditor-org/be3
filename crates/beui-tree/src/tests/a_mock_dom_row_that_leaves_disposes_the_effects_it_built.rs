@@ -12,7 +12,7 @@ fn a_mock_dom_row_that_leaves_disposes_the_effects_it_built() {
     let list = scope.run(|| {
         view! {
             <Element tag="ul">
-                <ForEach keys={items}>|item: u32| {
+                <ForEach value={items}>|item: u32| {
                     on_cleanup(move || cleanups.update(|cleanups| *cleanups += 1));
                     let text = create_memo(move || format!("{item}{}", suffix.get()));
                     view! {

@@ -25,7 +25,6 @@ fn a_sorted_kanban_moves_cards_between_columns_but_not_within_one() {
 
     let below = under.center() + Vec2::new(0.0, 8.0);
     fixture.lift(top.center(), below);
-    fixture.harness.next_frame();
     fixture.harness.run();
     assert!(
         fixture.harness.shown("database-view.card-ghost"),

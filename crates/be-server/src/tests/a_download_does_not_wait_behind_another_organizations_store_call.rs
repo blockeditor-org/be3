@@ -3,8 +3,8 @@ use super::*;
 #[tokio::test]
 async fn a_download_does_not_wait_behind_another_organizations_store_call() {
     let harness = Harness::start().await;
-    let mut reader = harness.client().await;
-    let account = reader.register("reader@example.com").await;
+    let mut reader = harness.member("reader@example.com").await;
+    let account = reader.id();
     reader.organization("library").await;
     let author = Author::new(account);
     let block = reader.create_block(BlockParent::Root).await;

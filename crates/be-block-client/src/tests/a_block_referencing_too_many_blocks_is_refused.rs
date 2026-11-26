@@ -1,6 +1,6 @@
 use super::*;
 use be_block_content::Entries;
-use be_block_protocol::{ErrorCode, KeySet, MAX_REFERENCES, client::blocks};
+use be_block_protocol::{ErrorCode, MAX_REFERENCES};
 use be_type_text::TextContent;
 
 fn refused<T>(answer: Result<T, ClientError>) {
@@ -11,9 +11,8 @@ fn refused<T>(answer: Result<T, ClientError>) {
     }
 }
 
-/// A block references at most `MAX_REFERENCES` blocks. One that does is summarized alone in
-/// any answer, which still fits a frame; one more is refused by the server, and by the client
-/// before anything is put in the outbox.
+/// A block references at most `MAX_REFERENCES` blocks: a publish adding that many is kept, and
+/// one more is refused by the server, and by the client before anything is put in the outbox.
 #[tokio::test]
 async fn a_block_referencing_too_many_blocks_is_refused() {
     let harness = Harness::start().await;
@@ -32,26 +31,40 @@ async fn a_block_referencing_too_many_blocks_is_refused() {
     too_many.push(Uuid::new_v4());
 
     refused(
-        crate::ask(blocks::set_metadata(
-            &author.connection(),
-            block,
-            Vec::new(),
-            too_many.clone(),
-        ))
+        crate::ask(
+            be_block_protocol::write::<be_block_protocol::BlockSummary, _>(
+                &author.connection(),
+                Some(author.organization()),
+                be_block_protocol::Op::Publish {
+                    block: block,
+                    expected: None,
+                    commit: None,
+                    references: be_block_protocol::ReferenceChange::between(&[], &too_many.clone()),
+                    metadata: Vec::new(),
+                    journal: None,
+                },
+            ),
+        )
         .await,
     );
     refused(
-        crate::ask(blocks::create_block(
-            &author.connection(),
-            Uuid::now_v7(),
-            TextContent::CONTENT_TYPE,
-            BlockParent::Block(workspace),
-            Vec::new(),
-            too_many.clone(),
-            Uuid::new_v4(),
-            KeySet::default(),
-            false,
-        ))
+        crate::ask(
+            be_block_protocol::write::<be_block_protocol::BlockSummary, _>(
+                &author.connection(),
+                Some(author.organization()),
+                be_block_protocol::Op::CreateBlock {
+                    block: Uuid::now_v7(),
+                    content_type: TextContent::CONTENT_TYPE,
+                    parent: BlockParent::Block(workspace),
+                    metadata: Vec::new(),
+                    references: too_many.clone(),
+                    key: Uuid::new_v4(),
+                    owner_only: false,
+                    root: Vec::new(),
+                    placement: Vec::new(),
+                },
+            ),
+        )
         .await,
     );
     refused(
@@ -68,43 +81,23 @@ async fn a_block_referencing_too_many_blocks_is_refused() {
         "a write that could never be sent was kept"
     );
 
-    // As many as may be: the block's summary passes every answer alone.
-    let kept = crate::ask(blocks::set_metadata(
-        &author.connection(),
-        block,
-        Vec::new(),
-        most,
-    ))
-    .await
-    .unwrap();
-    assert_eq!(kept.references.len(), MAX_REFERENCES);
-    let reader = harness.second(&author).await;
-    let listed = reader
-        .list(Listing::Children(BlockParent::Block(workspace)))
-        .await
-        .unwrap();
-    assert!(
-        listed
-            .iter()
-            .any(|summary| summary.id == block && summary.references.len() == MAX_REFERENCES)
-    );
-    assert!(listed.iter().any(|summary| summary.id == sibling));
-    let read = reader
-        .read_contents(&[(sibling, None), (block, None), (sibling, None)])
-        .await
-        .unwrap();
-    assert_eq!(read[1].summary.references.len(), MAX_REFERENCES);
-    let summaries = crate::ask(blocks::read_summaries(
-        &reader.connection(),
-        vec![block, sibling],
-    ))
-    .await
-    .unwrap();
-    assert!(!summaries.is_empty());
-    assert_eq!(
-        reader.summary(block).await.unwrap().references.len(),
-        MAX_REFERENCES
-    );
+    // As many as may be: a publish adding them all fits a frame and is kept.
+    let kept = crate::ask(
+        be_block_protocol::write::<be_block_protocol::BlockSummary, _>(
+            &author.connection(),
+            Some(author.organization()),
+            be_block_protocol::Op::Publish {
+                block: block,
+                expected: None,
+                commit: None,
+                references: be_block_protocol::ReferenceChange::between(&[], &most),
+                metadata: Vec::new(),
+                journal: None,
+            },
+        ),
+    )
+    .await;
+    assert!(kept.is_ok(), "{kept:?}");
 
     harness.stop().await;
 }

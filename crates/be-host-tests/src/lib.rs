@@ -5,18 +5,40 @@ use std::time::{Duration, Instant};
 use be_block_fault_relay::Relay;
 use be_tool_drive::Driven;
 use beui_layer_drive::Reply;
-use beui_paint_snapshot::{Painting, Snapshot};
+use beui_paint_format::Painting;
+use beui_paint_snapshot::Snapshot;
 
-mod server;
+mod player;
 
-pub use server::{Account, Server};
+pub use be_host_server::testing::{Account, Server};
+pub use player::Player;
 
+/// A test's own server, on the test's clock: its devices' clocks start at the test's moment,
+/// so the server's does too, since it stamps when it took each edit, which a device reads
+/// against when the edit was made.
+pub fn server() -> Server {
+    Server::with(be_host_server::testing::Options {
+        starts_at: Some(
+            i64::try_from(beui_core::timer::TEST_WALL_CLOCK.as_millis()).unwrap_or(i64::MAX),
+        ),
+        ..be_host_server::testing::Options::default()
+    })
+}
+
+/// How long `wait_still` moves the clock on between two looks, and how many it takes.
+const STILL_STEP: u32 = 100;
+const STILL_STEPS: usize = 50;
 const SIZE: &str = "1100x720";
 const MISSING_EDITOR: [&str; 2] = ["Unsupported block type", "No block types match."];
 const SLOW_WAIT: Duration = Duration::from_secs(5);
+/// How long a failed test's report waits for the host to say what it is out of step with.
+const OUT_OF_STEP_WAIT: Duration = Duration::from_secs(5);
 const FILES: &str = "Pane \"Files\"";
 const SHOW_A_CODE: &str = "Button \"Show a code\"";
 const FILE_TREE: &str = "#file-tree.filter";
+/// What a host running a root shows once it runs: the drawing of what the root shows
+/// (crates/be-host/src/root.rs).
+const ROOT_SHOWN: &str = "#root";
 
 /// be-host started headless with the dev workspace open, driven as `drive` drives it, for a test
 /// of what happens between editors (guides/testing_a_gui.md, 6).
@@ -38,8 +60,13 @@ pub struct HostTest {
     started: Instant,
     reported: Cell<bool>,
     space: bool,
+    /// Whether it runs the desktop (`--desktop`), which a restart as a root keeps.
+    desktop: bool,
     editors: Option<String>,
     device: Option<Device>,
+    /// The programs it started in the desktop's compositor (`open_test_window`), stopped as it
+    /// ends.
+    programs: Vec<std::process::Child>,
 }
 
 /// How [`HostTest::start`] starts the host. The default is the Files pane, painted without a
@@ -78,12 +105,51 @@ impl HostTest {
         Self::begin(start, ready, options.space, None)
     }
 
+    /// Starts the host with the staged app `app`'s entry point as the root guest in place of
+    /// its own UI (`--root=APP`), with no workspace. It draws through lavapipe, since the root's
+    /// apps draw on the window's device, and shows only what the root draws, so look at it with
+    /// [`HostTest::shot`]: the window has no painting of it yet.
+    pub fn root(app: &str) -> Self {
+        let mut start = Self::program(false, true);
+        start.arguments = vec![format!("--root={app}")];
+        Self::begin(start, ROOT_SHOWN, false, None)
+    }
+
+    /// Starts the host with the staged app `app` as its root, as [`HostTest::root`] does, with
+    /// the dev workspace open (`--dev-workspace`): the root shows be-host's block stack signed
+    /// in. Wait for what the root shows with `settle`.
+    pub fn root_with_dev_workspace(app: &str) -> Self {
+        let mut start = Self::program(false, true);
+        start.arguments = vec![format!("--root={app}"), "--dev-workspace".to_owned()];
+        Self::begin(start, ROOT_SHOWN, false, None)
+    }
+
     /// Starts a device of `account` on its test [`Server`], in a data directory of its own,
     /// and opens its My files as `start` does: the account's first device, which sets its key.
     /// Start its other devices with [`HostTest::another_device`], which unlocks them with that
     /// key.
     pub fn device(account: &Account) -> Self {
-        Self::join(account, FILES)
+        Self::join(account, FILES, false, Vec::new())
+    }
+
+    /// Starts a device of `account` as [`HostTest::device`] does, drawn through lavapipe as
+    /// [`Options::previews`] is, so it can restart with a root in place of its UI
+    /// ([`HostTest::restart_as_root`]), whose apps draw on the window's device.
+    pub fn drawn_device(account: &Account) -> Self {
+        Self::join(account, FILES, true, Vec::new())
+    }
+
+    /// Starts a device of `account` as [`HostTest::device`] does, with the staged app `app`'s
+    /// entry point as the root guest in place of its own UI (`--root=APP`), drawn through
+    /// lavapipe. Wait for what the root shows with `settle`.
+    pub fn root_device(account: &Account, app: &str) -> Self {
+        Self::join(account, ROOT_SHOWN, true, vec![format!("--root={app}")])
+    }
+
+    /// The address this device reaches its test [`Server`] at: a link made on another device
+    /// names that one's, which this device rewrites to its own to open it.
+    pub fn server_url(&self) -> String {
+        format!("http://{}", self.joined("server_url").relay.address())
     }
 
     /// Starts another device of this one's account, as [`HostTest::device`] does, and pairs it
@@ -91,7 +157,7 @@ impl HostTest {
     /// typed into this one. It returns once the new device shows its My files.
     pub fn another_device(&mut self) -> Self {
         let account = self.joined("another_device").account.clone();
-        let mut other = Self::join(&account, SHOW_A_CODE);
+        let mut other = Self::join(&account, SHOW_A_CODE, false, Vec::new());
         other.click(SHOW_A_CODE);
         other.wait("Type this code on the other device:");
         let tree = other.tree();
@@ -124,6 +190,37 @@ impl HostTest {
             self.fail(&format!("the host did not restart: {error}"));
         }
         self.wait(FILES);
+        self.run(&["clock", "stop"]);
+    }
+
+    /// Closes the host, failing unless it exits cleanly, and starts it again on the data it kept
+    /// with the staged app `app`'s entry point as the root guest in place of its own UI, on the
+    /// dev workspace (`--root=APP --dev-workspace`), as [`HostTest::root_with_dev_workspace`]
+    /// does: what be-host's own UI made, the root shows. Start the host with
+    /// [`Options::previews`], since the root's apps draw on the window's device, or a device
+    /// with [`HostTest::drawn_device`], which keeps its server.
+    pub fn restart_as_root(&mut self, app: &str) {
+        self.end_programs();
+        self.run(&["settle"]);
+        self.steps.push(format!("restart --root={app}"));
+        let workspace = match &self.device {
+            Some(device) => format!("--dev-workspace=http://{}", device.relay.address()),
+            None => "--dev-workspace".to_owned(),
+        };
+        let restarted = self
+            .host
+            .as_mut()
+            .expect("the host is still open")
+            .restart_with(
+                [format!("--root={app}"), workspace]
+                    .into_iter()
+                    .chain(self.desktop.then(|| "--desktop".to_owned()))
+                    .collect(),
+            );
+        if let Err(error) = restarted {
+            self.fail(&format!("the host did not restart: {error}"));
+        }
+        self.wait(ROOT_SHOWN);
         self.run(&["clock", "stop"]);
     }
 
@@ -176,14 +273,15 @@ impl HostTest {
         })
     }
 
-    fn join(account: &Account, ready: &str) -> Self {
+    fn join(account: &Account, ready: &str, render: bool, mut arguments: Vec<String>) -> Self {
         let relay = account.server.relay();
         let url = format!("http://{}", relay.address());
         let token = account.server.token(account.id);
+        arguments.push(format!("--dev-workspace={url}"));
         let start = be_tool_drive::Start {
-            arguments: vec![format!("--dev-workspace={url}")],
+            arguments,
             environment: vec![("BE_DEV_TOKEN".to_owned(), token)],
-            ..Self::program(false, false)
+            ..Self::program(false, render)
         };
         Self::begin(
             start,
@@ -215,8 +313,12 @@ impl HostTest {
         device: Option<Device>,
     ) -> Self {
         let started = Instant::now();
-        let host =
-            Driven::start(start).unwrap_or_else(|error| panic!("be-host did not start: {error}"));
+        let desktop = start
+            .arguments
+            .iter()
+            .any(|argument| argument == "--desktop");
+        let host = Driven::start(start)
+            .unwrap_or_else(|error| panic!("be-host did not start: {error}{}", log_named(&error)));
         let mut test = Self {
             host: Some(host),
             steps: Vec::new(),
@@ -226,6 +328,8 @@ impl HostTest {
             started,
             reported: Cell::new(false),
             space,
+            desktop,
+            programs: Vec::new(),
             editors: std::env::var("HOST_TEST_APPS").ok(),
             device,
         };
@@ -257,7 +361,24 @@ impl HostTest {
             return;
         }
         self.check_editors();
+        self.check_stopped();
         self.run(&["wait", target]);
+    }
+
+    /// Fails at once, naming the app, when one has stopped (it panicked, trapped or stopped
+    /// responding, guides/apps/runtime.md, When an app stops), rather than when a wait for what
+    /// it would have shown runs out: the host says so in a toast, `NAME stopped: REASON`.
+    fn check_stopped(&mut self) {
+        let tree = self.tree();
+        let Some(toast) = tree.lines().find_map(|line| {
+            let said = line.trim().strip_prefix("Alert \"")?.split('"').next()?;
+            said.contains(" stopped: ").then_some(said)
+        }) else {
+            return;
+        };
+        self.fail(&format!(
+            "an app stopped while this test waited: {toast}. \"The app stopped responding\" is a step that ran past STEP_TIMEOUT, which a crowded build server can cause."
+        ));
     }
 
     fn within(&mut self, timeout: Duration, words: &[&str]) -> Result<Reply, String> {
@@ -299,7 +420,14 @@ impl HostTest {
         ));
     }
 
+    /// Waits for `target` to go, as [`HostTest::wait`] waits for one to come: it first says
+    /// why when an app stopped, rather than when the wait runs out.
     pub fn gone(&mut self, target: &str) {
+        if self.within(SLOW_WAIT, &["wait", "not", target]).is_ok() {
+            self.steps.push(line(&["wait", "not", target]));
+            return;
+        }
+        self.check_stopped();
         self.run(&["wait", "not", target]);
     }
 
@@ -344,6 +472,37 @@ impl HostTest {
         self.run(&["tree"])
     }
 
+    /// Moves the stopped clock on until `target` stays put between two steps: a sheet that
+    /// has come to rest on its stop.
+    pub fn wait_still(&mut self, target: &str) {
+        // Read from the tree, which names it off screen too (a sheet yet to rise).
+        let placed = |host: &mut Self| {
+            let tree = host.tree();
+            tree.lines()
+                .find(|line| line.split_whitespace().any(|word| word == target))
+                .and_then(|line| line.split(" at ").nth(1))
+                .map(|place| {
+                    place
+                        .split_whitespace()
+                        .take(3)
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                })
+        };
+        let mut was = placed(self);
+        for _ in 0..STILL_STEPS {
+            self.pause(STILL_STEP);
+            let now = placed(self);
+            if now == was {
+                return;
+            }
+            was = now;
+        }
+        self.fail(&format!(
+            "{target} was still moving after {STILL_STEPS} steps of {STILL_STEP} ms"
+        ));
+    }
+
     pub fn place(&mut self, target: &str) -> (f32, f32, f32, f32) {
         let found = self.run(&["find", target]);
         let numbers: Vec<f32> = found
@@ -367,6 +526,23 @@ impl HostTest {
 
     pub fn shown(&mut self, text: &str) -> bool {
         self.tree().contains(text)
+    }
+
+    /// What the window shows, as the GPU drew it (`drive shot`): its width and height in
+    /// pixels and its RGBA, row by row. Only a host drawing through lavapipe has one
+    /// ([`Options::previews`], [`HostTest::root`]).
+    pub fn shot(&mut self) -> (u32, u32, Vec<u8>) {
+        let words = ["shot"];
+        self.steps.push(line(&words));
+        match self.driven().request(&words) {
+            Ok(Reply::Image {
+                width,
+                height,
+                rgba,
+            }) => (width, height, rgba),
+            Ok(_) => self.fail("shot answered with something other than an image"),
+            Err(error) => self.fail(&error),
+        }
     }
 
     /// Paints only that target's area from here on. Block ids are random, so a painting that
@@ -403,6 +579,17 @@ impl HostTest {
         }
     }
 
+    /// Adds what the window shows now to the recording, as it is: a frame of a sequence
+    /// stepped one at a time (each command a stopped clock waits on runs one frame), which the
+    /// next `snapshot` ends.
+    pub fn record_frame(&mut self) {
+        let painted = self.paint_with(false, true);
+        match &mut self.recorded {
+            Some(recorded) => recorded.append(painted),
+            None => self.recorded = Some(painted),
+        }
+    }
+
     pub fn snapshot(&mut self, name: &str) {
         self.record();
         let recorded = self.recorded.take().expect("a painting was just recorded");
@@ -419,8 +606,41 @@ impl HostTest {
         }
     }
 
+    /// Runs the test's program window (be-tool-wayland-window) titled `title` in the desktop's
+    /// compositor, as `drive exec` runs a program: with the variables the host gives programs
+    /// (`drive env`), under `--desktop` only. It runs until the host closes it or the test ends.
+    pub fn open_test_window(&mut self, title: &str) {
+        assert!(
+            self.desktop,
+            "a test window runs only in the desktop's compositor: start the host with Options::desktop"
+        );
+        self.steps
+            .push(format!("exec $WAYLAND_TEST_WINDOW {title}"));
+        let environment = self.run(&["env"]);
+        let program = std::env::var("WAYLAND_TEST_WINDOW").expect(
+            "WAYLAND_TEST_WINDOW names the test's program window; run these through ./scripts/buck test //crates/be-host-tests:test",
+        );
+        let mut command = std::process::Command::new(program);
+        command
+            .arg(title)
+            .env_remove("WAYLAND_DISPLAY")
+            .env_remove("DISPLAY");
+        // It loads the Wayland client library from the test's sysroot, as the host loads its own.
+        if let Ok(libraries) = std::env::var("HOST_LIBRARIES") {
+            command.env("LD_LIBRARY_PATH", libraries);
+        }
+        for (name, value) in environment.lines().filter_map(|line| line.split_once('=')) {
+            command.env(name, value);
+        }
+        match command.spawn() {
+            Ok(child) => self.programs.push(child),
+            Err(error) => self.fail(&format!("the test window did not start: {error}")),
+        }
+    }
+
     /// Closes the host once it has settled, so nothing is left unsaved for it to ask about, and
-    /// fails unless it exits cleanly.
+    /// fails unless it exits cleanly. Its programs' windows still open close first, as its
+    /// session ends, and the programs with them.
     pub fn close(mut self) {
         self.run(&["settle"]);
         self.steps.push("close".to_owned());
@@ -436,8 +656,24 @@ impl HostTest {
     }
 
     fn paint(&mut self) -> Snapshot {
-        self.gone("#editor.loading");
+        self.paint_as(true)
+    }
+
+    /// Paints the window, `loaded` once no editor shows its loading placeholder, which takes
+    /// frames of its own.
+    fn paint_as(&mut self, loaded: bool) -> Snapshot {
+        self.paint_with(loaded, false)
+    }
+
+    /// `unsettled` paints the next frame as it is (`--no-settle paint`), else the settled one.
+    fn paint_with(&mut self, loaded: bool, unsettled: bool) -> Snapshot {
+        if loaded {
+            self.gone("#editor.loading");
+        }
         let mut words = vec!["paint"];
+        if unsettled {
+            words.insert(0, "--no-settle");
+        }
         words.extend(self.crop.as_deref());
         if self.space {
             words.extend(["in", "platform"]);
@@ -470,7 +706,16 @@ impl HostTest {
                     Ok(Reply::Text(tree)) => tree,
                     _ => "(the host did not answer)".to_owned(),
                 };
-                format!("\n\nWhat the host shows:\n{tree}\n\n{}", host.log_report())
+                // What it is out of step with, which a wait for something another device did
+                // may be waiting on, though a wait's own timeout names only what keeps it busy.
+                let synced = match host.request_within(&["synced"], OUT_OF_STEP_WAIT) {
+                    Ok(_) => "in step".to_owned(),
+                    Err(error) => error,
+                };
+                format!(
+                    "\n\nWhat the host shows:\n{tree}\n\nWhether it is in step with the server: {synced}\n\n{}",
+                    host.log_report()
+                )
             })
             .unwrap_or_default();
         let editors = self.editors.as_ref().map_or_else(String::new, |editors| {
@@ -485,8 +730,29 @@ impl HostTest {
     }
 }
 
+impl HostTest {
+    /// Ends the test's programs before the host restarts, once each window is gone from the
+    /// desktop, so it starts again with none: a window still open as it closes would come back
+    /// as its placeholder (the desktop keeps the windows that close as its session ends).
+    fn end_programs(&mut self) {
+        if self.programs.is_empty() {
+            return;
+        }
+        self.stop_programs();
+        self.run(&["wait", " #desktop.windows.none"]);
+    }
+
+    fn stop_programs(&mut self) {
+        for mut program in self.programs.drain(..) {
+            let _ = program.kill();
+            let _ = program.wait();
+        }
+    }
+}
+
 impl Drop for HostTest {
     fn drop(&mut self) {
+        self.stop_programs();
         match std::thread::panicking() {
             true if !self.reported.get() => eprintln!("\n{}", self.context()),
             true => {}
@@ -522,6 +788,22 @@ fn pairing_code(word: &str) -> bool {
 fn missing(error: &str) -> bool {
     error.starts_with("no line of the tree contains")
         || error.starts_with("no node on screen has the test id")
+}
+
+/// The end of the log an error from `Driven::start` names (`see PATH`), which says why the host
+/// stopped before it answered.
+fn log_named(error: &str) -> String {
+    let Some((_, path)) = error.rsplit_once("see ") else {
+        return String::new();
+    };
+    match std::fs::read_to_string(path.trim()) {
+        Ok(log) => {
+            let lines: Vec<&str> = log.lines().collect();
+            let tail = &lines[lines.len().saturating_sub(40)..];
+            format!("\n\nThe end of its log:\n{}", tail.join("\n"))
+        }
+        Err(_) => String::new(),
+    }
 }
 
 fn line(words: &[&str]) -> String {

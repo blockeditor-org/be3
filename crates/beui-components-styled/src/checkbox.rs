@@ -1,5 +1,4 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
-use beui_macros::{component, view};
 use beui_view::types::Overflow;
 
 use crate::focus_ring::FocusRing;
@@ -9,7 +8,6 @@ use crate::list::List;
 use crate::text::{Text, TextColor, TextSize};
 use crate::tokens::{Size, Space, Stroke};
 use beui_components_unstyled::{Toggle, ToggleHandle};
-use beui_view::primitives::Layers;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::{Align, Direction};
@@ -62,7 +60,6 @@ fn CheckboxFace(handle: ToggleHandle, size: Prop<TextSize>) -> NodeId {
     let mark = create_memo(move || Size::Custom(MARK_SIZE * scale.get()));
     let fill_color = create_memo(move || box_fill(disabled.get(), checked.get(), hovered.get()));
     let border = create_memo(move || (!checked.get()).then_some(Border::DEFAULT));
-    let labeled = create_memo(move || !label.get().is_empty());
     let label_color = create_memo(move || match disabled.get() {
         true => TextColor::Muted,
         false => TextColor::Default,
@@ -79,18 +76,11 @@ fn CheckboxFace(handle: ToggleHandle, size: Prop<TextSize>) -> NodeId {
                     radius=Radius::Sm
                     align=Align::Center
                 >
-                    <Layers>
-                        <Show condition={checked}>
-                            <Frame
-                                width=mark
-                                height=mark
-                                fill=ColorRole::OnAccent
-                                radius=Radius::Xs
-                            />
-                        </Show>
-                    </Layers>
+                    <Show value={checked}>
+                        <Frame width=mark height=mark fill=ColorRole::OnAccent radius=Radius::Xs />
+                    </Show>
                 </Frame>
-                <Show condition={labeled}>
+                <Show value={move || !label.with(String::is_empty)}>
                     <ListItem grow=1.0>
                         <Text
                             overflow=Overflow::Ellipsis

@@ -5,7 +5,7 @@ use be_type_text::TextContent;
 
 use super::*;
 
-/// What an operation adding a part by its hash does across devices (`host.put-part`): one
+/// What an operation adding a part by its hash does across devices (`host.part-writer`): one
 /// member puts the part, and another saves a commit reusing it from the part's ref alone,
 /// uploading none of it and never reading its bytes.
 #[tokio::test]
@@ -18,14 +18,14 @@ async fn a_part_put_for_an_operation_is_saved_by_another_member_without_uploadin
         .create::<TextContent>(BlockParent::Block(index))
         .await
         .unwrap();
-    let public = owner.keys().contact(member.account()).unwrap();
+    let public = owner.verified_identity(member.account()).unwrap();
     owner
         .share(index, member.account(), Access::Edit, &public)
         .await
         .unwrap();
 
     let segment = pseudorandom(64 * 1024, 11);
-    let part = owner.put_part(block, &segment).await.unwrap();
+    let part = put_part(&owner, block, &segment).await.unwrap();
     let whole = Manifest {
         content_type: Uuid::nil(),
         root: Some(part),

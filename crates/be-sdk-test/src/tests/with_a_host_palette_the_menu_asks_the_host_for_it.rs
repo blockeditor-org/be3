@@ -43,7 +43,6 @@ fn with_a_host_palette_the_menu_asks_the_host_for_it() {
             ..Modifiers::CTRL
         },
     );
-    test.run();
     assert!(
         !test.shown("command-palette.search") && test.take_palette_opens().is_empty(),
         "nor takes Ctrl+Shift+P, which the host hears first"
@@ -56,3 +55,5 @@ fn with_a_host_palette_the_menu_asks_the_host_for_it() {
         "and lists no palette among the actions the host's palette shows"
     );
 }
+
+test_editor!(PaletteRoot);

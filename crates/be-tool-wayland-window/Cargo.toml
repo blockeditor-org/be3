@@ -1,0 +1,18 @@
+[package]
+name = "be-tool-wayland-window"
+description = "A program window for be-host's host tests: a Wayland client that opens one window titled as its argument, filled with one color at whatever size the compositor asks, until it is closed"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "be-tool-wayland-window"
+path = "src/main.rs"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix = { version = "1", features = ["fs"] }
+wayland-client = "0.31"
+wayland-protocols = { version = "0.32", features = ["client"] }
+
+[lints]
+workspace = true

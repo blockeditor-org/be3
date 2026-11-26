@@ -37,5 +37,6 @@
       "plain_file": true
     }
   },
-  "entry_point": "pdf.wasm"
+  "entry_point": "pdf.wasm",
+  "workers": ["render.wasm"]
 }

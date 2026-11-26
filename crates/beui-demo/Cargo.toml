@@ -10,16 +10,17 @@ path = "src/main.rs"
 
 [dependencies]
 beui = { path = "../beui" }
-beui-macros = { path = "../beui-macros" }
 be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 beui-text-editor-core = { path = "../beui-text-editor-core" }
 
+# The window and the browser's entry, src/main.rs, which runs natively and in a browser
+# (web_program in BUCK): cargo plans no binary for the browser, so BUCK adds it there.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-beui-host = { path = "../beui-host" }
+beui-host-window = { path = "../beui-host-window" }
 
 [dev-dependencies]
 be-tool-bench = { path = "../be-tool-bench" }
-beui-host = { path = "../beui-host", default-features = false }
+beui-host = { path = "../beui-host" }
 beui-inspector = { path = "../beui-inspector" }
 be-sdk-test = { path = "../be-sdk-test" }
 

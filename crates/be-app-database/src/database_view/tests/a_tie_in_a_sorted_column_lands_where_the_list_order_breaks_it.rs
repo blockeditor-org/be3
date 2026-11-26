@@ -22,7 +22,6 @@ fn a_tie_in_a_sorted_column_lands_where_the_list_order_breaks_it() {
 
     let first = fixture.harness.rect_of(&card(c)).center() - Vec2::new(0.0, 20.0);
     fixture.lift(fixture.harness.rect_of(&card(a)).center(), first);
-    fixture.harness.next_frame();
     fixture.harness.settle();
     assert!(
         (top(&fixture, c) - c_rest).abs() < 0.5 && (top(&fixture, d) - parted).abs() < 1.0,

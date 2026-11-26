@@ -31,6 +31,9 @@ use crate::gestures::{Frames, Gestures};
 use crate::target::{coordinates, hidden, locate, node, place, point, scaled, shown_part};
 use crate::{Inbox, Reply, Request, changes};
 
+/// What a `close` answers once the program closed its window.
+const CLOSED: &str = "The window closed.\n";
+
 const CHANGES: usize = 60;
 const NOTHING_OUTSIDE: &str = "this program has nothing outside its window to keep in step with";
 const FRAME: Duration = Duration::from_micros(16_667);
@@ -45,6 +48,14 @@ pub const USAGE: &str = "Session:
   clock stop / clock run    stop the program's clock, so time passes only with pause, frame by frame
   hurry off / hurry on      stop or start the program's shortcuts for a driven run, such as saving at once,
                             so it waits as it does for a person
+  present late / present now  take in what the program's own programs present (be-host's apps)
+                            only at the next frame, so a frame is drawn between an app's layout
+                            and its present; or as soon as it comes
+  hold NAME / hold off      hold back everything the program's own program NAME sends it (a be-host
+                            app, by its id) as though it were slow to answer, counting it settled,
+                            until hold off hands it all over in order
+  step on / step off        with the clock stopped, run no frame between commands, so each command
+                            runs only its own frames; or run the frames the program asks for
   frames                    how many frames ran since the last frames, and the longest one's wall time:
                             the window's, and those the program ran elsewhere, such as an app's
   close                     ask the window to close, as its close button does; a program that stays
@@ -153,7 +164,8 @@ while X,Y and X,Y,WIDTH,HEIGHT are that place's own pixels, such as the platform
 Every command that gives input waits for the program to settle and answers with what changed in the tree,
 at most 60 lines of it; before the command, --changes=N|all changes that (--changes=0 answers with
 nothing, without comparing the trees), and --no-settle answers after the frame that took the input
-instead of waiting.";
+instead of waiting. On a session command (settle, clock, hurry, present and the like), --no-settle
+answers after one frame instead of once the program settles.";
 
 pub const PANE: char = '\u{1f}';
 
@@ -169,8 +181,8 @@ enum Kind {
 
 fn kind(command: &str) -> Option<Kind> {
     Some(match command {
-        "help" | "settle" | "pause" | "clock" | "hurry" | "frames" | "close" | "synced"
-        | "offline" | "network" => Kind::Session,
+        "help" | "settle" | "pause" | "clock" | "hurry" | "present" | "hold" | "step"
+        | "frames" | "close" | "synced" | "offline" | "network" => Kind::Session,
         "tree" | "ids" | "find" | "comps" | "hit" | "actions" | "act" | "a11y" | "wait" | "env"
         | "windows" | "paint" | "overflows" => Kind::Reading,
         // Old names, here only so the parser refuses them with a pointer to the new forms.
@@ -273,6 +285,10 @@ impl Layer for Drive {
         let mut session = self.session.borrow_mut();
         let view = View::of(&dump, frame);
         session.end(&view, run, output, frame);
+    }
+
+    fn holds_frames(&self) -> bool {
+        self.bottom() && self.session.borrow().holds_frames()
     }
 
     fn wants_sight(&self) -> bool {
@@ -398,6 +414,12 @@ enum Phase {
     Settling {
         before: Option<Rc<Rendered>>,
     },
+    /// A `close` the program put off (to close what it shows first, or to ask about unsaved
+    /// changes): answered as it settles, with what changed, or, should the program close its
+    /// window meanwhile, as closed (`Drop for Session`).
+    Closing {
+        before: Option<Rc<Rendered>>,
+    },
     Syncing,
     Offline,
     Waiting {
@@ -499,6 +521,10 @@ struct Session {
     /// program is quiet.
     in_step_due: Option<Instant>,
     unhurried: bool,
+    presents_late: bool,
+    held: Option<String>,
+    /// `step on`: with the clock stopped, frames run only for commands (`holds_frames`).
+    stepping: bool,
     focused: bool,
     picks: Vec<(u64, FilePickRequest, FilePickAnswer)>,
     saves: Vec<(u64, FileSaveRequest, FileSaveAnswer)>,
@@ -507,6 +533,20 @@ struct Session {
     other_frames: BTreeMap<String, FrameTimes>,
     shown: Vec<Option<WindowOutput>>,
     windows: Vec<(WindowId, Rc<be_lib_stable_hash::HashSet<accesskit::NodeId>>)>,
+}
+
+/// A program that closes its window while a `close` it put off waits (`Phase::Closing`) drops
+/// its layers, this session among them, before it exits: the `close` is answered as closed, as
+/// one the program closed at once is.
+impl Drop for Session {
+    fn drop(&mut self) {
+        if let Some(active) = self
+            .active
+            .take_if(|active| matches!(active.phase, Phase::Closing { .. }))
+        {
+            (active.request.reply)(Reply::Text(CLOSED.to_owned()));
+        }
+    }
 }
 
 impl Session {
@@ -524,6 +564,9 @@ impl Session {
             quiet: true,
             in_step_due: None,
             unhurried: false,
+            presents_late: false,
+            held: None,
+            stepping: false,
             focused: true,
             picks: Vec::new(),
             saves: Vec::new(),
@@ -567,6 +610,19 @@ impl Session {
                     }
                 }),
         }
+    }
+
+    /// Under `step on` with the clock stopped, the program runs no frame between commands: each
+    /// frame is one a command runs, so what a command sees never depends on how soon the next one
+    /// came. Off by default: a program that serves others while no command runs (a device whose
+    /// hosted block another device in the test joins) needs its frames.
+    fn holds_frames(&self) -> bool {
+        self.stepping
+            && self.clock_stopped
+            && self.active.is_none()
+            && self.pending.is_none()
+            && self.flush.is_none()
+            && !self.inbox.waiting()
     }
 
     fn take_frames(&mut self) -> String {
@@ -917,6 +973,7 @@ impl Session {
             before: Some(Rc::clone(before)),
         };
         let mut failed = None;
+        let immediate = active.immediate;
         match &mut active.phase {
             Phase::Capturing {
                 target,
@@ -939,7 +996,8 @@ impl Session {
                 window,
                 ..
             } => {
-                *ready = quiet;
+                // Under `--no-settle`, the frame after the ask, as it is.
+                *ready = quiet || immediate;
                 if *ready && let Some(target) = target {
                     let placed = match *window {
                         PLATFORM => shown_at(target, self.taps[0].as_deref(), view, above),
@@ -1030,7 +1088,16 @@ impl Session {
         let reply = match failed {
             Some(error) => Some(Reply::Error(error)),
             None => match &mut active.phase {
-                Phase::Settling { before } if quiet || (immediate && before.is_some()) => {
+                // A session command under `--no-settle` answers after one frame.
+                Phase::Settling { before } if quiet || immediate => {
+                    Some(Reply::Text(match (before.as_deref(), limit) {
+                        (None, _) | (Some(_), Some(0)) => String::new(),
+                        (Some(before), limit) => {
+                            capped(changes(before.text(), view.rendered().text()), limit)
+                        }
+                    }))
+                }
+                Phase::Closing { before } if quiet || (immediate && before.is_some()) => {
                     Some(Reply::Text(match (before.as_deref(), limit) {
                         (None, _) | (Some(_), Some(0)) => String::new(),
                         (Some(before), limit) => {
@@ -1316,11 +1383,9 @@ impl Session {
             "close" => match frame.program.close_requested() {
                 true => {
                     frame.close();
-                    Ok(Started::Done(Reply::Text(
-                        "The window closed.\n".to_owned(),
-                    )))
+                    Ok(Started::Done(Reply::Text(CLOSED.to_owned())))
                 }
-                false => Ok(Started::Phase(Phase::Settling {
+                false => Ok(Started::Phase(Phase::Closing {
                     before: Some(view.rendered()),
                 })),
             },
@@ -1345,6 +1410,43 @@ impl Session {
                     other => return Err(format!("hurry takes on or off, not {other}")),
                 };
                 frame.context.set_hurried(!self.unhurried);
+                Ok(Started::Phase(Phase::Settling { before: None }))
+            }
+            "present" => {
+                self.presents_late = match argument(0)? {
+                    "late" => true,
+                    "now" => false,
+                    other => return Err(format!("present takes late or now, not {other}")),
+                };
+                frame.context.set_presents_late(self.presents_late);
+                Ok(Started::Phase(Phase::Settling { before: None }))
+            }
+            "hold" => {
+                self.held = match argument(0)? {
+                    "off" => None,
+                    name => {
+                        let holdable = frame.program.holdable();
+                        if !holdable.iter().any(|running| running == name) {
+                            return Err(match holdable.is_empty() {
+                                true => format!("hold {name}: the program runs nothing to hold"),
+                                false => format!(
+                                    "hold {name}: not a running app's id; hold takes off or one of {}",
+                                    holdable.join(", ")
+                                ),
+                            });
+                        }
+                        Some(name.to_owned())
+                    }
+                };
+                frame.context.set_held(self.held.clone());
+                Ok(Started::Phase(Phase::Settling { before: None }))
+            }
+            "step" => {
+                self.stepping = match argument(0)? {
+                    "on" => true,
+                    "off" => false,
+                    other => return Err(format!("step takes on or off, not {other}")),
+                };
                 Ok(Started::Phase(Phase::Settling { before: None }))
             }
             other => Err(format!("unknown command {other}\n{USAGE}")),
@@ -1889,6 +1991,15 @@ impl Session {
         }
         if self.unhurried {
             text.push_str("hurry off: the program waits as it does for a person\n");
+        }
+        if self.presents_late {
+            text.push_str("present late: apps' presents are taken in at the next frame\n");
+        }
+        if let Some(held) = &self.held {
+            text.push_str(&format!("hold {held}: what it sends is held back\n"));
+        }
+        if self.stepping {
+            text.push_str("step on: with the clock stopped, frames run only for commands\n");
         }
         if let Some(progress) = gestures.back {
             text.push_str(&format!("back gesture at {progress}\n"));

@@ -34,6 +34,7 @@ fn a_text_scrolled_to_a_far_line_from_cold_settles_in_one_frame() {
                     font_size=AREA_FONT_SIZE
                     padding=AREA_PADDING
                     state={state}
+                    scroll={plain_scroll()}
                 />
             </Frame>
         }

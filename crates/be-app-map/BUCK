@@ -6,4 +6,5 @@ cargo_package()
 app(
     module = "map",
     types = "//crates/be-type-map:module",
+    workers = ["//crates/be-worker-map-tiles:module"],
 )

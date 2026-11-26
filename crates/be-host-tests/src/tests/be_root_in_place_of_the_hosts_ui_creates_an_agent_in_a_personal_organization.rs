@@ -1,0 +1,82 @@
+use super::*;
+
+/// The root be-host runs in place of its own UI (crates/be-root), staged as an app.
+const ROOT: &str = "be3.root";
+
+#[test]
+fn be_root_in_place_of_the_hosts_ui_creates_an_agent_in_a_personal_organization() {
+    // The root's Agents, as be-host's (a_personal_organization_can_create_an_agent): it makes
+    // an agent and shows its credentials once, each way of supplying its token, to copy.
+    let server = server();
+    let dev = server.account("Dev");
+    let mut host = HostTest::root_device(&dev, ROOT);
+    host.run(&["settle"]);
+    host.click("#file-tree.host-menu");
+    host.click("#host.menu.agents");
+    host.wait("Dialog \"Agents\"");
+    // The organization and the list come from the host after the dialog shows.
+    host.wait("Label value=\"Organization: Personal\"");
+    host.wait("Label value=\"No agents yet.\"");
+    host.crop("Dialog \"Agents\"");
+    host.snapshot("be_root_can_manage_agents");
+    host.click("#host.agents.name");
+    host.type_text("Helper");
+    host.click("#host.agents.add");
+    host.wait("#host.agents.credentials");
+    host.wait("Button \"Copy Agent credentials\"");
+    host.wait("Dialog \"Agent credentials\"");
+    // A stray press on the scrim leaves them showing: they cannot be had again.
+    host.click("4,4");
+    assert!(
+        host.tree().contains("Dialog \"Agent credentials\""),
+        "a press on the scrim leaves the credentials showing"
+    );
+    let tree = host.tree();
+    assert!(!tree.contains("TextInput \"Agent name\""));
+    assert!(!tree.contains("Button \"Add agent\""));
+    host.click("Button \"Copy Agent credentials\"");
+    let copied = host.run(&["clipboard"]);
+    assert!(copied.trim().starts_with('{'));
+    for key in ["server", "organization", "token", "recovery_phrase"] {
+        assert!(copied.contains(&format!("\"{key}\":\"")));
+    }
+    host.run(&["clipboard", ""]);
+    host.click("#host.agents.credentials");
+    host.key("ctrl+a");
+    host.key("ctrl+c");
+    assert!(
+        host.run(&["clipboard"]) == copied,
+        "the text box can be copied manually"
+    );
+    host.key("ctrl+a");
+    host.type_text(r#"{"server":"https://blocks.example","organization":"00000000-0000-0000-0000-000000000001","token":"example-agent-token","recovery_phrase":"example agent recovery phrase"}"#);
+    host.key("Home");
+    host.click("#host.agents.credentials-help");
+    host.crop("Dialog \"Agent credentials\"");
+    host.snapshot("be_root_copies_agent_credentials_as_one_secret");
+    host.click("#host.agents.proxy");
+    host.click("Button \"Copy Agent credentials\"");
+    let proxy = host.run(&["clipboard"]);
+    assert!(proxy.contains("\"authentication\":\"proxy\""));
+    assert!(!proxy.contains("\"token\":"));
+    host.click("#host.agents.header");
+    host.key("ctrl+a");
+    host.type_text("Bearer example-agent-token");
+    host.key("Home");
+    host.click("#host.agents.credentials");
+    host.key("ctrl+a");
+    host.type_text(r#"{"server":"https://blocks.example","organization":"00000000-0000-0000-0000-000000000001","authentication":"proxy","recovery_phrase":"example agent recovery phrase"}"#);
+    host.key("Home");
+    host.click("#host.agents.credentials-help");
+    host.crop("Dialog \"Agent credentials\"");
+    host.snapshot("be_root_has_an_agents_token_supplied_by_proxy");
+    host.click("#host.agents.cancel");
+    host.click("#file-tree.host-menu");
+    host.click("#host.menu.agents");
+    host.wait("#host.agents.name");
+    let tree = host.tree();
+    assert!(tree.contains("Helper"));
+    assert!(!tree.contains("TextInput \"Agent credentials\""));
+    assert!(!tree.contains("Copy Agent credentials"));
+    host.close();
+}

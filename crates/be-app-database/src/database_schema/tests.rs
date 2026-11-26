@@ -1,4 +1,5 @@
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use be_type_database::database_schema::{DatabaseSchema, DatabaseSchemaContent};
 use uuid::Uuid;
 

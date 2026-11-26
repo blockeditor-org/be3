@@ -1,0 +1,13 @@
+[package]
+name = "be-tool-storage"
+description = "The tools' blocking client for a Bunny storage zone: put if absent by SHA-256, put, get and head"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-lib-sha256 = { path = "../be-lib-sha256" }
+ureq = "2"
+
+[lints]
+workspace = true

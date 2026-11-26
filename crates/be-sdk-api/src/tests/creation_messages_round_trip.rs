@@ -8,6 +8,7 @@ fn creation_messages_round_trip() {
         account_id: [3; 16],
         organization_id: [4; 16],
         client_id: [5; 16],
+        offers_share: true,
         kind: OpeningKind::Creation(OpenCreation {
             template: "title-slide".into(),
         }),

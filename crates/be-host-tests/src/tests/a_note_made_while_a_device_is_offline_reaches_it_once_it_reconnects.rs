@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_note_made_while_a_device_is_offline_reaches_it_once_it_reconnects() {
-    let server = Server::start();
+    let server = server();
     let dev = server.account("Dev");
     let mut laptop = HostTest::device(&dev);
     let mut phone = laptop.another_device();

@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::{InputRemapper, InputRemapperContent};
+use be_block_input::{InputRemapper, InputRemapperContent};
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -13,7 +13,7 @@ pub(super) type Remapper = ContentProjection<InputRemapperContent>;
 #[derive(Clone, Copy)]
 pub(super) struct Shared {
     pub(super) remapper: Remapper,
-    pub(super) stored: ReadSignal<String>,
+    pub(super) stored: Memo<String>,
     pub(super) read_only: Memo<bool>,
 }
 
@@ -47,7 +47,6 @@ pub fn InputRemapsView(editor: Editor) -> NodeId {
         read_only,
     };
     let toml = create_signal(false);
-    let editing = create_memo(move || !toml.get());
     let status = create_memo(move || {
         match device.get() {
             RemapState::Off => "This device runs no remaps.",
@@ -64,7 +63,7 @@ pub fn InputRemapsView(editor: Editor) -> NodeId {
                 title="Input remaps"
                 description="Change what keys, mouse buttons and the wheel do in a Linux session, everywhere or only in the programs you choose."
             >
-                <Show condition={offered}>
+                <Show value={offered}>
                     <SettingsRow label="This device">
                         <Text style=TextStyle::CAPTION>{status}</Text>
                     </SettingsRow>
@@ -78,10 +77,12 @@ pub fn InputRemapsView(editor: Editor) -> NodeId {
                     <Switch on={toml} label="Edit as TOML" @test_id={"input-remaps.toml"} />
                 </SettingsRow>
             </SettingsSection>
-            <Show condition={editing}>
-                <EditorTab shared={shared} editor={editor} />
-            </Show>
-            <Show condition={toml}>
+            <Show
+                value={toml}
+                fallback={move || view! {
+                    <EditorTab shared={shared} editor={editor} />
+                }}
+            >
                 <TomlTab shared={shared} />
             </Show>
         </SettingsPage>

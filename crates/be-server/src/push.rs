@@ -101,7 +101,7 @@ impl PushConfig {
 
 /// A Firebase project's service account (the JSON file the console hands out) and where its
 /// API is.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct FcmConfig {
     pub project_id: String,
     pub client_email: String,
@@ -111,6 +111,20 @@ pub struct FcmConfig {
     pub token_uri: String,
     /// FCM's API: `FCM_ENDPOINT`, or a test's fake.
     pub endpoint: String,
+}
+
+/// Leaves out the private key, so no log of the server's configuration ever holds it.
+impl std::fmt::Debug for FcmConfig {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("FcmConfig")
+            .field("project_id", &self.project_id)
+            .field("client_email", &self.client_email)
+            .field("private_key", &"..")
+            .field("token_uri", &self.token_uri)
+            .field("endpoint", &self.endpoint)
+            .finish()
+    }
 }
 
 impl FcmConfig {

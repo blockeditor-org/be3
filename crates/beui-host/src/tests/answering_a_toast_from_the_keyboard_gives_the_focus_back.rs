@@ -68,7 +68,8 @@ fn answering_a_toast_from_the_keyboard_gives_the_focus_back() {
     );
     harness.key(Key::Enter, Modifiers::NONE);
     harness.frame(Vec::new());
-    harness.frame(Vec::new());
+    // The answered toast slides off.
+    harness.settle();
     assert!(harness.document().find_test_id("toast.7").is_none());
     assert!(harness.document().find_test_id("toast.8").is_some());
     assert_eq!(

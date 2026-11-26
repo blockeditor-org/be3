@@ -1,6 +1,6 @@
 # Daily driver
 
-Depends on: plans/search.md.
+Depends on: none.
 
 A plan to get the host to the point where the user keeps their own notes in it.
 Each item says what "done" looks like.
@@ -28,9 +28,9 @@ status indicator and search over names and content already do.
 
 ## Formats
 
-- **Streamed headers** (`TextHeader`, every blob header;
-  `be-block/src/streamed.rs`) are a length and a bare postcard header with no
-  version. Put a version before the header; the raw UTF-8 text after it stays.
+- **Blob headers** (`be-block-content/src/blob.rs`) are a length and a bare
+  postcard header with no version. Put a version before the header; the payload
+  after it stays.
 - **A property whose stored value does not fit its shape** is loaded blank
   (`be-block-model/src/stored.rs`), and the stored value is lost on the next
   save. Keep the stored value and refuse writes to that property instead.
@@ -100,7 +100,7 @@ Needed before daily use:
   only top-level workspaces (`be-app-file-tree/src/root/menu.rs`). Add a folder
   picker sheet, and a Duplicate command (`be_host_stack::duplicate` exists;
   only copy and paste use it).
-- **Search**: what is left of it is in plans/search.md.
+- **Search**: what is left of it is set aside in plans/deferred/search.md.
 - **Trash.** Add "Delete forever" and "Empty trash". Restore already goes back
   to the original parent (`DELETED_FROM`).
 - **Export and import.** Export a folder or the whole workspace to a directory

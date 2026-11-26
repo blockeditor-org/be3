@@ -66,9 +66,7 @@ pub fn watch_block_label(
             automatic: label.automatic,
             resolved,
         };
-        if shown.get_untracked() != display {
-            shown.set(display);
-        }
+        shown.set(display);
     });
     shown.read_only()
 }
@@ -83,21 +81,25 @@ pub fn BlockLink(
     let target = create_memo(move || block.get());
     let shown = watch_block_label(editor, target);
     let host = editor.host();
-    let label = create_memo(move || {
+    let label = move || {
         let name = shown.with(|shown| shown.name.clone());
         match name.is_empty() {
             true => fallback.get(),
             false => name,
         }
-    });
-    let glyph = create_memo(move || shown.with(|shown| shown.glyph));
-    let missing = create_memo(move || target.get().is_none());
+    };
     let open = move || {
         if let Some(target) = target.get_untracked() {
             host.open_block(target.id, target.block_type);
         }
     };
     view! {
-        <Link label={label} glyph={glyph} disabled={missing} size on_click={open} />
+        <Link
+            label={label}
+            glyph={move || shown.with(|shown| shown.glyph)}
+            disabled={move || target.with(Option::is_none)}
+            size
+            on_click={open}
+        />
     }
 }

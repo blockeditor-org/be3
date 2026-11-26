@@ -22,8 +22,7 @@ async fn heard(service: &mut TestPushService, opened: &str, device: TestDevice) 
 async fn a_notification_sent_again_with_the_keys_it_told_pushes_nothing() {
     let harness = Harness::configured(pushing_locally()).await;
     let mut service = TestPushService::start(|_| (201, String::new())).await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.personal().await;
     let block = owner.create_block(BlockParent::Root).await;
     let (mut member, _) = viewer_of(&harness, &mut owner, block, "member@example.com").await;

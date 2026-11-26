@@ -16,7 +16,7 @@ fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @node_ref=&scroll>
+                    <Scroll @node_ref=&scroll style={plain_scroll()}>
                         <List spacing=0.0>
                             <Frame height=HEADER>
                                 <Frame />
@@ -24,7 +24,7 @@ fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
                             <List spacing=0.0>
                                 <VirtualList
                                     @node_ref=&list
-                                    keys={indices(ROWS)}
+                                    value={indices(ROWS)}
                                     item_size=VIRTUAL_ITEM_HEIGHT
                                 >|index: ReadSignal<usize>| {
                                     create_binding(move || {

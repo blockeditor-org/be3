@@ -555,16 +555,16 @@ impl LiveStroke {
             *self = Self::new(self.size);
         }
         self.raw = raw;
-        let fill = |path: Path, seams: Vec<[Pos2; 2]>| {
+        let fill = |path: Path, seamed: bool| {
             Rc::new(PathPaint::with_seams(
                 path,
                 PathStyle::Fill(FillRule::NonZero),
-                seams,
+                seamed,
             ))
         };
         let size = self.size;
         if size <= 0.0 || size.is_nan() || self.raw.len() < 3 {
-            return vec![fill(stroke(points, pressures, size, false), Vec::new())];
+            return vec![fill(stroke(points, pressures, size, false), false)];
         }
         self.fold();
         let streaming = self.streaming.as_ref().expect("the stroke is folded");
@@ -628,10 +628,7 @@ impl LiveStroke {
         let end = spline_point(joined - 1);
         let run = end.run;
         if run < size || joined == 1 {
-            return vec![fill(
-                smooth_closed(&dot_of(first, size, THINNING)),
-                Vec::new(),
-            )];
+            return vec![fill(smooth_closed(&dot_of(first, size, THINNING)), false)];
         }
         if self.spline.len() >= 2 {
             let edges = self
@@ -680,10 +677,7 @@ impl LiveStroke {
         }
         if (self.left.is_empty() && left.is_empty()) || (self.right.is_empty() && right.is_empty())
         {
-            return vec![fill(
-                smooth_closed(&dot_of(first, size, THINNING)),
-                Vec::new(),
-            )];
+            return vec![fill(smooth_closed(&dot_of(first, size, THINNING)), false)];
         }
         let cap = end_cap(end, edges.radius, false);
         self.settle_pieces(&fill);
@@ -718,13 +712,14 @@ impl LiveStroke {
             .or(right.first())
             .copied()
             .expect("a right side");
-        let (start, closing, seams) = match self.boundary {
+        // The tail meets the settled pieces on a seam once there are any.
+        let (start, closing, seamed) = match self.boundary {
             Some((bl, br)) => (
                 middle(self.left[bl], self.left[bl + 1]),
                 self.right[br],
-                vec![self.seam(bl, br)],
+                true,
             ),
-            None => (middle(right_first, left_first), left_first, Vec::new()),
+            None => (middle(right_first, left_first), left_first, false),
         };
         let mut path = Path::new().move_to(start);
         for (index, vertex) in vertices.iter().enumerate() {
@@ -732,7 +727,7 @@ impl LiveStroke {
             path = path.quad_to(*vertex, middle(*vertex, next));
         }
         let mut drawn = self.pieces.clone();
-        drawn.push(fill(path.close(), seams));
+        drawn.push(fill(path.close(), seamed));
         drawn
     }
 
@@ -756,14 +751,7 @@ impl LiveStroke {
         }
     }
 
-    fn seam(&self, left: usize, right: usize) -> [Pos2; 2] {
-        [
-            middle(self.left[left], self.left[left + 1]),
-            middle(self.right[right + 1], self.right[right]),
-        ]
-    }
-
-    fn settle_pieces(&mut self, fill: &impl Fn(Path, Vec<[Pos2; 2]>) -> Rc<PathPaint>) {
+    fn settle_pieces(&mut self, fill: &impl Fn(Path, bool) -> Rc<PathPaint>) {
         loop {
             let (from_left, from_right) = self
                 .boundary
@@ -774,14 +762,10 @@ impl LiveStroke {
             }
             let (bl, br) = (self.left.len() - 2, self.right.len() - 2);
             let start_point = middle(self.right[0], self.left[0]);
-            let (start, mut seams) = match self.boundary {
-                Some((left, right)) => (
-                    middle(self.left[left], self.left[left + 1]),
-                    vec![self.seam(left, right)],
-                ),
-                None => (start_point, Vec::new()),
+            let start = match self.boundary {
+                Some((left, _)) => middle(self.left[left], self.left[left + 1]),
+                None => start_point,
             };
-            seams.push(self.seam(bl, br));
             let mut path = Path::new().move_to(start);
             for index in from_left..=bl {
                 path = path.quad_to(
@@ -797,7 +781,8 @@ impl LiveStroke {
                 };
                 path = path.quad_to(self.right[index], next);
             }
-            self.pieces.push(fill(path.close(), seams));
+            // A settled piece meets the next piece, or the tail, on a seam.
+            self.pieces.push(fill(path.close(), true));
             self.boundary = Some((bl, br));
         }
     }

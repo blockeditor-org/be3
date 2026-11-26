@@ -18,6 +18,8 @@ thread_local! {
 
 struct BandedRoot;
 
+be_sdk_test::test_editor!(BandedRoot);
+
 #[component]
 impl BeuiRoot for BandedRoot {
     #[component]

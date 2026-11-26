@@ -37,30 +37,30 @@ pub(crate) struct AnchorOwner {
     pub(crate) window: Memo<WindowId>,
     pub(crate) host: Memo<Option<AnchorHost>>,
     pub(crate) state: Memo<PlacedView>,
-    pub(crate) revision: ReadSignal<u64>,
+    pub(crate) revision: Trigger,
     pub(crate) children: ChildNodes,
     pub(crate) catcher: NodeRef,
 }
 
 thread_local! {
     static OWNERS: RefCell<Vec<AnchorOwner>> = const { RefCell::new(Vec::new()) };
-    static CHANGED: RefCell<Option<Signal<u64>>> = const { RefCell::new(None) };
+    static CHANGED: RefCell<Option<Trigger>> = const { RefCell::new(None) };
 }
 
 pub(crate) fn install() {
-    let changed = create_signal(0u64);
+    let changed = create_trigger();
     CHANGED.with(|held| *held.borrow_mut() = Some(changed));
 }
 
 fn changed() {
     if let Some(changed) = CHANGED.with(|held| *held.borrow()) {
-        changed.update(|revision| *revision += 1);
+        changed.notify();
     }
 }
 
 fn watch_owners() {
     if let Some(changed) = CHANGED.with(|held| *held.borrow()) {
-        changed.get();
+        changed.track();
     }
 }
 
@@ -276,7 +276,7 @@ fn dismiss_outside(window: WindowId, host: Option<AnchorHost>, pos: Pos2) {
 }
 
 #[component]
-pub(crate) fn AnchoredViews(#[prop(default = None)] host: Option<AnchorHost>) -> NodeId {
+pub(crate) fn AnchoredViews(host: Option<AnchorHost>) -> NodeId {
     let window = host_window();
     let owners = create_memo(move || {
         watch_owners();
@@ -332,11 +332,11 @@ pub(crate) fn AnchoredViews(#[prop(default = None)] host: Option<AnchorHost>) ->
     let watched = create_memo(move || shown.with(|shown| !shown.is_empty()));
     view! {
         <Layers>
-            <ForEach keys={keys}>|(mount, id): (u64, ViewId)|
+            <ForEach value={keys}>|(mount, id): (u64, ViewId)|
                 <AnchoredView mount id shown />
             </ForEach>
             <Interactive hit_area={hit_area} on_forward={on_forward} press_focus=false />
-            <Show condition={watched}>||
+            <Show value={watched}>||
                 <Canvas>
                     <CanvasItem x=0.0 y=0.0 width=0.0 height=0.0>
                         <Interactive
@@ -411,7 +411,7 @@ fn AnchoredView(mount: u64, id: ViewId, shown: Memo<Vec<Shown>>) -> NodeId {
     let held: Rc<RefCell<Option<beui::native::Drawing>>> = Rc::new(RefCell::new(None));
     let pixels = create_memo(move || {
         let owner = owner(mount)?;
-        owner.revision.get();
+        owner.revision.track();
         let drawn = layer.get().map_or_else(Vec::new, |layer| {
             be_host_runtime::anchored_blits(&owner.app, &layer)
         });
@@ -433,7 +433,7 @@ fn AnchoredView(mount: u64, id: ViewId, shown: Memo<Vec<Shown>>) -> NodeId {
         <Layers>
             <Drawing draw={scrim_draw} />
             <AnchoredChildren keys={below} />
-            <Drawing draw={Prop::dynamic(move || draw_gpu(pixels.get()))} />
+            <Drawing draw={move || draw_gpu(pixels.get())} />
             <AnchoredChildren keys={above} />
         </Layers>
     }
@@ -449,7 +449,7 @@ pub(crate) fn closed_with(region: &beui_reactive::ScopeContext) -> Option<beui_r
 fn AnchoredChildren(keys: Memo<Vec<(u64, ChildId)>>) -> NodeId {
     view! {
         <Canvas>
-            <ForEach keys={keys}>|key: (u64, ChildId)| {
+            <ForEach value={keys}>|key: (u64, ChildId)| {
                 let (mount, id) = key;
                 let held = owner(mount);
                 let child = create_memo(move || {

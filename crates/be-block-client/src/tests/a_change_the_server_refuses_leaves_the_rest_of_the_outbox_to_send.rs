@@ -30,7 +30,7 @@ async fn a_change_the_server_refuses_leaves_the_rest_of_the_outbox_to_send() {
         .unwrap()
         .published()
         .unwrap();
-    let public = admin.keys().contact(member.account()).unwrap();
+    let public = admin.verified_identity(member.account()).unwrap();
     admin
         .share(team, member.account(), Access::Edit, &public)
         .await
@@ -58,7 +58,7 @@ async fn a_change_the_server_refuses_leaves_the_rest_of_the_outbox_to_send() {
         offline
             .save(note, &TextBlock::of("written while away"), Some(base))
             .await
-            .is_err()
+            .is_ok_and(|saved| matches!(saved, Saved::Kept(_)))
     );
     let written = offline.local_head(note).unwrap();
 
@@ -67,7 +67,7 @@ async fn a_change_the_server_refuses_leaves_the_rest_of_the_outbox_to_send() {
     assert!(
         drained.contains(&Drained::SetAside {
             block: another,
-            code: ErrorCode::PolicyRefused
+            why: crate::Aside::Refused(ErrorCode::PolicyRefused)
         }),
         "{drained:?}"
     );

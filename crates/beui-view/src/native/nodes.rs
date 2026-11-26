@@ -6,7 +6,7 @@ use beui_core::base::overlay::OverlayNode;
 use beui_core::base::text::TextNode;
 use beui_core::document::Document;
 use beui_core::node::NodeOf;
-use beui_tree::reactive::{Binding, Callback, Get, Memo, ReadSignal, create_memo};
+use beui_tree::reactive::{Binding, Callback, Get, Memo, ReadSignal, Trigger, create_memo};
 use beui_types::CaretHandle;
 use beui_types::Color;
 use beui_types::NodeId;
@@ -94,6 +94,10 @@ pub(crate) fn is_overlay_open(node: NodeId) -> bool {
 
 pub(crate) fn reveal(node: NodeId) {
     with_document(|document| document.reveal_node(node));
+}
+
+pub(crate) fn reveal_part(node: NodeId, part: crate::types::Rect) {
+    with_document(|document| document.reveal_part(node, part));
 }
 
 pub(crate) fn first_offset_within(node: NodeId) -> Option<NodeId> {
@@ -262,6 +266,6 @@ pub(crate) fn use_preference_layer(source: PreferenceSource) -> Binding<Preferen
     )
 }
 
-pub(crate) fn use_font_revision() -> ReadSignal<u64> {
+pub(crate) fn use_font_changes() -> Trigger {
     with_document(|document| document.watch_context())
 }

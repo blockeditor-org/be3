@@ -1,21 +1,15 @@
-#[cfg(not(target_arch = "wasm32"))]
 use beui::datetime::Date;
-#[cfg(not(target_arch = "wasm32"))]
 use beui::reactive::view;
-#[cfg(not(target_arch = "wasm32"))]
 use beui_demo::DemoRoot;
+use beui_host_window::RunOptions;
 
-#[cfg(not(target_arch = "wasm32"))]
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    beui_host::native::run_with(
-        beui_host::native::RunOptions::default().saving_preferences("beui-demo"),
-        beui_host::native::build(|| {
+beui_host_window::main! {
+    async fn main() -> Result<(), Box<dyn std::error::Error>> {
+        beui_host_window::run(RunOptions::default().saving_preferences("beui-demo"), || {
             view! {
                 <DemoRoot today={Date::today()} />
             }
-        }),
-    )
+        })
+        .await
+    }
 }
-
-#[cfg(target_arch = "wasm32")]
-fn main() {}

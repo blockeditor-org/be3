@@ -12,7 +12,7 @@ fn a_tooltip_over_a_view_uncovers_only_its_own_area() {
     let whole = rect(0.0, 0.0, 1.0, 1.0);
     let tooltip = rect(0.4, 0.4, 0.6, 0.5);
     let before = [piece(whole)];
-    let after: Vec<Piece> = subtract(whole, &[tooltip]).into_iter().map(piece).collect();
+    let after: Vec<Piece> = whole.subtract(&[tooltip]).into_iter().map(piece).collect();
     let changed = uncovered(&before, &after).expect("the pieces map alike");
     assert!(disjoint(&changed));
     assert!(

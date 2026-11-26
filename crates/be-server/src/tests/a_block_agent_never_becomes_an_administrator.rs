@@ -10,7 +10,7 @@ async fn a_block_agent_never_becomes_an_administrator() {
     let (account, token) = owner.block_agent(organization, terminal).await.unwrap();
 
     let response = owner
-        .call(|peer| client::members::set_role(peer, account, OrganizationRole::Administrator))
+        .set_role(account, OrganizationRole::Administrator)
         .await;
     assert!(
         refused_as(&response, ErrorCode::PermissionDenied),
@@ -23,9 +23,7 @@ async fn a_block_agent_never_becomes_an_administrator() {
         "{response:?}"
     );
 
-    let response = owner
-        .call(|peer| client::members::remove_member(peer, account))
-        .await;
+    let response = owner.remove_member(account).await;
     assert!(response.is_ok(), "{response:?}");
     agent.ended().await;
     assert!(

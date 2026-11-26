@@ -36,7 +36,7 @@ pub fn DialogsFixture() -> NodeId {
             </Dialog>
             <ModalSheet open={sheet} rest=0.5 on_close={move || sheet.set(false)}>
                 <List spacing=Space::None>
-                    <ForEach keys={(1..=3).collect::<Vec<usize>>()}>|row: usize|
+                    <ForEach value={(1..=3).collect::<Vec<usize>>()}>|row: usize|
                         <ActionRow
                             label={format!("Row {row}")}
                             on_click={move || {
@@ -48,6 +48,43 @@ pub fn DialogsFixture() -> NodeId {
                 </List>
             </ModalSheet>
         </List>
+    }
+}
+
+/// One long toast with an action over the whole screen, for a window too narrow for a toast's
+/// width: it narrows and wraps, so its dismiss button and its action stay in the window.
+#[component]
+pub fn NarrowToastFixture() -> NodeId {
+    let area = NodeRef::new();
+    let toasts = create_signal(vec![Toast {
+        id: 1,
+        title: "Copied".to_owned(),
+        message: "The link to this block is on the clipboard, ready to paste anywhere".to_owned(),
+        actions: vec![ToastAction {
+            key: "undo".to_owned(),
+            label: "Undo".to_owned(),
+        }],
+        sticky: true,
+        ..Toast::default()
+    }]);
+    let chosen = create_signal(String::from("nothing"));
+    let report =
+        create_memo(move || format!("Toasts {} chose {}", toasts.with(Vec::len), chosen.get()));
+    view! {
+        <Frame @node_ref=&area height=Size::Custom(400.0)>
+            <List spacing=Space::None>
+                <Text>{report}</Text>
+                <Toasts
+                    anchor={area}
+                    toasts={toasts}
+                    on_dismiss={move |id: u64| toasts.update(|toasts| toasts.retain(|toast| toast.id != id))}
+                    on_action={move |(id, key): (u64, String)| {
+                        chosen.set(key);
+                        toasts.update(|toasts| toasts.retain(|toast| toast.id != id));
+                    }}
+                />
+            </List>
+        </Frame>
     }
 }
 

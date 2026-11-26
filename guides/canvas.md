@@ -38,6 +38,19 @@ style is its own field, so concurrent restyles of different fields merge.
   stroke, which keeps world-unit points with a `points_frame` so `Extend` can
   append without rewriting them (`world_points` reads either).
 - Editors, frames and raster layers are never rotated (`normalized_entity`).
+- A block added or dropped gets a card about the point it went to, a placeholder
+  (`add_direct_editors`, one for each block of a paste or file drop) that
+  `autosize_direct_editors` fits once to its child's intrinsic size, scaled down
+  to fit 640x480 (`fit_to_child`). The host tells no size until the child's
+  editor has drawn a frame (then 420x240 if it told none), so the fit lands on
+  the size it tells. The cards of one add, paste or drop are added in one undo
+  group (`Adding`) that the first size each card takes joins, whatever its
+  resize mode (an image's card is sized, not fitted), committed once every card
+  has it or at the canvas's next other write, so the add is one undo step. A
+  first size told after the canvas wrote something else is a step of its own; one
+  told after an undo or redo ended the group is not written.
+  An empty canvas tells 420x240 as its own size; one with content, its
+  content's bounds.
 - Edits go through `InfiniteCanvasOperation` and `Canvas::edit_in`. A profile
   write is never undone (`Canvas::undoable`).
 
@@ -60,8 +73,9 @@ component's schema, and the blocks and databases component values name, in the
 order `CanvasEntity::blocks_mut` walks them) travel in the item's refs, so the
 host can translate them, and a paste fills them back in that order, refusing a
 clip whose count does not match. Beside it go
-`be3/blocks` for the blocks the entities show, a PNG of the selection rendered
-only when a paste asks for it (`Exporter::render`), and the text of text items.
+`be3/blocks` for the blocks the entities show, a PNG of the selection the PNG
+exporter makes only when a paste asks for it (`ExporterOf::once`), and the text
+of text items.
 A paste of entities that show blocks waits for `paste-blocks`, and leaves out
 those the host refuses.
 
@@ -115,17 +129,48 @@ edited (`text::text_turn`).
 
 ## Gestures
 
-Every gesture writes the document as it goes (adding a shape, a stroke through
-`Extend`, moving, resizing, the eraser's dimming, a typed inspector value), so
-peers see it. `CanvasState::open_writes` and `commit_writes` bracket it as one
-undo step; Escape, a second finger or another tool calls it off with
-`cancel_writes`, leaving nothing to undo.
+A gesture that makes something writes it as it goes, so peers see it: a shape
+drawn out, a stroke through `Extend`, a raster stroke, a duplicating move's
+copies, new text. `CanvasState::open_writes` brackets it as one undo step. A
+gesture that chooses one result (`Gesture::chooses`: moving, resizing, rotating,
+dragging a line's end or bend, the eraser's dimming) holds its writes in a
+tentative gesture (`open_hold`), as do the sidebar's value controls while one is
+dragged or typed into (`drag_value` follows their `ValueDrag`, `type_value`): every view of the block on
+this device previews them, and so does every peer, whose replica shows the
+holder's layer on top of what it holds (guides/type_modules.md, Peers preview
+held layers): a move, a resize, a rotation, a line's end or bend and a scrubbed
+value all reach peers frame by frame, with bound lines, z-order and layout
+following, until the release writes them as one undo step. `commit_writes` commits both; Escape, a second finger or
+another tool calls it off with `cancel_writes`, leaving nothing written or to
+undo. The eraser drops its held dimming on release and writes the removal alone.
+When the replica ends the hold (an undo mid-drag), `gesture_ended` lets go of
+the drag.
+
+Moving the selection is a drag board carry (`root/carry.rs`;
+guides/beui/components.md, Drag and drop): a press on the selection begins
+`Gesture::Move`, and the surface's `drag` lifts it once the press passes the
+threshold, or Move in the palette lifts it from the keyboard (Space stays the
+host's, a held Space panning: `lifts_on_space=false`) and the arrows step it. The
+arrows also nudge a selection not carried, by the same world unit (ten with
+Shift), each nudge an edit of its own; a carry is the move a screen reader hears
+place by place, that Escape puts back, written once when dropped. While the
+board carries the selection, the canvas's own keys and commands wait, so nothing
+deletes or reselects what is carried. The
+canvas is a `free(..).unbounded()` site whose place is the world point under the
+pointer, applied to the move through the hold; the board's drop commits it, and
+a put-down (Escape, a cancelled press) drops it. While the board carries a move
+the release leaves it to the board, and `gesture_ended` puts the carry down. The
+surface is an edge scroller: a carry held in its band pans the camera, and the
+site chooses again as the camera moves. The carried move goes through the hold
+like any other, so peers preview it from their replicas, as they do a resize.
 
 ## Input
 
 - Pen: in the pen tool the pen draws and, once a pen has been seen, a finger
   selects (`tool_for`). The eraser end erases; the barrel button opens the
-  context menu.
+  context menu. The surface's `every_sample` is on while the pen tool waits
+  for a press and through a stroke (off for any other gesture), so the host
+  already keeps every sample in the frame a stroke starts in.
 - Touch: the dock's Ignore touch button is the this-device display setting
   `canvas_touch` (decisions/touch_off_toggle_instead_of_palm_rejection.md). A
   long press opens the context menu.
@@ -136,21 +181,36 @@ undo step; Escape, a second finger or another tool calls it off with
 
 ## Export
 
-`root/export.rs` reads the same sketches, for the selection, a selected frame
-(clipped) or the whole canvas. SVG writes paths, text as `<text>` with a
+`root/export.rs` is the canvas's two exporters (guides/apps/editor.md,
+"Exporting"): `png` makes an image block and `svg` a plain file block, from
+`ImageExport` settings (scale, background, and the items: what was selected,
+a selected frame, clipped, or none for the whole canvas). Each reads the
+canvas through a `CanvasReader`, the entities and the graph's labels without
+the document a `CanvasState` needs, and draws in the colours of the theme in
+its `ImageExport` settings, which the Export dialog sets from the host's
+(`be_sdk::host_preferences`) when it opens. Re-makes use the stored theme, so
+every device makes the same bytes for an artifact; none reads its own theme.
+There is no direct Copy as PNG or SVG: the Export dialog's clipboard
+destination does that. It reads the same sketches as the canvas. SVG writes
+paths, text as `<text>` with a
 `<tspan>` per run, and raster layers as pixelated PNG images. PNG paints into
 an offscreen beui context and rasterizes on the CPU
-(`beui_paint_format::rasterize`), since an app cannot read pixels back from
-the GPU; raster layers are upscaled nearest-neighbour first because that
-rasterizer samples bilinearly.
+(`beui_paint_raster::rasterize`, vello_cpu drawing what beui-renderer-wgpu
+draws with vello_gpu), since an app cannot read pixels back from the GPU;
+raster layers are upscaled nearest-neighbour first because that rasterizer
+samples bilinearly.
 
 ## Testing and benchmarks
 
 - `crates/be-type-infinite-canvas/src/tests/`: merges and operations.
 - `crates/be-app-infinite-canvas/src/tests/`: the editor through be-sdk-test;
   `src/tests.rs` has the helpers that open an editor in each profile, drive it
-  and a peer, and build one of every shape. Paintings show raster layers
-  blurred, since `beui_paint_format`'s rasterizer has no nearest sampling.
+  and a peer, and build one of every shape. `join_session` puts two editors'
+  stores in one session and `relay_session` hands one what the other relayed
+  and submitted (be-sdk-test's `ContentStore::join_peer`, `take_relayed`,
+  `receive_relayed`), so a peer previews held gestures as a device's replica
+  would; `sync` hands over written edits alone. Paintings show raster layers
+  blurred, since beui-paint-raster draws a mesh's texture bilinearly.
 - Tests that a pan, zoom, drag or pen move repaints no other entity
   (`panning_and_zooming_paints_no_entity_again`,
   `dragging_one_entity_wakes_only_that_entity`) guard the per-entity memos.

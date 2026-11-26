@@ -12,7 +12,7 @@ fn a_snapshot_counts_an_editors_refused_operation() {
     let message = sim
         .editors
         .get_mut(&(0, 1))
-        .and_then(|mirror| mirror.operate(add("refused")))
+        .and_then(|mirror| mirror.operate(None, add("refused")))
         .expect("an editor operates once it has content");
     sim.take_received(0, 1);
     sim.send_from_editor(0, 1, message);

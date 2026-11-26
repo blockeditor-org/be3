@@ -1,3 +1,4 @@
+use be_sdk_test::prelude::*;
 use beui::Vec2;
 
 use super::editor;

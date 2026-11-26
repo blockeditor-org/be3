@@ -22,6 +22,7 @@ fn rename_and_host_menu_children_round_trip() {
         docks: None,
         anchor: None,
         fullscreen: false,
+        keyboard_ask: 0,
     };
     let mut message = committed(ChildPlacements {
         instance: EditorInstanceId(3),

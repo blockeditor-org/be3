@@ -1,0 +1,27 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>The root on the web</title>
+<link rel="icon" href="data:,">
+<!-- The bundle is beside this page, under bundle/: every relative URL, the
+     staged apps' and the workers' scripts among them, resolves there. -->
+<base href="bundle/">
+<script type="importmap">
+{ "imports": { "wasi_snapshot_preview1": "./wasi.js", "wasi": "./threads.js" } }
+</script>
+<script type="module">
+import { bindMemory } from "./wasi.js";
+import { bindThreads } from "./threads.js";
+import init, { run } from "./root_web_testing.js";
+
+globalThis.outcome = (async () => {
+    try {
+        const module = await WebAssembly.compileStreaming(fetch("./root_web_testing_bg.wasm"));
+        const wasm = await init({ module_or_path: module });
+        bindMemory(wasm.memory);
+        bindThreads(module, wasm.memory);
+        return { passed: true, message: await run() };
+    } catch (error) {
+        return { error: String(error?.stack ?? error) };
+    }
+})();
+</script>

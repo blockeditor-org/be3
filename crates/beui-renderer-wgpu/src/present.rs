@@ -1,7 +1,6 @@
 use std::error::Error;
 use std::ffi::CStr;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::Renderer;
 use crate::Repaint;
@@ -117,6 +116,8 @@ pub struct GpuSetup {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub format: wgpu::TextureFormat,
+    /// Set once `device` is lost; a renderer made on it is given it (`Resources::new`).
+    pub lost: crate::Lost,
 }
 
 pub struct Gpu {
@@ -127,14 +128,14 @@ pub struct Gpu {
     pub format: wgpu::TextureFormat,
     pub renderer: Renderer,
     open_device: OpenDevice,
-    lost: Arc<AtomicBool>,
+    lost: crate::Lost,
 }
 
 struct Opened {
     adapter: wgpu::Adapter,
     device: wgpu::Device,
     queue: wgpu::Queue,
-    lost: Arc<AtomicBool>,
+    lost: crate::Lost,
 }
 
 async fn open(
@@ -150,6 +151,7 @@ async fn open(
                 .request_adapter(&wgpu::RequestAdapterOptions {
                     power_preference: wgpu::PowerPreference::HighPerformance,
                     force_fallback_adapter: false,
+                    apply_limit_buckets: false,
                     compatible_surface: probe,
                 })
                 .await?
@@ -167,20 +169,8 @@ async fn open(
         Some(opened) => opened,
         None => adapter.request_device(&descriptor).await?,
     };
-    let lost = Arc::new(AtomicBool::new(false));
-    let flag = lost.clone();
-    device.set_device_lost_callback(move |reason, message| {
-        if reason != wgpu::DeviceLostReason::Destroyed {
-            eprintln!("beui: the GPU was lost: {message}");
-        }
-        flag.store(true, Ordering::SeqCst);
-    });
-    let flag = lost.clone();
-    device.on_uncaptured_error(Arc::new(move |error| {
-        if !flag.load(Ordering::SeqCst) {
-            panic!("wgpu error: {error}");
-        }
-    }));
+    let lost = crate::Lost::watch(&device);
+    lost.panic_on_errors(&device);
     Ok(Opened {
         adapter,
         device,
@@ -218,8 +208,11 @@ impl Gpu {
         format: wgpu::TextureFormat,
         open_device: OpenDevice,
     ) -> Self {
+        let mut renderer =
+            Renderer::new(&crate::Resources::new(&opened.device, format, &opened.lost));
+        renderer.set_window(true);
         Self {
-            renderer: Renderer::new(&crate::Resources::new(&opened.device, format)),
+            renderer,
             instance,
             adapter: opened.adapter,
             device: opened.device,
@@ -231,7 +224,7 @@ impl Gpu {
     }
 
     pub fn lost(&self) -> bool {
-        self.lost.load(Ordering::SeqCst)
+        self.lost.is_lost()
     }
 
     pub fn stale(&self) -> bool {
@@ -270,6 +263,7 @@ impl Gpu {
             device: self.device.clone(),
             queue: self.queue.clone(),
             format: self.format,
+            lost: self.lost.clone(),
         }
     }
 }
@@ -297,6 +291,10 @@ pub enum Presented {
     Again,
 }
 
+/// How many frames may wait to be shown: one, so what is drawn shows at the next refresh, and
+/// reconfiguring the surface for a resize waits for one frame at most.
+pub(crate) const FRAME_LATENCY: u32 = 1;
+
 pub struct Target {
     surface: Option<wgpu::Surface<'static>>,
     config: wgpu::SurfaceConfiguration,
@@ -304,6 +302,9 @@ pub struct Target {
     clear_color: Option<Color32>,
     unpainted: Option<Unpainted>,
     retained: Option<Retained>,
+    /// The size of the frame presented last. A frame at another size is drawn without a
+    /// retained copy, so a resize allocates nothing until the size holds.
+    presented_size: Option<(u32, u32)>,
     presented: bool,
     offscreen: bool,
 }
@@ -331,14 +332,16 @@ impl Target {
                 width: 0,
                 height: 0,
                 present_mode: wgpu::PresentMode::Fifo,
-                desired_maximum_frame_latency: 2,
+                desired_maximum_frame_latency: FRAME_LATENCY,
                 alpha_mode: wgpu::CompositeAlphaMode::Auto,
-                view_formats: Vec::new(),
+                color_space: wgpu::SurfaceColorSpace::Auto,
+                view_formats: crate::view_formats(format).to_vec(),
             },
             prepared_size: None,
             clear_color: None,
             unpainted: None,
             retained: None,
+            presented_size: None,
             presented: false,
             offscreen: false,
         }
@@ -385,7 +388,9 @@ impl Target {
             .get_default_config(&gpu.adapter, width.max(1), height.max(1))
             .ok_or("the adapter does not support this surface")?;
         config.format = gpu.format;
+        config.view_formats = crate::view_formats(gpu.format).to_vec();
         config.present_mode = self.config.present_mode;
+        config.desired_maximum_frame_latency = FRAME_LATENCY;
         let capabilities = surface.get_capabilities(&gpu.adapter);
         if capabilities.usages.contains(wgpu::TextureUsages::COPY_DST) {
             config.usage |= wgpu::TextureUsages::COPY_DST;
@@ -415,6 +420,11 @@ impl Target {
     }
 
     pub fn resize(&mut self, gpu: &Gpu, width: u32, height: u32) {
+        // Configuring a surface waits for the GPU to finish everything queued, and on Vulkan
+        // makes a new swapchain: never for a size it already has.
+        if (width, height) == (self.config.width, self.config.height) {
+            return;
+        }
         self.config.width = width;
         self.config.height = height;
         self.configure(&gpu.device);
@@ -439,6 +449,17 @@ impl Target {
             .as_ref()
             .is_none_or(|retained| retained.size != size)
         {
+            // While a window is being resized every frame is at a new size and repainted whole,
+            // so the frame draws straight into the swapchain; the copy is made again once a
+            // frame is the size of the one before, which note() repaints whole.
+            if !self.offscreen
+                && self
+                    .presented_size
+                    .is_some_and(|presented| presented != size)
+            {
+                self.retained = None;
+                return;
+            }
             let texture = device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("beui retained frame"),
                 size: wgpu::Extent3d {
@@ -453,7 +474,7 @@ impl Target {
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                     | wgpu::TextureUsages::COPY_SRC
                     | wgpu::TextureUsages::COPY_DST,
-                view_formats: &[],
+                view_formats: crate::view_formats(self.config.format),
             });
             let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
             self.retained = Some(Retained {
@@ -631,8 +652,9 @@ impl Target {
         }
         gpu.queue.submit(Some(encoder.finish()));
         if let Some(frame) = frame {
-            frame.present();
+            gpu.queue.present(frame);
         }
+        self.presented_size = Some(size);
         self.presented = true;
         match gpu.lost() {
             true => Presented::Again,
@@ -695,7 +717,7 @@ pub fn read_texture(
         });
     device.poll(wgpu::PollType::wait_indefinitely()).ok()?;
     receiver.try_recv().ok()?.ok()?;
-    let mapped = buffer.slice(..).get_mapped_range();
+    let mapped = buffer.slice(..).get_mapped_range().ok()?;
     let mut rgba = Vec::with_capacity((row * height) as usize);
     for line in mapped.chunks(padded as usize) {
         rgba.extend_from_slice(&line[..row as usize]);

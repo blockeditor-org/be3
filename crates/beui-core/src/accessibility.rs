@@ -24,12 +24,9 @@ use beui_types::WindowId;
 use beui_types::{Key, KeyPress, Modifiers};
 use beui_types::{Pos2, Vec2};
 
-mod embedded;
-
-pub use embedded::Embedded;
-
 pub const WINDOW_NODE: AccessNodeId = AccessNodeId(0);
-pub(crate) const DOCUMENT_SHIFT: u32 = 40;
+/// A node's id is `document << DOCUMENT_SHIFT | local`: each document numbers its own nodes.
+pub const DOCUMENT_SHIFT: u32 = 40;
 const GENERATION_SHIFT: u32 = 32;
 const SLOT_SHIFT: u32 = 30;
 const SLOT_MASK: u32 = 0b11;
@@ -51,6 +48,26 @@ pub struct Fragment {
 }
 
 impl Fragment {
+    /// A fragment of a single tree under `root`, as an app's grafted screen is: in no window or
+    /// layer of its own.
+    pub fn new(
+        nodes: Vec<(AccessNodeId, Node)>,
+        root: AccessNodeId,
+        focus: Option<AccessNodeId>,
+    ) -> Self {
+        Self {
+            nodes,
+            root,
+            focus,
+            windows: Vec::new(),
+            window_roots: Vec::new(),
+            focus_window: None,
+            focus_layer: None,
+            escaped: Vec::new(),
+            escaped_roots: Vec::new(),
+        }
+    }
+
     pub fn scale(&mut self, scale: f32) {
         let root = self.root;
         for (id, node) in &mut self.nodes {
@@ -565,6 +582,13 @@ impl Pass<'_> {
             return;
         };
         let element = document.arena.get(id);
+        if element
+            .as_any()
+            .downcast_ref::<crate::base::frame::FrameNode>()
+            .is_some_and(|frame| frame.accessibility_hidden)
+        {
+            return;
+        }
         let overlay = element.as_any().downcast_ref::<OverlayNode>();
         if overlay.is_some_and(|node| !node.is_open()) {
             return;
@@ -652,6 +676,12 @@ impl Pass<'_> {
         }
         self.described += 1;
         let (mut node, focus) = document.describe(id, key, size, explicit, text.as_deref(), inner);
+        if let Some(description) = document.description(id)
+            && node.description().is_none()
+            && node.label() != Some(description)
+        {
+            node.set_description(description.to_owned());
+        }
         if layered {
             node.set_class_name(LAYER_CLASS);
         }
@@ -1259,7 +1289,7 @@ impl Document {
         self.local_key(id).map(SpaceId::node)
     }
 
-    fn described_within(&self, id: NodeId) -> Option<NodeId> {
+    pub(crate) fn described_within(&self, id: NodeId) -> Option<NodeId> {
         if self.accessibility.get(&id).is_some() {
             return Some(id);
         }
@@ -1345,3 +1375,6 @@ fn attached(held: &HashMap<AccessNodeId, &Node>, root: AccessNodeId) -> Vec<(Acc
     }
     nodes
 }
+
+#[cfg(test)]
+mod tests;

@@ -18,7 +18,7 @@ fn a_scroll_in_a_dialog_follows_the_wheel() {
                 <Dialog open=true title="Add block" width={Size::Custom(300.0)} on_dismiss={|| {}}>
                     <Frame height=200.0>
                         <List spacing=8.0>
-                            <Show condition=true>
+                            <Show value={move || true}>
                                 <ListItem grow=1.0>
                                     <Scroll>
                                         <List spacing=8.0>

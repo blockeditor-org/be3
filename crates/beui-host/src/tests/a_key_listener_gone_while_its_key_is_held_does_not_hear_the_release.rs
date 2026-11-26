@@ -32,7 +32,7 @@ fn a_key_listener_gone_while_its_key_is_held_does_not_hear_the_release() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Show condition={shown}>
+                <Show value={shown}>
                     <Holder heard />
                 </Show>
             </List>

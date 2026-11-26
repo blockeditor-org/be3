@@ -155,6 +155,12 @@ fn commit_byte(state: State, byte_index: usize, byte: u8) {
     }
 }
 
+/// Whether the block takes edits: a read-only block's bytes can be selected and
+/// copied, as in the text view, but typing, pasting, deleting and undo do nothing.
+fn editable(state: State) -> bool {
+    state.editor.editable().get_untracked()
+}
+
 fn type_nibble(state: State, digit: u8) {
     let byte_index = cursor_range(state).start;
     match state.inner().hex_pending_nibble.take() {
@@ -166,6 +172,9 @@ fn type_nibble(state: State, digit: u8) {
 /// A paste: a text fragment's bytes go in as they are, replacing the
 /// selection; plain text is read as hex digits, as typing is.
 fn paste(state: State, pasted: ClipItem) {
+    if !editable(state) {
+        return;
+    }
     match pasted.decode::<TextFragment>() {
         Some(fragment) => {
             state.inner().hex_pending_nibble.set(None);
@@ -179,6 +188,9 @@ fn paste(state: State, pasted: ClipItem) {
 }
 
 pub(crate) fn type_text(state: State, text: &str) {
+    if !editable(state) {
+        return;
+    }
     for character in text.chars() {
         if let Some(digit) = character.to_digit(16) {
             type_nibble(state, digit as u8);
@@ -187,6 +199,9 @@ pub(crate) fn type_text(state: State, text: &str) {
 }
 
 fn delete(state: State, direction: LRDirection) {
+    if !editable(state) {
+        return;
+    }
     state.inner().hex_pending_nibble.set(None);
     state.text.execute(EditorCommand::Delete {
         direction,
@@ -292,6 +307,7 @@ fn key(state: State, press: KeyPress) -> bool {
             state.inner().hex_pending_nibble.set(None);
             state.text.execute(EditorCommand::SelectAll);
         }
+        Key::Z | Key::Y if modifiers.ctrl && !editable(state) => {}
         Key::Z if modifiers.ctrl => {
             state.inner().hex_pending_nibble.set(None);
             state.text.execute(match modifiers.shift {
@@ -451,12 +467,11 @@ impl PartialEq for Page {
 
 #[component]
 pub(crate) fn HexView(state: State) -> NodeId {
-    let size_held = create_signal(Vec2::ZERO);
-    let size = size_held.read_only();
+    let size = create_signal(Vec2::ZERO);
     let scale = pixels_per_point();
     let theme = use_theme();
     let geometry = create_memo(move || {
-        scale.get();
+        scale.track();
         let char_width = lay_out_text("0", FontId::monospace(TEXT_SIZE), TextLayout::DEFAULT)
             .map_or(TEXT_SIZE * 0.6, |block| block.size().x)
             .max(1.0);
@@ -464,7 +479,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
     });
     let content = state.text.content();
     let rows = create_memo(move || {
-        content.get();
+        content.track();
         state.text.bytes().len().div_ceil(BYTES_PER_ROW).max(1)
     });
     let content_size = create_memo(move || {
@@ -477,8 +492,8 @@ pub(crate) fn HexView(state: State) -> NodeId {
     let width = create_memo(move || Size::Custom(content_size.get().x));
     let height = create_memo(move || Size::Custom(content_size.get().y));
     let drawn = create_memo(move || {
-        content.get();
-        state.text.cursors().get();
+        content.track();
+        state.text.cursors().track();
         page(
             state,
             &theme.get().resolve(),
@@ -486,7 +501,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
             content_size.get(),
         )
     });
-    let draw: Prop<Draw> = Prop::dynamic(move || drawn.get().draw());
+    let draw = move || drawn.get().draw();
 
     let cx = HexSurface {
         state,
@@ -497,6 +512,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
         <Frame fill=ColorRole::Surface>
             <Scroll>
                 <Interactive
+                    @test_id={"text.hex_bytes"}
                     focusable=true
                     on_key={move |press: KeyPress| key(state, press)}
                     on_text={move |typed: String| type_text(state, &typed)}
@@ -521,7 +537,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
     let size_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = size_measured.get() {
-            size_held.set(measured.size);
+            size.set(measured.size);
         }
     });
     built

@@ -7,7 +7,9 @@ struct Placed {
     opacity: f32,
     opaque: f32,
     decode_srgb: f32,
-    corner_radius: f32,
+    padding: f32,
+    // The rounding of the quad's corners, from its top left clockwise.
+    corner_radii: vec4<f32>,
 };
 
 @group(0) @binding(0)
@@ -48,14 +50,24 @@ fn to_linear(gamma: vec3<f32>) -> vec3<f32> {
     return select(high, low, gamma <= vec3<f32>(0.04045));
 }
 
+// How much of the pixel at `uv` the quad's rounded rect covers: the rect is the quad itself,
+// each of its corners rounded by its own radius.
 fn covered(uv: vec2<f32>) -> f32 {
-    let size = abs((placed.rect.zw - placed.rect.xy) / (placed.uv.zw - placed.uv.xy));
+    let size = abs(placed.rect.zw - placed.rect.xy);
     let half = size * 0.5;
-    let corner = min(placed.corner_radius, min(half.x, half.y));
-    let inside = abs(uv * size - half) - (half - vec2<f32>(corner));
-    let distance = length(max(inside, vec2<f32>(0.0))) + min(max(inside.x, inside.y), 0.0) - corner;
+    let along = (uv - placed.uv.xy) / (placed.uv.zw - placed.uv.xy);
+    let point = along * size - half;
+    let radii = placed.corner_radii;
+    var radius = select(
+        select(radii.x, radii.y, point.x > 0.0),
+        select(radii.w, radii.z, point.x > 0.0),
+        point.y > 0.0,
+    );
+    radius = min(radius, min(half.x, half.y));
+    let inside = abs(point) - (half - vec2<f32>(radius));
+    let distance = length(max(inside, vec2<f32>(0.0))) + min(max(inside.x, inside.y), 0.0) - radius;
     let pixel = max(fwidth(distance), 0.0001);
-    return select(1.0, clamp(0.5 - distance / pixel, 0.0, 1.0), corner > 0.0);
+    return select(1.0, clamp(0.5 - distance / pixel, 0.0, 1.0), radius > 0.0);
 }
 
 @fragment

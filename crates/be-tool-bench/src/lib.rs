@@ -20,6 +20,19 @@ pub fn record(name: &str, value: f64, unit: &str) {
     }
 }
 
+/// Reports nothing, and why: prints `reason` and leaves the metrics file empty, which the
+/// suite takes as a benchmark that ran but had nothing worth reporting (the renderer's on a
+/// software adapter), where no file at all is one that failed to report.
+pub fn refuse(reason: &str) {
+    eprintln!("{reason}");
+    let Ok(path) = std::env::var(METRICS) else {
+        return;
+    };
+    if let Err(error) = std::fs::write(&path, "") {
+        panic!("could not write {path}: {error}");
+    }
+}
+
 pub fn time(name: &str, taken: Duration) {
     record(name, taken.as_secs_f64() * 1000.0, "ms");
 }

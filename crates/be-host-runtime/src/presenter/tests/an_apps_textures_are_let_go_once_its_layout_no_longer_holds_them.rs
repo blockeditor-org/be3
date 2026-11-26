@@ -8,6 +8,7 @@ fn device() -> (wgpu::Device, wgpu::Queue) {
         &wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::LowPower,
             force_fallback_adapter: false,
+            apply_limit_buckets: false,
             compatible_surface: None,
         },
     ))
@@ -51,10 +52,11 @@ fn holds(surface: u32) -> bool {
 fn an_apps_textures_are_let_go_once_its_layout_no_longer_holds_them() {
     let (device, queue) = device();
     let mut setup = beui::native::Setup::new(beui::native::Waker::new(|| {}));
-    setup.provide(beui_host::native::GpuSetup {
+    setup.provide(beui_renderer_wgpu::present::GpuSetup {
         device: device.clone(),
         queue,
         format: wgpu::TextureFormat::Rgba8Unorm,
+        lost: Default::default(),
     });
     install(&setup);
     PRESENTER.with(|presenter| {

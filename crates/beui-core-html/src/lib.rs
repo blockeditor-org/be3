@@ -21,6 +21,7 @@ pub mod nodes;
 pub mod overlay;
 pub mod page;
 pub mod portal;
+pub mod replica;
 pub mod rows;
 pub mod run;
 pub mod scroll;
@@ -34,6 +35,13 @@ pub use node::{NodeId, NodeRef};
 
 fn global_signal<T: 'static>(value: T) -> beui_reactive::Signal<T> {
     let owned = beui_reactive::OwnedSignal::new(value);
+    let handle = owned.handle();
+    std::mem::forget(owned);
+    handle
+}
+
+fn global_trigger() -> beui_reactive::Trigger {
+    let owned = beui_reactive::OwnedTrigger::new();
     let handle = owned.handle();
     std::mem::forget(owned);
     handle

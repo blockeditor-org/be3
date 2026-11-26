@@ -6,7 +6,7 @@ fn head_of(shared: &Shared, repository: Uuid) -> Option<[u8; 32]> {
     version_status(shared, repository)?
         .branches
         .iter()
-        .find(|branch| branch.name == be_block::MAIN_BRANCH)
+        .find(|branch| branch.name == be_block_repository::MAIN_BRANCH)
         .map(|branch| branch.head)
 }
 
@@ -15,11 +15,14 @@ fn repositories(shared: &Shared) -> Vec<Uuid> {
         .graph
         .query(crate::Query::Roots)
         .into_iter()
-        .filter(|node| node.content_type == be_block::RepositoryContent::CONTENT_TYPE)
+        .filter(|node| node.content_type == be_block_repository::RepositoryContent::CONTENT_TYPE)
         .map(|node| node.id)
         .collect()
 }
 
+/// A fork reads and builds on history sealed under its upstream's keys, which it reaches by
+/// hash from heads it checked (guides/blocks/keys.md, Keys are bound to blocks where the server
+/// points).
 #[test]
 fn a_fork_pulls_and_pushes_through_its_upstream() {
     let harness = Harness::start();
@@ -34,7 +37,7 @@ fn a_fork_pulls_and_pushes_through_its_upstream() {
         .into_iter()
         .find(|repository| *repository != versioned.repository)
         .expect("the fork exists");
-    show_version(fork, be_block::RepositoryContent::CONTENT_TYPE);
+    show_version(fork, be_block_repository::RepositoryContent::CONTENT_TYPE);
     wait_until("listed the fork's branches", |shared| {
         head_of(shared, fork).is_some()
             && head_of(shared, fork) == head_of(shared, versioned.repository)
@@ -62,7 +65,7 @@ fn a_fork_pulls_and_pushes_through_its_upstream() {
     version(
         fork,
         VersionCommand::NewCheckout {
-            branch: be_block::MAIN_BRANCH.to_owned(),
+            branch: be_block_repository::MAIN_BRANCH.to_owned(),
         },
     );
     wait_until("checked the fork out", |shared| {

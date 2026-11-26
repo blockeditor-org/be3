@@ -1,0 +1,13 @@
+[package]
+name = "be-wasm-sandbox-api"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-wasm-ops = { path = "../be-wasm-ops" }
+be-wasm-ops-bindgen = { path = "../be-wasm-ops-bindgen" }
+serde = { version = "1", features = ["derive"] }
+
+[lints]
+workspace = true

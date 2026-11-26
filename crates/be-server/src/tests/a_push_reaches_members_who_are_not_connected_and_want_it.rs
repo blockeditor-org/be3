@@ -6,18 +6,16 @@ use ring::signature::{ECDSA_P256_SHA256_FIXED, UnparsedPublicKey};
 async fn a_push_reaches_members_who_are_not_connected_and_want_it() {
     let harness = Harness::configured(pushing_locally()).await;
     let mut service = TestPushService::start(|_| (201, String::new())).await;
-    let mut owner = harness.client().await;
-    let owner_id = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let owner_id = owner.id();
     let organization = owner.personal().await;
     let block = owner.create_block(BlockParent::Root).await;
-    let key = owner
-        .call(|peer| client::notifications::push_key(peer))
+    let info = owner
+        .call(|peer| peer.read::<be_block_protocol::ServerInfo>(Query::ServerInfo))
         .await
         .expect("a signed-in client reads the push key");
-    let offers = owner
-        .call(|peer| client::notifications::offers_fcm(peer))
-        .await;
-    assert!(matches!(offers, Ok(false)), "{offers:?}");
+    let key = info.push_key;
+    assert!(!info.offers_fcm);
 
     let (mut away, _) = viewer_of(&harness, &mut owner, block, "away@example.com").await;
     let away_device = TestDevice::new();
@@ -40,7 +38,7 @@ async fn a_push_reaches_members_who_are_not_connected_and_want_it() {
             quiet_device.endpoint(PushService::WebPush, format!("{}/quiet", service.url)),
         )
         .await;
-    quiet.set_notify_mode(block, NotifyMode::Mentions).await;
+    quiet.set_mute(block, NotifyMode::Mentions).await;
     quiet.sign_out().await;
 
     owner.notify(block, b"first", Vec::new()).await;

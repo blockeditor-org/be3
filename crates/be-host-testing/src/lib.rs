@@ -1,99 +1,65 @@
 #![cfg(not(target_arch = "wasm32"))]
+//! The stack's harness (`be_host_stack::testing::Harness`) for tests outside be-host-stack: on
+//! a server of the test's own (`be_host_server::testing::Server`), with every block type the
+//! host links served in process.
 
-use std::{path::PathBuf, sync::MutexGuard};
-
-use be_host_stack::{Config, embedded_server::EmbeddedServer};
-use uuid::Uuid;
+use be_host_server::testing::Server;
 
 pub struct Harness {
-    directory: PathBuf,
-    server: Option<EmbeddedServer>,
-    url: String,
-    account: Uuid,
-    token: String,
-    organization: Uuid,
-    phrase: be_block_keys::RecoveryPhrase,
-    _one_stack: MutexGuard<'static, ()>,
+    // Dropped first: the stack stops before its server goes.
+    harness: be_host_stack::testing::Harness,
+    server: Server,
+}
+
+impl std::ops::Deref for Harness {
+    type Target = be_host_stack::testing::Harness;
+
+    fn deref(&self) -> &Self::Target {
+        &self.harness
+    }
+}
+
+impl std::ops::DerefMut for Harness {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.harness
+    }
 }
 
 impl Harness {
     pub fn start() -> Self {
-        static ONE_STACK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        let one_stack = ONE_STACK
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
         be_host_stack::testing::serve_in_process(be_host_stack::testing::InProcess {
             sources: be_type_bundle::sources,
             knows: be_type_bundle::knows,
         });
-        be_lib_build_id::install("test");
-        let directory = std::env::temp_dir().join(format!("be-host-be-test-{}", Uuid::new_v4()));
-        let runtime = runtime();
-        let (profile, token) = runtime.block_on(async {
-            be_server::ServerStore::open(directory.join("server"))
-                .unwrap()
-                .register("counter@example.com", "Counter", "correct horse battery")
-                .await
-                .unwrap()
+        let server = Server::start();
+        let counter = server.account("Counter");
+        let harness = be_host_stack::testing::Harness::start(be_host_stack::testing::SignIn {
+            url: server.url(),
+            account: counter.id,
+            token: server.token(counter.id),
+            email: counter.email,
         });
-        let server = be_host_stack::embedded_server::start_embedded_server_at(
-            "127.0.0.1:0",
-            directory.join("server"),
-            be_server::ServerConfig::OPEN.lease,
-            be_server::push::PushConfig::DEFAULT,
-        )
-        .expect("the embedded block server starts");
-        let url = server.url.clone();
-        let organization = runtime
-            .block_on(be_host_stack::accounts::create_organization(
-                url.clone(),
-                token.clone(),
-                "Counters".to_owned(),
-            ))
-            .expect("the organization is created");
         Self {
-            directory,
-            server: Some(server),
-            url,
-            account: profile.account,
-            token,
-            organization: organization.id,
-            phrase: be_block_keys::RecoveryPhrase::generate(),
-            _one_stack: one_stack,
+            // A failed connect's wait moves the clock on to the next reconnect, so no test
+            // strands on a clock nobody moves (guides/blocks/host.md).
+            harness: harness.on_clock(be_block_client::Clock::driven()),
+            server,
         }
     }
 
-    pub fn connect(&self) {
-        be_host_stack::start(Config {
-            server_url: self.url.clone(),
-            token: self.token.clone(),
-            account: self.account,
-            organization: self.organization,
-            identity: self.phrase.secret().to_bytes(),
-            display_name: "Counter".to_owned(),
-            email: "counter@example.com".to_owned(),
-            data_dir: self.directory.join("objects"),
-            clock: be_block_client::Clock::driven(),
-        });
+    /// Stops the server, as a device losing its connection finds it: the stack keeps what it
+    /// does until `start_server` brings it back at the same address.
+    pub fn stop_server(&mut self) {
+        self.server.stop();
     }
-}
 
-impl Drop for Harness {
-    fn drop(&mut self) {
-        if std::thread::panicking() {
-            be_host_stack::abandon();
-        } else {
-            be_host_stack::stop_and_wait();
-        }
-        // The server stops before its files go, or it fails opening them as it winds down.
-        self.server = None;
-        let _ = std::fs::remove_dir_all(&self.directory);
+    /// Starts the server again on the same data and address after `stop_server`.
+    pub fn start_server(&mut self) {
+        self.server.start_again();
     }
-}
 
-fn runtime() -> tokio::runtime::Runtime {
-    tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("a test runtime starts")
+    /// The server the stack signs in against.
+    pub fn server(&self) -> &Server {
+        &self.server
+    }
 }

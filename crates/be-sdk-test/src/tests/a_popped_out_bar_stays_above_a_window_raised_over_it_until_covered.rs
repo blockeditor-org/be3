@@ -97,7 +97,7 @@ fn a_popped_out_bar_stays_above_a_window_raised_over_it_until_covered() {
 
     let press = pos2(program.center().x, program.bottom() - 40.0);
     test.click(press);
-    test.run();
+
     test.run();
     assert!(
         on_top(&test, bar),
@@ -115,7 +115,7 @@ fn a_popped_out_bar_stays_above_a_window_raised_over_it_until_covered() {
     test.run();
     test.run();
     test.click(press);
-    test.run();
+
     test.run();
     assert!(
         !on_top(&test, bar),
@@ -123,3 +123,5 @@ fn a_popped_out_bar_stays_above_a_window_raised_over_it_until_covered() {
         test.desk_windows()
     );
 }
+
+test_editor!(PoppedOverRoot);

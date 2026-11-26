@@ -53,8 +53,8 @@ fn a_driver_draws_with_a_pen_several_samples_a_frame() {
     }
     assert_eq!(
         in_each_frame,
-        vec![1, 4, 4, 4],
-        "the press drags in a frame of its own, then each of the twelve samples, four in each frame: {drags:?}"
+        vec![4, 4, 4],
+        "each of the twelve samples drags, four in each frame (the press itself, short of the drag threshold, does not): {drags:?}"
     );
     assert_eq!(drags.last().map(|(x, _)| *x), Some(250.0), "{drags:?}");
 

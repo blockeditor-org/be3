@@ -1,0 +1,13 @@
+[package]
+name = "be-worker-map-tiles"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-sdk-worker = { path = "../be-sdk-worker" }
+be-worker-map = { path = "../be-worker-map" }
+flate2 = "1"
+
+[lints]
+workspace = true

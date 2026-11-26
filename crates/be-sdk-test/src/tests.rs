@@ -1,6 +1,6 @@
 use be_sdk_beui::{
-    BeuiRoot, ChildBlock, ChildBlockHandle, ChildContent, ChildMode, ChildState, ChildTarget,
-    Editor, EditorHost, OwnedEditor,
+    AppEditor, BeuiRoot, ChildBlock, ChildBlockHandle, ChildContent, ChildMode, ChildState,
+    ChildTarget, Editor, EditorHost, OwnedEditor,
 };
 use beui::NodeId;
 use beui::reactive::*;
@@ -8,6 +8,8 @@ use beui::styled::*;
 use uuid::Uuid;
 
 use crate::BeuiTest;
+use crate::prelude::*;
+use crate::test_editor;
 use be_sdk_beui::be_block::DisplaySettings;
 use be_sdk_beui::be_block::{
     DisplaySettingsContent, Settings, SettingsContent, SettingsProfile, SettingsProfileContent,
@@ -19,16 +21,21 @@ mod a_blocks_agent_is_made_rotated_and_removed_through_the_host;
 mod a_child_block_hears_what_its_childs_bar_asked_for;
 mod a_child_block_reports_its_placement_and_follows_its_status;
 mod a_dock_bar_lifted_by_its_grip_draws_above_a_hosted_window;
+mod a_failed_paste_of_blocks_is_reported;
+mod a_failed_pick_is_reported_and_never_answers_the_editor;
 mod a_fetched_body_reaches_the_editor_in_the_chunks_it_arrived_in;
 mod a_floating_overlay_covers_only_the_children_painted_beneath_it;
 mod a_hosted_window_keeps_its_grip_off_the_band_of_its_docks_bars;
 mod a_hosted_window_keeps_its_place_when_a_dock_bar_moves_the_docks_area;
+mod a_join_editors_frame_offers_nothing_on_content_it_does_not_hold;
 mod a_joined_dock_built_again_comes_back_in_the_layout_this_device_kept;
 mod a_joined_docks_layout_is_kept_on_this_device_and_every_instance_follows_it;
 mod a_layout_kept_while_joined_comes_back_in_a_standalone_dock;
 mod a_pick_from_a_childs_menu_points_at_the_child_in_the_host;
 mod a_placed_window_hears_its_status_and_is_asked_to_close;
 mod a_popped_out_bar_stays_above_a_window_raised_over_it_until_covered;
+mod a_restore_the_root_takes_frames_late_is_not_saved_over_by_what_it_hosted_before;
+mod a_restored_bar_withdrawn_before_it_lands_does_not_stop_saving;
 mod a_shortcut_on_punctuation_reaches_the_editor;
 mod a_standalone_docks_layout_is_kept_on_this_device_and_every_instance_follows_it;
 mod a_watch_open_while_asked_starts_anew_each_time_it_opens;
@@ -43,7 +50,10 @@ mod ctrl_z_undoes_a_block_that_owns_its_frame_without_a_top_bar;
 mod ctrl_z_undoes_the_block_through_the_frames_undo;
 mod dragging_a_popped_out_bars_grip_lifts_it_out_of_its_window_and_opens_no_menu;
 mod edits_from_elsewhere_land_in_order;
+mod every_failure_an_editor_reports_reaches_the_host_in_order;
+mod keep_hosting_is_in_the_frame_menu_while_this_device_hosts_the_block;
 mod narrowing_one_kind_of_block_watch_keeps_the_others;
+mod restores;
 mod tapping_with_two_fingers_undoes_and_three_redoes;
 mod the_frame_offers_one_menu_on_a_phone_and_a_desktop_and_runs_what_is_picked;
 mod the_menu_offers_close_only_to_a_framed_child;
@@ -131,7 +141,10 @@ fn undoable_editor() -> (BeuiTest<ChildRoot>, Uuid) {
     (test, block)
 }
 
-fn settings_here<A: BeuiRoot>(test: &mut BeuiTest<A>, display: DisplaySettingsContent) -> Uuid {
+fn settings_here<A: BeuiRoot + AppEditor>(
+    test: &mut BeuiTest<A>,
+    display: DisplaySettingsContent,
+) -> Uuid {
     let client = test.host().client_id();
     let (settings, profile, held) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
     let store = test.store();
@@ -227,7 +240,7 @@ fn standalone(
     (test, held, layout)
 }
 
-fn kept_dock<A: BeuiRoot>(test: &BeuiTest<A>, display: Uuid) -> (String, String) {
+fn kept_dock<A: BeuiRoot + AppEditor>(test: &BeuiTest<A>, display: Uuid) -> (String, String) {
     let root = test.content::<DisplaySettingsContent>(Some(display)).root();
     root.docks
         .iter()
@@ -235,3 +248,6 @@ fn kept_dock<A: BeuiRoot>(test: &BeuiTest<A>, display: Uuid) -> (String, String)
         .next()
         .expect("the editor keeps its dock's layout on this device")
 }
+
+test_editor!(ChildRoot);
+test_editor!(StandaloneRoot);

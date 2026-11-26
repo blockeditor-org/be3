@@ -1,5 +1,5 @@
-use be_sdk_beui::be_block::input_settings::RemapperChoice;
-use be_sdk_beui::be_block::{InputRemapper, InputRemapperContent, InputSettings};
+use be_block_input::input_settings::RemapperChoice;
+use be_block_input::{InputRemapper, InputRemapperContent, InputSettings};
 use be_sdk_beui::be_block_content::Root;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
@@ -32,15 +32,11 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
         remappers.with(|remappers| remappers.iter().map(|(id, _)| *id).collect::<Vec<Uuid>>())
     });
     let chosen = create_memo(move || effective.get().remapper);
-    let selected = create_memo(move || {
-        chosen.get().and_then(|choice| {
-            keys.with(|keys| keys.iter().position(|editor| *editor == choice.editor))
-        })
-    });
+    let selected = create_memo(move || chosen.get().map(|choice| choice.editor));
     let set_here = row.modified();
     let none = create_memo(move || keys.with(Vec::is_empty));
-    let link_off = create_memo(move || none.get() || (read_only.get() && chosen.get().is_none()));
-    let detail = create_memo(move || {
+    let link_off = move || none.get() || (read_only.get() && chosen.get().is_none());
+    let detail = move || {
         let name = |editor: Uuid| {
             remappers.with(|remappers| {
                 remappers
@@ -54,7 +50,7 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
             None if none.get() => "No app here remaps input.".to_owned(),
             None => "None yet: opening them makes them.".to_owned(),
         }
-    });
+    };
     let create = move |remapper: Uuid| {
         let name = remappers.with_untracked(|remappers| {
             remappers
@@ -76,10 +72,8 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
         set_remapper.call(Some(choice));
         Some(choice)
     };
-    let choose = move |index: Option<usize>| {
-        let Some(remapper) =
-            index.and_then(|index| keys.with_untracked(|keys| keys.get(index).copied()))
-        else {
+    let choose = move |picked: Option<Uuid>| {
+        let Some(remapper) = picked else {
             return;
         };
         if chosen.get_untracked().map(|choice| choice.editor) != Some(remapper) {
@@ -123,7 +117,7 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
                     <Select
                         width={Extent::fraction(1.0)}
                         options={view! {
-                            <ForEach keys={keys}>|remapper: Uuid| {
+                            <ForEach value={keys}>|remapper: Uuid| {
                                 let label = create_memo(move || {
                                     remappers.with(|remappers| {
                                         remappers
@@ -134,7 +128,7 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
                                     })
                                 });
                                 view! {
-                                    <ChoiceOption label={label} />
+                                    <ChoiceOption value=remapper label={label} />
                                 }
                             }</ForEach>
                         }}

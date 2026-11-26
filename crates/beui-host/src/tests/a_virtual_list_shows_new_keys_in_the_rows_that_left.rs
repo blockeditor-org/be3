@@ -14,7 +14,7 @@ fn a_virtual_list_shows_new_keys_in_the_rows_that_left() {
                     <Offset @node_ref=&scroll>
                         <VirtualList
                             @node_ref=&list
-                            keys={indices(VIRTUAL_ITEM_COUNT)}
+                            value={indices(VIRTUAL_ITEM_COUNT)}
                             item_size=VIRTUAL_ITEM_HEIGHT
                         >|key: ReadSignal<usize>| {
                             built.update(|built| *built += 1);
@@ -66,7 +66,7 @@ fn a_virtual_list_shows_new_keys_in_the_rows_that_left() {
         harness.frame(Vec::new());
         assert_eq!(harness.document().focused, Some(focused));
         assert!(
-            text_within(harness.document(), focused, "Row 0").is_some(),
+            find_text(harness.document(), focused, "Row 0", Match::Exact).is_some(),
             "the focused row keeps its key"
         );
     }

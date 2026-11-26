@@ -1,8 +1,8 @@
 # Search: the personal index
 
-Depends on: plans/search.md.
+Depends on: none.
 
-Set aside from `plans/search.md`: about as large as the rest of search. Until
+Set aside from search (guides/blocks/host.md, "Search"): about as large as the rest of search. Until
 it lands, blocks shared without their root (Shared with me) and what a
 viewer's root index lacks are not content-searchable.
 

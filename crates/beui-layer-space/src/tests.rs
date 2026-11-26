@@ -24,6 +24,7 @@ mod a_carried_panel_swings_about_the_view_s_up_with_the_head_rolled;
 mod a_carried_panel_turns_smoothly_to_face_the_viewer_while_carried;
 mod a_click_on_the_panel_reaches_the_program_where_the_ray_hits;
 mod a_cursor_turned_out_of_view_shows_a_mouse_at_the_edge_pointing_at_it;
+mod a_driver_around_space_clicks_by_name_from_either_side_and_shoots_the_scene;
 mod a_driver_pointing_at_a_window_shows_its_icon;
 mod a_laser_drags_once_it_turns_past_where_the_trigger_froze_it;
 mod a_laser_is_smoothed_and_takes_a_jump_at_once;
@@ -70,6 +71,9 @@ mod clicking_a_panel_or_its_chrome_focuses_it_until_another_or_nothing_is_clicke
 mod closing_a_window_removes_its_panel;
 mod ctrl_alt_keys_tune_the_mouse_s_up_and_show_it_by_the_cursor;
 mod dragging_a_corner_handle_scales_the_panel_and_keeps_its_points;
+mod dragging_a_dock_tab_in_space_onto_another_panels_bar_moves_it_there;
+mod dragging_a_dock_tab_in_space_where_no_panel_is_opens_one_at_the_pointer;
+mod dragging_a_dock_windows_bar_in_space_carries_its_panel;
 mod dragging_a_side_of_the_main_panel_resizes_its_window_and_keeps_its_scale;
 mod dragging_the_move_control_carries_the_panel;
 mod dragging_the_roll_control_rolls_the_panel_and_the_rotate_control_never_does;
@@ -90,11 +94,14 @@ mod mouse_motion_up_moves_the_cursor_toward_the_sky_however_the_head_is_tilted;
 mod moving_a_window_carries_its_panel;
 mod panels_get_layers_only_where_their_order_to_the_eye_is_plain;
 mod panels_through_each_other_are_painted_nearest_first_at_every_pixel;
+mod pinching_a_pan_zoom_in_space_with_two_lasers_zooms_it;
 mod popups_have_no_chrome;
 mod pushing_a_carried_window_through_another_takes_a_deliberate_push_and_keeps_it_behind;
 mod q_and_e_roll_the_head_while_steering;
 mod resizing_a_window_drags_its_edge_and_reports_the_new_size;
+mod resizing_a_window_in_space_lays_out_and_paints_only_that_window;
 mod resizing_a_window_stops_where_it_would_touch_another;
+mod resizing_the_main_panel_in_space_lays_the_main_window_out_at_its_new_size;
 mod scrolling_while_carrying_moves_the_panel_nearer_or_farther;
 mod squeezing_a_panel_carries_it_along_the_laser;
 mod squeezing_a_panel_with_both_hands_scales_and_turns_it;
@@ -114,6 +121,10 @@ mod the_lasers_are_drawn_to_where_they_hit;
 mod the_mirror_shows_a_notice_over_the_scene;
 mod the_mouse_moves_the_cursor_past_the_edge_of_the_view;
 mod the_platform_dropping_the_lock_lets_the_pointer_go;
+mod the_space_host_carries_the_main_window_its_program_asks_to_move;
+mod the_space_host_keeps_the_keyboard_open_until_its_close_button_is_pressed;
+mod the_space_host_opens_a_programs_window_as_a_panel_at_the_pointer_and_clicks_reach_it;
+mod the_space_host_opens_the_keyboard_as_a_panel_lasers_type_on_only_while_controllers_are_active;
 mod tracked_views_move_the_head_to_their_centre_and_set_the_rasters;
 mod turning_away_and_back_leaves_the_cursor_where_it_was;
 mod two_lasers_on_one_panel_are_two_fingers;
@@ -325,8 +336,8 @@ fn on(space: &Space, window: WindowId, at: Pos2) -> Pos2 {
 }
 
 fn program_frame(cursor: CursorIcon) -> FrameOutput {
-    let fonts = beui_font_freetype::FreetypeFonts::new(beui_font_freetype::FontLibrary::new(
-        beui_font_freetype::FontSources::default(),
+    let fonts = beui_font_skrifa::SkrifaFonts::new(beui_font_skrifa::FontLibrary::new(
+        beui_font_skrifa::FontSources::default(),
     ));
     Context::new(fonts).run(|context| context.set_cursor_icon(cursor))
 }
@@ -477,7 +488,7 @@ fn off_ray(point: Vec3, origin: Vec3, toward: Vec3) -> f32 {
 
 fn painted_space() -> (Space, Instant, Context) {
     let (mut space, now) = space();
-    let context = Context::new(beui_font_freetype::FreetypeFonts::default());
+    let context = Context::new(beui_font_skrifa::SkrifaFonts::default());
     let mut setup = beui_core::program::Setup::new(beui_core::program::Waker::new(|| {}));
     setup.provide(context.clone());
     space.setup(&setup);
@@ -494,4 +505,185 @@ fn assert_scene(
     let painting = crate::picture::painting(&frame, Rect::from_min_size(Pos2::ZERO, PLATFORM))
         .expect("the scene paints");
     beui_paint_snapshot::assert_painting(name, painting);
+}
+
+// The space host through a real beui Runner and beui-host's documents: what
+// reaches a program's windows once space places them as panels.
+
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use beui_host::Color32;
+use beui_host::native::testing::{PanZoomStage, build_node, dock_tab, windowed_dock};
+use beui_host::native::{
+    Document, Program, RendererInfo, Setup, Simulation, Waker, WindowSize, context,
+};
+use beui_host::primitives::{Frame, Interactive};
+use beui_host::reactive::*;
+use beui_host::styled;
+
+pub(crate) const SPACE_SCREEN: Vec2 = Vec2::new(800.0, 600.0);
+
+struct SpaceScreen;
+
+impl beui_runner::renderer::Renderer for SpaceScreen {
+    fn info(&self) -> RendererInfo {
+        RendererInfo::default()
+    }
+
+    fn resize(&mut self, _width: u32, _height: u32) {}
+
+    fn physical(&self) -> Option<Vec2> {
+        Some(SPACE_SCREEN)
+    }
+
+    fn prepare(
+        &mut self,
+        _output: &beui_host::native::WindowOutput,
+        _scale: f32,
+        _background: Color32,
+    ) -> bool {
+        false
+    }
+
+    fn present(&mut self, _background: Color32) -> bool {
+        false
+    }
+}
+
+struct SharedDocument(Rc<RefCell<Document>>);
+
+impl beui_host::native::Program for SharedDocument {
+    fn update(&mut self, context: &Context, rect: beui_host::geometry::Rect) {
+        self.0.borrow_mut().show(context, rect);
+    }
+}
+
+struct Nowhere;
+
+impl beui_runner::PlatformServices for Nowhere {}
+
+pub(crate) struct InSpace {
+    runner: beui_runner::Runner,
+    pub(crate) space: Rc<RefCell<crate::Space>>,
+    pub(crate) document: Rc<RefCell<Document>>,
+}
+
+impl InSpace {
+    pub(crate) fn new(document: Document) -> Self {
+        let space = Rc::new(RefCell::new(crate::Space::new()));
+        let document = Rc::new(RefCell::new(document));
+        let context = context();
+        let mut runner = beui_runner::Runner::new(beui_runner::Launch {
+            options: beui_runner::RunOptions::default(),
+            context: context.clone(),
+            program: Box::new(SharedDocument(Rc::clone(&document))),
+            layers: vec![Box::new(Rc::clone(&space))],
+        });
+        runner
+            .start(
+                beui_runner::renderer::Loaded {
+                    renderer: Box::new(SpaceScreen),
+                    fonts: None,
+                },
+                Setup::new(Waker::new(|| {})),
+            )
+            .expect("the renderer loads");
+        context.stop_clock();
+        Self {
+            runner,
+            space,
+            document,
+        }
+    }
+
+    pub(crate) fn frame(&mut self, inputs: impl IntoIterator<Item = Input>) {
+        for input in inputs {
+            self.runner.push(input);
+        }
+        self.runner
+            .frame(&mut Nowhere, beui_core::program::SafeArea::default());
+        ::beui_reactive::flush();
+    }
+
+    pub(crate) fn output(&self) -> &beui_core::context::FrameOutput {
+        self.runner.output().expect("the runner has run a frame")
+    }
+
+    pub(crate) fn controllers(
+        &mut self,
+        controllers: impl IntoIterator<Item = beui_runner::Controller>,
+    ) {
+        for controller in controllers {
+            self.runner.push(controller);
+        }
+        self.runner
+            .frame(&mut Nowhere, beui_core::program::SafeArea::default());
+        ::beui_reactive::flush();
+    }
+
+    pub(crate) fn settle(&mut self) {
+        for _ in 0..4 {
+            self.frame([]);
+        }
+    }
+
+    pub(crate) fn aim(&mut self, hand: beui_runner::Hand, window: beui_host::WindowId, at: Pos2) {
+        self.controllers([beui_runner::Controller::Toward { hand, window, at }]);
+        for _ in 0..40 {
+            self.runner
+                .context()
+                .advance_clock(std::time::Duration::from_millis(50));
+            self.frame([]);
+        }
+    }
+
+    pub(crate) fn tap(&mut self, hand: beui_runner::Hand) {
+        for value in [1.0, 0.0] {
+            self.controllers([beui_runner::Controller::Trigger { hand, value }]);
+        }
+        self.settle();
+    }
+
+    pub(crate) fn on_screen(&self, window: beui_host::WindowId, pos: Pos2) -> Pos2 {
+        let space = self.space.borrow();
+        let point = space
+            .panel(window)
+            .unwrap_or_else(|| panic!("{window:?} has a panel"))
+            .world(pos);
+        let clip = space
+            .head
+            .view_projection(SPACE_SCREEN)
+            .project_point3(point);
+        pos2(
+            (clip.x + 1.0) / 2.0 * SPACE_SCREEN.x,
+            (1.0 - clip.y) / 2.0 * SPACE_SCREEN.y,
+        )
+    }
+
+    pub(crate) fn tab(
+        &self,
+        dock: NodeId,
+        title: &str,
+    ) -> (beui_host::WindowId, beui_host::geometry::Rect) {
+        let document = self.document.borrow();
+        let tab = dock_tab(&document, dock, title);
+        let rect = document.node_rect(tab).expect("the tab is laid out");
+        (document.window_of(tab), rect)
+    }
+
+    pub(crate) fn drag(&mut self, from: Pos2, to: Pos2) {
+        let button = |pos, pressed| Input::PointerButton {
+            pos,
+            button: PointerButton::Primary,
+            pressed,
+        };
+        self.frame([Input::PointerMoved(from), button(from, true)]);
+        for step in 1..=8 {
+            let at = from + (to - from) * (step as f32 / 8.0);
+            self.frame([Input::PointerMoved(at)]);
+        }
+        self.frame([button(to, false)]);
+        self.settle();
+    }
 }

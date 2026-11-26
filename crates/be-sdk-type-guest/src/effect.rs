@@ -1,8 +1,7 @@
 use be_block_commit::CommitId;
-use be_sdk_type_api::{
-    Description, JournalBase, JournalEntry, Merging, Recipients, RelayKind, ReplicaId, Status,
-    Written,
-};
+use be_block_protocol::JournalBase;
+use be_block_store::PartRef;
+use be_sdk_type_api::{Description, Merging, Recipients, ReplicaId, Status, Written};
 
 pub(crate) type Token = u64;
 
@@ -12,7 +11,6 @@ pub(crate) enum Effect {
     Send {
         replica: ReplicaId,
         to: Recipients,
-        kind: RelayKind,
         bytes: Vec<u8>,
     },
     Publish {
@@ -21,8 +19,13 @@ pub(crate) enum Effect {
         expected: Option<CommitId>,
         merging: Option<Merging>,
         content: Written,
-        /// The session's generation and the last sequence a seal holds.
-        sealed_through: Option<(u64, u64)>,
+        /// The last sequence of the order a seal holds, and the run of the order it is in.
+        sealed_through: Option<u64>,
+        /// With `sealed_through`, the session state the journal starts from with the commit.
+        journal_state: Option<Vec<u8>>,
+        /// The parts `journal_state` names, put by this replica.
+        journal_parts: Vec<PartRef>,
+        restarts: u64,
     },
     Stash {
         replica: ReplicaId,
@@ -48,40 +51,48 @@ pub(crate) enum Effect {
         token: Token,
         bytes: Vec<u8>,
     },
+    Append {
+        replica: ReplicaId,
+        token: Token,
+        bytes: Vec<u8>,
+        along: be_block_content::Along,
+    },
+    ReadLog {
+        replica: ReplicaId,
+        token: Token,
+        from: u64,
+        limit: u32,
+    },
     Resume {
         replica: ReplicaId,
         token: Token,
         local: Option<CommitId>,
     },
-    ClaimLease {
+    Claim {
         replica: ReplicaId,
-        generation: u64,
     },
-    /// Announcements of edits made here that the server already holds.
-    Announce {
+    /// Lets go of an entry the server refused (`host.let-go-refused`).
+    LetGoRefused {
         replica: ReplicaId,
-        announcements: Vec<be_block_content::Announcement>,
+        id: uuid::Uuid,
     },
-    ReportClean {
+    Submit {
         replica: ReplicaId,
-        generation: u64,
-        clean_at: Option<CommitId>,
+        submission: be_block_session::Submission,
     },
-    Append {
+    /// Keeps the submissions of edits carried over a restart, not sent yet (`host.keep-carried`).
+    KeepCarried {
         replica: ReplicaId,
-        generation: u64,
-        entries: Vec<JournalEntry>,
-        relay: bool,
-        /// The first sequence number the entries hold, folded ones included.
-        from: u64,
-        /// The announcements of the edits made here among the entries, by sequence.
-        announcements: Vec<(u64, be_block_content::Announcement)>,
+        restarts: u64,
+        submissions: Vec<be_sdk_type_api::KeptSubmission>,
     },
     Rebase {
         replica: ReplicaId,
-        generation: u64,
         base: JournalBase,
-        entries: Vec<JournalEntry>,
+        /// The run of the order it is in (`status.restarts`).
+        restarts: u64,
+        /// The parts `base.state` names, put by this replica.
+        parts: Vec<PartRef>,
     },
     Release {
         replica: ReplicaId,

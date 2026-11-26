@@ -44,12 +44,7 @@ pub struct WorkerChannel {
 
 impl WorkerChannel {
     pub(super) fn start(url: &str, waiting: Arc<AtomicBool>) -> Result<Self, String> {
-        let guest = WebGuest::start(
-            url,
-            Some("./app.js"),
-            Arc::new(be_host_base::host::wake),
-            waiting,
-        )?;
+        let guest = WebGuest::start(url, "./app.js", Arc::new(be_host_base::host::wake), waiting)?;
         Ok(Self {
             guest,
             canvases: Canvases::default(),
@@ -89,9 +84,10 @@ impl WorkerChannel {
         &mut self,
         placements: Vec<Placement>,
         layers: Option<Overlay>,
+        retained: &[u32],
     ) -> Result<(), String> {
         let mut canvases = std::mem::take(&mut self.canvases);
-        let placed = canvases.place(self, placements);
+        let placed = canvases.place(self, placements, retained);
         self.canvases = canvases;
         let mut shown = self.overlay.take();
         let layered = overlay::show(self, &mut shown, layers);

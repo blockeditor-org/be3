@@ -26,6 +26,8 @@ use windows as system;
 /// sequence number says so and on macOS the pasteboard's change count, and
 /// be3 formats go there too, as their `stored` bytes; elsewhere the text on
 /// the clipboard is compared with the text written.
+/// Text goes there with `\r\n` line breaks on Windows and comes back with `\n`
+/// (`text_with_crlf`, `text_from_system`).
 #[derive(Default)]
 pub struct Clipboard {
     #[cfg(not(target_os = "ios"))]
@@ -106,6 +108,8 @@ impl Clipboard {
             return;
         };
         if let Some(text) = clip.plain_text() {
+            #[cfg(target_os = "windows")]
+            let text = beui_types::clip::text_with_crlf(&text);
             let _ = clipboard.set_text(text);
         } else if let Some(png) = clip.ready(formats::PNG) {
             set_image(clipboard, png);
@@ -167,6 +171,7 @@ impl Clipboard {
                 .get_text()
                 .ok()
                 .filter(|text| !text.is_empty())
+                .map(beui_types::clip::text_from_system)
         }
         #[cfg(target_os = "ios")]
         {

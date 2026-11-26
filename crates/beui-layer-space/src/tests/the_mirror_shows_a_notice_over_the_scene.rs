@@ -14,7 +14,7 @@ fn the_mirror_shows_a_notice_over_the_scene() {
     ))
     .expect("no graphics adapter is available");
     let (mut space, now) = space();
-    let context = Context::new(beui_font_freetype::FreetypeFonts::default());
+    let context = Context::new(beui_font_skrifa::SkrifaFonts::default());
     let mut setup = Setup::new(Waker::new(|| {}));
     setup.provide(gpu.setup());
     setup.provide(context.clone());

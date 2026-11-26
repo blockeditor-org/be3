@@ -20,8 +20,9 @@ be_wasm_ops_bindgen::generate!({
     copy: ["vec2", "pos2", "rect", "size", "window-id", "block-ref"],
     default: [
         "file-filter", "back-edge", "ime-text", "cursor-icon", "pen", "keystroke",
-        "window-requests", "window-role",
+        "window-requests", "window-role", "fonts",
     ],
+    own_debug: ["font-face"],
     inline: [
         "back-gesture-started", "ime-event-replace-text", "ime-event-delete-surrounding",
         "ime-event-set-selection", "keyboard-shown", "input-pointer-button", "input-touch",
@@ -47,7 +48,19 @@ pub use input::{
     BackEdge, BackGesture, CursorIcon, ImeEvent, ImeText, Input, Key, KeyChord, KeyPress, Keyboard,
     Keystroke, Modifiers, Pen, PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
 };
+pub use types::{FontFace, FontRole, Fonts};
 pub use window::{
     HostPlacement, ImeArea, WindowEdge, WindowId, WindowLevel, WindowPlacement, WindowReport,
     WindowRequest, WindowRequests, WindowRole,
 };
+
+impl std::fmt::Debug for FontFace {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("FontFace")
+            .field("role", &self.role)
+            .field("index", &self.index)
+            .field("bytes", &self.data.len())
+            .finish()
+    }
+}

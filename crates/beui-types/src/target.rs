@@ -137,9 +137,42 @@ fn placed<L: TreeLine>(line: &L) -> Result<Rect, String> {
     Ok(rect)
 }
 
+/// Whether a line of the tree holds `text`. A node's description (`description="…"`, what a
+/// screen reader says after its label, such as a tooltip on its anchor) is matched only by text
+/// that names it so: bare text such as a tooltip's would otherwise find the anchor too.
+pub fn line_holds(line: &str, text: &str) -> bool {
+    if text.contains(&DESCRIPTION[1..]) {
+        return line.contains(text);
+    }
+    match line.find(DESCRIPTION) {
+        Some(start) => {
+            let said = &line[start + DESCRIPTION.len()..];
+            let end = quoted_end(said).map_or(line.len(), |end| start + DESCRIPTION.len() + end);
+            format!("{}{}", &line[..start], &line[end..]).contains(text)
+        }
+        None => line.contains(text),
+    }
+}
+
+const DESCRIPTION: &str = " description=\"";
+
+/// Where the quoted string `said` opens ends, just past its closing quote.
+fn quoted_end(said: &str) -> Option<usize> {
+    let mut escaped = false;
+    for (at, character) in said.char_indices() {
+        match character {
+            _ if escaped => escaped = false,
+            '\\' => escaped = true,
+            '"' => return Some(at + 1),
+            _ => {}
+        }
+    }
+    None
+}
+
 pub fn line_with<'a, L: TreeLine>(target: &str, lines: &'a [L]) -> Result<&'a L, String> {
     let found: Vec<usize> = (0..lines.len())
-        .filter(|index| lines[*index].text().contains(target))
+        .filter(|index| line_holds(lines[*index].text(), target))
         .collect();
     match pick(lines, &found) {
         Some(index) => Ok(&lines[index]),

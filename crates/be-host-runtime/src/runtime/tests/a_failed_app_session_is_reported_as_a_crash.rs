@@ -27,7 +27,7 @@ fn a_failed_app_session_is_reported_as_a_crash() {
     let _ = take_stopped();
 
     with("test.failing", |runtime| {
-        runtime.session.shut_down();
+        runtime.run.session.shut_down();
         runtime.pump();
     });
 

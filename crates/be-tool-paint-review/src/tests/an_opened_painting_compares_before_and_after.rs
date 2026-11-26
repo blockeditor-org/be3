@@ -12,7 +12,7 @@ fn an_opened_painting_compares_before_and_after() {
         review.text("paint_review.showing"),
         "Showing before and after"
     );
-    assert!(review.test.shows("paint_review.split"));
+    assert!(review.test.shown("paint_review.split"));
     review
         .test
         .snapshot("an_opened_painting_compares_before_and_after");
@@ -26,5 +26,5 @@ fn an_opened_painting_compares_before_and_after() {
     review.shift(false);
 
     review.test.click("paint_review.back");
-    assert!(review.test.shows("paint_review.grid"));
+    assert!(review.test.shown("paint_review.grid"));
 }

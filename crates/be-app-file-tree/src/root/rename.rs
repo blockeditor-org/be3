@@ -1,7 +1,7 @@
 use be_sdk_beui::Editor;
-use be_sdk_beui::be_block_content::metadata::MAX_NAME_BYTES;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::{Key, KeyPhase};
+use be_sdk_beui::block_menu::rename_block;
 use uuid::Uuid;
 
 use super::rows::{RowKey, Tree as FileTree};
@@ -36,6 +36,15 @@ impl Renaming {
             let shown = keys.with(|keys| keys.iter().find(|key| editable.contains(key)).cloned());
             if let Some(key) = shown {
                 untrack(|| renaming.start(key));
+            }
+        });
+        // Another block taking the keyboard is the person moving on: a new block's name is
+        // no longer asked for once its row shows. A started rename's field ends itself, as
+        // left, when its window loses the keyboard.
+        let keyboard = editor.has_keyboard();
+        create_effect(move || {
+            if !keyboard.get() && pending.with_untracked(Option::is_some) {
+                pending.set(None);
             }
         });
         on_key(
@@ -84,9 +93,7 @@ impl Renaming {
         if let RowKey::Block(path) = key
             && let Some(id) = path.last()
         {
-            self.editor
-                .blocks()
-                .set_name(*id, Some(clipped(name).to_owned()));
+            rename_block(self.editor, *id, name);
         }
         self.finish(key);
     }
@@ -96,12 +103,4 @@ impl Renaming {
             self.editing.set(None);
         }
     }
-}
-
-fn clipped(name: &str) -> &str {
-    let mut end = name.len().min(MAX_NAME_BYTES);
-    while !name.is_char_boundary(end) {
-        end -= 1;
-    }
-    &name[..end]
 }

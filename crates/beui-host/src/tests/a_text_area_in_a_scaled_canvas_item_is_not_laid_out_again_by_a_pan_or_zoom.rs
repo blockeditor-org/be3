@@ -44,6 +44,7 @@ fn a_text_area_in_a_scaled_canvas_item_is_not_laid_out_again_by_a_pan_or_zoom() 
                         state
                         line_numbers=false
                         disabled=true
+                        scroll={plain_scroll()}
                     />
                 </CanvasItem>
             </Canvas>

@@ -21,6 +21,18 @@ only then are the package's `windows` and `programs` offered. Any other run answ
 a block. A desktop refuses to start on a data directory another be-host already runs on
 (guides/running/native.md).
 
+Under `--root` (guides/apps/runtime.md, The root guest), `--desktop` makes the desktop app the
+session's editor the root shows, with the desktop's OS services as under be-host's UI
+(`run_as_desktop`: the screen lock and its power actions, notifications, the tray, screenshots); the
+root shows the lock on its own lock screen (`host.lock`) and locks on Super+L through
+`host.lock-session`. Its compositor
+runs as under be-host's UI (`RootShell` drives `DesktopHost`), and a program window the desktop
+places is a `Surface::Host` layer of the root's, which `RootShell` configures to its place's size
+and draws from the compositor's picture of it (`DesktopHost::place_windows`, `picture`). What the
+root's router delivers to a window's layer comes back with the root's frame (`frame-done.host-input`)
+and reaches the compositor as the window's view would catch it (`DesktopHost::deliver`). The root
+shows no app windows yet (plans/host_as_platform_adapter.md, 4g7e).
+
 To run it headless: `./scripts/buck run //crates/be-host:dev -- --desktop`, then drive it
 (guides/running/drive.md). The host test `the_desktop_shell_opens_and_closes_cleanly`
 (crates/be-host-tests) does the same. The desktop app's own tests run the shell on be-sdk-test's
@@ -42,8 +54,9 @@ A compositor in another language could implement it from the WIT alone.
   `windows` and `programs` only under `--desktop`); on Windows, under `--desktop` only, `windows`,
   `programs` and `power`. Elsewhere every watch answers `unsupported` and calls are dropped.
 - Each watch is published as soon as the service behind it runs, even empty.
-- Only the shell watches windows, contacts and screen edges, and only it calls `windows` and
-  `set-edges` (`shell_only` in `published.rs`): screen edges wall the pointer.
+- Only the shell watches windows, contacts and screen input, and only it calls `windows` and
+  `set-screen-input` (`shell_only` in `published.rs`): screen input walls the pointer and takes
+  touches.
 - The desktop app shows a control only while the host offers what backs it
   (`editor.offered::<W>()`), so an unsupported interface simply hides its controls. Settings does
   the same at a finer grain: `InputReachWatch` says where keymap, key repeat and middle-click paste
@@ -61,13 +74,22 @@ publishes `ProgramsWatch`.
 
 Work off the UI thread hands its results back through `be_host_base::host::mailbox`: a worker
 `Post::send`s a value, which wakes the event loop, and the handler runs on the UI thread at the
-start of a frame, so nothing polls. Dropping the `Mailbox` drops whatever is still on its way. A
+start of a frame, so nothing polls. Letters from one thread arrive in the order it sent them;
+how they travel is the platform's (on the web, by `postMessage`: guides/running/web.md). A
+thread that may not share the mailbox's memory (the web's workers) sends through
+`Post::across()`, made on the mailbox's thread: an `Across<T>` sends each letter as its bytes
+(postcard), which the mailbox decodes as it delivers it; on the web a worker's letter sent as a
+value is dropped with an error. On the web only the page makes mailboxes, so an `Across` there
+is its mailbox's number and travels to a worker in the bytes it starts from (serde). Dropping the `Mailbox` drops whatever is still on its way. A
 handler that needs `&mut` state its owner holds is made on a `host::Desk<C>` and runs when the owner
 calls `desk.deliver(&mut c)` (`HostCore`'s requests, logind, `Programs`, `ScreenLock`).
 
 The host keeps what it knows of each window in be-host-desktop's `KnownWindow` and publishes only
-its `listed()` part. `be_host_desktop::naming::window_name` names a window everywhere it shows: the
-program's name, then " — " and the window's title when it says more. The name comes first from
+its `listed()` part, from an effect (`desktop_host::publish_windows`) over the platform's windows
+(`DesktopHost::listed`, which tracks what it reads) and the windows bound to a block's editor
+(`programs::bound_windows`, a signal), so nothing compares a counter each frame.
+`be_host_desktop::naming::window_name` names a window everywhere it shows: the program's name, then
+" — " and the window's title when it says more. The name comes first from
 the program the desktop launched the window from (`origin.program`), else the desktop entry (Linux)
 or Start menu program (Windows) matching the window's program id.
 
@@ -83,7 +105,7 @@ child.
 
 **A program window is a tab.** be-sdk-shell's `Workspace` has one tab model whose content is a
 block or a program (`program.rs`: `Program { window, record }`). Program tabs take keys from the
-same counter as block tabs and are saved with the dock layout in the `layout` view state
+same counter as block tabs and are saved with the dock layout in the `SavedLayout` view state
 (`saved::SavedProgram`). The desktop app floats each in a dock window of its own (`ProgramWindow`);
 workspace-ui puts them in its editors pane, or floating where the host opens windows (in space).
 `program::place` binds windows to tabs.
@@ -100,7 +122,9 @@ the program is never told another size first; a window
 filling a placeholder takes the placeholder's place and size (`program::cascaded`).
 `close-child` asks the program to close; the tab stays until the window leaves the list.
 
-**Shown and hidden.** The host keeps no shown state: whether an entry shows is the dock's. A
+**Shown and hidden.** The host keeps no shown state: whether an entry shows is the dock's. A new
+window's tab opens hidden when the listing says `opens-hidden` (every Windows entry, since showing
+one captures it), for the person to show from its chip; Linux's windows show at once. A
 hidden dock window (`DockHostLayout::hide_window`) places no body for its tabs, so `UnshownWindows`
 (placed by both shells beside `WorkspaceDialogs`) keeps every listed window the dock does not place
 (`DockHostLayout::is_shown`) placed with `ChildMode::Hidden`. It takes no room and draws nothing,
@@ -154,20 +178,22 @@ side along their bottom edges. `DisplaysWatch` gives each `HostDisplay` its `rec
   rect from it (`WindowReport::Moved`), and asks to move a window with the `place` request.
   `BeginMove`/`BeginResize` hand the press to the host.
 - A display's work area is the display less its bars' bands (`DockHostLayout::area`). The shell
-  reports it per view (`frame-report.work-area`). A window keeps only its grip, the top-left
-  corner where its handle is (`be_sdk_window_stack::KEPT`), on some display's work area
-  (`reachable`, `grabbable`), so it can always be grabbed again; the rest of it may hang off any
-  edge or over any band. A window taller or wider than a work area a band insets shrinks to it
-  (`fitted`), except a `WindowLevel::Fullscreen` window (the dock's fullscreen), which covers the
-  whole display; a window on no display (unplugged) moves to the nearest. A window moved past
-  where its grip can be reached follows the pointer on a rubber band, and let go, springs back
-  from there at the speed it was moving (`desktop.rs`, `Spring`); be-host's own window springs
-  the windows it carries itself (`carried`).
-  Keeping only changes where a window shows (`Stacked::show_at`), never where it is wanted
-  (`Stacked::wanted`, set by the user's and the app's moves): a window pushed in by a smaller or
-  unplugged display goes back once there is room. Its `host-place` is the wanted place, which
-  the dock saves with the window (`dock-window.placed`) and reopens it at, so a layout saved
-  meanwhile keeps it too.
+  reports it per view (`frame-report.work-area`). A window keeps only its grip, the top-left corner
+  where its handle is (`be_sdk_window_stack::KEPT`), on some display's work area (`reachable`), so
+  it can always be grabbed again; the rest of it may hang off any edge or over any band.
+  be-lib-geometry's `Rect::grabbable` is that one rule, which be-host's own window
+  (`compositor/desktop.rs`, a grip of its handle's height) and beui-dock-host's floating windows
+  call too, each with its own grip. A window taller or wider than a work area a band insets shrinks
+  to it (`fitted`), except a `WindowLevel::Fullscreen` window (the dock's fullscreen), which covers
+  the whole display; a window on no display (unplugged) moves to the nearest. A window moved past
+  where its grip can be reached follows the pointer on a rubber band, and let go, springs back from
+  there at the speed it was moving (`desktop.rs`, `Spring`); be-host's own window springs the
+  windows it carries itself (`carried`). Keeping only changes where a window shows
+  (`Stacked::show_at`), never where it is wanted (`Stacked::wanted`, set by the user's and the app's
+  moves): a window pushed in by a smaller or unplugged display goes back once there is room. Its
+  `host-place` is the wanted place, which the dock saves with the window (`dock-window.placed`) and
+  reopens it at, so a layout saved meanwhile keeps it too. be-host's own window shrinks by its own
+  rule (`clamped`; decisions/a_host_window_and_a_desktop_window_shrink_by_different_rules.md).
 - A window is drawn on the display holding most of it, at that display's raster scale; while it is
   moved, on every display it overlaps.
 - The shell's view draws its surface, every child it places (the tabs docked in its own dock)
@@ -202,7 +228,7 @@ try it: Apps panel > Menu > Running Apps, then Crash or Kill beside `be3.desktop
 
 ## A layout that cannot be read
 
-When the `layout` view state does not decode, the desktop starts nothing from it and saves nothing
+When the `SavedLayout` view state does not decode, the desktop starts nothing from it and saves nothing
 over it: be-sdk-shell's notice (`workspace.layout`; guides/blocks/workspaces.md, View state)
 offers Reset layout, Exit and Copy report. Running programs show behind it as windows but are not
 saved until a reset. Exit is Log out in a login session. The same holds for further displays' bar

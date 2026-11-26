@@ -38,10 +38,15 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
     let (mut fixture, first) = editor_sized(Some(Vec2::new(390.0, 800.0)));
     let second = Uuid::new_v4();
 
+    assert_eq!(
+        fixture.test.take_phone_layout_requests().last(),
+        Some(&true),
+        "the workspace tells the host it lays out as on a phone"
+    );
     show(&mut fixture, first, None);
     assert_eq!(
         top_bar(&fixture, first),
-        Some(TopBar::Phone),
+        Some(TopBar::Hidden),
         "an opened block fills the phone and leaves its bar to the dock"
     );
 
@@ -76,6 +81,7 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
         "choosing a file shows that file"
     );
     assert_eq!(fixture.focused(), Some(first));
+    fixture.test.settle();
 
     let switch = {
         let document = fixture.test.document();
@@ -89,6 +95,7 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
     };
     fixture.test.click(switch);
     fixture.settle();
+    fixture.test.settle();
     tap(&mut fixture, "dock.switcher.close.2");
     assert_eq!(
         fixture.shown(),
@@ -109,8 +116,8 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
     let document = fixture.test.document();
     let root = document.root().expect("the workspace has a root");
     assert!(
-        text_within(&document, root, "Access").is_some()
-            && text_within(&document, root, "Rename").is_none(),
+        find_text(&document, root, "Access", Match::Contains).is_some()
+            && find_text(&document, root, "Rename", Match::Contains).is_none(),
         "before the block hands its menu over, the dock bar offers only the workspace's part of it"
     );
     drop(document);
@@ -158,7 +165,8 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
     tap(&mut fixture, "dock.menu");
     let document = fixture.test.document();
     let root = document.root().expect("the workspace has a root");
-    let rename = text_within(&document, root, "Rename").expect("the dock's menu lists Rename");
+    let rename = find_text(&document, root, "Rename", Match::Contains)
+        .expect("the dock's menu lists Rename");
     let at = document
         .node_rect(rename)
         .expect("the row is laid out")

@@ -13,7 +13,7 @@ fn autoscrolling_slowly_away_from_the_end_of_a_following_scroll_leaves_it() {
             <List spacing=0.0>
                 <ListItem grow=1.0>
                     <Scroll @node_ref=&scroll follow_end=true>
-                        <ForEach keys={indices(100)}>|index: usize|
+                        <ForEach value={indices(100)}>|index: usize|
                             <LabelledButton label={format!("Row {index}")} />
                         </ForEach>
                     </Scroll>

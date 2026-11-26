@@ -13,7 +13,6 @@ beui-types = { path = "../beui-types" }
 beui-dock = { path = "../beui-dock" }
 beui-dock-host = { path = "../beui-dock-host" }
 beui-view = { path = "../beui-view" }
-beui-macros = { path = "../beui-macros" }
 beui-reactive = { path = "../beui-reactive" }
 be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 

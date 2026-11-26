@@ -7,6 +7,7 @@ use std::{
 
 use be_block_client::{ClientError, Clock, Peer};
 use be_block_store::ObjectStore;
+use be_lib_failure_budget::{Failed, FailureBudget};
 
 use be_sdk_type_api::ops::wire::{self, Decode};
 use be_sdk_type_api::{
@@ -29,10 +30,12 @@ pub struct Kind {
     /// Loads only its first part (`be_block_content::Loads::FirstPart`): `Kind::load`.
     pub first_part: bool,
     pub merges_parts: bool,
-    /// The stored form read whole decodes to the content (`BlockContent::WHOLE_BYTES`).
-    pub whole_bytes: bool,
+    /// Keeps a signed log beside its content (`type-info.log`): an export carries it.
+    pub log: bool,
     pub blank: Vec<u8>,
     pub described: Description,
+    /// The owner-only settings kind the type counts what is unread from (`type-info.reads`).
+    pub reads: Option<Uuid>,
 }
 
 impl Kind {
@@ -50,8 +53,7 @@ impl Kind {
     }
 }
 
-static REGISTRY: be_wasm_threads::Mutex<BTreeMap<Uuid, Kind>> =
-    be_wasm_threads::Mutex::new(BTreeMap::new());
+static REGISTRY: std::sync::Mutex<BTreeMap<Uuid, Kind>> = std::sync::Mutex::new(BTreeMap::new());
 
 pub fn kind_of(content_type: Uuid) -> Option<Kind> {
     REGISTRY
@@ -61,8 +63,41 @@ pub fn kind_of(content_type: Uuid) -> Option<Kind> {
         .cloned()
 }
 
-static DECLARED: be_wasm_threads::Mutex<BTreeSet<Uuid>> =
-    be_wasm_threads::Mutex::new(BTreeSet::new());
+static DECLARED: std::sync::Mutex<BTreeSet<Uuid>> = std::sync::Mutex::new(BTreeSet::new());
+
+/// Moves on each time `REGISTRY` or `DECLARED` changes (`known`).
+static KNOWN_REVISION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// How many times what is known changed: `known` answers something new only once this moved.
+pub fn known_revision() -> u64 {
+    KNOWN_REVISION.load(std::sync::atomic::Ordering::Acquire)
+}
+
+/// Every content type known here: each declared one, with its kind once a module described it.
+pub fn known() -> Vec<(Uuid, Option<Kind>)> {
+    let registry = REGISTRY
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
+    let declared = DECLARED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
+    let mut known: BTreeMap<Uuid, Option<Kind>> = declared
+        .into_iter()
+        .map(|content_type| (content_type, None))
+        .collect();
+    known.extend(
+        registry
+            .into_iter()
+            .map(|(content_type, kind)| (content_type, Some(kind))),
+    );
+    known.into_iter().collect()
+}
+
+fn known_changed() {
+    KNOWN_REVISION.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+}
 
 pub fn is_known(content_type: Uuid) -> bool {
     DECLARED
@@ -80,6 +115,7 @@ pub fn register(kind: Kind) {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .insert(kind.content_type, kind);
+    known_changed();
 }
 
 pub type Boxed = Box<dyn Channel<Presented = Infallible>>;
@@ -105,6 +141,15 @@ pub fn tag_of(bytes: &[u8]) -> SessionTag {
     SessionTag(*be_block_store::Hash::of(bytes).as_bytes())
 }
 
+/// Fresh randomness for a type module started in a host of its own, which it draws all its
+/// randomness from (guides/app_libraries.md, Pure guests): its uuids and std's hash keys.
+fn seed() -> [u8; 32] {
+    let mut seed = [0; 32];
+    seed[..16].copy_from_slice(Uuid::new_v4().as_bytes());
+    seed[16..].copy_from_slice(Uuid::new_v4().as_bytes());
+    seed
+}
+
 pub fn in_process<G: Guest + 'static>(name: impl Into<String>) -> Source {
     let name = name.into();
     Source {
@@ -123,7 +168,6 @@ pub fn in_process<G: Guest + 'static>(name: impl Into<String>) -> Source {
 pub fn wasm(
     name: impl Into<String>,
     tag: Result<SessionTag, String>,
-    cache: Option<std::path::PathBuf>,
     load: impl Fn(&be_wasm_host::Host) -> Result<be_wasm_host::App, String> + Clone + Send + 'static,
 ) -> Source {
     let name = name.into();
@@ -133,14 +177,8 @@ pub fn wasm(
         start: Box::new(move |wake, waiting| {
             let tag = tag.clone()?;
             let load = load.clone();
-            let host = be_wasm_host::Host::pure(cache.as_deref())?;
-            let channel = host.spawn(
-                name.clone(),
-                move |host| load(host),
-                wake,
-                waiting,
-                be_wasm_guest_host::thread::catch,
-            )?;
+            let host = be_wasm_host::Host::pure()?.with_seed(seed());
+            let channel = host.spawn(name.clone(), move |host| load(host), wake, waiting)?;
             Ok((Box::new(channel) as Boxed, tag))
         }),
     }
@@ -153,8 +191,12 @@ pub fn web(name: impl Into<String>, url: String, tag: Result<SessionTag, String>
         declared: None,
         start: Box::new(move |wake, waiting| {
             let tag = tag.clone()?;
-            let channel =
-                be_wasm_guest_host::web::WebGuest::<Infallible>::start(&url, None, wake, waiting)?;
+            let channel = be_wasm_guest_host::web::WebGuest::<Infallible>::start_pure(
+                &url,
+                seed(),
+                wake,
+                waiting,
+            )?;
             Ok((Box::new(channel) as Boxed, tag))
         }),
     }
@@ -175,7 +217,24 @@ struct Module {
     hello: bool,
     failure: Option<String>,
     generation: u64,
-    restarts: usize,
+    failures: FailureBudget,
+}
+
+impl Module {
+    /// Brings the module to `now`: yields the clock if it moved, and ends a sleep until a
+    /// moment it has reached, whether or not the clock moved since, as under a held clock it may
+    /// never move again. A module runs its timers as the clock reaches it (`tick`), not as its
+    /// sleep ends, so a due sleep ends with the clock yielded again, moved or not.
+    fn advance(&mut self, now: u64) {
+        let due = self.sleeping.as_ref().is_some_and(|(at, _)| *at <= now);
+        if due || self.ticked.is_none_or(|ticked| ticked < now) {
+            self.ticked = Some(self.ticked.map_or(now, |ticked| ticked.max(now)));
+            let _ = self.clock.send(&mut self.connection, &now, |_| true);
+        }
+        if due && let Some((_, reply)) = self.sleeping.take() {
+            reply.send(&mut self.connection, &());
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -200,6 +259,8 @@ pub struct Modules {
     notify: Arc<Notify>,
     backlog: VecDeque<(usize, Heard)>,
     restarted: Vec<usize>,
+    /// Why each module that stopped for good stopped, for the host to tell the person.
+    stopped: Vec<String>,
     routes: HashMap<Uuid, usize>,
     described: HashSet<Uuid>,
     clock: Clock,
@@ -210,7 +271,10 @@ pub struct Modules {
     kinds_changed: fn(),
 }
 
-const RESTART_LIMIT: usize = 8;
+/// A module that stops this many times within the window is not started again: it is started
+/// again after each of the eight before.
+pub(crate) const FAILURES_BEFORE_STOPPING: usize = 9;
+const RESTART_WINDOW: Duration = Duration::from_secs(60);
 
 const CLAIMED_BYTES: usize = 64 * 1024;
 
@@ -226,17 +290,19 @@ fn failed(content_type: Uuid, failure: Failure) -> String {
 }
 
 /// What a module refused a stateless request's `read-part` of a part outside it is told.
-pub const OUTSIDE_REQUEST: &str =
-    "a stateless request reads only the parts of the commits it was handed";
+pub const OUTSIDE_REQUEST: &str = "a stateless request reads only the parts of what it was handed";
 
 /// The parts a stateless request may read with `read-part`: those of the `loaded` content it
-/// was handed, so a module reads nothing of a block, or of another, that it was not asked
-/// about. Any stateless request that hands a module content loaded by parts asks with one
+/// was handed, or for one handed a block's journal (`replay`), those sealed under that block's
+/// keys, so a module reads nothing of a block, or of another, that it was not asked about. Any
+/// stateless request that hands a module content loaded by parts, or a journal, asks with one
 /// (`Modules::ask_reading`, `Replicas::ask_reading`), which also keeps what was served: the
 /// parts read, and the first read that failed.
 #[derive(Debug, Default)]
 pub struct Scope {
     allowed: HashSet<be_block_store::PartRef>,
+    /// The block whose parts it may read besides `allowed`.
+    block: Option<Uuid>,
     read: Vec<be_block_store::PartRef>,
     failed: Option<ClientError>,
 }
@@ -253,8 +319,39 @@ impl Scope {
         }
     }
 
+    /// The parts sealed under `block`'s keys: those its journal names.
+    pub fn of_block(block: Uuid) -> Self {
+        Self {
+            block: Some(block),
+            ..Self::default()
+        }
+    }
+
     pub fn allows(&self, part: be_block_store::PartRef) -> bool {
         self.allowed.contains(&part)
+    }
+
+    /// Checks a read `take` left to check (`Under::Check`): it is read, and kept as read, only
+    /// when the part is sealed under the scope's block's keys; otherwise `Checked::Outside`,
+    /// to refuse (`PartRead::refuse`).
+    pub async fn check<S: ObjectStore>(
+        &mut self,
+        peer: &Peer<S>,
+        Unchecked(read): Unchecked,
+    ) -> Checked {
+        let reaches = match self.block {
+            Some(block) => peer.is_part_of(read.part, block).await,
+            None => Ok(false),
+        };
+        match reaches {
+            Ok(true) => {
+                self.read.push(read.part);
+                let result = read.read(peer).await;
+                Checked::Read(read, result)
+            }
+            Ok(false) => Checked::Outside(read),
+            Err(error) => Checked::Read(read, Err(error)),
+        }
     }
 
     /// The handed parts whose hash is one of `hashes`.
@@ -291,19 +388,18 @@ impl Scope {
     /// call). An `error` comes back for the host to report.
     pub fn take(&mut self, connection: &mut Connection, op: OpId, call: Call) -> Under {
         match call {
-            Call::ReadPart { reply, part, range } => {
-                let part = be_block_store::PartRef::from(part);
-                match self.allows(part) {
-                    true => {
-                        self.read.push(part);
-                        Under::Read(PartRead { reply, part, range })
-                    }
-                    false => {
-                        reply.send(connection, &Err(OUTSIDE_REQUEST.to_owned()));
-                        Under::Answered
-                    }
+            Call::ReadPart { reply, part, range } => match (self.allows(part), self.block) {
+                (true, _) => {
+                    self.read.push(part);
+                    Under::Read(PartRead { reply, part, range })
                 }
-            }
+                // Granted only once `Scope::check` finds it sealed under the block's keys.
+                (false, Some(_)) => Under::Check(Unchecked(PartRead { reply, part, range })),
+                (false, None) => {
+                    reply.send(connection, &Err(OUTSIDE_REQUEST.to_owned()));
+                    Under::Answered
+                }
+            },
             Call::Error { message, .. } => {
                 connection.complete(op, Outcome::Err(OpError::Canceled));
                 Under::Error(message)
@@ -331,9 +427,29 @@ impl Scope {
 }
 
 pub enum Under {
+    /// A read of a part the scope was handed, to serve.
     Read(PartRead),
+    /// A read of another part, which only `Scope::check` may serve.
+    Check(Unchecked),
     Error(String),
     Answered,
+}
+
+/// A `read-part` of a part a scope was not handed: it has no `read`, so nothing serves it
+/// but `Scope::check`, or refuses it (`Unchecked::refuse`).
+pub struct Unchecked(PartRead);
+
+impl Unchecked {
+    /// Answers that the part is outside the request.
+    pub fn refuse(self, connection: &mut Connection) {
+        self.0.refuse(connection);
+    }
+}
+
+/// What `Scope::check` found of a read: read (or failing to be), or outside the scope.
+pub enum Checked {
+    Read(PartRead, Result<Vec<u8>, ClientError>),
+    Outside(PartRead),
 }
 
 /// A `read-part` a scope allows, for the host to read and answer (`Scope::answer`).
@@ -347,6 +463,12 @@ impl PartRead {
     pub async fn read<S: ObjectStore>(&self, peer: &Peer<S>) -> Result<Vec<u8>, ClientError> {
         peer.read_part(self.part, self.range.offset, self.range.length)
             .await
+    }
+
+    /// Answers that the part is outside the request.
+    pub fn refuse(self, connection: &mut Connection) {
+        self.reply
+            .send(connection, &Err(OUTSIDE_REQUEST.to_owned()));
     }
 }
 
@@ -395,12 +517,13 @@ impl Modules {
                     hello: false,
                     failure: None,
                     generation: 0,
-                    restarts: 0,
+                    failures: FailureBudget::new(FAILURES_BEFORE_STOPPING, RESTART_WINDOW),
                 })
                 .collect(),
             notify: Arc::new(Notify::new()),
             backlog: VecDeque::new(),
             restarted: Vec::new(),
+            stopped: Vec::new(),
             routes: HashMap::new(),
             described: HashSet::new(),
             clock,
@@ -416,6 +539,7 @@ impl Modules {
                             .lock()
                             .unwrap_or_else(std::sync::PoisonError::into_inner)
                             .insert(content_type);
+                        known_changed();
                     }
                 }
                 None => modules.launch(module),
@@ -463,9 +587,7 @@ impl Modules {
                 held.tag = tag;
                 held.failure = None;
                 held.worker = Some(Worker::new(channel, waiting));
-                let mut entropy = Uuid::new_v4().as_bytes().to_vec();
-                entropy.extend_from_slice(Uuid::new_v4().as_bytes());
-                held.started = Some(replicas::start(&mut held.connection, entropy));
+                held.started = Some(replicas::start(&mut held.connection));
                 self.flush(module);
             }
             Err(error) => {
@@ -505,16 +627,50 @@ impl Modules {
         self.routes.get(&content_type).copied()
     }
 
+    /// What `content_type` is, as its module declares it, starting the module first.
+    pub async fn kind(&mut self, content_type: Uuid) -> Option<Kind> {
+        if let Some(module) = self.module_of(content_type) {
+            self.load(module).await;
+        }
+        kind_of(content_type)
+    }
+
     pub fn settled(&self) -> bool {
-        self.backlog.is_empty()
-            && self
-                .modules
-                .iter()
-                .all(|module| module.worker.as_ref().is_none_or(Worker::settled))
+        self.unsettled().is_empty()
+    }
+
+    /// Why the modules are not settled, one reason each: empty once they are.
+    pub fn unsettled(&self) -> Vec<String> {
+        let mut reasons: Vec<String> = self
+            .modules
+            .iter()
+            .filter_map(|module| {
+                let why = module.worker.as_ref()?.unsettled()?;
+                Some(format!("{}: {why}", module.source.name))
+            })
+            .collect();
+        if !self.backlog.is_empty() {
+            reasons.push("what the modules said meanwhile waits to be taken".to_owned());
+        }
+        reasons
+    }
+
+    /// Whether a wait on one module (`until`, `ask_all`, `ask_reading`) kept what the modules
+    /// said meanwhile for later (`backlog`), or restarted one: the wake that told of it went to
+    /// that wait, so whoever pumps the modules must take it without waiting for another
+    /// (`Replicas::woken`), or it sits there, unsettled, until a module next speaks.
+    pub fn kept(&self) -> bool {
+        !self.backlog.is_empty() || !self.restarted.is_empty()
     }
 
     pub fn tag(&self, module: usize) -> SessionTag {
         self.modules[module].tag
+    }
+
+    /// The module's source's name: its app's id, which what the module writes in a block's
+    /// signed log is signed as (`be_block_client::by_app`).
+    pub fn name(&self, module: usize) -> &str {
+        &self.modules[module].source.name
     }
 
     pub fn generation(&self, module: usize) -> u64 {
@@ -582,9 +738,10 @@ impl Modules {
                 plain: info.plain,
                 first_part: info.first_part,
                 merges_parts: info.merges_parts,
-                whole_bytes: info.whole_bytes,
+                log: info.log,
                 blank: info.blank,
                 described: info.blank_description,
+                reads: info.reads,
             });
         }
         if registered {
@@ -609,25 +766,11 @@ impl Modules {
         }
     }
 
-    fn advance(&mut self, module: usize, now: u64) {
-        let held = &mut self.modules[module];
-        if held.ticked.is_some_and(|ticked| ticked >= now) {
-            return;
-        }
-        held.ticked = Some(now);
-        let _ = held.clock.send(&mut held.connection, &now, |_| true);
-        if held.sleeping.as_ref().is_some_and(|(at, _)| *at <= now)
-            && let Some((_, reply)) = held.sleeping.take()
-        {
-            reply.send(&mut held.connection, &());
-        }
-    }
-
     pub fn call<R>(&mut self, module: usize, call: impl FnOnce(&mut Connection) -> R) -> Option<R> {
         self.wake(module);
         self.modules[module].worker.as_ref()?;
         let now = self.now();
-        self.advance(module, now);
+        self.modules[module].advance(now);
         let result = call(&mut self.modules[module].connection);
         self.flush(module);
         Some(result)
@@ -642,7 +785,7 @@ impl Modules {
             return;
         }
         let now = self.millis_at(at);
-        self.advance(module, now);
+        self.modules[module].advance(now);
         self.flush(module);
     }
 
@@ -657,13 +800,15 @@ impl Modules {
 
     fn restart(&mut self, module: usize) {
         self.backlog.retain(|(from, _)| *from != module);
+        let now = Duration::from_millis(self.now());
         let held = &mut self.modules[module];
-        held.restarts += 1;
-        if held.restarts > RESTART_LIMIT {
-            eprintln!(
-                "the type module {} stopped {RESTART_LIMIT} times and is not started again",
+        if held.failures.fail(now) == Failed::Stop {
+            let stopped = format!(
+                "The type module {} stopped {FAILURES_BEFORE_STOPPING} times in a minute and is not started again, so blocks of its types cannot be opened until be-host restarts.",
                 held.source.name
             );
+            eprintln!("{stopped}");
+            self.stopped.push(stopped);
             return;
         }
         self.launch(module);
@@ -674,6 +819,11 @@ impl Modules {
 
     pub fn take_restarted(&mut self) -> Vec<usize> {
         std::mem::take(&mut self.restarted)
+    }
+
+    /// Why each module that stopped for good since this was last asked stopped.
+    pub fn take_stopped(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.stopped)
     }
 
     pub fn hold_clock(&mut self, at: Option<Instant>) {
@@ -903,6 +1053,10 @@ impl Modules {
         let Some(ticket) = self.call(module, call) else {
             return Err(OpError::Canceled);
         };
+        // The calls made under the request, and under those (a resource's methods have the
+        // resource as their parent): `scope.take` refuses a resource's constructor, so its
+        // methods are refused here too, or the module would wait on them.
+        let mut under = HashSet::new();
         loop {
             let held = &self.modules[module];
             if held.worker.is_none() || held.generation != generation {
@@ -920,9 +1074,11 @@ impl Modules {
                         parent: Some(parent),
                         call,
                     } if from == module && parent == ticket.op() => {
+                        under.insert(op);
                         let held = &mut self.modules[module];
                         match scope.take(&mut held.connection, op, call) {
-                            Under::Read(read) => reads.push(read),
+                            Under::Read(read) => reads.push(Ok(read)),
+                            Under::Check(read) => reads.push(Err(read)),
                             Under::Error(message) => {
                                 eprintln!("the type module {}: {message}", held.source.name);
                             }
@@ -930,6 +1086,18 @@ impl Modules {
                         }
                         self.flush(module);
                     }
+                    Heard::Call {
+                        op,
+                        parent: Some(parent),
+                        ..
+                    } if from == module && under.contains(&parent) => {
+                        under.insert(op);
+                        self.modules[module]
+                            .connection
+                            .complete(op, Outcome::Err(OpError::Canceled));
+                        self.flush(module);
+                    }
+                    Heard::Canceled { op } if from == module && under.contains(&op) => {}
                     heard => self.backlog.push_back((from, heard)),
                 }
             }
@@ -938,7 +1106,19 @@ impl Modules {
             }
             let served = !reads.is_empty();
             for read in reads {
-                let result = read.read(peer).await;
+                let (read, result) = match read {
+                    Ok(read) => {
+                        let result = read.read(peer).await;
+                        (read, result)
+                    }
+                    Err(unchecked) => match scope.check(peer, unchecked).await {
+                        Checked::Read(read, result) => (read, result),
+                        Checked::Outside(read) => {
+                            self.call(module, |connection| read.refuse(connection));
+                            continue;
+                        }
+                    },
+                };
                 self.call(module, |connection| scope.answer(connection, read, result));
             }
             if !served {
@@ -964,8 +1144,12 @@ impl Modules {
 
     /// A block's content as a reader outside its session sees it: its head with the journal
     /// replayed on top by the type, when this build wrote the journal on that head; otherwise
-    /// the head alone.
-    pub async fn readable(&mut self, read: be_block_client::BlockRead) -> Option<Vec<u8>> {
+    /// the head alone. The type reads the parts the journal names from `peer`.
+    pub async fn readable<S: ObjectStore>(
+        &mut self,
+        peer: &Peer<S>,
+        read: be_block_client::BlockRead,
+    ) -> Option<Vec<u8>> {
         let be_block_client::BlockRead {
             summary,
             stored,
@@ -981,33 +1165,19 @@ impl Modules {
         let Some(module) = self.module_of(content_type) else {
             return bytes;
         };
-        let journal = match journal.tag.as_bytes() == &self.tag(module).0 {
-            true => be_sdk_type_api::Journal {
-                base: be_sdk_type_api::JournalBase {
-                    commit: journal.base.commit,
-                    sequence: journal.base.sequence,
-                    state: journal.base.state,
-                },
-                entries: journal
-                    .entries
-                    .into_iter()
-                    .map(|entry| be_sdk_type_api::JournalEntry {
-                        sequence: entry.sequence,
-                        payload: entry.payload,
-                    })
-                    .collect(),
-            },
-            false => return bytes,
-        };
+        if journal.tag.as_bytes() != &self.tag(module).0 {
+            return bytes;
+        }
         let head = bytes.clone();
-        match self
-            .ask_type(content_type, |connection| {
+        let mut scope = Scope::of_block(summary.id);
+        let answer = self
+            .ask_reading(module, peer, &mut scope, |connection| {
                 replicas::replay(connection, content_type, head, journal)
             })
-            .await
-        {
-            Ok(replayed) => Some(replayed),
-            Err(_) => bytes,
+            .await;
+        match (answer, scope.take_failure()) {
+            (Ok(Ok(replayed)), None) => Some(replayed),
+            _ => bytes,
         }
     }
 

@@ -9,39 +9,43 @@ fn a_modal_dialog_blocks_its_tab_and_stacks_a_nested_one() {
     test.click("demo.dialog.modal");
     test.frame(Vec::new());
     let (outer, inner) = (dialog_id(0), dialog_id(1));
-    assert!(test.shows(&outer), "the modal dialog opens over the page");
+    assert!(test.shown(&outer), "the modal dialog opens over the page");
 
     test.click(open_at);
     test.frame(Vec::new());
     assert!(
-        !test.shows(&inner),
+        !test.shown(&inner),
         "the page under a modal dialog takes no press"
     );
 
     let close_at = test.rect_of(&format!("{outer}.close")).center();
     test.click(format!("demo.dialog.{}.nested", crate::DIALOG_TABS));
     test.frame(Vec::new());
-    assert!(test.shows(&inner), "a dialog opens over the dialog");
+    assert!(test.shown(&inner), "a dialog opens over the dialog");
     test.advance(std::time::Duration::from_secs(1));
     test.frame(Vec::new());
     test.snapshot("docking_modal_dialog");
 
     test.click(close_at);
     test.frame(Vec::new());
+    let document = test.document();
+    let laid_out = document
+        .find_test_id(&outer)
+        .is_some_and(|node| document.node_rect(node).is_some());
     assert!(
-        test.shows(&outer),
-        "the dialog under a modal one takes no press either"
+        laid_out,
+        "the dialog under a modal one takes no press either (the modal one hides it from the tree)"
     );
 
     test.click(format!("demo.dialog.{}.close", crate::DIALOG_TABS + 1));
     test.click(format!("demo.dialog.{}.close", crate::DIALOG_TABS));
     test.frame(Vec::new());
-    assert!(!test.shows(&outer), "both dialogs close");
+    assert!(!test.shown(&outer), "both dialogs close");
 
     test.click("demo.dialog.open");
     test.frame(Vec::new());
     assert!(
-        test.shows(&dialog_id(2)),
+        test.shown(&dialog_id(2)),
         "with the dialogs closed, the page takes presses again"
     );
 }

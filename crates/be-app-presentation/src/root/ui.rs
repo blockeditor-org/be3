@@ -2,9 +2,7 @@ use beui::Overflow;
 
 use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
 use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
-use be_sdk_beui::beui::dock::{
-    DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize,
-};
+use be_sdk_beui::beui::dock::{DockBar, DockPane, DockSplit, DockTab, Docking, SplitSize};
 use be_sdk_beui::beui::icons::{
     ICON_ARROW_LEFT, ICON_ARROW_RIGHT, ICON_COPY_PLUS, ICON_ELLIPSIS, ICON_MAXIMIZE,
     ICON_STICKY_NOTE_PLUS, ICON_UNLINK, ICON_X,
@@ -18,7 +16,6 @@ use uuid::Uuid;
 use super::slides::{Notes, Slides};
 use beui::{Align, Direction};
 
-const FILMSTRIP: &str = "filmstrip";
 const STAGE: &str = "stage";
 const TOOLBAR: &str = "toolbar";
 const NOTES: &str = "notes";
@@ -46,14 +43,9 @@ pub fn PresentationView(editor: Editor) -> NodeId {
 
     let editing = create_memo(move || !presenting.get());
     let docked = create_memo(move || editing.get() && chrome.get());
-    let bare = create_memo(move || !docked.get());
     create_effect(move || match docked.get() {
         true => editor.content(&docked_stage),
         false => editor.content(&bare_stage),
-    });
-    let background = create_memo(move || match presenting.get() {
-        true => ColorRole::Custom(PRESENTING.into()),
-        false => ColorRole::Background,
     });
     let keys = move |press: KeyPress| presenting.get_untracked() && navigate(slides, press);
     let read_only = editor.read_only();
@@ -72,18 +64,15 @@ pub fn PresentationView(editor: Editor) -> NodeId {
 
     view! {
         <Interactive focusable=true focused={presenting} on_key={keys}>
-            <Frame fill={background}>
-                <Layers>
-                    <Show condition={docked}>
-                        <DeckDock
-                            editor={editor}
-                            slides={slides}
-                            duplicate={duplicate.clone()}
-                            stage={docked_stage}
-                            selected={slides.selected()}
-                        />
-                    </Show>
-                    <Show condition={bare}>
+            <Frame
+                fill={move || match presenting.get() {
+                    true => ColorRole::Custom(PRESENTING.into()),
+                    false => ColorRole::Background,
+                }}
+            >
+                <Show
+                    value={docked}
+                    fallback={move || view! {
                         <List spacing=Space::None>
                             <ListItem grow=1.0>
                                 <Stage
@@ -97,12 +86,20 @@ pub fn PresentationView(editor: Editor) -> NodeId {
                                     report_size=true
                                 />
                             </ListItem>
-                            <Show condition={presenting}>
+                            <Show value={presenting}>
                                 <Playback editor={editor} slides={slides} />
                             </Show>
                         </List>
-                    </Show>
-                </Layers>
+                    }}
+                >
+                    <DeckDock
+                        editor={editor}
+                        slides={slides}
+                        duplicate={duplicate.clone()}
+                        stage={docked_stage}
+                        selected={slides.selected()}
+                    />
+                </Show>
             </Frame>
         </Interactive>
     }
@@ -116,22 +113,17 @@ fn DeckDock(
     stage: NodeRef,
     selected: ReadSignal<Option<Uuid>>,
 ) -> NodeId {
-    let layout = DockingLayout::<&'static str>::new();
     view! {
-        <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="deck" size={SplitSize::First(FILMSTRIP_WIDTH)}>
-                <DockPane id="filmstrip" locked=true>
-                    <DockTab id=FILMSTRIP title="Slides">
+        <Docking>
+            <DockSplit size={SplitSize::First(FILMSTRIP_WIDTH)}>
+                <DockPane id="filmstrip">
+                    <DockTab title="Slides" bare=true>
                         <Filmstrip editor={editor} slides={slides} duplicate={duplicate.clone()} />
                     </DockTab>
                 </DockPane>
-                <DockSplit
-                    id="slide"
-                    direction=Direction::Vertical
-                    size={SplitSize::Second(NOTES_HEIGHT)}
-                >
-                    <DockPane id="stage" locked=true bare=true>
-                        <DockTab id=STAGE title="Slide">
+                <DockSplit direction=Direction::Vertical size={SplitSize::Second(NOTES_HEIGHT)}>
+                    <DockPane stage=true>
+                        <DockTab id=STAGE>
                             <Stage
                                 @node_ref={&stage}
                                 editor={editor}
@@ -144,8 +136,8 @@ fn DeckDock(
                             />
                         </DockTab>
                     </DockPane>
-                    <DockPane id="notes" locked=true>
-                        <DockTab id=NOTES title="Notes">
+                    <DockPane>
+                        <DockTab id=NOTES title="Notes" bare=true>
                             <SpeakerNotes editor={editor} slides={slides} />
                         </DockTab>
                     </DockPane>
@@ -211,13 +203,14 @@ fn Stage(
             editor.set_intrinsic_size(Some(Vec2::new(SLIDE_HEIGHT * aspect, SLIDE_HEIGHT)));
         }
     };
-    let fitted = create_memo(move || match fit.get() {
-        true => ratio.get(),
-        false => FILL,
-    });
 
     view! {
-        <Frame aspect_ratio={fitted}>
+        <Frame
+            aspect_ratio={move || match fit.get() {
+                true => ratio.get(),
+                false => FILL,
+            }}
+        >
             <ChildBlock
                 editor={editor}
                 block={target}
@@ -244,7 +237,7 @@ fn SlideStatus(state: ReadSignal<ChildState>) -> NodeId {
     });
     view! {
         <Layers>
-            <Show condition={hidden}>
+            <Show value={hidden}>
                 <Text size=TextSize::Sm color=TextColor::Muted>{message}</Text>
             </Show>
         </Layers>
@@ -320,7 +313,7 @@ fn Playback(editor: Editor, slides: Slides) -> NodeId {
         <Frame height=PLAYBACK_HEIGHT>
             <Interactive on_hover_change={over} @test_id={"presentation.playback"}>
                 <Layers>
-                    <Show condition={over}>
+                    <Show value={over}>
                         <Frame
                             fill={ColorRole::Custom(PLAYBACK_SHADE.into())}
                             padding={Padding::horizontal(Space::Lg)}
@@ -382,58 +375,82 @@ fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
         Notes::Block(target) => Some(target),
         Notes::None | Notes::Loading | Notes::Missing => None,
     });
-    let missing = create_memo(move || notes.get() == Notes::None);
-    let status = create_memo(move || match notes.get() {
-        Notes::Loading => Some("Loading the notes…"),
-        Notes::Missing => Some("This slide's notes could not be found."),
-        Notes::None | Notes::Block(_) => None,
-    });
-    let waiting = create_memo(move || status.get().is_some());
-    let message = create_memo(move || status.get().unwrap_or_default().to_owned());
-    let written = create_memo(move || target.get().is_some());
     let add = move || {
         if let Some(id) = selected.get_untracked() {
             slides.add_notes(id);
         }
     };
+    // Notes just made ask for the keyboard as they are placed, until they have it or the slide
+    // shows other notes.
+    let typing_into = slides.typing_into();
+    create_effect(move || {
+        let shown = target.get().map(|target| target.id);
+        if typing_into
+            .get()
+            .is_some_and(|(notes, _)| shown.is_some_and(|shown| shown != notes))
+        {
+            typing_into.set(None);
+        }
+    });
+    create_effect_on_change(move || selected.get(), move |_, _| typing_into.set(None));
+    // The count of notes made to type into while these are those notes: it only grows, so a
+    // new note asks again, and showing other notes asks nothing.
+    let keyboard = move || {
+        typing_into
+            .get()
+            .filter(|(notes, _)| target.get().is_some_and(|target| target.id == *notes))
+            .map_or(0, |(_, made)| made)
+    };
     view! {
         <Frame fill=ColorRole::Surface>
             <Layers>
                 <List spacing=Space::None>
-                    <Show condition={missing}>
-                        <Frame padding=NOTES_PADDING>
-                            <List
-                                direction=Direction::Horizontal
-                                align=Align::Center
-                                spacing=Space::Md
-                            >
-                                <Text style=TextStyle::CAPTION>
-                                    "This slide has no speaker notes."
+                    <Match value={notes}>
+                        <Case is={Notes::None}>
+                            <Frame padding=NOTES_PADDING>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=Space::Md
+                                >
+                                    <Text style=TextStyle::CAPTION>
+                                        "This slide has no speaker notes."
+                                    </Text>
+                                    <Button
+                                        glyph=ICON_STICKY_NOTE_PLUS
+                                        label="Add notes"
+                                        disabled={read_only}
+                                        on_click={add}
+                                        @test_id={"presentation.notes.add"}
+                                    />
+                                </List>
+                            </Frame>
+                        </Case>
+                        <Case
+                            when={|notes: &Notes| matches!(notes, Notes::Loading | Notes::Missing)}
+                        >|notes: ReadSignal<Notes>|
+                            <Frame padding=NOTES_PADDING>
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    @test_id={"presentation.notes.status"}
+                                >
+                                    {create_memo(move || match notes.with(|notes| matches!(notes, Notes::Loading)) {
+                                        true => "Loading the notes…".to_owned(),
+                                        false => "This slide's notes could not be found.".to_owned(),
+                                    })}
                                 </Text>
-                                <Button
-                                    glyph=ICON_STICKY_NOTE_PLUS
-                                    label="Add notes"
-                                    disabled={read_only}
-                                    on_click={add}
-                                    @test_id={"presentation.notes.add"}
-                                />
-                            </List>
-                        </Frame>
-                    </Show>
-                    <Show condition={waiting}>
-                        <Frame padding=NOTES_PADDING>
-                            <Text style=TextStyle::CAPTION @test_id={"presentation.notes.status"}>
-                                {message}
-                            </Text>
-                        </Frame>
-                    </Show>
+                            </Frame>
+                        </Case>
+                    </Match>
                 </List>
-                <Show condition={written}>
+                <Show value={move || target.with(Option::is_some)}>
                     <ChildBlock
                         editor={editor}
                         block={target}
                         mode=ChildMode::Live
                         own_frame=true
+                        keyboard={keyboard}
+                        on_focus={Callback::new(move |()| typing_into.set(None))}
                         @test_id={"presentation.notes"}
                     >|handle: ChildBlockHandle|
                         <SlideStatus state={handle.state} />
@@ -491,7 +508,7 @@ fn Filmstrip(editor: Editor, slides: Slides, duplicate: Action) -> NodeId {
                 });
                 view! {
                     <List spacing=Space::None>
-                        <Show condition={empty}>
+                        <Show value={empty}>
                             <Frame padding=FILMSTRIP_PADDING>
                                 <Text style=TextStyle::CAPTION>
                                     "Add a slide to start this deck."
@@ -501,7 +518,7 @@ fn Filmstrip(editor: Editor, slides: Slides, duplicate: Action) -> NodeId {
                         <ListItem grow=1.0>
                             <Scroll direction={direction} @test_id={"presentation.filmstrip"}>
                                 <Reorder
-                                    keys={keys}
+                                    value={keys}
                                     direction={direction}
                                     payload={Func::new(Some)}
                                     disabled={read_only}
@@ -515,7 +532,10 @@ fn Filmstrip(editor: Editor, slides: Slides, duplicate: Action) -> NodeId {
                                             align=Align::Start
                                             spacing=TILE_SPACING
                                         >
-                                            <ForEach keys={reorder.order}>|id: Uuid|
+                                            <ForEach
+                                                value={reorder.order}
+                                                handle={reorder.rows}
+                                            >|id: Uuid|
                                                 <SlideTile
                                                     editor={editor}
                                                     slides={slides}
@@ -560,10 +580,6 @@ fn SlideTile(
             .map_or_else(String::new, |index| (index + 1).to_string())
     });
     let selected = create_memo(move || selected.get());
-    let outline = create_memo(move || match selected.get() {
-        true => Border::new(ColorRole::Accent).width(Stroke::Focus),
-        false => Border::DEFAULT,
-    });
 
     let select = move || slides.select(Some(id));
     let remove = move || slides.remove(id);
@@ -577,7 +593,7 @@ fn SlideTile(
     let area = be_sdk_beui::beui::unstyled::container_size();
     create_effect(move || {
         if let Some(area) = area {
-            area.get();
+            area.track();
         }
         if selected.get()
             && let Some(node) = tile.try_get()
@@ -597,7 +613,10 @@ fn SlideTile(
         >|_: ReorderItemHandle|
             <Frame
                 fill=ColorRole::Control
-                border={create_memo(move || Some(outline.get()))}
+                border={move || match selected.get() {
+                    true => Border::new(ColorRole::Accent).width(Stroke::Focus),
+                    false => Border::DEFAULT,
+                }}
                 radius=Radius::Md
                 padding=Space::Sm
             >
@@ -631,13 +650,13 @@ fn SlideTile(
                             items={view! {
                                 <MenuItem
                                     action={duplicate}
-                                    row_test_id={format!("presentation.slide.{id}.duplicate")}
+                                    @test_id={format!("presentation.slide.{id}.duplicate")}
                                 />
                                 <MenuItem
                                     label="Detach slide"
                                     glyph=ICON_UNLINK
                                     disabled={read_only}
-                                    row_test_id={format!("presentation.slide.{id}.remove")}
+                                    @test_id={format!("presentation.slide.{id}.remove")}
                                     on_click={remove}
                                 />
                             }}

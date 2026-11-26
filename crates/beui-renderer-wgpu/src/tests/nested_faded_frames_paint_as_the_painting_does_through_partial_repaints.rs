@@ -36,7 +36,7 @@ fn nested_faded_frames_paint_as_the_painting_does_through_partial_repaints() {
         }
     });
     let (outer, inner) = held.get().expect("the view is built");
-    let context = Context::new(beui_font_freetype::FreetypeFonts::default());
+    let context = Context::new(beui_font_skrifa::SkrifaFonts::default());
     let mut target = Target::in_format(wgpu::TextureFormat::Rgba8Unorm);
     let mut draw = |document: &mut Document, whole: bool| {
         let output = target.draw_in(
@@ -56,7 +56,7 @@ fn nested_faded_frames_paint_as_the_painting_does_through_partial_repaints() {
             beui_core::painting::Punches::Shown,
         )
         .expect("the frame paints");
-        let expected = beui_core::painting::rasterize(&painting.frame, [0, 0, 0, 255], |key| {
+        let expected = beui_paint_raster::rasterize(&painting.frame, [0, 0, 0, 255], |key| {
             painting.textures.get(&key)
         })
         .expect("the painting rasterizes");

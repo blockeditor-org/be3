@@ -45,3 +45,5 @@ fn an_editor_with_no_block_of_its_own_picks_into_unfiled() {
         "with no block of its own to put a new one in, the editor asks for Unfiled"
     );
 }
+
+test_editor!(Picking);

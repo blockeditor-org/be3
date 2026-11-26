@@ -27,20 +27,15 @@ impl BlobKind for PdfFile {
 pub type PdfContent = Blob<PdfFile>;
 
 impl PdfFile {
-    pub fn from_file(source_name: impl Into<String>, data: Vec<u8>) -> Result<PdfContent, String> {
-        if !data.starts_with(PDF_MAGIC) {
-            return Err("data is not a PDF file".into());
-        }
-        Ok(PdfContent::new(
-            PdfHeader {
-                source_name: source_name.into(),
-            },
-            data,
-        ))
+    /// Whether `data` is a PDF file, whatever its name.
+    pub fn is_pdf(data: &[u8]) -> bool {
+        data.starts_with(PDF_MAGIC)
     }
 }
 
 impl BlobFile for PdfFile {
+    const FILE_EXTENSIONS: &'static [&'static str] = &["pdf"];
+    const MIME_TYPES: &'static [&'static str] = &["application/pdf"];
     fn header(name: &str, _: &[u8]) -> PdfHeader {
         PdfHeader {
             source_name: name.to_owned(),
@@ -52,6 +47,6 @@ impl BlobFile for PdfFile {
     }
 
     fn claims(name: &str, first: &[u8]) -> bool {
-        extension(name) == "pdf" && first.starts_with(PDF_MAGIC)
+        Self::FILE_EXTENSIONS.contains(&extension(name).as_str()) && Self::is_pdf(first)
     }
 }

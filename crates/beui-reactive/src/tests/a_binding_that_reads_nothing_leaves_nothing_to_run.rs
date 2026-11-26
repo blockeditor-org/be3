@@ -12,7 +12,7 @@ fn a_binding_that_reads_nothing_leaves_nothing_to_run() {
         let runs = runs.clone();
         move || {
             create_effect(move || {
-                count.get();
+                count.track();
             });
             create_binding(move || runs.set(runs.get() + 1));
         }

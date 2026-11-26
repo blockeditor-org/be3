@@ -4,7 +4,7 @@ use super::*;
 /// it is not on this device yet instead of a blank editor, and opens it once back online.
 #[test]
 fn an_offline_device_says_a_block_it_never_opened_is_not_on_it_yet() {
-    let server = Server::start();
+    let server = server();
     let dev = server.account("Dev");
     let mut laptop = HostTest::device(&dev);
     let mut phone = laptop.another_device();

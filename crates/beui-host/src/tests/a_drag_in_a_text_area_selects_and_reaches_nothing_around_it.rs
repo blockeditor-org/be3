@@ -30,6 +30,7 @@ fn a_drag_in_a_text_area_selects_and_reaches_nothing_around_it() {
                     state={state}
                     line_numbers=false
                     disabled
+                    scroll={plain_scroll()}
                 />
             </Interactive>
         }

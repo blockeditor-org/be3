@@ -1,0 +1,13 @@
+[package]
+name = "be-wasm-password"
+description = "A password as typed, its bytes zeroed when it is dropped and never printed: what a root guest hands its host to check and the host checks against the platform"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = "1"
+serde_bytes = "0.11"
+
+[lints]
+workspace = true

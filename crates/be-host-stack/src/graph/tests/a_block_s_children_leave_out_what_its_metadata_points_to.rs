@@ -16,7 +16,7 @@ fn a_block_s_children_leave_out_what_its_metadata_points_to() {
         &mut graph,
         vec![
             Node {
-                references: vec![child, tag, settings],
+                references: Some(vec![child, tag, settings]),
                 metadata,
                 ..node(canvas)
             },

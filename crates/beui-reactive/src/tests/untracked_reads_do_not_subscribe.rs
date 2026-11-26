@@ -10,7 +10,7 @@ fn untracked_reads_do_not_subscribe() {
     scope.run(|| {
         let seen = seen.clone();
         create_effect(move || {
-            trigger.get();
+            trigger.track();
             seen.borrow_mut()
                 .push(incidental.get_untracked() + incidental.get_untracked());
         });

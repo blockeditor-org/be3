@@ -4,7 +4,7 @@ use super::*;
 fn an_app_is_told_when_the_pointer_leaves_it() {
     let mut instances = placed();
     let screens = instances.next_screens(PASS).screens;
-    instances.screen_set(screens);
+    instances.announce(screens);
 
     let inside = pos2(100.0, 50.0);
     let (messages, _) = instances.forward(

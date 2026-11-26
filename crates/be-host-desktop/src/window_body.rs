@@ -146,8 +146,7 @@ pub fn WindowBody(
             waited.set(false);
         }
     });
-    let banner = create_memo(move || !responding.get() && !waited.get());
-    let cramped_text = create_memo(move || match name.get().is_empty() {
+    let cramped_text = create_memo(move || match name.with(String::is_empty) {
         true => "Too small for this window".to_owned(),
         false => format!("Too small for {}", name.get()),
     });
@@ -160,7 +159,7 @@ pub fn WindowBody(
                 <Frame fill=ColorRole::Background />
             </primitives::Frame>
             <Frame fade_edges={fade}>{children}</Frame>
-            <Show condition={cramped}>
+            <Show value={cramped}>
                 <Frame align=Align2::CENTER>
                     <Frame
                         fill=ColorRole::Surface
@@ -173,7 +172,7 @@ pub fn WindowBody(
                     </Frame>
                 </Frame>
             </Show>
-            <Show condition={banner}>
+            <Show value={move || !responding.get() && !waited.get()}>
                 <Frame align={Align2::new(Align::Center, Align::Start)}>
                     <NotResponding name on_wait={move || waited.set(true)} on_force_close />
                 </Frame>
@@ -184,9 +183,7 @@ pub fn WindowBody(
     create_effect(move || {
         if let Some(measured) = measured.get() {
             let size = measured.rect.size();
-            if shown.get_untracked() != size {
-                shown.set(size);
-            }
+            shown.set(size);
         }
     });
     built

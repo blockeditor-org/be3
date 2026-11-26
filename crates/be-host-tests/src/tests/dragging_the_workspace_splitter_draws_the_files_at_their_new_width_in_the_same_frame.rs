@@ -11,7 +11,7 @@ fn at(x: f32, y: f32) -> String {
 fn dragging_the_workspace_splitter_draws_the_files_at_their_new_width_in_the_same_frame() {
     let mut host = HostTest::start(Options::default());
     host.wait(SPLITTER);
-    host.wait("#file-tree.shared.row");
+    host.wait("#file-tree.unfiled.row");
     host.run(&["settle"]);
 
     let (x, y, width, height) = host.place(SPLITTER);

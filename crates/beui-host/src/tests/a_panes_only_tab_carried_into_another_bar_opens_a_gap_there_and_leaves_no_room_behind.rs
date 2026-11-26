@@ -7,7 +7,7 @@ fn a_panes_only_tab_carried_into_another_bar_opens_a_gap_there_and_leaves_no_roo
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost @node_ref=&dock>
                 <dock::Docking layout>

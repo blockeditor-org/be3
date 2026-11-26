@@ -166,29 +166,38 @@ impl KeyEncoder {
         Ok(Self { encoder, event })
     }
 
-    pub fn encode(&mut self, terminal: &Terminal, input: &KeyInput<'_>) -> Vec<u8> {
+    pub fn encode(&mut self, terminal: &Terminal, input: &KeyInput<'_>) -> Result<Vec<u8>, Error> {
         let event = self.event;
+        let consumed = match input.mods.shift && !input.text.is_empty() {
+            true => sys::MODS_SHIFT,
+            false => 0,
+        };
         unsafe {
-            sys::ghostty_key_encoder_setopt_from_terminal(self.encoder, terminal.handle());
-            sys::ghostty_key_event_set_action(
+            check(sys::ghostty_key_encoder_set_from_terminal(
+                self.encoder,
+                terminal.handle(),
+            ))?;
+            check(sys::ghostty_key_event_set_action(
                 event,
                 match input.pressed {
                     true => sys::KEY_ACTION_PRESS,
                     false => sys::KEY_ACTION_RELEASE,
                 },
-            );
-            sys::ghostty_key_event_set_key(event, input.key.0);
-            sys::ghostty_key_event_set_mods(event, input.mods.bits());
-            let consumed = match input.mods.shift && !input.text.is_empty() {
-                true => sys::MODS_SHIFT,
-                false => 0,
-            };
-            sys::ghostty_key_event_set_consumed_mods(event, consumed);
-            sys::ghostty_key_event_set_utf8(event, input.text.as_ptr().cast(), input.text.len());
-            sys::ghostty_key_event_set_unshifted_codepoint(
+            ))?;
+            check(sys::ghostty_key_event_set_key(event, input.key.0))?;
+            check(sys::ghostty_key_event_set_mods(event, input.mods.bits()))?;
+            check(sys::ghostty_key_event_set_consumed_mods(event, consumed))?;
+            check(sys::ghostty_key_event_set_utf8(
+                event,
+                sys::GhosttyString {
+                    ptr: input.text.as_ptr(),
+                    len: input.text.len(),
+                },
+            ))?;
+            check(sys::ghostty_key_event_set_unshifted_codepoint(
                 event,
                 input.unshifted.map_or(0, u32::from),
-            );
+            ))?;
         }
         let mut buffer = [0u8; 128];
         let mut length = 0usize;
@@ -201,29 +210,23 @@ impl KeyEncoder {
                 &mut length,
             )
         };
-        match result {
-            sys::SUCCESS => buffer[..length.min(buffer.len())].to_vec(),
-            sys::OUT_OF_SPACE => {
-                let mut buffer = vec![0u8; length];
-                let mut written = 0usize;
-                let result = unsafe {
-                    sys::ghostty_key_encoder_encode(
-                        self.encoder,
-                        event,
-                        buffer.as_mut_ptr().cast(),
-                        buffer.len(),
-                        &mut written,
-                    )
-                };
-                buffer.truncate(written);
-                if result == sys::SUCCESS {
-                    buffer
-                } else {
-                    Vec::new()
-                }
-            }
-            _ => Vec::new(),
+        if result != sys::OUT_OF_SPACE {
+            check(result)?;
+            return Ok(buffer[..length.min(buffer.len())].to_vec());
         }
+        let mut buffer = vec![0u8; length];
+        let mut written = 0usize;
+        check(unsafe {
+            sys::ghostty_key_encoder_encode(
+                self.encoder,
+                event,
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                &mut written,
+            )
+        })?;
+        buffer.truncate(written);
+        Ok(buffer)
     }
 }
 
@@ -265,7 +268,7 @@ impl MouseEncoder {
         col: u16,
         row: u16,
         mods: Mods,
-    ) -> Vec<u8> {
+    ) -> Result<Vec<u8>, Error> {
         let (cols, rows) = terminal.size();
         let size = sys::MouseEncoderSize {
             size: size_of::<sys::MouseEncoderSize>(),
@@ -280,32 +283,38 @@ impl MouseEncoder {
         };
         let event = self.event;
         unsafe {
-            sys::ghostty_mouse_encoder_setopt_from_terminal(self.encoder, terminal.handle());
-            sys::ghostty_mouse_encoder_setopt(
+            check(sys::ghostty_mouse_encoder_set_from_terminal(
+                self.encoder,
+                terminal.handle(),
+            ))?;
+            check(sys::ghostty_mouse_encoder_set(
                 self.encoder,
                 sys::MOUSE_ENCODER_OPT_SIZE,
                 ptr::from_ref(&size).cast(),
-            );
-            sys::ghostty_mouse_event_set_action(event, sys::MOUSE_ACTION_PRESS);
-            sys::ghostty_mouse_event_set_button(
+            ))?;
+            check(sys::ghostty_mouse_event_set_action(
+                event,
+                sys::MOUSE_ACTION_PRESS,
+            ))?;
+            check(sys::ghostty_mouse_event_set_button(
                 event,
                 match up {
                     true => sys::MOUSE_BUTTON_FOUR,
                     false => sys::MOUSE_BUTTON_FIVE,
                 },
-            );
-            sys::ghostty_mouse_event_set_mods(event, mods.bits());
-            sys::ghostty_mouse_event_set_position(
+            ))?;
+            check(sys::ghostty_mouse_event_set_mods(event, mods.bits()))?;
+            check(sys::ghostty_mouse_event_set_position(
                 event,
                 sys::MousePosition {
                     x: (f32::from(col.min(cols.saturating_sub(1))) + 0.5) * CELL as f32,
                     y: (f32::from(row.min(rows.saturating_sub(1))) + 0.5) * CELL as f32,
                 },
-            );
+            ))?;
         }
         let mut buffer = [0u8; 64];
         let mut length = 0usize;
-        let result = unsafe {
+        check(unsafe {
             sys::ghostty_mouse_encoder_encode(
                 self.encoder,
                 event,
@@ -313,11 +322,8 @@ impl MouseEncoder {
                 buffer.len(),
                 &mut length,
             )
-        };
-        match result {
-            sys::SUCCESS => buffer[..length.min(buffer.len())].to_vec(),
-            _ => Vec::new(),
-        }
+        })?;
+        Ok(buffer[..length.min(buffer.len())].to_vec())
     }
 }
 

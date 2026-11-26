@@ -16,6 +16,8 @@ fn every_block_id_a_message_carries_is_visited() {
         size: 0,
         tree_size: 0,
         out_of_reach: false,
+        unread: 0,
+        log_doubt: None,
     };
     let mut listing = crate::AccessListing {
         grants: vec![crate::AccessGrant {
@@ -29,9 +31,14 @@ fn every_block_id_a_message_carries_is_visited() {
             effective: AccessLevel::Edit,
             source: Some([1; 16]),
             waiting: false,
+            through_link: false,
+            guest: false,
         }],
         company: false,
         set_inside: 0,
+        levels: Vec::new(),
+        host: None,
+        offered: None,
     };
     let mut command = VersionCommand::Adopt { block_id: [1; 16] };
     let mut visit = |role, block_id: &mut [u8; 16]| {

@@ -6,21 +6,14 @@
 //! Each place is kept as its byte and the text around it, so it follows edits made while the
 //! text was closed (`Place`).
 
-use std::cell::RefCell;
-use std::time::Duration;
-
-use be_sdk_beui::be_block_content::ViewState;
+use be_sdk_beui::be_block_content::ViewStateKind;
 use beui::reactive::*;
 use beui::styled::ScrollAnchor;
 use beui_text_editor_core::EditorCommand;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use super::state::State;
-
-pub(crate) const POSITION: &str = "position";
-
-/// How long the view and caret hold still before where they are is written.
-const SAVE_AFTER: Duration = Duration::from_millis(500);
 
 /// How much of the text on each side of a place is kept to find it again.
 const CONTEXT: usize = 16;
@@ -99,6 +92,10 @@ pub(crate) struct Position {
     pub focus: Place,
 }
 
+impl ViewStateKind for Position {
+    const ID: Uuid = Uuid::from_u128(0x7465_7874_2d70_6f73_6974_696f_6e00_0001);
+}
+
 impl Position {
     /// Where the text is now; none while a `scroll_to` is still on its way, whose top line is
     /// not yet where the view will be.
@@ -146,29 +143,17 @@ impl Position {
     }
 }
 
-/// Restores the saved position once the text and its view have loaded, and saves it again when
-/// the view or caret has held still for a moment, or the app is hidden. Nothing is saved as the
-/// editor closes: the view may move as it is taken down, and a place left less than
-/// `SAVE_AFTER` before closing is not kept.
+/// Restores the saved position once the text and its view have loaded, and saves where the
+/// view and caret are whenever they change.
 pub(crate) fn keep_position(state: State) {
-    let editor = state.editor;
+    let saved = state.editor.view_state::<Position>();
     let loaded = state.loaded;
-    let restored = StoredCell::new(false);
-    let saved = store(RefCell::new(None::<Position>));
+    let restored = state.position_restored;
     create_binding(move || {
-        if restored.get() || !loaded.get() {
+        if restored.get_untracked() || !loaded.get() {
             return;
         }
-        let Some(view) = editor.view_content() else {
-            restored.set(true);
-            state.position_restored.set(true);
-            return;
-        };
-        let position = match view.read(|held| {
-            held.root()
-                .state(POSITION)
-                .and_then(ViewState::value::<Position>)
-        }) {
+        let position = match saved.get() {
             Ok(position) => position,
             // Not read yet: it is tried again once it is. A place the text was opened at waits
             // for it, or putting the position back would move the caret off that place.
@@ -176,42 +161,26 @@ pub(crate) fn keep_position(state: State) {
             // A view that cannot be read holds no position to put back.
             Err(Pending::Failed(_)) => None,
         };
-        restored.set(true);
         if let Some(position) = &position {
             untrack(|| position.restore(state));
         }
-        state.position_restored.set(true);
-        *saved.value().borrow_mut() = position;
-    });
-    let save = move || {
-        if !restored.get() {
-            return;
-        }
-        let Some(position) = Position::of(state) else {
-            return;
-        };
-        if saved.value().borrow().as_ref() != Some(&position) {
-            editor.set_view_state(POSITION, Some(&ViewState::new(&position, Vec::new())));
-            *saved.value().borrow_mut() = Some(position);
-        }
-    };
-    let saving = create_timer(move || {
-        save();
-        None
+        restored.set(true);
     });
     let scrolled = state.text.scrolled();
     let cursors = state.text.cursors();
-    // Not on typing alone: each save is an edit to the view block, kept in its history. The
-    // text around the caret finds it again when typing moved it since.
-    create_effect(move || {
-        scrolled.get();
-        cursors.get();
-        untrack(|| saving.start(SAVE_AFTER));
+    // The text around each place is read untracked: it is what finds the place again after
+    // edits, so typing alone saves only as it moves the caret.
+    let position = create_memo(move || {
+        scrolled.track();
+        cursors.track();
+        if !restored.get() {
+            return None;
+        }
+        untrack(|| Position::of(state))
     });
-    let visible = editor.presence_visible();
     create_effect(move || {
-        if !visible.get() {
-            untrack(save);
+        if let Some(position) = position.get() {
+            untrack(|| saved.set(Some(position)));
         }
     });
 }

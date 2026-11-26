@@ -23,14 +23,13 @@ pub fn VersionHistory(log: Memo<Vec<VersionCommit>>) -> NodeId {
                 .collect::<Vec<_>>()
         })
     });
-    let empty = create_memo(move || rows.with(Vec::is_empty));
     view! {
         <List spacing=Space::Sm>
-            <beui::reactive::Show condition={empty}>
-                <Text style=TextStyle::CAPTION>"No changes have been saved yet."</Text>
-            </beui::reactive::Show>
             <ForEach
-                keys={rows}
+                value={rows}
+                fallback={|| view! {
+                    <Text style=TextStyle::CAPTION>"No changes have been saved yet."</Text>
+                }}
             >|(id, change, message, conflicted): ([u8; 32], [u8; 16], String, bool)| {
                 let commit_test_id = format!("version.commit.{}", short_id(&id));
                 let message = match message.is_empty() {
@@ -45,9 +44,9 @@ pub fn VersionHistory(log: Memo<Vec<VersionCommit>>) -> NodeId {
                     >
                         <Text style=TextStyle::CAPTION>{short_id(&change)}</Text>
                         <Text>{message}</Text>
-                        <beui::reactive::Show condition={conflicted}>
+                        {conflicted.then(|| view! {
                             <Text style=TextStyle::CAPTION>"still has clashing edits"</Text>
-                        </beui::reactive::Show>
+                        })}
                     </List>
                 }
             }</ForEach>
@@ -75,17 +74,17 @@ pub fn VersionSteps(
                 .collect::<Vec<_>>()
         })
     });
-    let empty = create_memo(move || rows.with(Vec::is_empty));
     view! {
         <List spacing=Space::Sm>
-            <beui::reactive::Show condition={empty}>
-                <Text style=TextStyle::CAPTION>"Nothing has been done yet."</Text>
-            </beui::reactive::Show>
-            <ForEach keys={rows}>|(id, description, undone): ([u8; 16], String, bool)| {
+            <ForEach
+                value={rows}
+                fallback={|| view! {
+                    <Text style=TextStyle::CAPTION>"Nothing has been done yet."</Text>
+                }}
+            >|(id, description, undone): ([u8; 16], String, bool)| {
                 let short = short_id(&id);
                 let (step_test_id, undo_test_id) =
                     (format!("version.step.{short}"), format!("version.undo.{short}"));
-                let disabled = create_memo(move || blocked.get() || undone);
                 view! {
                     <List
                         direction=Direction::Horizontal
@@ -96,15 +95,15 @@ pub fn VersionSteps(
                         <ListItem grow=1.0>
                             <Text>{description}</Text>
                         </ListItem>
-                        <beui::reactive::Show condition={undone}>
+                        {undone.then(|| view! {
                             <Text style=TextStyle::CAPTION>"Undone"</Text>
-                        </beui::reactive::Show>
+                        })}
                         <Button
                             label="Undo"
                             glyph=ICON_UNDO_2
                             variant=ButtonVariant::Ghost
                             size=ButtonSize::Compact
-                            disabled={disabled}
+                            disabled={move || blocked.get() || undone}
                             @test_id=undo_test_id
                             on_click={move || editor.version(VersionCommand::Undo { operation: id })}
                         />

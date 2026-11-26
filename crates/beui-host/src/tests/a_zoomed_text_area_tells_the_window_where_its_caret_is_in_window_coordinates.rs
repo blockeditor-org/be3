@@ -22,6 +22,7 @@ fn caret_at(origin: Pos2, scale: f32) -> (Rect, Rect) {
                         @node_ref=&area
                         state
                         line_numbers=false
+                        scroll={plain_scroll()}
                     />
                 </CanvasItem>
             </Canvas>

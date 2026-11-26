@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use beui::native::WindowSize;
 use beui::{native::Context, vec2};
-use beui_host::native::FreetypeFonts;
-use beui_host::native::testing::{Showing, Stepped};
+use beui_host::native::SkrifaFonts;
+use beui_host::native::testing::{Gui, Showing, Snapshots, Stepped};
 
 use super::*;
 use crate::ui::{HostUi, Root as HostRoot, StatusView};
@@ -46,7 +46,7 @@ impl Saving {
             scale: 1.0,
         };
         let mut stepped = Stepped::new(
-            Context::new(FreetypeFonts::default()),
+            Context::new(SkrifaFonts::default()),
             Showing(document),
             window,
             None,

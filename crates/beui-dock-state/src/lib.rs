@@ -3,8 +3,9 @@ use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
 
-use beui_types::Direction;
-use beui_types::{Pos2, Rect, Vec2};
+use be_lib_geometry::Direction;
+pub use be_lib_geometry::Side;
+use be_lib_geometry::{Pos2, Rect, Vec2};
 
 mod bars;
 mod compact;
@@ -16,7 +17,7 @@ mod spec;
 mod switch;
 
 use bars::Bar;
-pub use bars::{DockAlign, DockBarPlacement, DockEdge};
+pub use bars::{DockAlign, DockBarPane, DockBarPlacement, DockEdge};
 pub use compact::{COMPACT_SHARE, COMPACT_SIDE, DockCompact, compact_length};
 pub use history::DockVisit;
 pub use joined::{
@@ -103,27 +104,6 @@ impl Entry {
 pub enum Tree {
     Surface(SurfaceId),
     Group(GroupId),
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Side {
-    Left,
-    Right,
-    Above,
-    Below,
-}
-
-impl Side {
-    pub fn direction(self) -> Direction {
-        match self {
-            Side::Left | Side::Right => Direction::Horizontal,
-            Side::Above | Side::Below => Direction::Vertical,
-        }
-    }
-
-    fn leads(self) -> bool {
-        matches!(self, Side::Left | Side::Above)
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -243,6 +223,8 @@ pub(crate) fn framed(rect: Rect) -> Rect {
 
 pub const FLOATING_SIZE: Vec2 = Vec2::new(420.0, 300.0);
 pub const SIDEBAR_WIDTH: f32 = 180.0;
+/// The width a split with a stage gives its other side, an editor's side panel.
+pub const SIDE_PANEL_WIDTH: f32 = 260.0;
 pub const MIN_SIDEBAR_WIDTH: f32 = 80.0;
 
 #[derive(Clone, Debug, PartialEq)]

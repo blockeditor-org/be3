@@ -2,11 +2,11 @@ use std::cell::RefCell;
 
 use be_sdk_beui::be_sdk_ui::{BlockCatalog, BlockTypes};
 use be_sdk_beui::beui::NodeId;
-use be_sdk_beui::beui::dock::{TabId, dock_menu};
+use be_sdk_beui::beui::dock::{DockJoin, TabId, dock_menu};
 use be_sdk_beui::beui::icons::{ICON_CLOUD_OFF, ICON_LOCK};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
+use be_sdk_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, Pushed};
 use be_sdk_beui::{
     ArtifactState, ChildBlock, ChildBlockHandle, ChildDockTab, ChildMode, ChildTarget, Editor,
     TopBar,
@@ -17,6 +17,7 @@ use super::artifact::ArtifactBar;
 use super::block_menu::with_block_menu;
 use super::deleted::DeletedBar;
 use super::linked::LinkedBar;
+use super::log_doubt::LogDoubtBar;
 use super::tab::TabItem;
 use super::workspace::{PanelStatus, Workspace};
 use beui::Align;
@@ -66,6 +67,8 @@ pub struct TabInfo {
     pub deleted: Option<Deleted>,
     /// The host is offline and holds no version of the block's content, so it cannot open it.
     pub out_of_reach: bool,
+    /// Doubt this device holds about the block's signed log (`BlockInfo::log_doubt`).
+    pub log_doubt: Option<be_sdk_beui::LogDoubt>,
 }
 
 #[derive(Clone, PartialEq)]
@@ -141,6 +144,7 @@ fn read_item_info(
     let ceiling = workspace.ceiling(item.id);
     let own = workspace.info(item.id);
     let out_of_reach = own.as_ref().is_some_and(|info| info.out_of_reach);
+    let log_doubt = own.as_ref().and_then(|info| info.log_doubt.clone());
     let parent = own.as_ref().and_then(|info| info.parent);
     let parents = refs(watched.parents.as_ref());
     let mut references = refs(watched.references.as_ref());
@@ -183,11 +187,12 @@ fn read_item_info(
         references,
         backrefs,
         artifact: {
-            workspace.editor().artifacts().get();
+            workspace.editor().pushed(Pushed::Artifacts).track();
             workspace.host().artifact(item.id)
         },
         deleted,
         out_of_reach,
+        log_doubt,
     })
 }
 
@@ -195,7 +200,7 @@ fn read_item_info(
 pub(crate) fn BlockPanel(
     workspace: Workspace,
     tab: TabId,
-    bar: RenderFn<(), NodeId>,
+    bar: BuildFn<NodeId>,
     preview: Prop<Option<ChildTarget>>,
     on_details: Callback<()>,
 ) -> NodeId {
@@ -204,24 +209,18 @@ pub(crate) fn BlockPanel(
     create_effect(move || {
         info.set(read_info(&workspace, tab, &watched));
     });
-    let content = create_memo(move || match info.get() {
-        Some(info) if !info.access.can_view() => Content::Denied,
-        Some(info) if info.out_of_reach => Content::OutOfReach,
-        Some(_) | None => Content::Block,
-    });
     let editor = workspace.editor();
     let phone = workspace.phone;
+    // On a phone the stacked dock's bar stands in for the frame's own (`FrameSpec::phone`).
     let top_bar = create_memo(move || match phone.get() {
-        true => TopBar::Phone,
+        true => TopBar::Hidden,
         false => TopBar::Shown,
     });
     let session = untrack(|| workspace.tab(tab)).is_some_and(|item| {
         item.block_type
             == <be_sdk_beui::be_block_content::EditorViewContent as be_sdk_beui::be_block_content::BlockContent>::CONTENT_TYPE
     });
-    let preview = create_memo(move || preview.get());
-    let previewing = create_memo(move || preview.get().is_some());
-    let live = create_memo(move || !previewing.get());
+    let previewing = create_memo(move || preview.with(Option::is_some));
     let child_menu = create_signal(Vec::<MenuNode>::new());
     dock_menu(create_memo(move || {
         let nodes = child_menu.get();
@@ -240,40 +239,40 @@ pub(crate) fn BlockPanel(
                 info={info.read_only()}
                 session
                 docked
-                bar={move || bar.call(())}
+                bar={move || bar.call()}
             />
         }
     });
     view! {
         <Frame>
             <List spacing=Space::None>
-                <Show condition={!session}>
+                {(!session).then(|| view! {
                     <ArtifactBar workspace={workspace} info={info.read_only()} />
-                </Show>
-                <Show condition={!session}>
                     <DeletedBar workspace={workspace} info={info.read_only()} />
-                </Show>
-                <Show condition={!session}>
+                    <LogDoubtBar workspace={workspace} info={info.read_only()} />
                     <LinkedBar workspace={workspace} info={info.read_only()} />
-                </Show>
-                <TabBar bar={move || bar.call(())} own=true />
-                <Show keep_alive=true condition={live}>
-                    <ListItem grow=1.0>
-                        <List spacing=Space::None>
-                            <Dynamic value={content}>|content: Content| {
-                                match content {
-                                    Content::Denied => view! {
-                                        <ListItem grow=1.0>
+                })}
+                <TabBar bar={move || bar.call()} own=true />
+                <KeepAlive>
+                    <Show value={move || !previewing.get()}>
+                        <ListItem grow=1.0>
+                            <Kept>
+                                <Dynamic
+                                    value={move || match info.get() {
+                                        // A Join member's editor opens with no content.
+                                        Some(info) if !info.access.can_join() => Content::Denied,
+                                        Some(info) if info.out_of_reach => Content::OutOfReach,
+                                        Some(_) | None => Content::Block,
+                                    }}
+                                >|content: Content| {
+                                    match content {
+                                        Content::Denied => view! {
                                             <AccessDenied info={info.read_only()} />
-                                        </ListItem>
-                                    },
-                                    Content::OutOfReach => view! {
-                                        <ListItem grow=1.0>
+                                        },
+                                        Content::OutOfReach => view! {
                                             <OutOfReach />
-                                        </ListItem>
-                                    },
-                                    Content::Block => view! {
-                                        <ListItem grow=1.0>
+                                        },
+                                        Content::Block => view! {
                                             <BlockChild
                                                 editor={editor}
                                                 info={info.read_only()}
@@ -282,29 +281,39 @@ pub(crate) fn BlockPanel(
                                                 top_bar={top_bar}
                                                 on_details={on_details}
                                             />
-                                        </ListItem>
-                                    },
-                                }
-                            }</Dynamic>
-                        </List>
-                    </ListItem>
-                </Show>
-                <Show condition={previewing}>
+                                        },
+                                    }
+                                }</Dynamic>
+                            </Kept>
+                        </ListItem>
+                    </Show>
+                </KeepAlive>
+                <Show value={previewing}>
                     <ListItem grow=1.0>
-                        <ChildBlock
-                            editor
-                            block={preview}
-                            mode=ChildMode::Live
-                            own_frame=true
-                            top_bar=TopBar::Hidden
-                            @test_id={"workspace.revision.preview"}
-                        >|handle: ChildBlockHandle|
-                            <PanelStatus state={handle.state} loading="Loading revision…" />
-                        </ChildBlock>
+                        <RevisionPreview editor preview />
                     </ListItem>
                 </Show>
             </List>
         </Frame>
+    }
+}
+
+/// A revision's preview, inside the tab's body under the revision bar: its editor's dock does not
+/// join the tab, which would take the whole tab and hide that bar.
+#[component]
+fn RevisionPreview(editor: Editor, preview: Prop<Option<ChildTarget>>) -> NodeId {
+    provide_context(DockJoin::none());
+    view! {
+        <ChildBlock
+            editor
+            block={preview}
+            mode=ChildMode::Live
+            own_frame=true
+            top_bar=TopBar::Hidden
+            @test_id={"workspace.revision.preview"}
+        >|handle: ChildBlockHandle|
+            <PanelStatus state={handle.state} loading="Loading revision…" />
+        </ChildBlock>
     }
 }
 
@@ -356,7 +365,7 @@ fn DockedBlockTab(
     info: ReadSignal<Option<TabInfo>>,
     session: bool,
     docked: ChildDockTab,
-    bar: RenderFn<(), NodeId>,
+    bar: BuildFn<NodeId>,
 ) -> NodeId {
     let ChildDockTab { menu, body, owner } = docked;
     let own = owner.is_none();
@@ -384,16 +393,13 @@ fn DockedBlockTab(
     }));
     view! {
         <List spacing=Space::None>
-            <Show condition={!session}>
+            {(!session).then(|| view! {
                 <ArtifactBar workspace={workspace} info={info} />
-            </Show>
-            <Show condition={!session}>
                 <DeletedBar workspace={workspace} info={info} />
-            </Show>
-            <Show condition={!session}>
+                <LogDoubtBar workspace={workspace} info={info} />
                 <LinkedBar workspace={workspace} info={info} />
-            </Show>
-            <TabBar bar={move || bar.call(())} own />
+            })}
+            <TabBar bar={move || bar.call()} own />
             <ListItem grow=1.0>
                 <Layers @test_id={"workspace.block"}>{body}</Layers>
             </ListItem>
@@ -402,9 +408,9 @@ fn DockedBlockTab(
 }
 
 #[component]
-fn TabBar(bar: RenderFn<(), NodeId>, own: bool) -> NodeId {
+fn TabBar(bar: BuildFn<NodeId>, own: bool) -> NodeId {
     match own {
-        true => bar.call(()),
+        true => bar.call(),
         false => view! {
             <List spacing=Space::None />
         },

@@ -18,12 +18,10 @@ fn dragging_an_end_of_a_selected_line_moves_only_that_end() {
     let at = |x: f32, y: f32| -> Pos2 { anchor.center() + Vec2::new(x, y - 200.0) * scale };
 
     editor.click(at(0.0, 0.0));
-    editor.run();
     assert_eq!(editor.label("infinite-canvas.selection"), "Line selected");
     editor.snapshot("a_selected_line_shows_handles_at_its_ends");
 
     editor.drag(at(92.0, 1.0), at(92.0, 61.0));
-    editor.run();
 
     let moved = entities(&editor)
         .into_iter()

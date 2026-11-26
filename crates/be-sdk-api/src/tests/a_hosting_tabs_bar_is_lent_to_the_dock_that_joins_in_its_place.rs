@@ -58,6 +58,7 @@ fn a_hosting_tabs_bar_is_lent_to_the_dock_that_joins_in_its_place() {
         fullscreen: None,
         mode: crate::DockMode::Tiled,
         covers: Vec::new(),
+        restored: 0,
     };
     assert_eq!(
         hosted.own(&[(child, 3)]).unwrap().layout.bars,

@@ -7,7 +7,6 @@ fn choosing_a_pixel_tool_marks_it_in_the_dock() {
     assert!(pressed(&editor, "infinite-canvas.dock.tool.Select"));
 
     editor.click("infinite-canvas.dock.tool.pixel-eraser");
-    editor.run();
     assert!(pressed(&editor, "infinite-canvas.dock.tool.pixel-eraser"));
     assert!(!pressed(&editor, "infinite-canvas.dock.tool.Select"));
 
@@ -25,7 +24,6 @@ fn choosing_a_pixel_tool_marks_it_in_the_dock() {
     ];
     for (key, tool) in keys {
         editor.key(key, Modifiers::NONE);
-        editor.run();
         assert!(
             pressed(&editor, &format!("infinite-canvas.dock.tool.{tool}")),
             "{key:?} picks the {tool} in the raster profile"
@@ -35,14 +33,12 @@ fn choosing_a_pixel_tool_marks_it_in_the_dock() {
     editor.key(Key::H, Modifiers::NONE);
     editor.key(Key::X, Modifiers::NONE);
     editor.key(Key::BracketRight, Modifiers::NONE);
-    editor.run();
     assert!(pressed(&editor, "infinite-canvas.raster.mirror-horizontal"));
     assert!(pressed(&editor, "infinite-canvas.raster.filled"));
     assert_eq!(editor.label("infinite-canvas.raster.brush-size"), "2");
 
     editor.click("infinite-canvas.mode.prototyping");
     editor.key(Key::R, Modifiers::NONE);
-    editor.run();
     assert!(
         pressed(&editor, "infinite-canvas.dock.tool.Rectangle"),
         "R is the rectangle again outside the raster profile"

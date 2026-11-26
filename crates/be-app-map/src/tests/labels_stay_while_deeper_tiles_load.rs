@@ -13,8 +13,7 @@ fn labels_stay_while_deeper_tiles_load() {
     };
 
     for _ in 0..5 {
-        editor.click("map.zoom-in");
-        editor.run();
+        editor.click("editor.zoom_in");
         assert!(shown(&editor) > 0);
     }
 

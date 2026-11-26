@@ -10,7 +10,7 @@ fn choose(harness: &mut Harness, dock: NodeId, pos: Pos2, item: &str) {
         pressed: true,
     }]);
     harness.frame(Vec::new());
-    let row = text_within(harness.document(), dock, item)
+    let row = find_text(harness.document(), dock, item, Match::Exact)
         .unwrap_or_else(|| panic!("the grip's menu offers {item}"));
     harness.click(harness.center(row));
     harness.frame(Vec::new());

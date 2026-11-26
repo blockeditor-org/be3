@@ -92,6 +92,9 @@ pub struct PaintCache {
     damage: WindowRegions,
     stale: Vec<Stale>,
     recorded: bool,
+    /// Nodes a `Replica` draws (`Document::set_replica_of`), each with the replica: a lent
+    /// node is painted only by its replica, so its changes mark the replica, not its parent.
+    lent: HashMap<NodeId, NodeId>,
 }
 
 impl PaintCache {
@@ -111,10 +114,34 @@ impl PaintCache {
         self.entries.remove(&id);
         self.dirt.remove(&id);
         self.deadlines.remove(&id);
+        self.lent
+            .retain(|node, replica| *node != id && *replica != id);
     }
 
     pub fn clear(&mut self) {
-        *self = Self::default();
+        let lent = std::mem::take(&mut self.lent);
+        *self = Self {
+            lent,
+            ..Self::default()
+        };
+    }
+
+    /// The replica that draws `id` instead of its parent, if one does.
+    pub fn replica_of(&self, id: NodeId) -> Option<NodeId> {
+        self.lent.get(&id).copied()
+    }
+
+    /// Lends what `other` lends, for a painting from scratch beside it.
+    pub(crate) fn lend_as(&mut self, other: &Self) {
+        self.lent = other.lent.clone();
+    }
+
+    /// Lends `id` to `replica` to draw, or with `None` gives it back to its parent.
+    pub(crate) fn lend(&mut self, id: NodeId, replica: Option<NodeId>) {
+        match replica {
+            Some(replica) => self.lent.insert(id, replica),
+            None => self.lent.remove(&id),
+        };
     }
 
     pub fn mark(&mut self, ids: &[NodeId], arena: &Arena) {
@@ -130,7 +157,12 @@ impl PaintCache {
         self.dirt.get_or_default(id).own = true;
         let mut child = id;
         for _ in 0..ANCESTOR_LIMIT {
-            let Some(node) = arena.parent(child) else {
+            let Some(node) = self
+                .lent
+                .get(&child)
+                .copied()
+                .or_else(|| arena.parent(child))
+            else {
                 return;
             };
             let listed = &mut self.dirt.get_or_default(child).listed;
@@ -1167,8 +1199,13 @@ pub fn redrawn_in_place(old: &Shape, new: &Shape) -> Option<Region> {
 }
 
 pub fn paint(doc: &Document, painter: &Painter, rects: &Rects, id: NodeId) {
-    if doc.is_culled(id) {
-        return;
+    // A node lent to a replica is drawn only there, wherever it is laid out (culled or not).
+    let lent = doc.paint_cache.borrow().replica_of(id).is_some();
+    match lent {
+        true if doc.replicating.get() != Some(id) => return,
+        true => doc.replicating.set(None),
+        false if doc.is_culled(id) => return,
+        false => {}
     }
     let rect = rects.placed(&id).expect("node was not placed").rect;
     let ctx = painter.ctx();

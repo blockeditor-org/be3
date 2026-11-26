@@ -2,11 +2,14 @@ use std::cell::{Cell, RefCell};
 use std::mem::ManuallyDrop;
 use std::rc::{Rc, Weak};
 
+use crate::arena::{self, Key};
+use crate::memo::Compute;
 use crate::runtime::{
     Context, RUNTIME, Read, Reset, current_zone, defer, enqueue, leave_component_body, probe,
+    untrack,
 };
 use crate::scope::{Cleanup, Gate, Owner, current_owner};
-use crate::signal::Tracked;
+use crate::signal::{Get, Set, Signal, Tracked, create_signal, readiness_of};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum State {
@@ -49,6 +52,7 @@ pub(crate) struct Computation<F: ?Sized = dyn FnMut() -> bool> {
     pub(crate) queued_at: Cell<u64>,
     runs: Cell<(u64, u32)>,
     binding: Cell<bool>,
+    kept: Cell<bool>,
     pub(crate) zone: u64,
     gate: Option<Rc<Gate>>,
     callback: RefCell<Slot<F>>,
@@ -109,6 +113,7 @@ impl Computation {
             queued_at: Cell::new(0),
             runs: Cell::new((0, 0)),
             binding: Cell::new(false),
+            kept: Cell::new(false),
             zone: parts.zone,
             gate: parts.gate,
             callback: RefCell::new(Slot {
@@ -208,23 +213,8 @@ impl Computation {
 
     fn refresh_inner(self: &Rc<Self>) {
         if self.state.get() == State::Check {
-            let dependencies = self.dependencies.borrow().clone();
-            for (source, version, _) in dependencies {
-                let source = source.source();
-                if source.freed.get() {
-                    continue;
-                }
-                let producer = source.producer.borrow().upgrade();
-                if let Some(producer) = producer {
-                    producer.refresh();
-                }
-                if source.version.get() != version {
-                    self.state.set(State::Dirty);
-                    break;
-                }
-            }
-            if self.state.get() == State::Check {
-                self.state.set(State::Clean);
+            self.settle_check();
+            if self.state.get() == State::Clean {
                 return;
             }
         }
@@ -269,9 +259,17 @@ impl Computation {
         };
         match result {
             Ok(changed) => {
-                if changed && let Some(source) = &self.source {
+                if let Some(source) = &self.source {
+                    let readiness = readiness_of(
+                        self.dependencies
+                            .borrow()
+                            .iter()
+                            .map(|(dependency, _, _)| dependency.source()),
+                    );
                     let source = source.source();
-                    source.version.set(source.version.get().wrapping_add(1));
+                    if source.set_readiness(readiness) || changed {
+                        source.version.set(source.version.get().wrapping_add(1));
+                    }
                 }
             }
             Err(error) => std::panic::resume_unwind(error),
@@ -279,6 +277,27 @@ impl Computation {
         if self.is_spent() {
             self.dispose();
         }
+    }
+
+    /// Settles a `Check` without running: brings the memos it read up to date, and is `Dirty`
+    /// if one of them changed, else `Clean`.
+    fn settle_check(&self) {
+        let dependencies = self.dependencies.borrow().clone();
+        for (source, version, _) in dependencies {
+            let source = source.source();
+            if source.freed.get() {
+                continue;
+            }
+            let producer = source.producer.borrow().upgrade();
+            if let Some(producer) = producer {
+                producer.refresh();
+            }
+            if source.version.get() != version {
+                self.state.set(State::Dirty);
+                return;
+            }
+        }
+        self.state.set(State::Clean);
     }
 
     pub(crate) fn reads_freed(&self) -> bool {
@@ -312,7 +331,8 @@ impl Computation {
     }
 
     fn is_spent(&self) -> bool {
-        self.source.is_none()
+        !self.kept.get()
+            && self.source.is_none()
             && self.state.get() == State::Clean
             && self.dependencies.borrow().is_empty()
             && self
@@ -369,12 +389,94 @@ impl Computation {
     pub(crate) fn is_disposed(&self) -> bool {
         self.state.get() == State::Disposed
     }
+
+    pub(crate) fn is_dirty(&self) -> bool {
+        self.state.get() == State::Dirty
+    }
+
+    pub(crate) fn kept_binding(callback: impl FnMut() -> bool + 'static) -> Rc<Self> {
+        let computation = Self::new(None, callback);
+        computation.binding.set(true);
+        computation.kept.set(true);
+        computation
+    }
 }
 
-/// A handle to an effect. Dropping it does not stop the effect; its scope owns it.
-#[derive(Clone)]
+/// A handle to an effect or binding: a `Copy` key, like every reactive handle. The scope
+/// that made the effect owns it; the handle only stops it early.
 pub struct Effect {
-    computation: Rc<Computation>,
+    key: Option<Key>,
+}
+
+impl Clone for Effect {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl Copy for Effect {}
+
+impl PartialEq for Effect {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+}
+
+impl Eq for Effect {}
+
+impl std::fmt::Debug for Effect {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Effect").field(&self.key).finish()
+    }
+}
+
+impl Effect {
+    fn of(computation: &Rc<Computation>) -> Self {
+        Self {
+            key: Some(arena::insert_owned_computation(Rc::downgrade(computation))),
+        }
+    }
+
+    /// A handle to nothing: a binding that read nothing made no computation.
+    fn none() -> Self {
+        Self { key: None }
+    }
+
+    fn computation(&self) -> Option<Rc<Computation>> {
+        arena::get_computation(self.key?)
+    }
+
+    /// Stops it now, as disposing its scope would. Does nothing once it has stopped.
+    pub fn dispose(&self) {
+        if let Some(computation) = self.computation() {
+            defer(|| computation.dispose());
+        }
+    }
+
+    pub fn is_disposed(&self) -> bool {
+        self.computation()
+            .is_none_or(|computation| computation.is_disposed())
+    }
+
+    /// Runs it now if something it read changed, instead of when the queue reaches it.
+    pub(crate) fn run_if_due(&self) {
+        if let Some(computation) = self.computation() {
+            computation.refresh();
+        }
+    }
+
+    /// Whether something it read changed since its last run, so it will run again. One that
+    /// may have (a memo it read was woken) brings those memos up to date to tell, without
+    /// running.
+    pub(crate) fn is_due(&self) -> bool {
+        let Some(computation) = self.computation() else {
+            return false;
+        };
+        if computation.state.get() == State::Check {
+            computation.settle_check();
+        }
+        computation.state.get() == State::Dirty
+    }
 }
 
 /// Queues a first run, then reruns after any tracked input changes, with writes coalesced
@@ -392,22 +494,23 @@ pub fn create_effect(mut effect: impl FnMut() + 'static) -> Effect {
         false
     });
     enqueue(&computation);
-    Effect { computation }
+    Effect::of(&computation)
 }
 
 /// An effect whose first run happens now, as a memo's does, instead of being queued. A
-/// first run that reads nothing costs only the closure: no computation is made.
+/// first run that reads nothing costs only the closure: no computation is made, and the
+/// handle it returns is already disposed.
 ///
 /// Each binding still costs a probe, so props applied together share one binding. Unlike
 /// an effect, a binding runs while its scope's effects are paused by
 /// `Scope::pausable_effects`, so a hidden `Loading` content still builds its tree.
-pub fn create_binding(mut binding: impl FnMut() + 'static) {
+pub fn create_binding(mut binding: impl FnMut() + 'static) -> Effect {
     let probed = probe(false, &mut binding);
     if probed.constant() {
         if let Some(owner) = probed.owner {
             owner.dispose();
         }
-        return;
+        return Effect::none();
     }
     let computation = Computation::new(None, move || {
         binding();
@@ -415,14 +518,92 @@ pub fn create_binding(mut binding: impl FnMut() + 'static) {
     });
     computation.binding.set(true);
     computation.watch(probed.read, probed.owner);
+    Effect::of(&computation)
 }
 
-impl Effect {
-    pub fn dispose(&self) {
-        defer(|| self.computation.dispose());
-    }
+/// An effect over explicit dependencies, like SolidJS's `on`: `deps` is read tracked, and
+/// `run` gets its value and the one before it (`None` on the first run) with nothing
+/// tracked, so what `run` reads does not wake it. Queued like `create_effect`.
+///
+/// It runs when a dependency was written, not when `deps` returns something new: deps
+/// that change and change back before it runs (while its scope is paused, say) run it
+/// with `value == previous`. Compare them when that matters.
+///
+/// `deps` returns the values `run` needs, or `()` after `track`ing what should wake it:
+/// `create_effect_on(move || (pointer.get(), caret.get()), move |_, _| publish())`.
+pub fn create_effect_on<D: 'static>(
+    mut deps: impl FnMut() -> D + 'static,
+    mut run: impl FnMut(&D, Option<&D>) + 'static,
+) -> Effect {
+    let mut previous = None;
+    create_effect(move || {
+        let value = deps();
+        untrack(|| run(&value, previous.as_ref()));
+        previous = Some(value);
+    })
+}
 
-    pub fn is_disposed(&self) -> bool {
-        self.computation.is_disposed()
+/// `create_effect_on` without its first run (SolidJS's `defer`): `deps` is read now, at
+/// creation, and `run` runs only after what it read changes, with the value before; a
+/// change made before the first flush still runs it. For acting on a
+/// change rather than on the state: begin a move each time the count of asked moves goes
+/// up.
+pub fn create_effect_on_change<D: 'static>(
+    mut deps: impl FnMut() -> D + 'static,
+    mut run: impl FnMut(&D, &D) + 'static,
+) -> Effect {
+    let probed = probe(false, &mut deps);
+    if probed.constant() {
+        if let Some(owner) = probed.owner {
+            owner.dispose();
+        }
+        return Effect::none();
     }
+    let mut previous = probed.value;
+    let computation = Computation::new(None, move || {
+        let value = deps();
+        untrack(|| run(&value, &previous));
+        previous = value;
+        false
+    });
+    computation.watch(probed.read, probed.owner);
+    Effect::of(&computation)
+}
+
+/// A signal that holds what was last written to it, but resets to what `source` returns
+/// whenever that changes, like Angular's `linkedSignal`: a draft seeded from a saved value
+/// and reset when the saved value changes. `source` is compared with what it returned
+/// before, so a change to what it reads that leaves its result the same keeps a draft.
+///
+/// `source` runs now. The reset is not synchronous: it is a binding, so after `source`'s
+/// inputs change the signal still holds the old value until effects next run (the end of
+/// the entry, or `flush()`).
+///
+/// Like `create_memo`'s, the closure may take an annotated `previous: Option<&T>`: what the
+/// signal holds when the reset comes (`None` the first time), so a reset can keep part of
+/// what was written, such as text typed that still means the new value.
+pub fn create_linked_signal<T: Clone + PartialEq + 'static, M>(
+    mut source: impl Compute<T, M> + 'static,
+) -> Signal<T> {
+    let probed = probe(false, || source.compute(None));
+    let constant = probed.constant();
+    let mut returned = probed.value.clone();
+    let signal = create_signal(probed.value);
+    if constant {
+        if let Some(owner) = probed.owner {
+            owner.dispose();
+        }
+        return signal;
+    }
+    let computation = Computation::new(None, move || {
+        let value = signal.with_untracked(|held| source.compute(Some(held)));
+        if value != returned {
+            returned = value.clone();
+            signal.set(value);
+        }
+        false
+    });
+    computation.binding.set(true);
+    computation.watch(probed.read, probed.owner);
+    signal
 }

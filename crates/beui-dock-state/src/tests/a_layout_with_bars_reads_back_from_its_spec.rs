@@ -8,6 +8,7 @@ fn bar(bar: u64, owner: Option<u64>, placement: DockBarPlacement) -> DockSpecBar
         placement,
         hidden: false,
         pane: None,
+        slot: None,
     }
 }
 
@@ -43,7 +44,7 @@ fn a_layout_with_bars_reads_back_from_its_spec() {
         TabId::new(22),
         DockBarPlacement::Window {
             edge: DockEdge::Right,
-            origin: beui_types::pos2(40.0, 60.0),
+            origin: be_lib_geometry::pos2(40.0, 60.0),
         },
     );
 

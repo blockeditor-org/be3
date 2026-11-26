@@ -35,7 +35,7 @@ fn a_submenu_escapes_as_a_layer_nested_in_its_menu() {
         .row_button(0);
     let share_rect = harness.rect(share);
     harness.frame(vec![Input::PointerMoved(share_rect.center())]);
-    harness.frame(Vec::new());
+    harness.pause(unstyled::SUBMENU_DELAY * 2);
 
     let layers = harness.document().escaped_layers();
     assert_eq!(layers.len(), 2, "the menu and its submenu each escape");

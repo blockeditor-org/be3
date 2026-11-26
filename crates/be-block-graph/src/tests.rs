@@ -72,10 +72,11 @@ impl Random {
     fn level(&mut self) -> Access {
         [
             Access::KnowExists,
+            Access::Join,
             Access::View,
             Access::Edit,
             Access::Manage,
-        ][self.below(4)]
+        ][self.below(5)]
     }
 
     fn block(&mut self, graph: &BlockGraph) -> Option<Uuid> {

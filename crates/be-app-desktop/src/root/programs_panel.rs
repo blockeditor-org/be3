@@ -171,17 +171,21 @@ pub(crate) fn ProgramsPanelOverlay(
 ) -> NodeId {
     let open = programs_panel.open;
     let buttoned = programs_panel.has_button(display);
-    let shown = create_memo(move || open.get() == Some(display) && !buttoned.get());
     let surface = popover_surface(Some(PANEL_WIDTH));
     let close = Callback::new(move |()| programs_panel.close(display));
+    let shown = create_memo(move || open.get() == Some(display) && !buttoned.get());
+    let shown = Binding::new(shown, move |now: bool| {
+        if !now {
+            programs_panel.close(display);
+        }
+    });
     view! {
         <Anchored
             style={surface}
-            anchor={create_memo(move || OverlayAnchor::Rect(area.get()))}
+            anchor={move || OverlayAnchor::Rect(area.get())}
             placement=Placement::CenterOn
             policy=LayerPolicy::Pass
             open={shown}
-            on_dismiss={move || programs_panel.close(display)}
         >|handle: AnchoredHandle|
             <ProgramsPanelContent
                 programs_panel
@@ -220,12 +224,12 @@ fn ProgramsPanelContent(
     };
     view! {
         <List spacing=SECTION_SPACING @test_id={"desktop.apps.panel"}>
-            <Show condition={launches}>
+            <Show value={launches}>
                 <ProgramSearch programs={programs_panel.programs} focused={shown} close />
             </Show>
             <SessionRows programs_panel close />
             <Separator />
-            <Show condition={hidden}>
+            <Show value={hidden}>
                 <ListRow
                     @test_id={"desktop.apps.bars"}
                     label="Show this display's bars"
@@ -260,10 +264,6 @@ fn SessionRows(programs_panel: ProgramsPanel, close: Callback<()>) -> NodeId {
     });
     let settings = sessions.settings;
     let unready = create_memo(move || settings.get().is_none());
-    let why = create_memo(move || match unready.get() {
-        true => "Needs this workspace's settings block".to_owned(),
-        false => String::new(),
-    });
     let create = move || {
         close.call(());
         sessions.create();
@@ -271,13 +271,16 @@ fn SessionRows(programs_panel: ProgramsPanel, close: Callback<()>) -> NodeId {
     view! {
         <List spacing=ROW_SPACING>
             <Text style=TextStyle::CAPTION>"Sessions"</Text>
-            <ForEach keys={keys}>|block: Uuid|
+            <ForEach value={keys}>|block: Uuid|
                 <SessionRow programs_panel block close />
             </ForEach>
             <ListRow
                 @test_id={"desktop.apps.sessions.new"}
                 label="New session"
-                detail={why}
+                detail={move || match unready.get() {
+                    true => "Needs this workspace's settings block".to_owned(),
+                    false => String::new(),
+                }}
                 glyph={Some(ICON_PLUS)}
                 size=RowSize::Large
                 disabled={unready}

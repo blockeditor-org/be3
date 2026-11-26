@@ -3,7 +3,7 @@ load("@root//buck/wasm:defs.bzl", "wasm_library")
 
 cargo_package()
 
-# beui and everything under it, FreeType and HarfBuzz, above base
+# beui and everything under it, its fonts and their readers among them, above base
 # (guides/app_libraries.md).
 wasm_library(
     libraries = ["//crates/be-sdk-library-base:module"],

@@ -10,7 +10,6 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::{self, RemoteTextCursor, TextAreaState, narrower_than};
 use beui::{Color32, Direction, NodeId};
-use beui_macros::{component, sample};
 use beui_text_editor_core::schema::basic::{self, Basic};
 use beui_text_editor_core::{CursorPosition, EditorCommand, TextLanguage, Value};
 
@@ -170,15 +169,9 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
         if external[1] {
             right.sync();
         }
-        if flight.get_untracked() != counts {
-            flight.set(counts);
-        }
-        if same.get_untracked() != matching {
-            same.set(matching);
-        }
-        if seen.get_untracked() != carets {
-            seen.set(carets);
-        }
+        flight.set(counts);
+        same.set(matching);
+        seen.set(carets);
         if let (Some(due), Some(timer)) = (due, timer.get()) {
             timer.start(due.saturating_duration_since(now));
         }
@@ -189,21 +182,21 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
     });
     timer.set(Some(pumping));
     create_effect(move || {
-        left.content().get();
-        right.content().get();
-        left.cursors().get();
-        right.cursors().get();
-        paused.get();
-        latency.get();
+        left.content().track();
+        right.content().track();
+        left.cursors().track();
+        right.cursors().track();
+        paused.track();
+        latency.track();
         pump.call(None);
     });
 
     let left_remote = create_memo(move || {
-        left.content().get();
+        left.content().track();
         remote(&left, seen.get()[Side::Left.index()], RIGHT_COLOR)
     });
     let right_remote = create_memo(move || {
-        right.content().get();
+        right.content().track();
         remote(&right, seen.get()[Side::Right.index()], LEFT_COLOR)
     });
     let latency_label = create_memo(move || format!("Latency: {} ms", latency.get().round()));
@@ -382,9 +375,9 @@ fn EditorPane(
     view! {
         <List spacing=ROW_SPACING>
             <Text style=TextStyle::CAPTION>{title}</Text>
-            <Show condition={rich}>
+            {rich.then(|| view! {
                 <FormatBar state={state} glyphs={GLYPHS.to_vec()} test_prefix={id} />
-            </Show>
+            })}
             <ListItem length=EDITOR_HEIGHT>
                 <TextArea
                     @test_id=id

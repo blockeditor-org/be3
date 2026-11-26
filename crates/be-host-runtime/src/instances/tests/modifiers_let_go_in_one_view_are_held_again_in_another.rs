@@ -42,7 +42,7 @@ fn modifiers_let_go_in_one_view_are_held_again_in_another() {
     let rect = Rect::from_min_size(pos2(10.0, 10.0), SIZE);
     instances.place(INSTANCE, window, Placement { rect, clip: rect });
     let screens = instances.next_screens(PASS).screens;
-    instances.screen_set(screens);
+    instances.announce(screens);
     let at = pos2(50.0, 50.0);
     let logo = beui::Modifiers::LOGO;
     let press_in_window = |instances: &mut Instances| {

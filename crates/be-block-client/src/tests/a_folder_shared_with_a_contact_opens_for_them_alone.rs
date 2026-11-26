@@ -31,7 +31,7 @@ async fn a_folder_shared_with_a_contact_opens_for_them_alone() {
         .await
         .unwrap();
 
-    let public = owner.keys().contact(guest.account()).unwrap();
+    let public = owner.verified_identity(guest.account()).unwrap();
     owner
         .share(folder, guest.account(), Access::View, &public)
         .await

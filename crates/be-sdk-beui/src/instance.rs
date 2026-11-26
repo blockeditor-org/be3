@@ -11,13 +11,14 @@ use be_sdk::{
 use be_sdk_beui_platform_api::{Report, View};
 use beui::WindowId;
 use beui::native::Document;
-use beui::reactive::RenderFn;
+use beui::reactive::{NodeId, RenderFn};
 use beui::styled::WindowHandle;
 use uuid::Uuid;
 
 use crate::beui_frame::{self, BeuiFrame, FrameBar, FrameChrome};
 use crate::dialog::{AppDialog, DialogControl, SettingsDialog};
 use crate::docked::{DockedTabBody, DockedTabs};
+use crate::export::{ExportDialog, ExporterSettings};
 use crate::module::{Module, Shown};
 use crate::picking::Pickers;
 use crate::{Artifacts, BeuiRoot, Creation, Editor, OwnedEditor};
@@ -35,6 +36,8 @@ pub(crate) struct BeuiInstance<A: BeuiRoot> {
     parts: Rc<Parts<A>>,
     keeps_accessibility: bool,
     shown: Option<(Rc<Module>, EditorInstanceId)>,
+    /// A host component's run (`BeuiRoot::host`), kept for as long as it is open.
+    hosting: Option<beui::reactive::Scope>,
 }
 
 struct Parts<A: BeuiRoot> {
@@ -57,6 +60,11 @@ struct Views<A: BeuiRoot> {
     preview: Option<OwnedEditor>,
     creation: Option<Creation>,
     artifacts: Option<Artifacts>,
+    /// What the artifact instance keeps made (`connect_artifact`).
+    artifact_run: Option<crate::export::ArtifactRun>,
+    /// The Export dialog this instance draws, with an editor reading its block
+    /// (`connect_export`).
+    exporting: Option<(be_sdk::ExportDialogRequest, OwnedEditor)>,
     root: PhantomData<A>,
 }
 
@@ -69,6 +77,8 @@ impl<A: BeuiRoot> Views<A> {
             preview: None,
             creation: None,
             artifacts: None,
+            artifact_run: None,
+            exporting: None,
             view: None,
             root: PhantomData,
         }
@@ -82,8 +92,34 @@ impl<A: BeuiRoot> Parts<A> {
             .update(|generation| *generation += 1);
     }
 
-    fn frame_content(&self, docked: bool) -> RenderFn<WindowHandle> {
+    fn frame_content(&self, docked: bool) -> RenderFn<WindowHandle, NodeId> {
         let mut views = self.views.borrow_mut();
+        if let Some((request, source)) = &views.exporting {
+            let (request, source) = (request.clone(), source.editor());
+            let dialog = Rc::clone(&self.dialog);
+            let control = Rc::clone(&self.dialog_control);
+            let host = self.host.clone();
+            return RenderFn::new(move |_: WindowHandle| {
+                let request = request.clone();
+                let host = host.clone();
+                let control = Rc::clone(&control);
+                let exporter = crate::export::named(&A::exporters(), &request.exporter);
+                let node = beui::reactive::view! {
+                    <beui::styled::Root clear_color=beui::styled::ColorRole::Surface>
+                        <AppDialog host={host.clone()} control>|| {
+                            let (host, request, exporter) =
+                                (host.clone(), request.clone(), exporter.clone());
+                            beui::reactive::view! {
+                                <ExportDialog host source exporter request />
+                            }
+                        }</AppDialog>
+                    </beui::styled::Root>
+                }
+                .child();
+                dialog.set(Some(node));
+                node
+            });
+        }
         if views.creating {
             let Some(creation) = views.creation.clone() else {
                 return empty();
@@ -140,7 +176,7 @@ impl<A: BeuiRoot> Parts<A> {
         })
     }
 
-    fn preview_content(&self) -> RenderFn<WindowHandle> {
+    fn preview_content(&self) -> RenderFn<WindowHandle, NodeId> {
         let Some(editor) = self.views.borrow().preview.as_deref().copied() else {
             return empty();
         };
@@ -154,7 +190,7 @@ impl<A: BeuiRoot> Parts<A> {
         })
     }
 
-    fn tab_content(&self, tab: u64) -> RenderFn<WindowHandle> {
+    fn tab_content(&self, tab: u64) -> RenderFn<WindowHandle, NodeId> {
         let tabs = Rc::clone(&self.docked);
         RenderFn::new(move |_: WindowHandle| {
             let tabs = Rc::clone(&tabs);
@@ -171,7 +207,7 @@ impl<A: BeuiRoot> Parts<A> {
         })
     }
 
-    fn display_content(&self, display: u32) -> RenderFn<WindowHandle> {
+    fn display_content(&self, display: u32) -> RenderFn<WindowHandle, NodeId> {
         let Some(editor) = self.views.borrow().editor.as_deref().copied() else {
             return empty();
         };
@@ -206,7 +242,7 @@ impl<A: BeuiRoot> Parts<A> {
         }
     }
 
-    fn settings_content(&self) -> RenderFn<WindowHandle> {
+    fn settings_content(&self) -> RenderFn<WindowHandle, NodeId> {
         let Some(artifacts) = self.views.borrow().artifacts.clone() else {
             return empty();
         };
@@ -224,9 +260,21 @@ impl<A: BeuiRoot> Parts<A> {
                         let inner = artifacts.clone();
                         beui::reactive::view! {
                             <SettingsDialog artifacts={outer}>|| {
-                                let inner = inner.clone();
-                                beui::reactive::view! {
-                                    <A::ArtifactSettings artifacts={inner} />
+                                let artifacts = inner.clone();
+                                let settings = artifacts.settings();
+                                let value = beui::reactive::create_memo(move || settings.get());
+                                let edit = beui::reactive::Callback::new(move |data: Vec<u8>| {
+                                    artifacts.edit_settings(data);
+                                });
+                                match crate::export::named(&A::exporters(), inner.exporter()) {
+                                    Some(exporter) => beui::reactive::view! {
+                                        <ExporterSettings exporter value edit />
+                                    },
+                                    None => beui::reactive::view! {
+                                        <beui::styled::Text style=beui::styled::TextStyle::CAPTION>
+                                            "This editor no longer makes this artifact."
+                                        </beui::styled::Text>
+                                    },
                                 }
                             }</SettingsDialog>
                         }
@@ -309,11 +357,17 @@ fn measured(
         .map(|measured| beui::Rect::from_min_size(beui::Pos2::ZERO, beui::vec2(width, measured.y)))
 }
 
-fn empty() -> RenderFn<WindowHandle> {
+/// A view with nothing to show yet. Its `Root` clears to nothing, so it reports no backdrop and
+/// the host backs it as it backs a view not yet drawn (its placer's), never with beui's default
+/// black.
+fn empty() -> RenderFn<WindowHandle, NodeId> {
     RenderFn::new(|_: WindowHandle| {
         beui::reactive::view! {
-            <beui::styled::Frame />
+            <beui::styled::Root clear_color=beui::styled::ColorRole::None>
+                <beui::styled::Frame />
+            </beui::styled::Root>
         }
+        .child()
     })
 }
 
@@ -330,7 +384,7 @@ impl<A: BeuiRoot> Shown for Parts<A> {
         self.docked.key(docked)
     }
 
-    fn content(&self, view: ShownView, docked: bool) -> RenderFn<WindowHandle> {
+    fn content(&self, view: ShownView, docked: bool) -> RenderFn<WindowHandle, NodeId> {
         match view.placement {
             ViewPlacement::Parent(ParentView::Main) => self.frame_content(docked),
             ViewPlacement::Parent(ParentView::Preview) => self.preview_content(),
@@ -378,6 +432,12 @@ impl<A: BeuiRoot> Shown for Parts<A> {
         });
         let views = self.views.borrow();
         match view.placement {
+            ViewPlacement::Parent(ParentView::Main) if views.exporting.is_some() => {
+                steer(document, self.dialog_control.get(), &self.host, view);
+                if let Some((_, source)) = &views.exporting {
+                    source.begin_frame();
+                }
+            }
             ViewPlacement::Parent(ParentView::Main) if views.creating => {
                 steer(document, self.dialog_control.get(), &self.host, view);
                 if let Some(creation) = &views.creation {
@@ -390,7 +450,7 @@ impl<A: BeuiRoot> Shown for Parts<A> {
                     shown: view.chrome_drawn() && (spec.top_bar.shown() || spec.content.is_some()),
                     framed: view.chrome_drawn(),
                     closable: spec.content.is_some(),
-                    on_phone: spec.top_bar.phone(),
+                    on_phone: spec.phone,
                     docked: view.docked,
                 });
                 let picks = self.host.take_menu_picks(be_sdk::ViewId::MAIN);
@@ -412,6 +472,14 @@ impl<A: BeuiRoot> Shown for Parts<A> {
                 }
             }
             ViewPlacement::Dock => {
+                // A joined editor may show no main view: the dock tab view holding its content,
+                // the one given a frame (with its chrome), carries the phone flag.
+                let phone = view.spec.phone;
+                if view.chrome_drawn()
+                    && views.chrome.bar().with_untracked(|bar| bar.on_phone) != phone
+                {
+                    views.chrome.bar().update(|bar| bar.on_phone = phone);
+                }
                 if let Some(editor) = views.editor.as_deref() {
                     editor.begin_frame();
                 }
@@ -438,10 +506,14 @@ impl<A: BeuiRoot> Shown for Parts<A> {
         window: WindowId,
     ) -> Report {
         let creating = self.views.borrow().creating;
+        let exporting = self.views.borrow().exporting.is_some();
         match view.placement {
-            ViewPlacement::Parent(ParentView::Main) if creating => {
+            ViewPlacement::Parent(ParentView::Main) if creating || exporting => {
                 if let Some(creation) = &self.views.borrow().creation {
                     creation.children().end_frame(document, window);
+                }
+                if let Some((_, source)) = &self.views.borrow().exporting {
+                    source.end_frame(document, window);
                 }
                 if self.dialog_control.get().is_some() {
                     context.want_keyboard();
@@ -533,6 +605,7 @@ impl<A: BeuiRoot> BeuiInstance<A> {
             host,
             keeps_accessibility: false,
             shown: None,
+            hosting: None,
         }
     }
 }
@@ -578,10 +651,37 @@ impl<A: BeuiRoot> Instance for BeuiInstance<A> {
             views.preview = Some(scaled(self.host.clone()));
             rebuilt = true;
         }
+        if let Some(editor) = &views.editor {
+            editor.set_exporters(Rc::from(A::exporters()));
+        }
         drop(views);
         if rebuilt {
             self.parts.rebuild();
         }
+    }
+
+    fn connect_host(&mut self, block_id: Uuid) {
+        self.connect(block_id);
+        let Some(editor) = self.parts.views.borrow().editor.as_deref().copied() else {
+            return;
+        };
+        let scope = beui::reactive::Scope::root();
+        scope.run(|| A::host(editor));
+        self.hosting = Some(scope);
+    }
+
+    fn pass(&mut self) {
+        if let Some(run) = &self.parts.views.borrow().artifact_run {
+            run.pass();
+        }
+        let Some(scope) = &self.hosting else {
+            return;
+        };
+        let Some(editor) = self.parts.views.borrow().editor.as_deref().copied() else {
+            return;
+        };
+        // Inside an entry, so the effects woken by what arrived run as it ends, as in a frame.
+        scope.run(|| editor.begin_frame());
     }
 
     fn connect_creation(&mut self, template: String) {
@@ -605,24 +705,56 @@ impl<A: BeuiRoot> Instance for BeuiInstance<A> {
         A::create_block(creation)
     }
 
-    fn connect_artifact(&mut self, artifact: Artifact) {
+    fn connect_artifact(&mut self, artifact: Artifact, data: &[u8]) {
         let mut views = self.parts.views.borrow_mut();
         let artifacts = match views.artifacts.take() {
-            Some(artifacts) if artifacts.block_id() == artifact.block_id => artifacts,
+            Some(artifacts) if *artifacts.artifact() == artifact => artifacts,
             _ => Artifacts::new(self.host.clone(), artifact),
         };
-        A::connect_artifact(&artifacts);
+        let exporter = crate::export::named(&A::exporters(), artifacts.exporter());
+        views.artifact_run = Some(crate::export::ArtifactRun::start(
+            &artifacts, exporter, data,
+        ));
         views.artifacts = Some(artifacts);
     }
 
+    fn connect_export(&mut self, export: be_sdk::ExportDialogRequest) {
+        let mut views = self.parts.views.borrow_mut();
+        let source = OwnedEditor::reading(self.host.clone(), export.source);
+        source.set_exporters(Rc::from(A::exporters()));
+        views.exporting = Some((export, source));
+        drop(views);
+        self.parts.rebuild();
+    }
+
     fn describe_artifact(&mut self, data: &[u8]) -> Result<String, String> {
-        A::describe_artifact(data)
+        let views = self.parts.views.borrow();
+        let artifacts = views
+            .artifacts
+            .as_ref()
+            .ok_or("this instance makes no artifact")?;
+        match crate::export::named(&A::exporters(), artifacts.exporter()) {
+            Some(exporter) => exporter.describe(data),
+            None => Err(format!(
+                "This editor has no exporter named \"{}\".",
+                artifacts.exporter()
+            )),
+        }
     }
 
     fn regenerate_artifact(&mut self, data: &[u8]) {
         if let Some(artifacts) = &self.parts.views.borrow().artifacts {
             artifacts.regenerate(data);
         }
+    }
+
+    fn artifact_failure(&mut self) -> Option<String> {
+        self.parts
+            .views
+            .borrow()
+            .artifact_run
+            .as_ref()
+            .and_then(crate::export::ArtifactRun::failure)
     }
 
     fn poll_artifact(&mut self) -> Option<Result<(), String>> {
@@ -649,13 +781,6 @@ impl<A: BeuiRoot> Instance for BeuiInstance<A> {
         if let Some(editor) = &self.parts.views.borrow().editor {
             editor.report_presence_visible(visible);
         }
-    }
-
-    fn replace_child(&mut self, old: Uuid, new: Uuid) -> bool {
-        let Some(editor) = self.editor() else {
-            return false;
-        };
-        editor.replace_child(old, new)
     }
 
     fn open_view(&mut self, _view: ShownView) {

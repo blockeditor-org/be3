@@ -12,14 +12,14 @@ fn switching_a_show_damages_both_panels() {
     let document = build_node(move || {
         let second = create_signal(false);
         taken.update(|taken| *taken = Some(second));
-        let first = create_memo(move || !second.get());
-        let second = create_memo(move || second.get());
         view! {
             <List spacing=0.0>
-                <Show condition={first}>
-                    <Frame height=FIRST fill=Color32::WHITE radius=0.0 />
-                </Show>
-                <Show condition={second}>
+                <Show
+                    value={second}
+                    fallback={|| view! {
+                        <Frame height=FIRST fill=Color32::WHITE radius=0.0 />
+                    }}
+                >
                     <Frame height=SECOND fill={Color32::from_gray(40)} radius=0.0 />
                 </Show>
             </List>

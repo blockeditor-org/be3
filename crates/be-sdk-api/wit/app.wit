@@ -7,8 +7,8 @@ interface app {
     use accessibility.{action-request};
     use shell-types.{drag-over, focus};
     use be3:ui/types@0.1.0.{clip-body, rect, vec2};
-    use types.{failure};
-    use blocks.{search-location};
+    use types.{export-request, failure};
+    use blocks.{channel-event, hosting-here, member-event, search-location};
 
     /// The user picked command `id` of the menu of the editor's view `view`
     /// (`shell-message.menu`), wherever the menu was shown. `anchor`, in host
@@ -28,10 +28,12 @@ interface app {
     }
 
     /// What the instance that draws the window does for a block it shows:
-    /// shows its sharing dialog, or closes it (the editor showing the block
+    /// shows its sharing dialog, shows its Export dialog (placing a
+    /// `child-content.export`), or closes it (the editor showing the block
     /// asked to close itself).
     variant shell-dialog {
         share,
+        %export(export-request),
         close,
     }
 
@@ -74,6 +76,15 @@ interface app {
         /// The block the editor shows was opened at a place in it: the editor
         /// selects it and brings it into view, where it supports a location.
         reveal(search-location),
+        /// To a host component only: a member of its block's host channel came,
+        /// spoke or went (guides/blocks/hosted.md, "Hosting").
+        member(member-event),
+        /// To an editor opened as a Join member only: its block's host channel
+        /// opened, closed, or carried what the host said.
+        channel(channel-event),
+        /// Whether this device hosts the editor's block, and keeps hosting it;
+        /// told when it changes, `no` included.
+        hosting(hosting-here),
     }
 
     /// An editor instance. Dropping it closes it.
@@ -89,9 +100,6 @@ interface app {
 
         /// Generates the artifact the settings describe again.
         regenerate-artifact: async func(data: list<u8>) -> result<_, failure>;
-
-        /// Puts a block in place of a child block; false when the editor cannot.
-        replace-child: async func(old: block-id, new: block-id) -> bool;
 
         /// Renders representation `format` of the editor's copy `serial`
         /// (`shell-message.copy`), which a paste asked for; none once the editor
@@ -131,7 +139,8 @@ interface app {
 /// of the host, and what it offers. The `be3:desktop` interfaces are an
 /// extension an app uses only when its manifest names it.
 world editor-app {
-    import be3:gpu/device@0.1.0;
+    import wasi:webgpu/webgpu@0.3.0-rc.2;
+    import be3:gpu/host@0.1.0;
     import host;
     import blocks;
     import shell;

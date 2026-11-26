@@ -61,7 +61,7 @@ fn recorded(buck2: &Path, mut arguments: Vec<String>, quiet: bool) -> Result<(i3
     let (status, output) = retrying(buck2, &arguments, quiet, false, None)?;
     if !named {
         let context = be_lib_build_record::Context::here(&command, String::new(), status == 0);
-        be_lib_build_record::report(&repository(), &events, &context);
+        be_lib_build_record::report(repository(), &events, &context);
     }
     Ok((status, output))
 }
@@ -209,6 +209,8 @@ pub fn status_code(status: ExitStatus) -> i32 {
     1
 }
 
+/// Runs buck2, trying again (up to `BE3_BUCK_ATTEMPTS` runs in all, three unless set) when it fails with an
+/// infrastructure error, or when the build server lost a blob buck2's daemon remembers it holding.
 pub fn retrying(
     buck2: &Path,
     arguments: &[String],
@@ -228,19 +230,78 @@ pub fn retrying(
         },
     };
     let capture = capture || !std::io::stdout().is_terminal();
+    let attempt = |arguments: &[String]| attempt_once(buck2, arguments, quiet, capture, stderr);
+    retrying_with(
+        buck2,
+        arguments,
+        attempts,
+        &repository().join(server::RELAY_LOG),
+        attempt,
+        || server::configure(buck2),
+    )
+}
+
+/// `retrying`'s loop. buck2 exits 2 for an infrastructure error, after which the build server's configuration is
+/// brought up to date (`configure`) and the command run again. It exits 3 both for an action that failed and for an
+/// `Execute` the server refused because it lost a blob; buck2's daemon then keeps remembering the blob as present
+/// (its `FindMissingCache`, for 12 hours) and every later run fails the same way. re-relay logs a `forgot` line for
+/// each such refusal, so an exit 3 during which `relay_log` gained one restarts the daemon (`buck2 kill`) before
+/// trying again: the new daemon asks the relay, which has forgotten too, and uploads the blob.
+pub fn retrying_with(
+    buck2: &Path,
+    arguments: &[String],
+    attempts: u32,
+    relay_log: &Path,
+    mut attempt_once: impl FnMut(&[String]) -> Result<(i32, Vec<u8>)>,
+    mut configure: impl FnMut() -> Result<()>,
+) -> Result<(i32, Vec<u8>)> {
     let mut attempt = 1;
     loop {
-        let (status, output) = attempt_once(buck2, arguments, quiet, capture, stderr)?;
-        if status != 2 || attempt >= attempts {
+        let logged = log_length(relay_log);
+        let (status, output) = attempt_once(arguments)?;
+        let lost_blob = status == 3 && forgot_since(relay_log, logged);
+        if (status != 2 && !lost_blob) || attempt >= attempts {
             return Ok((status, output));
         }
         attempt += 1;
-        eprintln!(
-            "buck2 failed with an infrastructure error; trying again ({attempt} of {attempts}). \
-             guides/build_server.md says what to do when this keeps happening."
-        );
-        server::configure(buck2)?;
+        if lost_blob {
+            eprintln!(
+                "The build server lost a blob buck2's daemon remembers it holding (re-relay forgot it: \
+                 {}); restarting the daemon and trying again ({attempt} of {attempts}).",
+                relay_log.display()
+            );
+            server::kill_daemon(buck2);
+        } else {
+            eprintln!(
+                "buck2 failed with an infrastructure error; trying again ({attempt} of {attempts}). \
+                 guides/build_server.md says what to do when this keeps happening."
+            );
+            configure()?;
+        }
     }
+}
+
+fn log_length(log: &Path) -> u64 {
+    std::fs::metadata(log).map_or(0, |metadata| metadata.len())
+}
+
+/// Whether re-relay logged a `forgot` line (`re-relay: TIME forgot ...`) after the first `from` bytes of `log`. The
+/// log is only appended to; one that shrank was replaced, and is read whole.
+fn forgot_since(log: &Path, from: u64) -> bool {
+    use std::io::{Seek as _, SeekFrom};
+    let Ok(mut file) = File::open(log) else {
+        return false;
+    };
+    let from = if log_length(log) < from { 0 } else { from };
+    if file.seek(SeekFrom::Start(from)).is_err() {
+        return false;
+    }
+    let mut text = Vec::new();
+    let _ = file.read_to_end(&mut text);
+    String::from_utf8_lossy(&text).lines().any(|line| {
+        let mut words = line.split_whitespace();
+        words.next() == Some("re-relay:") && words.nth(1) == Some("forgot")
+    })
 }
 
 pub fn print_captured(output: &[u8]) {

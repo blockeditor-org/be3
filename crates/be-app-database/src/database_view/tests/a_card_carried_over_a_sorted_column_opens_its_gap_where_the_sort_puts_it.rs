@@ -27,7 +27,6 @@ fn a_card_carried_over_a_sorted_column_opens_its_gap_where_the_sort_puts_it() {
     fixture.lift(fixture.harness.rect_of(&card(d)).center(), high);
     for at in [high, low, high] {
         fixture.harness.hover(at);
-        fixture.harness.next_frame();
         fixture.harness.settle();
         assert!(
             (top(&fixture, f) - parted).abs() < 1.0 && (top(&fixture, b) - b_rest).abs() < 0.5,

@@ -1,3 +1,4 @@
+mod custom;
 pub mod default_editors;
 pub mod display;
 pub mod home;

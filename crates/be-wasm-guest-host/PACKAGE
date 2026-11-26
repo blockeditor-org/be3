@@ -18,6 +18,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
+                "//crates/be-wasm-panic:be-wasm-panic",
             ],
             "examples": {},
             "features": [],
@@ -30,6 +31,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
+                "//crates/be-wasm-panic:be-wasm-panic",
             ],
             "examples": {},
             "features": [],
@@ -42,6 +44,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
+                "//crates/be-wasm-panic:be-wasm-panic",
             ],
             "examples": {},
             "features": [],
@@ -54,6 +57,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
+                "//crates/be-wasm-panic:be-wasm-panic",
             ],
             "examples": {},
             "features": [],
@@ -66,6 +70,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
+                "//crates/be-wasm-panic:be-wasm-panic",
             ],
             "examples": {},
             "features": [],
@@ -78,9 +83,10 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
-                "//third-party/rust:js-sys-0.3.99",
-                "//third-party/rust:wasm-bindgen-0.2.122",
-                "//third-party/rust:web-sys-0.3.99",
+                "//crates/be-wasm-panic:be-wasm-panic",
+                "//third-party/rust:js-sys-0.3.107",
+                "//third-party/rust:wasm-bindgen-0.2.130",
+                "//third-party/rust:web-sys-0.3.107",
             ],
             "examples": {},
             "features": [],
@@ -91,6 +97,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
+                "//crates/be-wasm-panic:be-wasm-panic",
             ],
             "examples": {},
             "features": [],
@@ -103,6 +110,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
+                "//crates/be-wasm-panic:be-wasm-panic",
             ],
             "examples": {},
             "features": [],

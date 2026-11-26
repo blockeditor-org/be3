@@ -50,6 +50,12 @@ clean_stale_enabled = true
 clean_stale_artifact_ttl_hours = 72
 clean_stale_period_hours = 24
 
+# Restart the daemon and rerun the command when buck2 finds its own state
+# corrupt, such as an input that expired from the build server's CAS with no
+# copy on disk. It does not cover an Execute the server refuses as "missing
+# from CAS": buck2 treats that as an ordinary failure (guides/build_server.md).
+restarter = true
+
 # Where the build server is: not here, but in the file included at the end,
 # which ./scripts/buck writes with the header that authenticates to it
 # (crates/be-tool-bootstrap/src/server.rs). The address is a bare

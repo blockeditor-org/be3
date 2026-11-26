@@ -4,7 +4,7 @@ use super::*;
 fn a_key_intercepted_for_an_app_reaches_it_unless_it_has_the_keyboard() {
     let mut instances = placed();
     let screens = instances.next_screens(PASS).screens;
-    instances.screen_set(screens);
+    instances.announce(screens);
     let press = beui::KeyPress {
         key: beui::Key::F,
         pressed: true,

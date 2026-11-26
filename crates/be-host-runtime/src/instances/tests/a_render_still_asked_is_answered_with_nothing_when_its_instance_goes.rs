@@ -31,7 +31,7 @@ fn a_render_still_asked_is_answered_with_nothing_when_its_instance_goes() {
     let mut instances = placed();
     let (_, asked) = instances.render_clip(INSTANCE, 1, "text/plain".to_owned());
     let asked = asked.expect("the instance is open");
-    instances.reopen();
+    restart(&mut instances);
     host::deliver();
     assert!(
         unanswered(&heard.borrow(), asked),

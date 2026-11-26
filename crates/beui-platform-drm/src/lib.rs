@@ -2,7 +2,6 @@ mod cursors;
 mod density;
 mod display;
 mod displays;
-mod edges;
 mod epaper;
 mod escape;
 mod flips;
@@ -22,13 +21,13 @@ mod recovery;
 mod rotation;
 mod runner;
 mod screen;
+mod screen_input;
 mod screenshot;
 mod swapchain;
 mod wake;
 
 pub use display::{DisplayConfig, DisplayControl, DisplayMode, DisplayUse, Monitor};
 pub use displays::{Display, Displays};
-pub use edges::{EdgeState, ScreenEdge, ScreenEdges, Side};
 pub use epaper::Epaper;
 pub use flips::{Flip, Flips};
 pub use gpu::{CursorImage, SoftwareCursor};
@@ -39,6 +38,7 @@ pub use input::{
 pub use problems::Problems;
 pub use rotation::Rotation;
 pub use runner::{Loop, Session, run};
+pub use screen_input::{Region, RegionState, ScreenInput, ScreenInputState, Side, Wall, WallState};
 
 use beui_runner::{Launch, Platform};
 

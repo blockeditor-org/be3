@@ -24,18 +24,16 @@ async fn edits_sealed_offline_are_published_when_the_device_reconnects() {
     drop(laptop);
 
     let offline = harness.offline(&owner, &refs, &store);
-    assert!(matches!(
-        offline.save(note, &TextBlock::of("two"), Some(base)).await,
-        Err(ClientError::Disconnected(_))
-    ));
-    let two = offline.local_head(note).unwrap();
+    let Ok(Saved::Kept(two)) = offline.save(note, &TextBlock::of("two"), Some(base)).await else {
+        panic!("the edit was not kept offline");
+    };
+    assert_eq!(offline.local_head(note), Some(two));
     assert_ne!(two, base);
     assert_eq!(offline.known_remote_head(note), Some(base));
-    assert!(matches!(
-        offline.save(note, &TextBlock::of("three"), Some(two)).await,
-        Err(ClientError::Disconnected(_))
-    ));
-    let three = offline.local_head(note).unwrap();
+    let Ok(Saved::Kept(three)) = offline.save(note, &TextBlock::of("three"), Some(two)).await
+    else {
+        panic!("the edit was not kept offline");
+    };
     assert_eq!(offline.pending_commits(note), [two, three]);
     assert_eq!(text(&offline, note).await, "three");
 
@@ -47,7 +45,7 @@ async fn edits_sealed_offline_are_published_when_the_device_reconnects() {
         offline
             .save(added, &TextBlock::of("made offline"), None)
             .await,
-        Err(ClientError::Disconnected(_))
+        Ok(Saved::Kept(_))
     ));
     let listed = offline.children(BlockParent::Block(team)).await.unwrap();
     assert!(listed.iter().any(|block| block.id == added));
@@ -82,7 +80,7 @@ async fn edits_sealed_offline_are_published_when_the_device_reconnects() {
     assert_eq!(text(&phone, note).await, "three");
     assert_eq!(text(&phone, added).await, "made offline");
     assert_eq!(
-        phone.load_commit(three).await.unwrap().parents,
+        phone.load_reached(three).await.unwrap().parents,
         [two],
         "the offline edits were not published in order"
     );
@@ -94,12 +92,12 @@ async fn edits_sealed_offline_are_published_when_the_device_reconnects() {
         .published()
         .unwrap();
     let lagging = harness.offline(&owner, &refs, &store);
-    assert!(
+    assert!(matches!(
         lagging
             .save(note, &TextBlock::of("four, from the laptop"), Some(three))
-            .await
-            .is_err()
-    );
+            .await,
+        Ok(Saved::Kept(_))
+    ));
     let ours = lagging.local_head(note).unwrap();
     harness.reconnect(&lagging, owner.token()).await;
     assert_eq!(

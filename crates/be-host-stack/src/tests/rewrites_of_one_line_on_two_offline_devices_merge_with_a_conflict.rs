@@ -8,7 +8,6 @@ fn rewrites_of_one_line_on_two_offline_devices_merge_with_a_conflict() {
     // publish before the other device does and leave that device's drain `Diverged`.
     let mut harness = Harness::start().on_manual_clock();
     harness.connect();
-    let address = harness.address();
     let note = Uuid::new_v4();
     written(note, "one\ntwo\nthree\n");
     let other = Device::online(&harness);
@@ -30,7 +29,7 @@ fn rewrites_of_one_line_on_two_offline_devices_merge_with_a_conflict() {
     flush();
     other.save_offline(note, "one\ntheirs\nthree\n");
 
-    harness.start_server(&address);
+    harness.start_server();
     other.reconnect(&harness);
     retry_now();
     wait_until("merged with a conflict", |shared| {

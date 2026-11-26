@@ -13,8 +13,8 @@ fn a_commit_chain_walks_to_its_root() {
     );
     assert_eq!(store.read(head).unwrap(), b"one\ntwo\nthree\n");
     assert_eq!(store.read_range(head, 4, 4).unwrap(), b"two\n");
-    assert!(store.is_ancestor(root, head).unwrap());
-    assert!(!store.is_ancestor(head, root).unwrap());
+    assert_eq!(store.is_ancestor(root, head).unwrap(), Descent::Yes);
+    assert_eq!(store.is_ancestor(head, root).unwrap(), Descent::No);
     assert_eq!(store.get(head).unwrap().time, 3_000);
     assert_eq!(store.get(head).unwrap().kind, CommitKind::Autosave);
 }

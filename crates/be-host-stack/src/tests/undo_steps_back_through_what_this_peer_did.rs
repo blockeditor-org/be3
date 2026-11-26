@@ -23,8 +23,12 @@ fn reached(block: Uuid, expected: &[&str], history: History) {
     });
 }
 
-fn checklist(block: Uuid, edit: &Edit) {
-    operate(block, ChecklistContent::encode_operation(edit));
+/// An edit as an editor makes it: the host's own (`operate`) are not this peer's to undo.
+fn checklist(editor: &mut Editor<ChecklistContent>, edit: &Edit) {
+    editor.send(be_sdk_type_guest::editor::FromEditor::Operate {
+        gesture: None,
+        operation: ChecklistContent::encode_operation(edit),
+    });
 }
 
 #[test]
@@ -33,10 +37,11 @@ fn undo_steps_back_through_what_this_peer_did() {
     harness.connect();
     let block = Uuid::new_v4();
     open(block, ChecklistContent::CONTENT_TYPE);
+    let mut editor = Editor::<ChecklistContent>::attach(block);
     let (item, add) = Checklist::add("S");
 
-    checklist(block, &add);
-    checklist(block, &Checklist::set_text(item, "Standup"));
+    checklist(&mut editor, &add);
+    checklist(&mut editor, &Checklist::set_text(item, "Standup"));
     let only_undo = History {
         can_undo: true,
         can_redo: false,

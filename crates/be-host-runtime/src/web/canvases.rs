@@ -1,90 +1,51 @@
 use be_lib_stable_hash::HashMap;
 use std::cell::RefCell;
 
-use be_sdk_api::ScreenId;
-use beui::{Color32, pos2};
+use be_lib_layers::{LayerId, Surface, WindowLayers};
+use beui::Color32;
 use wasm_bindgen::JsCast;
 
 use super::worker::WorkerChannel;
-use crate::presenter::Blit;
 
 const LAYER: &str = "apps";
-/// Where a screen goes that lies over an anchored view painted before it: above the host's
-/// canvas, in the anchored views' layer (overlay.rs), so a child placed in an anchored view
-/// shows over it (`presenter::lifted`).
+/// Where a screen goes that lies above the host's canvas in the frame's layers: a screen over an
+/// anchored view painted before it, in the anchored views' layer (overlay.rs), so a child placed
+/// in an anchored view shows over it (`presenter::lifted`).
 const ABOVE: &str = "layers";
 
 pub struct Placement {
-    screen: ScreenId,
+    layer: LayerId,
     surface: u32,
     style: String,
     above: bool,
 }
 
-/// Where a screen shows: `order` is its blit's place in the frame's paint order, and `above`
-/// whether it lies over an anchored view painted before it (`presenter::lifted`).
-pub fn placement(blit: &Blit, order: usize, above: bool, scale: f32) -> Option<Placement> {
-    if blit.layer.is_some() {
-        return None;
-    }
-    let shared = blit.shared.borrow();
-    let placement = shared.layout.placement(blit.screen)?;
-    if placement.width == 0 || placement.height == 0 {
-        return None;
-    }
-    let (quad, source) = blit.shown_at((placement.width, placement.height))?;
-    if !source.is_positive() {
-        return None;
-    }
-    let [first, second, _, fourth] = quad
-        .corners()
-        .map(|corner| pos2(corner.x * scale, corner.y * scale));
-    let across = (second - first) / source.width();
-    let down = (fourth - first) / source.height();
-    let origin = first - across * source.min.x - down * source.min.y;
-    let (width, height) = (across.length(), down.length());
-    if width <= f32::EPSILON || height <= f32::EPSILON {
-        return None;
-    }
-    let percent = |value: f32| (value * 100.0).clamp(0.0, 100.0);
-    let radius = quad.corner_radius.max(0.0) * scale;
-    let round = |left: bool, top: bool| {
-        let reaches = |near: bool, min: f32, max: f32| match near {
-            true => min <= 0.0,
-            false => max >= 1.0,
+/// Where each runtime's screens show, by its slot: a canvas for each of the frame's screen
+/// layers, in `#apps` below the host's canvas (`Surface::Root`) or in `#layers` above it, stacked
+/// by their place in the list.
+pub fn placements(layers: &WindowLayers, scale: f32) -> HashMap<u64, Vec<Placement>> {
+    let mut placed = HashMap::<u64, Vec<Placement>>::default();
+    let mut above = false;
+    for (order, layer) in layers.layers.iter().enumerate() {
+        let (instance, surface) = match layer.surface {
+            Surface::Root(_) => {
+                above = true;
+                continue;
+            }
+            Surface::Screen { instance, surface } => (instance, surface),
+            Surface::Anchored { .. } | Surface::Host(_) => continue,
         };
-        match reaches(left, source.min.x, source.max.x) && reaches(top, source.min.y, source.max.y)
-        {
-            true => radius,
-            false => 0.0,
-        }
-    };
-    let style = format!(
-        "width:{width}px;height:{height}px;\
-         transform:matrix({},{},{},{},{},{});\
-         clip-path:inset({}% {}% {}% {}% round {}px {}px {}px {}px);opacity:{};z-index:{order}",
-        across.x / width,
-        across.y / width,
-        down.x / height,
-        down.y / height,
-        origin.x,
-        origin.y,
-        percent(source.min.y),
-        percent(1.0 - source.max.x),
-        percent(1.0 - source.max.y),
-        percent(source.min.x),
-        round(true, true),
-        round(false, true),
-        round(false, false),
-        round(true, false),
-        quad.opacity.clamp(0.0, 1.0),
-    );
-    Some(Placement {
-        screen: blit.screen,
-        surface: placement.surface,
-        style,
-        above,
-    })
+        let Some(style) = crate::layers::canvas_style(layer, scale, order) else {
+            continue;
+        };
+        placed.entry(instance).or_default().push(Placement {
+            layer: layer.id,
+            surface,
+            style,
+            above,
+        });
+    }
+    placed
 }
 
 pub fn set_background(color: Color32) {
@@ -111,32 +72,53 @@ struct Shown {
     above: bool,
 }
 
+/// The canvases a runtime's screens show in. A canvas keeps what its worker last drew into it,
+/// so a canvas whose layer leaves the list moves to a new layer showing the same surface (a view
+/// mounted anew), and one whose surface the runtime still retains (`Run::retained_surfaces`: the
+/// app's layout, and the kept frames of views it left out, `Shown::keep_left_out`, such as a dock
+/// tab or bar hidden with its tab) stays on the page, hidden, until a layer shows that surface
+/// again or the runtime lets it go, as natively the presenter keeps its texture: shown again
+/// before its app has drawn it anew, a view shows its last frame rather than an empty canvas
+/// (guides/apps/runtime.md, Layout and present commits).
 #[derive(Default)]
 pub(super) struct Canvases {
-    shown: HashMap<(ScreenId, usize), Shown>,
+    shown: HashMap<LayerId, Shown>,
+    hidden: Vec<Shown>,
 }
 
+/// The style of a canvas kept while its view is hidden.
+const HIDDEN: &str = "display: none";
+
 impl Canvases {
+    /// Shows each of `placements` in a canvas, keeping hidden the canvases of the surfaces in
+    /// `retained` that no placement shows.
     pub(super) fn place(
         &mut self,
         channel: &WorkerChannel,
         placements: Vec<Placement>,
+        retained: &[u32],
     ) -> Result<(), String> {
-        let mut seen = HashMap::<ScreenId, usize>::default();
-        let mut kept = HashMap::with_capacity_and_hasher(placements.len(), Default::default());
+        let mut placed = HashMap::with_capacity_and_hasher(placements.len(), Default::default());
         let mut result = Ok(());
+        let mut unplaced = Vec::new();
         for placement in placements {
-            let occurrence = seen.entry(placement.screen).or_default();
-            let key = (placement.screen, *occurrence);
-            *occurrence += 1;
-            let mut shown = match self.shown.remove(&key) {
-                Some(mut shown) => {
-                    if shown.surface != placement.surface {
-                        shown.surface = placement.surface;
-                        result = result.and(channel.show(shown.id, None, placement.surface));
-                    }
-                    shown
+            match self.shown.remove(&placement.layer) {
+                Some(shown) => {
+                    let key = placement.layer;
+                    placed.insert(key, update(channel, shown, placement, &mut result));
                 }
+                None => unplaced.push(placement),
+            }
+        }
+        let mut left: Vec<Shown> = self.shown.drain().map(|(_, shown)| shown).collect();
+        left.append(&mut self.hidden);
+        for placement in unplaced {
+            let reused = left
+                .iter()
+                .position(|shown| shown.surface == placement.surface)
+                .map(|at| left.swap_remove(at));
+            let shown = match reused {
+                Some(shown) => shown,
                 None => match create(channel, placement.surface, placement.above) {
                     Ok(shown) => shown,
                     Err(error) => {
@@ -145,26 +127,27 @@ impl Canvases {
                     }
                 },
             };
-            if shown.above != placement.above {
-                // Moving a canvas keeps the offscreen canvas its worker draws into.
-                match layer(placement.above) {
-                    Ok(layer) => {
-                        let _ = layer.append_child(&shown.element);
-                        shown.above = placement.above;
-                    }
-                    Err(error) => result = result.and(Err(error)),
-                }
-            }
-            if shown.style != placement.style {
-                let _ = shown.element.set_attribute("style", &placement.style);
-                shown.style = placement.style;
-            }
-            kept.insert(key, shown);
+            let key = placement.layer;
+            placed.insert(key, update(channel, shown, placement, &mut result));
         }
-        for shown in std::mem::replace(&mut self.shown, kept).into_values() {
-            shown.element.remove();
-            channel.forget(shown.id);
+        for mut shown in left {
+            let hides = retained.contains(&shown.surface)
+                && !self
+                    .hidden
+                    .iter()
+                    .any(|hidden| hidden.surface == shown.surface);
+            if !hides {
+                shown.element.remove();
+                channel.forget(shown.id);
+                continue;
+            }
+            if shown.style != HIDDEN {
+                let _ = shown.element.set_attribute("style", HIDDEN);
+                shown.style = HIDDEN.to_owned();
+            }
+            self.hidden.push(shown);
         }
+        self.shown = placed;
         result
     }
 
@@ -172,7 +155,43 @@ impl Canvases {
         for shown in self.shown.drain().map(|(_, shown)| shown) {
             shown.element.remove();
         }
+        for shown in self.hidden.drain(..) {
+            shown.element.remove();
+        }
     }
+}
+
+/// Moves `shown` to `placement`: its surface, its layer above or below the host's canvas, and its
+/// style.
+fn update(
+    channel: &WorkerChannel,
+    mut shown: Shown,
+    placement: Placement,
+    result: &mut Result<(), String>,
+) -> Shown {
+    if shown.surface != placement.surface {
+        shown.surface = placement.surface;
+        let told = channel.show(shown.id, None, placement.surface);
+        if result.is_ok() {
+            *result = told;
+        }
+    }
+    if shown.above != placement.above {
+        // Moving a canvas keeps the offscreen canvas its worker draws into.
+        match layer(placement.above) {
+            Ok(layer) => {
+                let _ = layer.append_child(&shown.element);
+                shown.above = placement.above;
+            }
+            Err(error) if result.is_ok() => *result = Err(error),
+            Err(_) => {}
+        }
+    }
+    if shown.style != placement.style {
+        let _ = shown.element.set_attribute("style", &placement.style);
+        shown.style = placement.style;
+    }
+    shown
 }
 
 fn create(channel: &WorkerChannel, surface: u32, above: bool) -> Result<Shown, String> {

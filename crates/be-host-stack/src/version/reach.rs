@@ -9,9 +9,9 @@ use std::{future::Future, pin::Pin, sync::Arc};
 use be_block_client::{ClientError, Peer};
 use be_block_commit::CommitId;
 use be_block_store::Manifest;
-use be_block_type_host::{Kind, Merged};
+use be_block_type_host::Merged;
 use be_sdk_type_api::{Change, ClientId, Description};
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 use tokio::sync::{mpsc::UnboundedSender, oneshot};
 use uuid::Uuid;
 
@@ -54,7 +54,7 @@ impl LoopCalls {
         self.calls
             .send(call)
             .map_err(|_| "The block store stopped.".to_owned())?;
-        be_host_base::host::wake();
+        crate::changes::wake();
         answered
             .await
             .map_err(|_| "The block store stopped.".to_owned())
@@ -69,17 +69,6 @@ pub(crate) enum Reach<'a> {
 }
 
 impl Reach<'_> {
-    pub(crate) async fn kind(&mut self, content_type: Uuid) -> Option<Kind> {
-        match self {
-            Reach::Here(replicas) => replicas.kind(content_type).await,
-            Reach::Loop(calls) => calls
-                .call(move |replicas, _| Box::pin(replicas.kind(content_type)))
-                .await
-                .ok()
-                .flatten(),
-        }
-    }
-
     pub(crate) async fn apply(
         &mut self,
         ctx: Ctx<'_>,
@@ -148,7 +137,7 @@ impl Reach<'_> {
                         })
                     })
                     .await
-                    .map_err(|error| ClientError::Disconnected(error))?
+                    .map_err(ClientError::Disconnected)?
             }
         }
     }
@@ -161,7 +150,11 @@ impl Reach<'_> {
         reader: bool,
     ) {
         match self {
-            Reach::Here(replicas) => replicas.open(ctx, block, content_type, reader).await,
+            // A repository that does not open is recorded as it gives up (`Host::record`), and
+            // nothing here waits on it.
+            Reach::Here(replicas) => {
+                let _ = replicas.open(ctx, block, content_type, reader).await;
+            }
             Reach::Loop(calls) => {
                 let _ = calls
                     .call(move |replicas, ctx| {

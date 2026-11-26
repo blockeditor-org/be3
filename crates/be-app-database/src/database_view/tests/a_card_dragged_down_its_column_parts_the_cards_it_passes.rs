@@ -16,7 +16,7 @@ fn a_card_dragged_down_its_column_parts_the_cards_it_passes() {
     fixture.harness.record();
     for _ in 0..3 {
         fixture.harness.advance(Duration::from_millis(50));
-        fixture.harness.next_frame();
+        fixture.harness.run();
         fixture.harness.run();
         fixture.harness.record();
     }

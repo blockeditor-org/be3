@@ -21,7 +21,7 @@ fn a_session_opened_over_program_windows_opens_in_front_of_them() {
     fixture.settle();
     fixture
         .test
-        .click(&format!("desktop.apps.sessions.{}", sessions[0]));
+        .click(format!("desktop.apps.sessions.{}", sessions[0]));
     fixture.settle();
 
     let [(block, _, session)] = fixture.placed_blocks()[..] else {

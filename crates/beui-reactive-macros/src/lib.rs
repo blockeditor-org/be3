@@ -4,8 +4,8 @@ use syn::{Data, DeriveInput, Fields, Ident, Type, Visibility, parse_macro_input}
 
 /// `#[derive(Store)]` on `Foo` writes `FooStore`: a `Copy` struct with a `Signal` per field
 /// (same visibility) and `new(value)`, implementing `Get<Foo>` and `Set<Foo>`. Each field
-/// is its own source, so writing one wakes only its readers, and `set` of the whole value
-/// notifies only the fields that changed.
+/// is its own source, so writing one wakes only its readers, and `set` or `update` of the
+/// whole value notifies only the fields that changed.
 #[proc_macro_derive(Store)]
 pub fn derive_store(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

@@ -16,7 +16,7 @@ fn a_dialog_confirms_on_enter_from_its_field() {
 
     press_key(&mut test, Key::Enter);
     assert!(
-        !test.shows("demo.rename.confirm"),
+        !test.shown("demo.rename.confirm"),
         "Enter closes the dialog"
     );
     assert_eq!(

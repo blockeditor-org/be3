@@ -3,7 +3,7 @@ use crate::ForwardedInput;
 use crate::primitives::*;
 use crate::reactive::*;
 
-fn moves(log: ReadSignal<Vec<ForwardedInput>>) -> Vec<Pos2> {
+fn moves(log: impl Get<Vec<ForwardedInput>>) -> Vec<Pos2> {
     log.with_untracked(|log| {
         log.iter()
             .flat_map(|input| flattened(input.clone()))
@@ -40,11 +40,8 @@ fn forwarded_input_reaches_only_the_topmost_catcher_under_it() {
     harness.frame(Vec::new());
 
     harness.frame(vec![Input::PointerMoved(pos2(60.0, 60.0))]);
-    assert_eq!(moves(above.read_only()), [pos2(60.0, 60.0)]);
-    assert!(
-        moves(below.read_only()).is_empty(),
-        "the catcher beneath is covered"
-    );
+    assert_eq!(moves(above), [pos2(60.0, 60.0)]);
+    assert!(moves(below).is_empty(), "the catcher beneath is covered");
     assert!(
         above
             .get_untracked()
@@ -53,7 +50,7 @@ fn forwarded_input_reaches_only_the_topmost_catcher_under_it() {
     );
 
     harness.frame(vec![Input::PointerMoved(pos2(150.0, 150.0))]);
-    assert_eq!(moves(below.read_only()), [pos2(150.0, 150.0)]);
+    assert_eq!(moves(below), [pos2(150.0, 150.0)]);
     assert!(
         above
             .get_untracked()

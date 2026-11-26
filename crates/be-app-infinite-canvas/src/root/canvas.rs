@@ -20,9 +20,10 @@ use super::overlay::{Badge, FrameBackdrop, Hint, Live, Overlay, PathGrips};
 use super::paint::{EntityPaint, Palette, arrowhead_size, resolve_color};
 use super::raster::{RasterGuideDrawing, raster_image, rastering};
 use super::sketch::{Sketch, SketchKey, rough_reach};
-use super::state::{CanvasState, Gesture};
+use super::state::{CanvasState, Gesture, Tool};
 use super::text::{EntityText, path_label_reach, text_region, writes};
 use crate::freehand::LiveStroke;
+use crate::raster::PixelTool;
 use beui::clipboard::formats;
 use beui::{ClipItem, Sides};
 
@@ -30,8 +31,7 @@ const ITEM_MARGIN: f32 = 2.0;
 
 #[component]
 pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
-    let placed_held = create_signal(Rect::ZERO);
-    let placed = placed_held.read_only();
+    let placed = create_signal(Rect::ZERO);
     let parent = state.editor().placed_content();
     let shown = create_memo(move || match parent.get() {
         Some(parent) => parent.intersect(placed.get()),
@@ -87,34 +87,30 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
             <Frame padding={inset} fill={outside_frames}>
                 <CanvasSurface state={state}>
                     <Canvas
-                        view={create_memo(move || Some(camera.get()))}
+                        view={camera}
                         on_reveal={reveal_by(state.editor())}
                         @test_id={"infinite-canvas.canvas"}
                     >
-                        <ForEach keys={frame_ids}>|id: Uuid| {
+                        <ForEach value={frame_ids}>|id: Uuid| {
                             let camera = camera;
                             view! {
                                 <FrameBackdropItem state id camera />
                             }
                         }</ForEach>
-                        <ForEach keys={tiles}>|tile: GridTile|
+                        <ForEach value={tiles}>|tile: GridTile|
                             <GridTileItem tile look={grid} frames />
                         </ForEach>
-                        <ForEach keys={ids}>|id: Uuid|
+                        <ForEach value={ids}>|id: Uuid|
                             <EntityShape state id />
                         </ForEach>
-                        <ForEach keys={embedding}>|id: Uuid|
+                        <ForEach value={embedding}>|id: Uuid|
                             <EntityEmbed state id />
                         </ForEach>
-                        <Show condition={!previewing}>
+                        {(!previewing).then(|| view! {
                             <CanvasHint state={state} camera={camera} stage={shown} />
-                        </Show>
-                        <Show condition={!previewing}>
                             <CanvasOverlay state={state} camera={camera} />
-                        </Show>
-                        <Show condition={!previewing}>
                             <LiveOverlay state={state} camera={camera} stage={shown} />
-                        </Show>
+                        })}
                     </Canvas>
                 </CanvasSurface>
             </Frame>
@@ -123,7 +119,7 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
     let placed_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = placed_measured.get() {
-            placed_held.set(measured.rect);
+            placed.set(measured.rect);
         }
     });
     built
@@ -143,7 +139,7 @@ fn reveal_by(editor: be_sdk_beui::Editor) -> Callback<Vec2> {
 
 fn grid_of(
     state: CanvasState,
-    camera: Memo<CanvasView>,
+    camera: Memo<Option<CanvasView>>,
     stage: Memo<Rect>,
 ) -> (Memo<Option<GridLook>>, Memo<Vec<GridTile>>) {
     let grid = state.grid();
@@ -153,12 +149,15 @@ fn grid_of(
         let spacing = grid.get().shown().filter(|_| live)?;
         GridLook::new(
             spacing,
-            camera.get().scale,
+            camera.get()?.scale,
             beui::reactive::resolve_color(theme.border.get()),
         )
     });
     let tiles = create_memo(move || match look.get() {
-        Some(look) => look.tiles(camera.get().rect_to_canvas(stage.get())),
+        Some(look) => camera
+            .get()
+            .map(|camera| look.tiles(camera.rect_to_canvas(stage.get())))
+            .unwrap_or_default(),
         None => Vec::new(),
     });
     (look, tiles)
@@ -169,10 +168,21 @@ fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
     let cursor = create_memo(move || state.cursor());
     let interactive = !state.previewing();
     let surface = state.surface();
+    super::carry::use_move_site(state, surface);
+    // On while the pen tool waits for a press, not only once its stroke has begun: the window
+    // learns that its pointer's samples are wanted only from the frame after it asks, so a
+    // stroke that asked at its press would lose the moves of the press's own frame. Off for
+    // any other gesture (a finger that selects while a stylus inks), which drags past the
+    // threshold as usual.
+    // The raster pencil inks the same way: its stroke is a run of samples too.
     let inking = create_memo(move || {
-        state
-            .gesture
-            .with(|gesture| matches!(gesture, Some(Gesture::Pen { .. })))
+        let inks = |tool: Tool| matches!(tool, Tool::Pen | Tool::Pixel(PixelTool::Pencil));
+        state.gesture.with(|gesture| match gesture {
+            Some(Gesture::Pen { .. }) => true,
+            Some(Gesture::Raster { .. }) => state.tool.get() == Tool::Pixel(PixelTool::Pencil),
+            Some(_) => false,
+            None => inks(state.tool.get()),
+        })
     });
     view! {
         <Interactive
@@ -190,9 +200,10 @@ fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
             on_press={move |press: PointerPress| state.press(press)}
             on_secondary_press={move |press: PointerPress| state.secondary_press(press)}
             on_drag={move |press: PointerPress| state.drag(press)}
+            drag={move |press: PointerPress| state.lift_move(press)}
+            lifts_on_space=false
             on_hover_move={move |press: PointerPress| {
-                let at = state.world_at(press.pos);
-                state.hover(Some(at));
+                state.hover(state.world_at(press.pos));
             }}
             on_hover_change={move |over: bool| {
                 if !over {
@@ -212,7 +223,7 @@ fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
 #[component]
 fn CanvasHint(
     state: CanvasState,
-    camera: Memo<CanvasView>,
+    camera: Memo<Option<CanvasView>>,
     stage: Memo<Rect>,
 ) -> DynamicSegment<CanvasItem> {
     let theme = use_theme();
@@ -223,39 +234,43 @@ fn CanvasHint(
             color: beui::reactive::resolve_color(theme.text_muted.get()),
         })
     });
-    let shown = create_memo(move || hint.with(Option::is_some));
-    let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
-    let draw = move || {
-        Prop::dynamic(move || -> Draw {
-            let hint = hint.get();
-            Rc::new(move |painter: &Painter, rect: Rect| {
-                if let Some(hint) = hint.as_ref() {
-                    hint.draw(painter, rect);
-                }
-            })
-        })
-    };
+    let visible = create_memo(move || {
+        let visible = camera.get()?.rect_to_canvas(stage.get());
+        hint.with(Option::is_some).then_some(visible)
+    });
     view! {
-        <Show condition={shown}>
+        <Show value={visible}>|visible: ReadSignal<Rect>|
             <CanvasItem
-                x={create_memo(move || visible.get().left())}
-                y={create_memo(move || visible.get().top())}
-                width={create_memo(move || visible.get().width().max(1.0))}
-                height={create_memo(move || visible.get().height().max(1.0))}
+                x={move || visible.get().left()}
+                y={move || visible.get().top()}
+                width={move || visible.get().width().max(1.0)}
+                height={move || visible.get().height().max(1.0)}
             >
-                <Drawing draw={draw()} />
+                <Drawing
+                    draw={move || -> Draw {
+                        let hint = hint.get();
+                        Rc::new(move |painter: &Painter, rect: Rect| {
+                            if let Some(hint) = hint.as_ref() {
+                                hint.draw(painter, rect);
+                            }
+                        })
+                    }}
+                />
             </CanvasItem>
         </Show>
     }
 }
 
 #[component]
-fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>) -> DynamicSegment<CanvasItem> {
+fn CanvasOverlay(
+    state: CanvasState,
+    camera: Memo<Option<CanvasView>>,
+) -> DynamicSegment<CanvasItem> {
     let theme = use_theme();
     let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
     let bounds = create_signal(None::<Rect>);
     let shown = RefCell::new(None::<Overlay>);
-    let scale = create_memo(move || camera.get().scale.max(f32::EPSILON));
+    let scale = create_memo(move || camera.get().map(|camera| camera.scale));
     let drawn_line = create_memo(move || {
         state.gesture.with(|gesture| match gesture {
             Some(Gesture::Create { id, tool, .. }) if tool.draws_a_line() => Some(*id),
@@ -265,7 +280,9 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>) -> DynamicSegment
     create_effect(move || {
         let selection = state.selection.get();
         let selected = state.entities.among(&selection);
-        let scale = scale.get();
+        let Some(scale) = scale.get() else {
+            return bounds.set(None);
+        };
         let selected_path = state.selected_path();
         let mut overlay = Overlay {
             camera: CanvasView::from_corner(Pos2::ZERO, scale),
@@ -292,9 +309,7 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>) -> DynamicSegment
                 pos2(reach.max.x + margin, reach.max.y + margin),
             )
         });
-        if bounds.get_untracked() != reach {
-            bounds.set(reach);
-        }
+        bounds.set(reach);
         overlay.camera =
             CanvasView::from_corner(reach.map_or(Pos2::ZERO, |reach| reach.min), scale);
         if shown.borrow().as_ref() == Some(&overlay) {
@@ -305,10 +320,8 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>) -> DynamicSegment
             overlay.draw(&painter.transformed(rect.min.to_vec2(), 1.0))
         }));
     });
-    let present = create_memo(move || bounds.with(Option::is_some));
-    let rect = create_memo(move || bounds.get().unwrap_or(Rect::ZERO));
     view! {
-        <Show condition={present}>
+        <Show value={bounds}>|rect: ReadSignal<Rect>|
             <CanvasItem
                 x={create_memo(move || rect.get().left())}
                 y={create_memo(move || rect.get().top())}
@@ -324,22 +337,25 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>) -> DynamicSegment
 #[component]
 fn LiveOverlay(
     state: CanvasState,
-    camera: Memo<CanvasView>,
+    camera: Memo<Option<CanvasView>>,
     stage: Memo<Rect>,
 ) -> DynamicSegment<CanvasItem> {
-    let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
+    let visible = create_memo(move || {
+        let camera = camera.get()?;
+        Some((camera.rect_to_canvas(stage.get()), camera.scale))
+    });
     let theme = use_theme();
     let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
     let present = create_signal(false);
     let shown = RefCell::new(None::<Live>);
     create_effect(move || {
+        let Some((visible, scale)) = visible.get() else {
+            return present.set(false);
+        };
         let presence = state.presence.get();
         let tool = state.tool.get();
         let live = Live {
-            camera: CanvasView::from_corner(
-                visible.get().min,
-                camera.get().scale.max(f32::EPSILON),
-            ),
+            camera: CanvasView::from_corner(visible.min, scale),
             palette: palette(&theme),
             gesture: state.gesture.get(),
             cursors: presence.cursors,
@@ -368,12 +384,12 @@ fn LiveOverlay(
         }));
     });
     view! {
-        <Show condition={present}>
+        <Show value={present}>
             <CanvasItem
-                x={create_memo(move || visible.get().left())}
-                y={create_memo(move || visible.get().top())}
-                width={create_memo(move || visible.get().width().max(1.0))}
-                height={create_memo(move || visible.get().height().max(1.0))}
+                x={move || visible.get().map_or(0.0, |(visible, _)| visible.left())}
+                y={move || visible.get().map_or(0.0, |(visible, _)| visible.top())}
+                width={move || visible.get().map_or(1.0, |(visible, _)| visible.width().max(1.0))}
+                height={move || visible.get().map_or(1.0, |(visible, _)| visible.height().max(1.0))}
             >
                 <Drawing draw={draw} />
             </CanvasItem>
@@ -382,9 +398,14 @@ fn LiveOverlay(
 }
 
 #[component]
-fn FrameBackdropItem(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> CanvasItem {
+fn FrameBackdropItem(state: CanvasState, id: Uuid, camera: Memo<Option<CanvasView>>) -> CanvasItem {
     let entity = entity_of(state, id);
-    let label = create_memo(move || FRAME_LABEL_HEIGHT / camera.get().scale.max(f32::EPSILON));
+    // No label before the camera has a scale: it is a constant height on screen.
+    let label = create_memo(move || {
+        camera
+            .get()
+            .map_or(0.0, |camera| FRAME_LABEL_HEIGHT / camera.scale)
+    });
     let bounds = create_memo(move || {
         let Some(entity) = entity.get() else {
             return Rect::ZERO;
@@ -407,27 +428,28 @@ fn FrameBackdropItem(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> 
             chrome,
         })
     });
-    let draw = Prop::dynamic(move || -> Draw {
-        let backdrop = backdrop.get();
-        Rc::new(move |painter: &Painter, rect: Rect| {
-            if let Some(backdrop) = backdrop.as_ref() {
-                let frame = Rect::from_min_max(
-                    pos2(rect.left(), rect.top() + FRAME_LABEL_HEIGHT),
-                    rect.max,
-                );
-                backdrop.draw(painter, frame);
-            }
-        })
-    });
     view! {
         <CanvasItem
-            x={create_memo(move || bounds.get().left())}
-            y={create_memo(move || bounds.get().top())}
-            width={create_memo(move || bounds.get().width().max(1.0))}
-            height={create_memo(move || bounds.get().height().max(1.0))}
+            x={move || bounds.get().left()}
+            y={move || bounds.get().top()}
+            width={move || bounds.get().width().max(1.0)}
+            height={move || bounds.get().height().max(1.0)}
             @test_id={format!("infinite-canvas.backdrop.{id}")}
         >
-            <Drawing draw={draw} />
+            <Drawing
+                draw={move || -> Draw {
+                    let backdrop = backdrop.get();
+                    Rc::new(move |painter: &Painter, rect: Rect| {
+                        if let Some(backdrop) = backdrop.as_ref() {
+                            let frame = Rect::from_min_max(
+                                pos2(rect.left(), rect.top() + FRAME_LABEL_HEIGHT),
+                                rect.max,
+                            );
+                            backdrop.draw(painter, frame);
+                        }
+                    })
+                }}
+            />
         </CanvasItem>
     }
 }
@@ -544,20 +566,20 @@ fn EntityShape(state: CanvasState, id: Uuid) -> CanvasItem {
     });
     view! {
         <CanvasItem
-            x={create_memo(move || bounds.get().left())}
-            y={create_memo(move || bounds.get().top())}
-            width={create_memo(move || bounds.get().width().max(1.0))}
-            height={create_memo(move || bounds.get().height().max(1.0))}
+            x={move || bounds.get().left()}
+            y={move || bounds.get().top()}
+            width={move || bounds.get().width().max(1.0)}
+            height={move || bounds.get().height().max(1.0)}
             scales=true
             pointer={editing}
             @test_id={format!("infinite-canvas.entity.{id}")}
         >
             <Layers>
                 <Drawing draw={draw} />
-                <Show condition={guided}>
+                <Show value={guided}>
                     <RasterGuideDrawing state entity raster corner />
                 </Show>
-                <Show condition={live}>
+                <Show value={live}>
                     <EntityText state id entity outer={bounds} editing />
                 </Show>
             </Layers>
@@ -614,25 +636,23 @@ fn EntityEmbed(state: CanvasState, id: Uuid) -> CanvasItem {
     });
     view! {
         <CanvasItem
-            x={create_memo(move || shown.get().left())}
-            y={create_memo(move || shown.get().top())}
-            width={create_memo(move || shown.get().width().max(least.get()))}
-            height={create_memo(move || shown.get().height().max(least.get()))}
+            x={move || shown.get().left()}
+            y={move || shown.get().top()}
+            width={move || shown.get().width().max(least.get())}
+            height={move || shown.get().height().max(least.get())}
         >
-            <Layers>
-                <Show condition={linked}>
-                    <ChildBlock
-                        editor={editor}
-                        block={target}
-                        mode={mode}
-                        punch={punch}
-                        rotation={rotation}
-                        opacity={opacity}
-                        intrinsic={intrinsic}
-                        on_state={move |child: ChildState| state.report_child(id, child)}
-                    />
-                </Show>
-            </Layers>
+            <Show value={linked}>
+                <ChildBlock
+                    editor={editor}
+                    block={target}
+                    mode={mode}
+                    punch={punch}
+                    rotation={rotation}
+                    opacity={opacity}
+                    intrinsic={intrinsic}
+                    on_state={move |child: ChildState| state.report_child(id, child)}
+                />
+            </Show>
         </CanvasItem>
     }
 }

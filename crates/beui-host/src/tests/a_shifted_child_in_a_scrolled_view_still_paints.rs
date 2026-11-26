@@ -13,7 +13,7 @@ fn a_shifted_child_in_a_scrolled_view_still_paints() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <unstyled::Scroll @node_ref=&scroll>
+                    <unstyled::Scroll @node_ref=&scroll style={plain_scroll()}>
                         <Frame height=500.0 />
                         <Frame translate={vec2(10.0, 0.0)}>
                             <Frame height=50.0 fill=MARK />

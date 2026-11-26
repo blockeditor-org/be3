@@ -59,23 +59,20 @@ pub(crate) fn EndingBar(workspace: Workspace, area: Memo<Rect>) -> NodeId {
     let editor = workspace.editor();
     let power = editor.watch::<PowerWatch>();
     let ending = create_memo(move || power.with(|power| power.ending));
-    let open = create_memo(move || ending.get().is_some());
     let names = create_memo(move || workspace.running_names());
     let heading = create_memo(move || ending.get().map(title).unwrap_or_default().to_owned());
     let detail = create_memo(move || names.with(|names| said(names)));
-    let now = create_memo(move || ending.get().map(now_label).unwrap_or_default().to_owned());
     let answer = move |answer: EndingAnswer| {
         editor.act(move || desktop::power::answer_ending(answer).detach());
     };
-    let anchor = create_memo(move || OverlayAnchor::Rect(area.get()));
     view! {
         <Overlay
-            anchor
+            anchor={move || OverlayAnchor::Rect(area.get())}
             placement=Placement::InsideTop
             policy=LayerPolicy::Pass
             level=LayerLevel::Top
             traps_focus=false
-            open
+            open={move || ending.get().is_some()}
             content={move || view! {
                 <Frame padding={Padding::all(MARGIN)}>
                     <Frame
@@ -104,7 +101,7 @@ pub(crate) fn EndingBar(workspace: Workspace, area: Memo<Rect>) -> NodeId {
                                     on_click={move || answer(EndingAnswer::Cancel)}
                                 />
                                 <Button
-                                    label={now}
+                                    label={move || ending.get().map(now_label).unwrap_or_default().to_owned()}
                                     variant=ButtonVariant::Danger
                                     @test_id={"desktop.ending.now"}
                                     on_click={move || answer(EndingAnswer::EndNow)}

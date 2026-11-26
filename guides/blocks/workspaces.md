@@ -28,7 +28,12 @@ edit.
 The files pane (`crates/be-app-file-tree`) shows a section per visible
 workspace (My files first, never another account's), Unfiled below My files,
 Shared with me (`BlockQuery::Shared`), Recently Deleted, and System (the
-account's own `SYSTEM_TYPES` roots, for debugging). Pressing a folder,
+account's own `SYSTEM_TYPES` roots, for debugging). To a guest (`role-watch`) it shows Shared
+with me alone, holding everything the guest reaches there, and no New button: a guest makes
+nothing in the organization but its own settings (decisions/a_guest_makes_only_its_own_shell.md).
+A row whose block has
+something unread (`BlockInfo::unread`, a chat's new messages) carries its count
+as a badge at its end, as a messaging app's conversation list does. Pressing a folder,
 workspace or section zooms into it rather than opening it. The folder editor
 is `crates/be-app-workspace-index`.
 
@@ -152,7 +157,7 @@ shell when it changes; its sessions screen picks profile and session.
 A shell keeps its dock layout and recents in the session's view state. Every
 tab, and the file tree, is a view block child of the session that the layout
 references. Closing a tab keeps its view among the session's closed views
-(`closed-views` view state, the 20 most recent, `saved::CLOSED_VIEWS`), and
+(`ClosedViews` view state, the 20 most recent, `saved::MAX_CLOSED_VIEWS`), and
 opening that block again in the editor the view names (`VIEW_EDITOR`) takes it
 back, so what the editor kept there (the text app's scroll position and caret)
 survives going back on a phone or a restart; a view pushed off the end is
@@ -167,20 +172,45 @@ block is a view and which editor opens it (the host skips `DELETED_FROM` for
 one, and a block's places leave views out).
 
 The content is `be_block_content::EditorView { content, state }` (`VIEW_TYPE`, served
-by workspace-ui's type module): the block shown, and a `LatestMap` of opaque
-`ViewState { bytes, refs }` the editor owns. `references()` is `content` plus
-every entry's refs, and a deleted or replaced child is blanked or repointed in
-place, so bytes may index into `refs`. An editor learns its view block from
-`Open { view_block }` (`ChildTarget::viewed_by(view)`) and uses
-`editor.view_state(key)`/`set_view_state`, which skip editability since view
-state is the viewer's own. An editor on no content (the file tree,
+by workspace-ui's type module): the block shown, and a `LatestMap<Uuid, ViewState>`
+the editor owns. Each kind of view state is a type implementing `ViewStateKind`
+(`Serialize + DeserializeOwned + PartialEq`, `const ID: Uuid`, beside
+`PresenceKind`), kept as its own entry under its id, so two devices writing
+different kinds (the shell's layout and its recents) merge without overwriting
+each other; don't fold an editor's kinds into one struct. A value names blocks
+through `ViewRef`s, stored as indices into the entry's `refs` (collected while
+it is serialized), and `references()` is `content` plus every entry's refs: a
+deleted child is blanked (`ViewRef::block()` reads `None`) and a replaced one
+repointed in place, without the type knowing the value's type.
+
+An editor learns its view block from `Open { view_block }`
+(`ChildTarget::viewed_by(view)`). `editor.view_state::<K>()` is a `Copy` handle:
+`get()` is tracked and returns `Ready<Option<K>>` (`Loading` until the view
+block is read, `Ok(None)` when nothing is kept or there is no view block,
+`Failed` when what is kept does not decode). Most kinds, and `keep`, start
+afresh on `Failed` and write over it; only the shell's layout and the
+desktop's further-display bars keep an unreadable value until it is reset.
+`set(Option<K>)` writes at once unless the value is the one
+kept, skipping editability since view state is the viewer's own. `keep(restore,
+current)` is the usual pairing: put back once, then write whatever is shown.
+A handle made inside a `Loaded` makes it wait for the view block, while the
+block is one the viewer can see (`Workspace::hold_for_saved_layout` makes one for the
+shells, whose `Workspace` is made outside the boundary). View state is written on every change (each scroll, each caret move) and
+never debounced, delayed or written only as the editor hides (the one
+exception is a cache of data from an outside service, whose unchanged
+readings are not written again until they age;
+decisions/live_data_from_an_outside_service_is_not_block_content.md): a burst of writes
+to one kind is folded into one put where it is stored
+(`Document::absorb_operation` drops an unsent stamped put a later one to the
+same key replaces), and any further cost of a stream of writes is fixed there,
+not in callers. An editor on no content (the file tree,
 workspace-ui) is opened on its own view block, names no `edits` in its
 manifest, and so is never offered by Open with. `be_block::profile` holds the
 shells' and file tree's ids.
 
 Both shells are built from `crates/be-sdk-shell` (`Workspace`: tabs, views,
 saved layout, block menus, dialogs, host panels). The layout is the session's
-`layout` view state (`saved::SavedLayout`, postcard). One that does not decode
+`SavedLayout` view state, its tabs' views `ViewRef`s. One that does not decode
 is kept, not replaced: `Workspace` builds and saves nothing from it
 (`unreadable_layout()`), and `WorkspaceDialogs` shows `workspace.layout` with
 Copy report, Exit (`Workspace::exit`, `close-editor` on the shell's own block)

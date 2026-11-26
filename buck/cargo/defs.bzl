@@ -1,7 +1,7 @@
 load("@root//buck/dev:test.bzl", "be_test")
 load("@root//buck/dev:verify.bzl", "package_fix")
 load("@root//buck/platforms:cross.bzl", "PLAN_SETTINGS")
-load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "RUSTC_THREADS", "RUST_LOCAL", "dev_only", "opt_flags")
+load("@root//buck/platforms:profile.bzl", "RUSTC_THREADS", "RUST_LOCAL", "SYMBOL_FLAGS", "dev_only", "opt_flags")
 load(":inputs.bzl", "cargo_inputs")
 load(":layers.bzl", "check_layers")
 load(":members.bzl", "members")
@@ -60,6 +60,18 @@ def _per_platform(crate, pick, extra = []):
     if len(distinct) == 1:
         return distinct[0]
     return select({"DEFAULT": []} | {setting: values.get(plan, []) for plan, setting in PLAN_SETTINGS.items()})
+
+# The dependencies a crate renames in its Cargo.toml (`beui = { package = "beui-documents" }`), name
+# to label, per platform as _per_platform gives its deps.
+def _per_platform_named(crate, pick):
+    values = {platform: pick(entry) for platform, entry in crate["platforms"].items()}
+    distinct = []
+    for value in values.values():
+        if value not in distinct:
+            distinct.append(value)
+    if len(distinct) <= 1:
+        return distinct[0] if distinct else {}
+    return select({"DEFAULT": {}} | {setting: values.get(plan, {}) for plan, setting in PLAN_SETTINGS.items()})
 
 # What makes a crate's targets incompatible with every platform cargo did not
 # plan it for (PLANS in crates/be-tool-buck/src/plan.rs says which), so that one
@@ -151,9 +163,7 @@ def _core_flags():
 def _rustc_flags(crate, kwargs):
     if "srcs" in kwargs:
         fail("Rust sources are inferred; srcs is not supported")
-    return (
-        [RUSTC_THREADS] + RELEASE_SYMBOL_FLAGS + opt_flags("member") + dev_only(crate.get("profile_flags", [])) + _core_flags() + kwargs.pop("rustc_flags", [])
-    )
+    return [RUSTC_THREADS] + SYMBOL_FLAGS + opt_flags("member") + dev_only(crate.get("profile_flags", [])) + _core_flags() + kwargs.pop("rustc_flags", [])
 
 # A proc macro's own visibility, which the root PACKAGE's default cannot give:
 # the prelude's rust_library makes it an alias of the library, and gives the
@@ -179,6 +189,7 @@ def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs 
         env = _env(crate, library["crate"], env),
         features = _per_platform(crate, lambda entry: entry["features"], extra_features),
         mapped_srcs = cargo_manifest_sources(resources, foreign_resources),
+        named_deps = _per_platform_named(crate, lambda entry: entry.get("named_deps", {})),
         proc_macro = library["proc_macro"],
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = cargo_library_sources() + extra_srcs,
@@ -221,6 +232,7 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
         env = compile_env,
         features = _per_platform(crate, lambda entry: entry["test_features"]),
         mapped_srcs = cargo_manifest_sources(resources, foreign_resources),
+        named_deps = _per_platform_named(crate, lambda entry: entry.get("named_deps", {}) | entry.get("test_named_deps", {})),
         rustc_flags = rustc_flags + ["--test"],
         srcs = cargo_test_sources(),
         **(kwargs | RUST_LOCAL),
@@ -286,7 +298,7 @@ def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
     )
 
 # One of the crate's examples, as a binary, named example-<example>:
-# `./scripts/buck run //crates/beui-host:example-survey`. It is built the way cargo
+# `./scripts/buck run //crates/beui-host-window:example-survey`. It is built the way cargo
 # builds it, with the library and the dev-dependencies.
 def cargo_example(example, extra_deps = [], env = {}, **kwargs):
     crate = _crate()
@@ -309,6 +321,31 @@ def cargo_example(example, extra_deps = [], env = {}, **kwargs):
         mapped_srcs = cargo_manifest_sources(),
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = _target_sources(crate, examples[example]["crate_root"]),
+        **(kwargs | RUST_LOCAL),
+    )
+
+# A program's entry, the root of one of the crate's [[bin]]s, as a library for one
+# plan: a browser runs no binary, but calls what the module exports, which
+# beui_host_window::main! makes there (web_program in buck/wasm/defs.bzl). It is
+# built as the binary would be, with the crate's library and its dependencies on
+# that plan, and compatible with that plan alone.
+def cargo_entry_library(name, plan, root = "src/main.rs", extra_deps = [], **kwargs):
+    crate = _crate()
+    binaries = [binary["name"] for binary in crate["binaries"] if binary["crate_root"] == root]
+    if len(binaries) != 1:
+        fail("{} has no [[bin]] whose root is {}".format(crate["name"], root))
+    _compatible(crate, kwargs, [plan])
+    crate_name = binaries[0].replace("-", "_")
+    native.rust_library(
+        name = name,
+        crate = crate_name,
+        crate_root = root,
+        deps = _per_platform(crate, lambda entry: entry["deps"], [":" + crate["name"]] + extra_deps),
+        edition = crate["edition"],
+        env = _env(crate, crate_name, {}),
+        mapped_srcs = cargo_manifest_sources(),
+        rustc_flags = _rustc_flags(crate, kwargs),
+        srcs = _target_sources(crate, root),
         **(kwargs | RUST_LOCAL),
     )
 
@@ -381,7 +418,7 @@ _FUZZ_FLAGS = (
 # which is built again with extra_features and the coverage instrumentation, and
 # linked with libFuzzer (//buck/tools:libfuzzer) for its main. fuzz/NAME.rs is
 # :fuzz-NAME, which `./scripts/buck run` fuzzes until it is stopped, keeping
-# what it finds in target/fuzz/<crate>/NAME (local-tools fuzz); //:fuzz runs
+# what it finds in target/fuzz/<crate>/NAME (be-tool-local fuzz); //:fuzz runs
 # every one, taking turns. :fuzz-NAME-test runs it briefly from a fixed seed, so a
 # target that stops building or running fails verify.
 def cargo_fuzz(extra_features = []):
@@ -404,7 +441,7 @@ def cargo_fuzz(extra_features = []):
             crate_root = root,
             deps = [":" + library, "root//buck/tools:libfuzzer"],
             edition = crate["edition"],
-            rustc_flags = _FUZZ_FLAGS,
+            rustc_flags = _FUZZ_FLAGS + SYMBOL_FLAGS,
             srcs = [root],
             target_compatible_with = compatible,
             **RUST_LOCAL,
@@ -426,7 +463,7 @@ def cargo_fuzz(extra_features = []):
 FuzzTargetInfo = provider(fields = {"binary": Artifact, "id": str})
 
 # A fuzz target's binary under the id its corpus is kept by, run here by
-# local-tools fuzz, which reads them from a list of "id<TAB>binary" lines:
+# be-tool-local fuzz, which reads them from a list of "id<TAB>binary" lines:
 # here the one, and for //:fuzz every one.
 def _fuzz_target_impl(ctx: AnalysisContext) -> list[Provider]:
     binary = ctx.attrs.binary[DefaultInfo].default_outputs[0]

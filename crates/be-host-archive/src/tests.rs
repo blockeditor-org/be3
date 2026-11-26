@@ -1,4 +1,5 @@
 use super::*;
 
+mod a_file_beside_an_archive_is_copied_in_and_kept_current;
 mod a_packed_directory_unpacks_as_it_was;
 mod an_archive_naming_a_file_outside_its_directory_is_refused;

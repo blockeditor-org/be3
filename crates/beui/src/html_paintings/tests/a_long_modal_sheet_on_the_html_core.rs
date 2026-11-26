@@ -1,6 +1,6 @@
 use super::*;
+use crate::reactive::view;
 use crate::{primitives, unstyled};
-use beui_macros::view;
 
 #[test]
 fn a_long_modal_sheet_on_the_html_core() {
@@ -10,10 +10,8 @@ fn a_long_modal_sheet_on_the_html_core() {
                 <unstyled::Modal
                     open=true
                     scrim={crate::Color32::from_rgba_unmultiplied(0, 0, 0, 96)}
-                    placement=unstyled::ModalPlacement::Fill
-                    motion=unstyled::ModalMotion::Still
                     on_dismiss={|| {}}
-                >|_|
+                >
                     <List spacing=Space::None>
                         <primitives::Spacer />
                         <ListItem shrink=1.0>
@@ -21,7 +19,7 @@ fn a_long_modal_sheet_on_the_html_core() {
                                 <Scroll>
                                     <List spacing=Space::None>
                                         <ForEach
-                                            keys={(1..=30).collect::<Vec<usize>>()}
+                                            value={(1..=30).collect::<Vec<usize>>()}
                                         >|row: usize|
                                             <ActionRow
                                                 label={format!("Row {row}")}

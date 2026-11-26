@@ -1,14 +1,14 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use super::{DesktopHost, DesktopSettings};
 use crate::known_window::KnownWindow;
 use crate::programs::{Opener, ProgramSource};
 use crate::window_body::WindowStatus;
-use be_host_wayland::programs::{
-    DesktopEntry, Environment, IconThemes, MimeGlobs, NamedIcons, load_icon,
+use be_host_programs::{
+    DesktopEntry, Entries, Environment, IconThemes, MimeGlobs, NamedIcons, load_icon,
 };
 use be_host_wayland::{Compositor, Launch, Server, WindowId, WindowView, Windows};
 use be_sdk_api::{
@@ -43,8 +43,15 @@ thread_local! {
     static WINDOWS: Cell<Option<Windows>> = const { Cell::new(None) };
     static RUNNING: RefCell<Option<Running>> = const { RefCell::new(None) };
     static LAUNCHES: RefCell<Vec<Launched>> = const { RefCell::new(Vec::new()) };
-    static KNOWN: RefCell<HashMap<String, Known>> = RefCell::new(HashMap::new());
+    /// Every desktop entry installed, as the programs' list read them last
+    /// (`LinuxPrograms::adopted`): what a window not launched from one is named and drawn by.
+    static ENTRIES: Cell<Option<Signal<Arc<Entries>>>> = const { Cell::new(None) };
     static ICONS: RefCell<NamedIcons> = RefCell::new(NamedIcons::default());
+    /// The windows a host that composites them itself showed last (`place_windows`).
+    static PLACED: RefCell<Vec<HostWindowId>> = const { RefCell::new(Vec::new()) };
+    /// What each of those windows was delivered so far (`deliver`): where its pointer is, its
+    /// modifiers and whether it has the keyboard.
+    static CATCHES: RefCell<HashMap<HostWindowId, beui::Catch>> = RefCell::new(HashMap::new());
 }
 
 fn tag(
@@ -79,6 +86,23 @@ fn launched(tag: Option<u64>) -> Launched {
 
 pub struct Linux;
 
+/// A window's picture as the compositor drew it (`Windows::picture`).
+struct Drawn(std::rc::Rc<be_host_wayland::WindowPicture>);
+
+impl super::PictureSource for Drawn {
+    fn painted(&self) {
+        self.0.painted();
+    }
+
+    fn pixels(&self, texture: &wgpu::Texture) -> Option<beui::native::painting::Pixels> {
+        self.0.pixels(texture)
+    }
+
+    fn key(&self) -> usize {
+        std::rc::Rc::as_ptr(&self.0).addr()
+    }
+}
+
 #[component]
 impl DesktopHost for Linux {
     type Source = LinuxPrograms;
@@ -86,6 +110,7 @@ impl DesktopHost for Linux {
     fn create() {
         let windows = Windows::new();
         WINDOWS.set(Some(windows));
+        ENTRIES.set(Some(create_signal(Arc::default())));
     }
 
     fn start(setup: &Setup) {
@@ -243,6 +268,10 @@ impl DesktopHost for Linux {
         with(|running| std::mem::take(&mut running.lock_noticed)).unwrap_or(false)
     }
 
+    fn idle() -> bool {
+        with(|running| running.blanked).unwrap_or(false)
+    }
+
     fn set_locked(locked: bool) {
         with(|running| running.compositor.set_locked(locked));
     }
@@ -263,17 +292,16 @@ impl DesktopHost for Linux {
         let running = RUNNING.with(|running| running.borrow_mut().take());
         drop(running);
         WINDOWS.set(None);
-    }
-
-    fn revision() -> u64 {
-        windows().map_or(0, |windows| windows.revision())
+        ENTRIES.set(None);
     }
 
     fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
         let Some(windows) = windows() else {
             return Vec::new();
         };
-        let listed = windows.list().get_untracked();
+        // What a window was asked (raised, rung, minimized) counts in `changes`, beside the list.
+        windows.changes().track();
+        let listed = windows.list().get();
         let opening: Vec<WindowId> = hidden.iter().map(|window| WindowId(window.0)).collect();
         listed
             .into_iter()
@@ -282,9 +310,67 @@ impl DesktopHost for Linux {
             .collect()
     }
 
+    fn picture(window: HostWindowId) -> Option<super::WindowPicture> {
+        let picture = windows()?.picture(WindowId(window.0))?;
+        let surfaces = picture
+            .surfaces()
+            .map(|surface| super::PictureSurface {
+                texture: surface.texture.clone(),
+                opaque: surface.opaque,
+                rect: surface.rect,
+                uv: surface.uv,
+                alpha: surface.alpha,
+            })
+            .collect();
+        Some(super::WindowPicture {
+            surfaces,
+            source: std::rc::Rc::new(Drawn(picture)),
+        })
+    }
+
+    fn place_windows(placed: &[(HostWindowId, Rect)]) {
+        let Some(windows) = windows() else {
+            return;
+        };
+        let before = PLACED.replace(placed.iter().map(|(window, _)| *window).collect());
+        CATCHES.with_borrow_mut(|catches| {
+            catches.retain(|window, _| placed.iter().any(|(placed, _)| placed == window));
+        });
+        for gone in before
+            .into_iter()
+            .filter(|window| !placed.iter().any(|(placed, _)| placed == window))
+        {
+            windows.place(WindowId(gone.0), None);
+        }
+        for (window, rect) in placed {
+            windows.place(WindowId(window.0), Some(*rect));
+        }
+    }
+
+    fn deliver(window: HostWindowId, input: Vec<(beui::Input, std::time::Instant)>) {
+        let Some(windows) = windows() else {
+            return;
+        };
+        let id = WindowId(window.0);
+        let size = windows
+            .rect(id)
+            .map_or(beui::Vec2::ZERO, |rect| rect.size());
+        let caught = CATCHES.with_borrow_mut(|catches| {
+            catches
+                .entry(window)
+                .or_default()
+                .caught(input, beui::WindowId::MAIN, size)
+        });
+        windows.deliver(id, caught);
+    }
+
+    fn busy() -> Option<String> {
+        RUNNING.with_borrow(|running| running.as_ref()?.compositor.busy())
+    }
+
     fn window_status(window: HostWindowId) -> Option<WindowStatus> {
         let windows = windows()?;
-        windows.changes().get();
+        windows.changes().track();
         let id = WindowId(window.0);
         windows.list().with(|list| {
             let info = list.iter().find(|info| info.id == id)?;
@@ -356,7 +442,7 @@ impl DesktopHost for Linux {
     }
 
     #[component]
-    fn WindowSurface(window: HostWindowId, focus: Memo<u64>) -> NodeId {
+    fn WindowSurface(window: HostWindowId, focus: Trigger) -> NodeId {
         let occluders = crate::occlusion::occlusion();
         let occluders = create_memo(move || {
             occluders
@@ -378,7 +464,7 @@ impl DesktopHost for Linux {
         });
         match windows() {
             Some(windows) => view! {
-                <WindowView windows id={WindowId(window.0)} occluders carrier focus />
+                <WindowView windows id={WindowId(window.0)} occluders carrier focus={Some(focus)} />
             },
             None => view! {
                 <Frame />
@@ -418,6 +504,7 @@ fn known_window(
         size: info.size,
         min_size: info.min_size,
         maximized: info.maximized,
+        opens_hidden: false,
         fullscreen: info.fullscreen,
         responding: info.responding,
         icon: icon.map(|icon| Picture {
@@ -476,20 +563,20 @@ struct Known {
     icon: Option<String>,
 }
 
+/// What the installed entry a window's app id or class names says of it, tracked, so what
+/// lists the window lists it again when the entries are read anew.
 fn known(program_id: &str) -> Known {
-    KNOWN.with_borrow_mut(|known| {
-        known
-            .entry(program_id.to_owned())
-            .or_insert_with(|| {
-                Environment::from_env()
-                    .entry_of_window(program_id)
-                    .map(|entry| Known {
-                        name: entry.name,
-                        icon: entry.icon,
-                    })
-                    .unwrap_or_default()
+    let Some(entries) = ENTRIES.get() else {
+        return Known::default();
+    };
+    entries.with(|entries| {
+        entries
+            .of_window(program_id)
+            .map(|entry| Known {
+                name: entry.name.clone(),
+                icon: entry.icon.clone(),
             })
-            .clone()
+            .unwrap_or_default()
     })
 }
 
@@ -502,6 +589,9 @@ fn relaunch_command(program: &Option<String>, command: Vec<String>) -> Vec<Strin
 
 pub struct LinuxPrograms {
     environment: Environment,
+    /// Every entry installed, which names windows (`known`).
+    every: Arc<Entries>,
+    /// Those a person may run, which the programs' list offers.
     entries: Vec<DesktopEntry>,
     globs: MimeGlobs,
     themes: OnceLock<IconThemes>,
@@ -509,8 +599,10 @@ pub struct LinuxPrograms {
 
 impl LinuxPrograms {
     fn of(environment: Environment) -> Self {
+        let every = environment.entries();
         Self {
-            entries: environment.programs(),
+            entries: environment.programs_among(&every),
+            every: Arc::new(every),
             globs: environment.mime_globs(),
             environment,
             themes: OnceLock::new(),
@@ -554,6 +646,12 @@ impl ProgramSource for LinuxPrograms {
             height: icon.height(),
             rgba: icon.pixels().to_vec(),
         })
+    }
+
+    fn adopted(&self) {
+        if let Some(entries) = ENTRIES.get() {
+            entries.set(Arc::clone(&self.every));
+        }
     }
 
     fn openers(&self) -> Vec<Opener> {

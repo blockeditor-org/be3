@@ -22,6 +22,7 @@ fn an_ime_composition_pushes_the_text_after_the_caret_along() {
                 padding=AREA_PADDING
                 state={state}
                 single_line=true
+                scroll={plain_scroll()}
             />
         }
     });

@@ -1,0 +1,6 @@
+load("@root//buck/cargo:defs.bzl", "cargo_crate")
+
+# The program window be-host's host tests run inside the desktop's Wayland
+# compositor (`drive exec`), so a test shows a program's window without one
+# installed on the machine.
+cargo_crate()

@@ -9,7 +9,7 @@ fn a_long_window_title_ends_inside_the_window_switcher() {
             .to_owned(),
         ..host_window(1, false)
     };
-    fixture.show_windows(&vec![long, host_window(2, true)]);
+    fixture.show_windows(&[long, host_window(2, true)]);
     fixture.settle();
 
     assert!(fixture.test.host_key(Modifiers::ALT, Key::Tab));

@@ -1,4 +1,4 @@
-load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_package", "cargo_test")
+load("@root//buck/cargo:defs.bzl", "cargo_example", "cargo_library", "cargo_package", "cargo_test")
 
 cargo_package()
 
@@ -13,3 +13,8 @@ cargo_test(
         "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
     },
 )
+
+# Times the renderer drawing fixed scenes offscreen on this machine's GPU, and
+# reports nothing on a software one (the suite's `renderer`):
+# `./scripts/buck run -m release //crates/beui-renderer-wgpu:example-render-bench`.
+cargo_example("render-bench")

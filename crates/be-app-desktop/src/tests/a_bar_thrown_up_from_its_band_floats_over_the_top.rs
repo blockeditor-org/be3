@@ -18,6 +18,7 @@ fn a_bar_thrown_up_from_its_band_floats_over_the_top() {
     fixture.test.desk_move(from + vec2(0.0, -20.0));
     fixture.test.desk_move(start);
     fixture.test.advance(std::time::Duration::from_millis(200));
+    fixture.test.run();
     let at = start + vec2(-40.0, -160.0);
     fixture
         .test

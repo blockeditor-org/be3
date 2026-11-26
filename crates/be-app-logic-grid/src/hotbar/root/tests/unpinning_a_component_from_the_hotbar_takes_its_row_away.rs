@@ -12,7 +12,6 @@ fn unpinning_a_component_from_the_hotbar_takes_its_row_away() {
 
     assert!(editor.shown("hotbar.slot.0.unpin"));
     editor.click("hotbar.slot.0.unpin");
-    editor.run();
 
     let slots = editor.content::<HotbarContent>(None).root().slots;
     assert_eq!(slots.len(), 1);

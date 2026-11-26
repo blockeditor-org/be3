@@ -14,8 +14,13 @@ enum Sent {
 
 fn sent(instances: &mut Instances, block: Uuid, watch: OpId) -> Vec<Sent> {
     next_screens(instances);
-    be_host_stack::wait_until(|shared| {
-        (shared.blocks.contains_key(&block) && shared.busy(true).is_empty()).then_some(())
+    // In step with the server too: the block's creation reaching it changes what its watch
+    // answers, which would otherwise come after.
+    be_host_stack::wait_until("held the block, in step with the server", |shared| {
+        (shared.blocks.contains_key(&block)
+            && shared.busy(true).is_empty()
+            && shared.unsynced().is_empty())
+        .then_some(())
     });
     next_screens(instances);
     let mut sent: Vec<Sent> = from_replica(instances, block)
@@ -54,12 +59,10 @@ fn a_restarted_app_is_sent_its_content_and_blocks_again() {
         sent(&mut instances, block, listing),
         [Sent::Content, Sent::Blocks]
     );
-    assert!(
-        sent(&mut instances, block, listing).is_empty(),
-        "nothing changed since"
-    );
+    let again = sent(&mut instances, block, listing);
+    assert!(again.is_empty(), "nothing changed since: {again:?}");
 
-    instances.reopen();
+    restart(&mut instances);
     let listing = watching(&mut instances);
     to_replica(&mut instances, block, &FromEditor::Resend);
 

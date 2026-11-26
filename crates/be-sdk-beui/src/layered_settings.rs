@@ -38,7 +38,7 @@ pub struct LayeredSettings<R: 'static> {
     ready: Memo<bool>,
     blocks: Stored<SettingsLayers<R>>,
     changes: Stored<ChangeLog<R>>,
-    changed: Signal<u64>,
+    changed: Trigger,
 }
 
 impl<R: 'static> Clone for LayeredSettings<R> {
@@ -117,12 +117,8 @@ where
                 && loaded(layers.this_device)
                 && (!page || loaded(Some(block)))
         });
-        wait_for(move || match ready.get() {
-            true => Ok(()),
-            false => Err(Pending::Loading),
-        });
         let log = SettingsChangeLog::default();
-        let changed = create_signal(0_u64);
+        let changed = create_trigger();
         Self {
             editor,
             target,
@@ -135,7 +131,7 @@ where
             ready,
             blocks,
             changes: store(ChangeLog {
-                _changed: log.on_change(move || changed.update(|count| *count += 1)),
+                _changed: log.on_change(move || changed.notify()),
                 log,
             }),
             changed,
@@ -315,7 +311,7 @@ where
     pub fn changes(&self) -> SettingsChanges {
         let (this, changes, changed) = (*self, self.changes, self.changed);
         let toasts = create_memo(move || {
-            changed.get();
+            changed.track();
             let (message, round) =
                 changes.with(|changes| (changes.log.message(), changes.log.round()));
             match message {
@@ -505,16 +501,14 @@ pub fn LayeredSettingsRow(
     let unresettable = create_memo(move || !modified.get() || locked.get());
     let menu: Children<MenuItem> = match device {
         true => {
-            let checked = create_memo(move || Some(kept.get()));
-            let unkeepable = create_memo(move || locked.get() || (!kept.get() && !keepable.get()));
             let keeping = (!only_here).then(|| {
                 view! {
                     <MenuItem
                         label="Keep on this device"
                         glyph=ICON_PIN
-                        checked={checked}
-                        disabled={unkeepable}
-                        row_test_id={format!("{id}.keep")}
+                        checked={move || kept.get()}
+                        disabled={move || locked.get() || (!kept.get() && !keepable.get())}
+                        @test_id={format!("{id}.keep")}
                         on_click={move || keep.call(!kept.get_untracked())}
                     />
                 }
@@ -524,7 +518,7 @@ pub fn LayeredSettingsRow(
                     label="Reset to default"
                     glyph=ICON_ROTATE_CCW
                     disabled={unresettable}
-                    row_test_id={format!("{id}.reset")}
+                    @test_id={format!("{id}.reset")}
                     on_click={move || reset.call(())}
                 />
             };
@@ -535,14 +529,14 @@ pub fn LayeredSettingsRow(
                 label="Stop keeping in this profile"
                 glyph=ICON_PIN_OFF
                 disabled={unresettable}
-                row_test_id={format!("{id}.reset")}
+                @test_id={format!("{id}.reset")}
                 on_click={move || reset.call(())}
             />
         }]
         .into_iter()
         .collect(),
     };
-    let note = create_memo(move || {
+    let note = move || {
         if overridden.get() {
             return DEVELOPER_OVERRIDE.to_owned();
         }
@@ -555,7 +549,7 @@ pub fn LayeredSettingsRow(
             (false, _, _, true) => IN_PROFILE.to_owned(),
             _ => String::new(),
         }
-    });
+    };
     view! {
         <SettingsRow
             label

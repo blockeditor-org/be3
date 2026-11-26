@@ -1,4 +1,5 @@
 use beui_view::reactive::into_prop_via;
+use beui_view::reactive::{Easing, Spring};
 use beui_view::types::Corners;
 use beui_view::types::{Extent, Sides};
 
@@ -316,6 +317,71 @@ impl Default for CornerSet {
     }
 }
 
+/// What a motion is for: the look of something moving, which the unstyled
+/// layer takes as an `Easing` (a motion that runs for a set time) or a `Spring`
+/// (one that carries the speed it was let go at, and rests by pixel distances).
+/// A component asks for the form its motion runs on, and a motion that follows
+/// a gesture runs on a spring, so it carries on at the speed it was let go at.
+/// Today `Settle` is used in both forms and `Rubber` and `Pull` only as
+/// springs; their easings are placeholders, to be set when a component first
+/// asks for them. How long an eased motion takes is behaviour and stays with
+/// the component. `Motion::Instant` still lands every movement at once. No
+/// movement rings: `Settle` (a damping ratio of 0.75) swings past where it
+/// rests once and lands there on the way back, and `Rubber` and `Pull`
+/// (critically damped) never pass the edge they spring back to, which their
+/// rubber band stops at.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum Movement {
+    /// Something landing where layout puts it or going on its way: a dropped
+    /// item, dock panes and bars moving, a sidebar opening, a sheet rising, a
+    /// page or toast sliding in, out or back after a drag.
+    Settle,
+    /// Scrolled content pulled past its end springing back.
+    Rubber,
+    /// A window pulled past where it rests springing back.
+    Pull,
+}
+
+impl Movement {
+    pub const ALL: [Movement; 3] = [Movement::Settle, Movement::Rubber, Movement::Pull];
+
+    /// The movement as an easing. `Rubber` and `Pull` are placeholders.
+    pub const fn easing(self) -> Easing {
+        match self {
+            Movement::Settle | Movement::Rubber | Movement::Pull => Easing::OutCubic,
+        }
+    }
+
+    /// The movement as a spring.
+    pub const fn spring(self) -> Spring {
+        match self {
+            Movement::Settle => Spring {
+                stiffness: 500.0,
+                damping: 33.541_02,
+            },
+            Movement::Rubber => Spring {
+                stiffness: 180.0,
+                damping: 26.832_815,
+            },
+            Movement::Pull => Spring {
+                stiffness: 400.0,
+                damping: 40.0,
+            },
+        }
+    }
+
+    pub const fn name(self) -> &'static str {
+        match self {
+            Movement::Settle => "settle",
+            Movement::Rubber => "rubber",
+            Movement::Pull => "pull",
+        }
+    }
+}
+
 into_prop_via!(Padding, Space, Padding::all);
 into_prop_via!(Length, Size, Length::Size);
 into_prop_via!(Length, Extent, Length::Extent);
+
+#[cfg(test)]
+mod tests;

@@ -8,35 +8,23 @@ async fn members_manage_only_the_agents_they_created() {
     let personal = owner.personal().await;
     assert_eq!(other.personal().await, personal);
     let company = owner.organization("Team").await;
-    let store = ServerStore::open(&harness.directory).unwrap();
-    let other_account = store.resolve_token(&other.token).await.unwrap().account;
-    store
-        .add_member(company, other_account, OrganizationRole::Editor)
-        .await
-        .unwrap();
+    let other_account = other.id();
+    owner.open(company).await;
+    let invitation = owner.invite(company).await.expect("the owner invites");
+    let joined = other.accept(invitation, &[]).await;
+    assert!(matches!(joined, Ok(())), "{joined:?}");
     // The owner administers the company, and only is a member of the personal organization.
     for (organization, administers) in [(personal, false), (company, true)] {
         owner.open(organization).await;
         other.open(organization).await;
-        let response = other
-            .call(|peer| {
-                client::members::create_agent(
-                    peer,
-                    organization,
-                    "Helper".into(),
-                    [7; 32],
-                    [7; 32],
-                    Vec::new(),
-                    Vec::new(),
-                    None,
-                )
-            })
-            .await;
+        let response = other.agent(organization, "Helper").await;
         let Ok(be_block_protocol::CreatedAgent { agent, token }) = response else {
             panic!("a member could not create an agent: {response:?}");
         };
         let listed = owner
-            .call(|peer| client::members::list_members(peer))
+            .call(|peer| {
+                peer.read::<Vec<be_block_protocol::Member>>(be_block_protocol::Query::Members)
+            })
             .await
             .expect("listing members failed");
         assert_eq!(
@@ -46,7 +34,9 @@ async fn members_manage_only_the_agents_they_created() {
             "only an administrator lists another's agent: {listed:?}"
         );
         let listed = other
-            .call(|peer| client::members::list_members(peer))
+            .call(|peer| {
+                peer.read::<Vec<be_block_protocol::Member>>(be_block_protocol::Query::Members)
+            })
             .await
             .expect("listing members failed");
         assert!(
@@ -54,20 +44,12 @@ async fn members_manage_only_the_agents_they_created() {
             "a member lists the agents it made, and no one else: {listed:?}"
         );
         if !administers {
-            let denied = owner
-                .call(|peer| client::members::remove_member(peer, agent.account))
-                .await;
+            let denied = owner.remove_member(agent.account).await;
             assert!(refused_as(&denied, ErrorCode::MemberNotFound), "{denied:?}");
         }
-        let removed = other
-            .call(|peer| client::members::remove_member(peer, agent.account))
-            .await;
+        let removed = other.remove_member(agent.account).await;
         assert!(matches!(removed, Ok(())), "{removed:?}");
-        let mut bot = harness.client().await;
-        let refused = bot
-            .call(|peer| client::account::authenticate(peer, Some(token)))
-            .await;
-        assert!(matches!(refused, Err(_)));
+        assert!(harness.sign_in(&token).await.is_err());
     }
     harness.stop().await;
 }

@@ -35,7 +35,7 @@ fn focusing_the_focused_node_again_keeps_a_pointer_focus_unringed() {
 
     harness.frame(vec![Input::Focus(false)]);
     harness.frame(vec![Input::Focus(true)]);
-    assert_eq!(harness.document().focused_node(), Some(first.into()));
+    assert_eq!(harness.document().focused_node(), Some(first));
     assert!(
         !visible.get_untracked(),
         "regaining the window's focus shows no ring"

@@ -16,8 +16,7 @@ fn a_block_placed_in_a_folder_after_it_was_listed_is_listed_there_offline() {
         placed(22, folder, 7),
         placed(23, folder, 5),
     ] {
-        refs.set_listing(Listing::Block(summary.id), &[summary])
-            .unwrap();
+        refs.note(&summary).unwrap();
     }
     assert_eq!(
         offline_ids(&refs, Listing::Children(folder)),

@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::cell::Ref;
 use std::error::Error;
 use std::future::Future;
@@ -31,6 +30,7 @@ pub mod environment;
 mod intake;
 mod layer;
 pub mod renderer;
+mod tasks;
 
 pub use controller::{Controller, Hand, HandPose};
 use intake::{Drain, Intake};
@@ -112,6 +112,17 @@ pub trait PlatformServices {
     /// what it cannot put on the system clipboard (lazy representations, be3
     /// formats), until another program copies.
     fn copy(&mut self, _clip: Clip) {}
+
+    /// Hands `clip` to the platform's share sheet (the web's `navigator.share`,
+    /// Android's send intent). Called at the end of the frame whose input asked
+    /// for it, so still within the press's user gesture. Only called where
+    /// `has_share_sheet` says there is one.
+    fn share(&mut self, _clip: Clip) {}
+
+    /// True where the platform has a share sheet for `share`.
+    fn has_share_sheet(&self) -> bool {
+        false
+    }
 
     /// Answers with the first of `formats` the clipboard holds.
     fn paste(&mut self, formats: &[String], answer: PasteAnswer) {
@@ -200,6 +211,7 @@ pub struct Runner {
     context: Context,
     rendering: Option<Rendering>,
     waker: Option<Waker>,
+    tasks: std::rc::Rc<tasks::Tasks>,
     events: Vec<Event>,
     /// Input that ends something, kept from frames that could not run for want
     /// of a surface, for the next frame that can. Not counted by `has_events`, so
@@ -264,6 +276,7 @@ impl Runner {
             context,
             rendering: None,
             waker: None,
+            tasks: tasks::Tasks::install(),
             events: Vec::new(),
             held: Vec::new(),
             held_events: Vec::new(),
@@ -311,6 +324,7 @@ impl Runner {
         self.rendering = Some(rendering);
         self.waker = Some(setup.waker.clone());
         self.context.set_waker(setup.waker.clone());
+        self.tasks.wake_with(setup.waker.clone());
         self.program.setup(&setup);
         for layer in &mut self.layers {
             layer.setup(&setup);
@@ -424,8 +438,9 @@ impl Runner {
             self.exited = true;
             let program = &mut self.program;
             if let Err(payload) = catch_unwind(AssertUnwindSafe(|| program.exiting())) {
-                self.failure
-                    .get_or_insert_with(|| format!("while exiting: {}", panic_message(&*payload)));
+                self.failure.get_or_insert_with(|| {
+                    format!("while exiting: {}", be_wasm_panic::message(&*payload))
+                });
             }
             self.program = Box::new(Exited);
         }
@@ -467,7 +482,8 @@ impl Runner {
         match catch_unwind(AssertUnwindSafe(|| act(self))) {
             Ok(done) => Some(done),
             Err(payload) => {
-                self.failure.get_or_insert_with(|| panic_message(&*payload));
+                self.failure
+                    .get_or_insert_with(|| be_wasm_panic::message(&*payload));
                 self.exit();
                 None
             }
@@ -479,7 +495,11 @@ impl Runner {
         platform: &mut dyn PlatformServices,
         safe_area: SafeArea,
     ) -> Option<Frame> {
+        if self.layers.iter().any(|layer| layer.holds_frames()) {
+            return None;
+        }
         let started = std::time::Instant::now();
+        self.tasks.poll_woken();
         let rendering = self.rendering.as_mut()?;
         match rendering.recover() {
             Ok(false) => {}
@@ -513,6 +533,8 @@ impl Runner {
         {
             self.context.enable_keyboard();
         }
+        let share_sheet = services(&mut self.layers, platform).has_share_sheet();
+        self.context.set_share_sheet(share_sheet);
         if let Some(fullscreen) = self.reports.take_fullscreen() {
             self.context.fullscreen_changed(fullscreen);
         }
@@ -626,6 +648,12 @@ impl Runner {
                         .or((window == WindowId::MAIN).then_some(physical / scale))
                 },
                 layer_target: &|layer| self.context.layer_target(layer),
+                take: &mut |taken| match taken {
+                    intake::Taken::Input(window, input, time) => {
+                        self.program.input(window, input, time)
+                    }
+                    intake::Taken::Files(drag) => self.program.file_drag(drag),
+                },
             },
             &mut self.events,
         );
@@ -678,6 +706,11 @@ impl Runner {
         let mut below = services(&mut self.layers, platform);
         if let Some(clip) = &output.copied {
             below.copy(clip.clone());
+        }
+        if let Some(clip) = output.shared.take()
+            && below.has_share_sheet()
+        {
+            below.share(clip);
         }
         for read in std::mem::take(&mut output.clipboard_reads) {
             let (sender, pasted) = mpsc::channel();
@@ -896,16 +929,5 @@ impl Visit<'_> {
             };
             act(&mut **layer, &mut frame);
         }
-    }
-}
-
-pub fn panic_message(payload: &(dyn Any + Send)) -> String {
-    match (
-        payload.downcast_ref::<&str>(),
-        payload.downcast_ref::<String>(),
-    ) {
-        (Some(message), _) => (*message).to_owned(),
-        (None, Some(message)) => message.clone(),
-        (None, None) => "a panic without a message".to_owned(),
     }
 }

@@ -1,25 +1,19 @@
-use std::sync::mpsc;
-use std::time::Duration;
-
+use super::web::*;
 use super::*;
 
 #[test]
 fn submitted_work_wakes_the_app_once_the_gpu_has_done_it() {
-    let (woken, wakes) = mpsc::channel();
-    let woken = Mutex::new(woken);
-    let mut gpu = gpu().waking(Arc::new(move || {
-        let _ = woken.lock().unwrap().send(());
-    }));
-    gpu.submit(&[]);
-    let ticket = gpu.on_submitted_work_done();
+    let (mut gpu, wakes) = waking();
+    let device = device(&mut gpu, Vec::new()).unwrap();
+    let queue = gpu.gpu_device_queue(device);
+    gpu.gpu_queue_submit(queue, &[]);
+    gpu.gpu_queue_on_submitted_work_done(queue, be_wasm_ops::local::Promise::new(6));
     wakes
-        .recv_timeout(Duration::from_secs(30))
+        .recv_timeout(std::time::Duration::from_secs(30))
         .expect("the done work woke the app");
-    assert_eq!(gpu.poll(false).work_done, [ticket]);
-    assert_eq!(gpu.take_error(), None);
-    assert_eq!(
-        gpu.poll(false).work_done,
-        Vec::<u64>::new(),
+    let () = web::settled_now(&mut gpu, 6);
+    assert!(
+        gpu.settle(false, &[]).is_empty(),
         "each ticket is answered once"
     );
 }

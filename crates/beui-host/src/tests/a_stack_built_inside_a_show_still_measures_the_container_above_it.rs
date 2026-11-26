@@ -22,7 +22,7 @@ fn a_stack_built_inside_a_show_still_measures_the_container_above_it() {
                     <Button @node_ref=&toggle on_click={move || visible.set(true)}>
                         <Text>"toggle"</Text>
                     </Button>
-                    <Show condition={visible}>
+                    <Show value={visible}>
                         <Stack spacing=Space::None breakpoint=BREAKPOINT>
                             <ListItem grow=0.5>
                                 <Frame @node_ref=&left height=ITEM_HEIGHT>

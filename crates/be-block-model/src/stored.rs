@@ -30,8 +30,9 @@ pub fn encode<T: Serialize + ?Sized>(value: &T) -> Vec<u8> {
     }
 }
 
+/// The one value `bytes` holds: bytes after it make them not that value.
 pub fn decode<T: DeserializeOwned>(bytes: &[u8]) -> Option<T> {
-    ciborium::from_reader(bytes).ok()
+    be_lib_cbor::decode(bytes).ok()
 }
 
 pub(crate) fn is_critical(bytes: &[u8]) -> bool {

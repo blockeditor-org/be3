@@ -6,15 +6,28 @@ use uuid::Uuid;
 use crate::stored::{decode, encode};
 use crate::{Change, Field, FieldRef, Object, ObjectId, Shape, Tree, Value};
 
+/// What orders writes to a `Latest` or a `LatestMap` key: its time, then its origin, and the
+/// highest is kept, live or in a merge. A write is made after the one it replaces (`after`,
+/// `LatestMap::next`), so the later write wins. `Stamp::default()` is the stamp of nothing
+/// held, which every write is made after, not one to write with.
 #[derive(
     Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize,
 )]
 pub struct Stamp {
-    pub time: u64,
-    pub origin: Uuid,
+    pub(crate) time: u64,
+    pub(crate) origin: Uuid,
 }
 
 impl Stamp {
+    pub const fn time(self) -> u64 {
+        self.time
+    }
+
+    pub const fn origin(self) -> Uuid {
+        self.origin
+    }
+
+    /// A stamp after this one.
     pub fn after(self, time: u64, origin: Uuid) -> Self {
         Self {
             time: time.max(self.time.saturating_add(1)),
@@ -168,6 +181,17 @@ impl<K: Ord, V> LatestMap<K, V> {
     /// Every key ever written, with its value, or none for a key removed since.
     pub fn written_entries(&self) -> impl Iterator<Item = (&K, Option<&V>)> {
         self.stamps.keys().map(|key| (key, self.entries.get(key)))
+    }
+
+    /// The keys in `range` ever written, in order, each with its value or none for one
+    /// removed since.
+    pub fn written_range<R: std::ops::RangeBounds<K>>(
+        &self,
+        range: R,
+    ) -> impl Iterator<Item = (&K, Option<&V>)> {
+        self.stamps
+            .range(range)
+            .map(|(key, _)| (key, self.entries.get(key)))
     }
 }
 

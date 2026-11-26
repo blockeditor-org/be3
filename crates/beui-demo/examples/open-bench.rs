@@ -1,4 +1,3 @@
-#[cfg(not(target_arch = "wasm32"))]
 mod counting {
     use std::alloc::{GlobalAlloc, Layout, System};
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -37,7 +36,6 @@ mod counting {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 mod bench {
     use std::any::Any;
     use std::cell::{Cell, RefCell};
@@ -477,10 +475,6 @@ mod bench {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn main() {
     bench::main();
 }
-
-#[cfg(target_arch = "wasm32")]
-fn main() {}

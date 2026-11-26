@@ -3,7 +3,6 @@ use be_sdk_beui::be_block_content::block_url::{BLOCK_URL_MAX_BYTES, parse_block_
 
 use be_sdk_text::live_text::{LiveText, TextField};
 use beui_text_editor_core::{TextIndentation, TextLanguage};
-use uuid::Uuid;
 
 pub use be_sdk_text::live_text::History;
 use be_type_text::TextBlock;
@@ -40,15 +39,6 @@ impl TextField for TextBody {
     fn set_indentation(&self, indentation: TextIndentation) -> Option<Edit> {
         Some(TextBlock::set_indentation(block_indentation(indentation)))
     }
-}
-
-pub fn reference_ranges(bytes: &[u8], reference: Uuid) -> Vec<std::ops::Range<usize>> {
-    let length = reference.to_string().len();
-    parse_block_urls(bytes)
-        .into_iter()
-        .filter(|url| url.block == reference)
-        .map(|url| url.range.end - length..url.range.end)
-        .collect()
 }
 
 pub fn inside_block_url(bytes: &[u8], index: usize) -> bool {

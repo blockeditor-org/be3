@@ -18,11 +18,11 @@ fn atoms_take_their_bytes_and_breaks_count_as_new_lines() {
     assert!(stops[2].breaks());
     assert!(matches!(after(&stops, 2), Some(Stop::Atom { node: 3, .. })));
     assert!(matches!(
-        before(&stops, 5),
+        ending_at(&stops, 5).map(|(stop, _)| stop),
         Some(Stop::Atom { node: 3, .. })
     ));
     assert!(matches!(
-        before(&stops, 2),
+        ending_at(&stops, 2).map(|(stop, _)| stop),
         Some(Stop::Char { ch: 'b', .. })
     ));
 }

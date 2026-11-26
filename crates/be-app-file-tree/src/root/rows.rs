@@ -1,7 +1,7 @@
-use be_sdk_beui::be_block_content::ViewState;
+use be_sdk_beui::be_block_content::ViewStateKind;
 use be_sdk_beui::be_sdk_ui::bytes_label;
 use be_sdk_beui::beui::icons::Glyph;
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -13,9 +13,12 @@ use be_sdk_beui::be_block_content::metadata::ICON_COLOR;
 use be_sdk_beui::be_block_content::{CREATED_BY, SETTINGS};
 use be_sdk_beui::be_sdk_ui::BlockTypes;
 use be_sdk_beui::beui::icons::{
-    ICON_BOXES, ICON_DATABASE, ICON_INBOX, ICON_PIN, ICON_ROTATE_CCW_CLOCK, ICON_USERS, named,
+    ICON_BOXES, ICON_CROWN, ICON_DATABASE, ICON_INBOX, ICON_PIN, ICON_ROTATE_CCW_CLOCK, ICON_USERS,
+    named,
 };
 use be_sdk_beui::beui::reactive::*;
+pub(crate) use be_sdk_beui::block_menu::can_move_out_of;
+use be_sdk_beui::block_tree::{BlockTree, Listed, TreeBlock, TreeEntry, TreeNote};
 pub(crate) use be_sdk_beui::sections::{own_system, shared_with_me, workspaces};
 use be_sdk_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use be_sdk_beui::{Editor, label_glyph};
@@ -26,6 +29,10 @@ use uuid::Uuid;
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Deserialize, Serialize)]
 pub(crate) enum RowKey {
     Block(Vec<Uuid>),
+    /// "Offered to you": the blocks whose owners offered them to this account.
+    Offered,
+    /// A block offered to this account to own, which opens its share dialog to accept it.
+    Offer(Uuid),
     Shared,
     Orphans,
     System,
@@ -77,6 +84,9 @@ pub(crate) struct Row {
     pub(crate) detail: Option<String>,
     /// In Unfiled, a block nothing references.
     pub(crate) unused: bool,
+    /// How many things in the block the account has not read (`BlockInfo::unread`): a chat's
+    /// new messages, shown as a badge on the row.
+    pub(crate) unread: u32,
 }
 
 #[derive(Clone, PartialEq, Default)]
@@ -137,6 +147,7 @@ impl Row {
             tags: Vec::new(),
             detail: None,
             unused: false,
+            unread: 0,
         }
     }
 
@@ -145,9 +156,8 @@ impl Row {
     }
 }
 
-const OPENED: &str = "opened";
-
-#[derive(Default, Deserialize, Serialize)]
+/// Which folders and sections are open, kept in the view so the tree reopens as it was.
+#[derive(Default, Deserialize, PartialEq, Serialize)]
 #[serde(default)]
 struct Opened {
     expanded: Vec<Uuid>,
@@ -156,6 +166,10 @@ struct Opened {
     shared_closed: bool,
     system: bool,
     unfiled: bool,
+}
+
+impl ViewStateKind for Opened {
+    const ID: Uuid = Uuid::from_u128(0x6669_6c65_2d74_7265_652d_6f70_656e_0001);
 }
 
 #[derive(Clone, Copy, Default, PartialEq)]
@@ -225,7 +239,7 @@ pub(crate) struct Tree {
     folded: Signal<Folded>,
     expanded: Signal<HashSet<Uuid>>,
     collapsed: Signal<HashSet<Uuid>>,
-    remembered: Signal<u64>,
+    remembered: Trigger,
     entered: Signal<Option<RowKey>>,
 }
 
@@ -238,37 +252,22 @@ impl Tree {
         let client = editor.blocks();
         let roots = Listing::watch(&client, BlockQuery::Roots);
         let shared = Listing::watch(&client, BlockQuery::Shared);
+        let offers = Listing::watch(&client, BlockQuery::OwnerOffers);
         let watched = Rc::new(RefCell::new(Watched::default()));
         let expanded = create_signal(HashSet::<Uuid>::new());
         let collapsed = create_signal(HashSet::<Uuid>::new());
         let folded = create_signal(Folded::default());
         let rows = create_signal(Vec::<Row>::new());
-        let remembered = create_signal(0_u64);
+        let remembered = create_trigger();
         let entered = create_signal(None::<RowKey>);
-        let tick = create_signal(0_u64);
+        let tick = create_trigger();
         let timer = create_timer(move || {
-            tick.update(|count| *count += 1);
+            tick.notify();
             None
         });
 
-        let restored = Rc::new(Cell::new(false));
-        let adopted = Rc::clone(&restored);
-        let view = editor.view_content();
-        create_binding(move || {
-            if adopted.get() {
-                return;
-            }
-            let Some(view) = view else {
-                return;
-            };
-            let Ok(opened) = view.read(|held| {
-                held.root()
-                    .state(OPENED)
-                    .and_then(ViewState::value::<Opened>)
-            }) else {
-                return;
-            };
-            untrack(|| {
+        editor.view_state::<Opened>().keep(
+            move |opened| {
                 if let Some(opened) = opened {
                     expanded.set(opened.expanded.into_iter().collect());
                     collapsed.set(opened.collapsed.into_iter().collect());
@@ -279,16 +278,38 @@ impl Tree {
                         unfiled_open: opened.unfiled,
                     });
                 }
-            });
-            adopted.set(true);
-        });
+            },
+            move || {
+                let mut expanded: Vec<Uuid> = expanded.get().into_iter().collect();
+                let mut collapsed: Vec<Uuid> = collapsed.get().into_iter().collect();
+                let Folded {
+                    orphans_open,
+                    shared_closed,
+                    system_open,
+                    unfiled_open,
+                } = folded.get();
+                expanded.sort_unstable();
+                collapsed.sort_unstable();
+                Opened {
+                    expanded,
+                    orphans: orphans_open,
+                    collapsed,
+                    shared_closed,
+                    system: system_open,
+                    unfiled: unfiled_open,
+                }
+            },
+        );
 
+        // A guest keeps nothing of its own here but its settings: Shared with me is all its
+        // files pane shows (decisions/a_guest_makes_only_its_own_shell.md).
+        let role = editor.watch::<be_sdk_beui::RoleWatch>();
         let build = Rc::clone(&watched);
         let host = editor.host();
         let building = client.clone();
         create_binding(move || {
-            remembered.get();
-            tick.get();
+            remembered.track();
+            tick.track();
             let mut watched = build.borrow_mut();
             let open = expanded.get();
             let collapsed = collapsed.get();
@@ -339,7 +360,49 @@ impl Tree {
                 .as_ref()
                 .map(|_| own_system(held.clone(), host.account_id()))
                 .map_err(Clone::clone);
-            let loose = clock.listed(&shared).map(shared_with_me);
+            let guest = role.get() == Some(be_sdk_beui::AccountRole::Guest);
+            let loose = clock.listed(&shared).map(|shared| match guest {
+                // What is shared at the top shows there too, as everything else a guest reaches.
+                true => {
+                    let mut all = shared;
+                    all.extend(
+                        held.iter()
+                            .filter(|block| all.iter().all(|shared| shared.id != block.id))
+                            .cloned()
+                            .collect::<Vec<_>>(),
+                    );
+                    shared_with_me(all)
+                }
+                false => shared_with_me(shared),
+            });
+            let offered = clock.listed(&offers).unwrap_or_default();
+            if guest {
+                let mut builder = Builder {
+                    account: host.account_id(),
+                    client: &building,
+                    types: types.as_ref(),
+                    watched: &mut watched,
+                    clock,
+                    rows: Vec::new(),
+                    pinned: HashMap::new(),
+                    seen: HashSet::new(),
+                    used: HashSet::new(),
+                    entered: entered.get(),
+                };
+                builder.push_offers(offered);
+                builder.push_shared(loose, !shared_closed);
+                let (built, due) = builder.finish();
+                watched.sections.clear();
+                watched.workspaces.clear();
+                watched.unfiled = None;
+                watched.orphans = None;
+                drop(watched);
+                if let Some(due) = due {
+                    timer.start(due.saturating_duration_since(clock.now));
+                }
+                rows.set(built);
+                return;
+            }
             match unfiled_open {
                 true if watched.unfiled.is_none() => {
                     watched.unfiled = Some(Listing::watch(&building, BlockQuery::Unfiled));
@@ -404,47 +467,19 @@ impl Tree {
                     builder.push_unfiled(unfiled_open);
                 }
             }
-            builder.push_shared(loose, !shared_closed);
+            builder.push_offers(offered);
+            // A local account has no server, so nothing is ever shared with it.
+            if host.offers_share() {
+                builder.push_shared(loose, !shared_closed);
+            }
             builder.push_orphans(showing);
             builder.push_system(system, system_open);
-            let due = builder.clock.due;
-            let seen = std::mem::take(&mut builder.seen);
-            let used = std::mem::take(&mut builder.used);
-            let built = builder.rows;
-            watched.shown.retain(|id, _| seen.contains(id));
-            watched.used_by.retain(|id, _| used.contains(id));
+            let (built, due) = builder.finish();
             drop(watched);
             if let Some(due) = due {
                 timer.start(due.saturating_duration_since(clock.now));
             }
             rows.set(built);
-        });
-        create_effect(move || {
-            let mut expanded: Vec<Uuid> = expanded.get().into_iter().collect();
-            let mut collapsed: Vec<Uuid> = collapsed.get().into_iter().collect();
-            let Folded {
-                orphans_open,
-                shared_closed,
-                system_open,
-                unfiled_open,
-            } = folded.get();
-            if !restored.get() {
-                return;
-            }
-            expanded.sort_unstable();
-            collapsed.sort_unstable();
-            let opened = ViewState::new(
-                &Opened {
-                    expanded,
-                    orphans: orphans_open,
-                    collapsed,
-                    shared_closed,
-                    system: system_open,
-                    unfiled: unfiled_open,
-                },
-                Vec::new(),
-            );
-            untrack(|| editor.set_view_state(OPENED, Some(&opened)));
         });
 
         Self {
@@ -479,7 +514,7 @@ impl Tree {
                 .block_types
                 .insert(id, block_type)
         });
-        self.remembered.update(|count| *count += 1);
+        self.remembered.notify();
     }
 
     pub(crate) fn workspaces(&self) -> HashSet<Uuid> {
@@ -545,7 +580,9 @@ impl Tree {
                     }
                 });
             }
-            RowKey::Note(_)
+            RowKey::Offered
+            | RowKey::Offer(_)
+            | RowKey::Note(_)
             | RowKey::SharedNote
             | RowKey::OrphansNote
             | RowKey::SystemNote
@@ -634,6 +671,22 @@ fn note_for(
 }
 
 impl Builder<'_> {
+    /// The rows built, and when they must be built again: what was watched for rows no longer
+    /// shown is let go.
+    fn finish(self) -> (Vec<Row>, Option<Instant>) {
+        let Self {
+            watched,
+            rows,
+            seen,
+            used,
+            clock,
+            ..
+        } = self;
+        watched.shown.retain(|id, _| seen.contains(id));
+        watched.used_by.retain(|id, _| used.contains(id));
+        (rows, clock.due)
+    }
+
     fn push_orphans(&mut self, open: bool) {
         self.rows.push(Row {
             key: RowKey::Orphans,
@@ -660,7 +713,7 @@ impl Builder<'_> {
             return;
         };
         for block in listed {
-            self.push(block, 1, None, &mut Vec::new(), true);
+            self.push(block, 1, true);
         }
     }
 
@@ -692,7 +745,7 @@ impl Builder<'_> {
             let used = self.used_in(block.id);
             let made_by = block.metadata.get(&CREATED_BY);
             let at = self.rows.len();
-            self.push(block, 1, None, &mut Vec::new(), false);
+            self.push(block, 1, false);
             let row = &mut self.rows[at];
             row.unused = used.as_ref().is_some_and(Vec::is_empty);
             row.detail = Some(unfiled_detail(made_by, used));
@@ -735,7 +788,7 @@ impl Builder<'_> {
             return;
         };
         for block in blocks {
-            self.push(block, 1, None, &mut Vec::new(), false);
+            self.push(block, 1, false);
         }
     }
 
@@ -772,17 +825,13 @@ impl Builder<'_> {
         let Some(watched) = self.watched.sections.get(&section.id) else {
             return;
         };
-        let listed = self.clock.listed(watched);
-        let Some(children) = note_for(&mut self.rows, listed, "Nothing here yet", |label| {
-            Row::note(path.clone(), 1, label)
-        }) else {
-            return;
-        };
-        self.push_pinned(section.id);
-        let mut path = path;
-        for child in children {
-            self.push(child, 1, Some(section.id), &mut path, false);
+        let listed = listed(self.clock.listed(watched));
+        if matches!(&listed, Listed::Blocks(children) if !children.is_empty()) {
+            self.push_pinned(section.id);
         }
+        self.push_tree(Some(&path), |tree, rows| {
+            tree.walk_listed(listed, &path, 1, false, rows);
+        });
     }
 
     fn shown_block(&mut self, id: Uuid) -> Option<BlockInfo> {
@@ -828,8 +877,12 @@ impl Builder<'_> {
             row.tags = self.tags_of(&info);
             let entered = self.entered.as_ref() == Some(&row.key);
             self.rows.push(row);
-            if entered {
-                self.push_inside(id, 2, &mut vec![id], false, "Nothing here yet");
+            let listing = self.watched.expanded.get(&id);
+            if let Some(listing) = listing.filter(|_| entered) {
+                let listed = listed(self.clock.listed(listing));
+                self.push_tree(Some(&[id]), |tree, rows| {
+                    tree.walk_listed(listed, &[id], 3, false, rows);
+                });
             }
         }
     }
@@ -839,6 +892,41 @@ impl Builder<'_> {
             .into_iter()
             .filter_map(|tag| self.shown_block(tag).map(|tag| ShownTag::of(&tag)))
             .collect()
+    }
+
+    /// "Offered to you", while any block is: each offered block, which opens its share dialog,
+    /// where its offer is accepted. It stays until accepted or withdrawn.
+    fn push_offers(&mut self, offered: Vec<BlockInfo>) {
+        if offered.is_empty() {
+            return;
+        }
+        self.rows.push(Row {
+            section: true,
+            expanded: true,
+            glyph: Some(ICON_CROWN),
+            ..Row::note_at(RowKey::Offered, 0, "Offered to you")
+        });
+        for block in offered {
+            self.watched.block_types.insert(block.id, block.block_type);
+            let mut row = describe(
+                self.client,
+                self.types,
+                &self.watched.block_types,
+                &block,
+                Placement {
+                    key: RowKey::Offer(block.id),
+                    depth: 1,
+                    container: None,
+                    expanded: false,
+                    trashed: false,
+                },
+                |id| id.to_string(),
+            );
+            row.expandable = false;
+            row.can_delete = false;
+            row.can_reorder = false;
+            self.rows.push(row);
+        }
     }
 
     fn push_shared(&mut self, shared: Result<Vec<BlockInfo>, Option<String>>, open: bool) {
@@ -864,37 +952,94 @@ impl Builder<'_> {
         for block in shared {
             let at = self.rows.len();
             let leavable = block.author != Some(self.account);
-            self.push(block, 1, None, &mut Vec::new(), false);
+            self.push(block, 1, false);
             self.rows[at].can_leave = leavable;
         }
     }
 
-    fn push(
+    /// Pushes a block listed at the top of a section (no container) at `depth`, and what is
+    /// open below it.
+    fn push(&mut self, block: BlockInfo, depth: usize, trashed: bool) {
+        self.push_tree(None, |tree, rows| {
+            tree.walk(vec![block], &[], depth, trashed, rows);
+        });
+    }
+
+    /// Pushes the rows `walk` walks: each block open below it (`Watched::expanded`, or the row
+    /// entered) unfolds. What is empty says so as a folder entered does, as does `entered`, the
+    /// folder the walk starts in, if it is one.
+    fn push_tree(
         &mut self,
-        reference: BlockInfo,
-        depth: usize,
-        container: Option<Uuid>,
-        path: &mut Vec<Uuid>,
-        trashed: bool,
+        entered: Option<&[Uuid]>,
+        walk: impl FnOnce(&mut BlockTree, &mut Vec<TreeEntry>),
     ) {
-        self.watched
-            .block_types
-            .insert(reference.id, reference.block_type);
-        let mut key_path = path.clone();
-        key_path.push(reference.id);
-        let expanded = self.watched.expanded.contains_key(&reference.id);
+        let inside = entered.map(<[Uuid]>::to_vec);
+        let entered = self.entered.clone();
+        let expanded = &self.watched.expanded;
+        let clock = &mut self.clock;
+        let mut entries = Vec::new();
+        walk(
+            &mut BlockTree {
+                children: &mut |row| {
+                    expanded
+                        .get(&row.block.id)
+                        .filter(|_| row.expanded)
+                        .map(|listing| listed(clock.listed(listing)))
+                },
+                open: &|row: &TreeBlock| {
+                    let unfolds = expanded.contains_key(&row.block.id)
+                        && !is_reference(row)
+                        && !row.block.references.is_empty();
+                    unfolds || entered.as_ref() == Some(&RowKey::Block(row.path.clone()))
+                },
+                shown: &|_| true,
+                matches: None,
+            },
+            &mut entries,
+        );
+        for entry in entries {
+            match entry {
+                TreeEntry::Block(tree) => self.push_block(tree),
+                TreeEntry::Note { path, depth, note } => {
+                    let label = match note {
+                        TreeNote::Failed(why) => why,
+                        TreeNote::Empty
+                            if inside.as_ref() == Some(&path)
+                                || self.entered.as_ref() == Some(&RowKey::Block(path.clone())) =>
+                        {
+                            "Nothing here yet".to_owned()
+                        }
+                        TreeNote::Empty => "No references".to_owned(),
+                    };
+                    self.rows.push(Row::note(path, depth, &label));
+                }
+            }
+        }
+    }
+
+    fn push_block(&mut self, tree: TreeBlock) {
+        let TreeBlock {
+            path,
+            block,
+            depth,
+            container,
+            in_deleted,
+            ..
+        } = tree;
+        self.watched.block_types.insert(block.id, block.block_type);
+        let expanded = self.watched.expanded.contains_key(&block.id);
         let rows = &self.rows;
-        let row = describe(
+        let mut row = describe(
             self.client,
             self.types,
             &self.watched.block_types,
-            &reference,
+            &block,
             Placement {
-                key: RowKey::Block(key_path),
+                key: RowKey::Block(path),
                 depth,
                 container,
                 expanded,
-                trashed,
+                trashed: in_deleted,
             },
             |id| {
                 rows.iter()
@@ -902,45 +1047,24 @@ impl Builder<'_> {
                     .map_or_else(|| id.to_string(), |row| format!("{} ({id})", row.label))
             },
         );
-        let entered = self.entered.as_ref() == Some(&row.key);
-        let open = row.expanded || entered;
-        let trashed = trashed || row.deleted;
-        let mut row = row;
-        row.tags = self.tags_of(&reference);
+        row.tags = self.tags_of(&block);
         self.rows.push(row);
-        if !open || path.contains(&reference.id) {
-            return;
-        }
-        let empty = match entered {
-            true => "Nothing here yet",
-            false => "No references",
-        };
-        path.push(reference.id);
-        self.push_inside(reference.id, depth, path, trashed, empty);
-        path.pop();
     }
+}
 
-    fn push_inside(
-        &mut self,
-        id: Uuid,
-        depth: usize,
-        path: &mut Vec<Uuid>,
-        trashed: bool,
-        empty: &str,
-    ) {
-        let Some(listing) = self.watched.expanded.get(&id) else {
-            return;
-        };
-        let listed = self.clock.listed(listing);
-        let Some(children) = note_for(&mut self.rows, listed, empty, |label| {
-            Row::note(path.clone(), depth + 1, label)
-        }) else {
-            return;
-        };
-        for child in children {
-            self.push(child, depth + 1, Some(id), path, trashed);
-        }
+/// A listing as the tree walks it: one still loading within its grace shows nothing yet.
+fn listed(listed: Result<Vec<BlockInfo>, Option<String>>) -> Listed {
+    match listed {
+        Ok(blocks) => Listed::Blocks(blocks),
+        Err(Some(why)) => Listed::Failed(why),
+        Err(None) => Listed::Waiting,
     }
+}
+
+/// Whether a row is a link to a block that lives elsewhere, which does not unfold.
+fn is_reference(row: &TreeBlock) -> bool {
+    row.container
+        .is_some_and(|id| row.block.parent != Some(BlockParent::Block(id)))
 }
 
 /// Whether a block that references another is a place it is used, rather than a view that
@@ -1009,7 +1133,7 @@ pub(crate) fn describe(
         && can_move_out_of(
             client,
             types,
-            block_types,
+            |id| block_types.get(&id).copied(),
             source,
             reference.id,
             is_reference,
@@ -1086,6 +1210,10 @@ pub(crate) fn describe(
         tags: Vec::new(),
         detail: None,
         unused: false,
+        unread: match ordinary {
+            true => reference.unread,
+            false => 0,
+        },
     }
 }
 
@@ -1154,26 +1282,6 @@ fn type_name(types: &dyn BlockTypes, block_type: Uuid) -> String {
     }
 }
 
-pub(crate) fn can_move_out_of(
-    client: &Blocks,
-    types: &dyn BlockTypes,
-    block_types: &HashMap<Uuid, Uuid>,
-    source: BlockParent,
-    child: Uuid,
-    is_reference: bool,
-) -> bool {
-    let can_delete = match source {
-        BlockParent::Root | BlockParent::Detached | BlockParent::Unfiled => true,
-        BlockParent::Block(id) => {
-            block_types
-                .get(&id)
-                .is_some_and(|block_type| types.child_operations(*block_type).delete)
-                && client.access(id).can_edit()
-        }
-    };
-    can_delete && (is_reference || client.access(child).can_edit())
-}
-
 pub(crate) fn can_reorder_in(
     client: &Blocks,
     types: &dyn BlockTypes,
@@ -1214,6 +1322,7 @@ pub(crate) fn access_name(access: AccessLevel) -> &'static str {
         AccessLevel::Manage => "Can manage",
         AccessLevel::Edit => "Can edit",
         AccessLevel::View => "Can view",
+        AccessLevel::Join => "Can join",
         AccessLevel::KnowExists => "Can see that it exists",
         AccessLevel::None => "None",
     }
@@ -1223,6 +1332,7 @@ pub(crate) fn access_hint(access: AccessLevel) -> &'static str {
     match access {
         AccessLevel::Manage | AccessLevel::Edit => "",
         AccessLevel::View => "You can view this block, but not change it.",
+        AccessLevel::Join => "You can join whoever hosts this block, but not read what it holds.",
         AccessLevel::KnowExists | AccessLevel::None => {
             "You can see that this block exists, but not open it."
         }
@@ -1233,6 +1343,8 @@ pub(crate) fn access_marker(access: AccessLevel) -> Option<Glyph> {
     match access {
         AccessLevel::Manage | AccessLevel::Edit => None,
         AccessLevel::View => Some(be_sdk_beui::beui::icons::ICON_EYE),
+        // It opens, as a Join member: what it shows the host tells it.
+        AccessLevel::Join => Some(be_sdk_beui::beui::icons::ICON_LOG_IN),
         AccessLevel::KnowExists | AccessLevel::None => Some(be_sdk_beui::beui::icons::ICON_LOCK),
     }
 }

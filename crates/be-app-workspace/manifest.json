@@ -85,5 +85,6 @@
     }
   },
   "extensions": ["be3:desktop"],
+  "sharing": true,
   "entry_point": "workspace_ui.wasm"
 }

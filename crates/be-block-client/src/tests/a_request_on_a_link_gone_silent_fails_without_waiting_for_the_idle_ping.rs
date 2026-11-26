@@ -1,6 +1,5 @@
 use super::*;
 use crate::connection::{ANSWER_WAIT, PING_INTERVAL, PONG_WAIT};
-use be_block_protocol::client;
 
 /// A request that hears nothing back pings at once instead of at the idle ping, and the
 /// connection closes once that ping goes unanswered too: sooner than an idle connection would.
@@ -14,11 +13,16 @@ async fn a_request_on_a_link_gone_silent_fails_without_waiting_for_the_idle_ping
         .expect("the server listens on an address");
     let relay = be_block_fault_relay::Relay::start(server);
     let clock = Clock::manual();
-    let connection = Connection::connect(&relay.url(), &clock).await.unwrap();
+    let connection = harness.connection(&relay.url(), &clock).await;
 
     relay.stall();
-    let answer = crate::ask(client::organizations::list_organizations(&connection));
-    let mut pings = relay.count(|method, _| method == be_block_protocol::__args::CONNECTION_PING);
+    let answer = crate::ask(be_block_protocol::read::<
+        Vec<be_block_protocol::Organization>,
+        _,
+    >(
+        &connection, None, be_block_protocol::Query::Organizations
+    ));
+    let mut pings = relay.count(|method, _| method == be_block_protocol::__args::SERVER_PING);
     let mut due = connection.due();
     due.wait_for(|due| *due < clock.now() + PING_INTERVAL)
         .await

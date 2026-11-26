@@ -26,6 +26,8 @@ fn a_toast_goes_away_when_dismissed_or_when_its_time_is_up() {
         }
     });
     let mut harness = Harness::new(document);
+    // The toasts slide in before they can be pressed where they rest.
+    harness.settle();
     let output = harness.frame(Vec::new());
     let first = output
         .test_id_rect("toast.1")
@@ -44,6 +46,8 @@ fn a_toast_goes_away_when_dismissed_or_when_its_time_is_up() {
         .expect("a toast has a dismiss button")
         .center();
     harness.click(dismiss);
+    // It slides off before it goes.
+    harness.settle();
     let output = harness.frame(Vec::new());
     assert!(
         output.test_id_rect("toast.1").is_none(),
@@ -56,6 +60,7 @@ fn a_toast_goes_away_when_dismissed_or_when_its_time_is_up() {
 
     harness.advance(TOAST_DURATION);
     harness.frame(Vec::new());
+    harness.settle();
     let output = harness.frame(Vec::new());
     assert!(
         output.test_id_rect("toast.2").is_none(),

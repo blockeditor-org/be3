@@ -1,8 +1,17 @@
 use be_lib_stable_hash::HashMap;
 use std::cell::RefCell;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct SlotId(u32);
+
+impl SlotId {
+    /// The slot of a host that keeps one child.
+    pub const FIRST: SlotId = SlotId(0);
+
+    pub(crate) fn nth(index: u32) -> Self {
+        Self(index)
+    }
+}
 
 enum SlotItems<T> {
     One(T),

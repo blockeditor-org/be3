@@ -46,3 +46,16 @@ Set aside by the owner.
   a test's drop and reconnect did not meet it. The error no longer outlives its
   cause: it clears once the device is connected with nothing waiting (`report`
   in be-host-stack's worker.rs). Set aside: not reproduced, and the error now clears.
+
+## Apps
+
+- **An app isolating its children.** Under a root, one app runs every child of its staged app
+  (plans/host_as_platform_adapter.md, 4g7b3e), so one crash fails them all, which is expected
+  for now. An app may later isolate its editors by spawning more wasm processes of its own.
+
+## Build
+
+- **Build dependencies share their features with the build.** buckify unifies features per
+  platform without keeping a build script's dependencies apart, so the native host's naga carries
+  `wgsl-out` and regex-automata carries `dfa` because vello_gpu_shaders' build script asks for
+  them.

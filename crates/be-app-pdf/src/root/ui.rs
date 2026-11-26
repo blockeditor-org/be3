@@ -2,14 +2,12 @@ use be_sdk_beui::Fit;
 use be_sdk_beui::beui::CanvasView;
 use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
 use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
-use be_sdk_beui::beui::dock::{
-    DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize,
-};
+use be_sdk_beui::beui::dock::{DockBar, DockPane, DockSplit, DockTab, Docking};
 use be_sdk_beui::beui::icons::{ICON_ARROW_LEFT, ICON_ARROW_RIGHT};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{Color32, ImageFit, NodeId, PointerPress, Pos2, Rect, Vec2};
-use be_sdk_beui::{Editor, FileChooser, SIDE_PANEL_WIDTH};
+use be_sdk_beui::{ContentFileReplace, Editor};
 
 use super::pages::{Pages, Shown, Viewport};
 use super::{filter, imported};
@@ -18,34 +16,24 @@ use beui::unstyled::gestures;
 
 const PAGE_FILL: Color32 = Color32::from_rgb(255, 255, 255);
 const STAGE: &str = "stage";
-const SIDEBAR: &str = "sidebar";
 const TOOLBAR: &str = "toolbar";
-const SIDEBAR_WIDTH: f32 = SIDE_PANEL_WIDTH;
-const PANEL_PADDING: Space = Space::Lg;
 
 #[component]
 pub fn PdfEditor(editor: Editor) -> NodeId {
     let block = editor.block_content::<PdfContent>();
     let payload = block.payload();
     let pages = Pages::new();
-    let chooser = FileChooser::new(filter(), imported);
     let shown = pages.shown();
     let performance = editor
         .host()
         .performance(format!("PDF ({})", editor.block_id()));
 
-    chooser.on_chosen(move |chooser| {
-        if let Some(pdf) = chooser.take() {
-            editor.replace_content(editor.block_id(), &pdf);
-            pages.go(0);
-        }
-    });
     let placed = editor.placed();
     let canvas = editor.canvas();
     let device = editor.pixels_per_point();
     let (waker, rendered) = editor.woken();
     create_effect(move || {
-        rendered.get();
+        rendered.track();
         let _measure = performance.measure("Editor pump");
         let size = pages.shown().get_untracked().size();
         pages.pump(
@@ -78,21 +66,19 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     });
     let back = move || pages.go(pages.page().saturating_sub(1));
     let forward = move || pages.go(pages.page() + 1);
-    let fitting = editor.keep_fitted(move || {
+    editor.keep_fitted(move || {
         let size = shown.get().size();
         (size.x > 0.0 && size.y > 0.0).then(|| Fit::Area(Rect::from_min_size(Pos2::ZERO, size)))
     });
-    let fit = move || fitting.fit();
+    // The frame's fit, as the palette's `editor.zoom-fit` and every zoom bar's.
+    let zoom = editor.zoom_actions();
+    let fit = move || {
+        if let Some(zoom) = zoom.get_untracked() {
+            zoom.fit.run();
+        }
+    };
 
-    let read_only = editor.read_only();
-    let busy = chooser.busy();
-    let blocked = create_memo(move || read_only.get() || busy.get());
-    let failure = chooser.error();
-    let refused = create_memo(move || failure.get().is_some());
-    let refusal = create_memo(move || failure.get().unwrap_or_default());
-    let choose = move || chooser.open();
-    let source = block.project(|pdf| pdf.header().source_name.clone());
-    let name = create_memo(move || source.get());
+    let name = block.project(|pdf| pdf.header().source_name.clone());
 
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
@@ -107,27 +93,23 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     };
     let details = Details {
         name,
-        blocked,
-        refused,
-        refusal,
-        choose: Callback::new(move |()| choose()),
+        editor,
+        replaced: Callback::new(move |()| pages.go(0)),
     };
     view! {
         <List spacing=Space::None>
-            <Keyed value={chrome} key={|shown: bool| shown}>|chrome: ReadSignal<bool>| {
-                match chrome.get_untracked() {
-                    true => view! {
-                        <ListItem grow=1.0>
-                            <PdfDock editor content shown controls details />
-                        </ListItem>
-                    },
-                    false => view! {
-                        <ListItem grow=1.0>
-                            <Viewer editor content shown />
-                        </ListItem>
-                    },
-                }
-            }</Keyed>
+            <Show
+                value={chrome}
+                fallback={move || view! {
+                    <ListItem grow=1.0>
+                        <Viewer editor content shown />
+                    </ListItem>
+                }}
+            >
+                <ListItem grow=1.0>
+                    <PdfDock editor content shown controls details />
+                </ListItem>
+            </Show>
         </List>
     }
 }
@@ -145,10 +127,9 @@ struct Controls {
 #[derive(Clone, Copy)]
 struct Details {
     name: Memo<String>,
-    blocked: Memo<bool>,
-    refused: Memo<bool>,
-    refusal: Memo<String>,
-    choose: Callback<()>,
+    editor: Editor,
+    /// A new PDF opens at its first page.
+    replaced: Callback<()>,
 }
 
 #[component]
@@ -159,24 +140,17 @@ fn PdfDock(
     controls: Controls,
     details: Details,
 ) -> NodeId {
-    let layout = DockingLayout::<&'static str>::new();
     view! {
-        <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="pdf" size={SplitSize::Second(SIDEBAR_WIDTH)}>
-                <DockPane id="stage" locked=true bare=true>
-                    <DockTab id=STAGE title="Page">
+        <Docking>
+            <DockSplit>
+                <DockPane stage=true>
+                    <DockTab id=STAGE>
                         <Viewer editor content shown />
                     </DockTab>
                 </DockPane>
-                <DockPane id="sidebar" locked=true>
-                    <DockTab id=SIDEBAR title="PDF">
-                        <Frame fill=ColorRole::Surface>
-                            <Scroll @test_id={"pdf.sidebar"}>
-                                <Frame padding=PANEL_PADDING>
-                                    <DetailsPanel details />
-                                </Frame>
-                            </Scroll>
-                        </Frame>
+                <DockPane>
+                    <DockTab title="PDF">
+                        <DetailsPanel details />
                     </DockTab>
                 </DockPane>
             </DockSplit>
@@ -237,24 +211,20 @@ fn PdfToolbar(controls: Controls) -> NodeId {
 fn DetailsPanel(details: Details) -> NodeId {
     let Details {
         name,
-        blocked,
-        refused,
-        refusal,
-        choose,
+        editor,
+        replaced,
     } = details;
     view! {
         <List spacing=Space::Md>
             <Text style=TextStyle::CAPTION @test_id={"pdf.name"}>{name}</Text>
-            <Button
+            <ContentFileReplace
+                editor
                 label="Replace PDF…"
-                variant=ButtonVariant::Secondary
-                disabled={blocked}
-                @test_id={"pdf.replace"}
-                on_click={move || choose.call(())}
+                id_prefix="pdf"
+                filter={filter()}
+                import={imported}
+                on_replaced={replaced}
             />
-            <Show condition={refused}>
-                <Text style=TextStyle::CAPTION color=TextColor::Danger>{refusal}</Text>
-            </Show>
         </List>
     }
 }
@@ -281,8 +251,6 @@ fn PageCanvas(
     #[prop(default = None)] view: be_sdk_beui::beui::reactive::Prop<Option<CanvasView>>,
 ) -> NodeId {
     let size = create_memo(move || shown.get().size());
-    let width = create_memo(move || size.get().x);
-    let height = create_memo(move || size.get().y);
     let keys =
         create_memo(move || (0..shown.with(|shown| shown.tiles.len())).collect::<Vec<usize>>());
     let failed = create_memo(move || shown.get().error.is_some());
@@ -291,10 +259,15 @@ fn PageCanvas(
         <List spacing=Space::None>
             <ListItem grow=1.0>
                 <Canvas view={view}>
-                    <CanvasItem x=0.0 y=0.0 width={width} height={height}>
+                    <CanvasItem
+                        x=0.0
+                        y=0.0
+                        width={move || size.get().x}
+                        height={move || size.get().y}
+                    >
                         <Frame fill={ColorRole::Custom(PAGE_FILL.into())} />
                     </CanvasItem>
-                    <ForEach keys={keys}>|index: usize| {
+                    <ForEach value={keys}>|index: usize| {
                         let tile = create_memo(move || {
                             shown.with(|shown| shown.tiles.get(index).cloned())
                         });
@@ -326,7 +299,7 @@ fn PageCanvas(
                     }</ForEach>
                 </Canvas>
             </ListItem>
-            <Show condition={failed}>
+            <Show value={failed}>
                 <Text style=TextStyle::CAPTION color=TextColor::Danger @test_id={"pdf.error"}>
                     {reason}
                 </Text>
@@ -348,7 +321,7 @@ pub fn PdfPreview(editor: Editor) -> NodeId {
     let device = editor.pixels_per_point();
     let (waker, rendered) = editor.woken();
     create_effect(move || {
-        rendered.get();
+        rendered.track();
         let _measure = performance.measure("Preview pump");
         let size = pages.shown().get_untracked().size();
         pages.pump(

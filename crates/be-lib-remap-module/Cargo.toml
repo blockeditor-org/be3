@@ -9,6 +9,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 be-lib-remap = { path = "../be-lib-remap", features = ["text"] }
+be-wasm-guest-abi = { path = "../be-wasm-guest-abi" }
 
 [lints]
 workspace = true

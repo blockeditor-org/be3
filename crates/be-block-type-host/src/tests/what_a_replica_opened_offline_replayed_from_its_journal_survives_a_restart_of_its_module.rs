@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use be_block_content::{BlockContent, LiveEdit};
 use be_sdk_type_guest::editor::FromEditor;
@@ -42,7 +42,8 @@ fn what_a_replica_opened_offline_replayed_from_its_journal_survives_a_restart_of
         let mut replicas = replicas;
         replicas
             .open((&peer, &shared), block, TextContent::CONTENT_TYPE, true)
-            .await;
+            .await
+            .expect("the block opens");
         replicas.pump((&peer, &shared)).await;
         let editor = 7;
         replicas.attach(block, editor, true);
@@ -59,11 +60,14 @@ fn what_a_replica_opened_offline_replayed_from_its_journal_survives_a_restart_of
         replicas.relay_from_editor(
             block,
             editor,
-            FromEditor::Operate(TextContent::encode_operation(&typed)).encode(),
+            FromEditor::Operate {
+                gesture: None,
+                operation: TextContent::encode_operation(&typed),
+            }
+            .encode(),
             Instant::now(),
         );
         replicas.pump((&peer, &shared)).await;
-        modules_clock.advance(Duration::from_millis(be_sdk_type_guest::APPEND_INTERVAL));
         replicas.modules.tick_due();
         replicas.pump((&peer, &shared)).await;
         let journaled = peer
@@ -77,7 +81,8 @@ fn what_a_replica_opened_offline_replayed_from_its_journal_survives_a_restart_of
         let mut replicas = Replicas::new(test_modules(modules_clock.clone()).await);
         replicas
             .open((&peer, &shared), block, TextContent::CONTENT_TYPE, true)
-            .await;
+            .await
+            .expect("the block opens");
         replicas.pump((&peer, &shared)).await;
         assert_eq!(text(&peer, &shared, &mut replicas, block).await, "socks");
 

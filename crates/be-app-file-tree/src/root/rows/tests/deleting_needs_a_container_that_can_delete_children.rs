@@ -9,7 +9,7 @@ fn deleting_needs_a_container_that_can_delete_children() {
     assert!(!can_move_out_of(
         &client,
         &refusing,
-        &block_types,
+        |id| block_types.get(&id).copied(),
         BlockParent::Block(CONTAINER),
         LISTED,
         false
@@ -18,7 +18,7 @@ fn deleting_needs_a_container_that_can_delete_children() {
         can_move_out_of(
             &client,
             &refusing,
-            &block_types,
+            |id| block_types.get(&id).copied(),
             BlockParent::Root,
             LISTED,
             false
@@ -28,7 +28,7 @@ fn deleting_needs_a_container_that_can_delete_children() {
     assert!(can_move_out_of(
         &client,
         &refusing,
-        &block_types,
+        |id| block_types.get(&id).copied(),
         BlockParent::Detached,
         LISTED,
         true
@@ -43,7 +43,7 @@ fn deleting_needs_a_container_that_can_delete_children() {
     assert!(can_move_out_of(
         &client,
         &deleting,
-        &block_types,
+        |id| block_types.get(&id).copied(),
         BlockParent::Block(CONTAINER),
         LISTED,
         false

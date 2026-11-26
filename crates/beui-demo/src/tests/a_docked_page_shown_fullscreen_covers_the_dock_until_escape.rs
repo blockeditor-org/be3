@@ -6,7 +6,7 @@ fn a_docked_page_shown_fullscreen_covers_the_dock_until_escape() {
     let mut test = demo(WIDE);
     let page = pos2(WIDE.x * 0.75, WIDE.y / 2.0);
     for _ in 0..REVEAL_TICKS {
-        if test.shows("demo.fullscreen") && test.rect_of("demo.fullscreen").bottom() <= WIDE.y {
+        if test.shown("demo.fullscreen") && test.rect_of("demo.fullscreen").bottom() <= WIDE.y {
             break;
         }
         test.scroll(page, Vec2::new(0.0, REVEAL_STEP));
@@ -37,7 +37,7 @@ fn a_docked_page_shown_fullscreen_covers_the_dock_until_escape() {
     );
     test.frame(Vec::new());
     assert!(
-        !test.shows("dock.fullscreen"),
+        !test.shown("dock.fullscreen"),
         "Escape brings the page back"
     );
     assert_eq!(test.rect_of("demo.fullscreen"), docked);

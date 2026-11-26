@@ -1,0 +1,13 @@
+[package]
+name = "be-worker-pdf-render"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-lib-geometry = { path = "../be-lib-geometry" }
+be-sdk-worker = { path = "../be-sdk-worker" }
+be-worker-pdf = { path = "../be-worker-pdf" }
+
+[lints]
+workspace = true

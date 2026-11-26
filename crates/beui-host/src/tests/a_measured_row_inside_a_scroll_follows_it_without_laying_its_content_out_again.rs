@@ -12,8 +12,8 @@ fn a_measured_row_inside_a_scroll_follows_it_without_laying_its_content_out_agai
         view! {
             <List spacing=0.0>
                 <Frame height=200.0>
-                    <Scroll @test_id="scroll">
-                        <ForEach keys={(0..20).collect::<Vec<usize>>()}>|row: usize|
+                    <Scroll @test_id="scroll" style={plain_scroll()}>
+                        <ForEach value={(0..20).collect::<Vec<usize>>()}>|row: usize|
                             <Row watched={row == 2} seen={seen} />
                         </ForEach>
                     </Scroll>

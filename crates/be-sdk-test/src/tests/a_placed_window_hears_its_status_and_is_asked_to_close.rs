@@ -77,3 +77,5 @@ fn a_placed_window_hears_its_status_and_is_asked_to_close() {
     assert_eq!(test.take_child_closes(), vec![placement.child]);
     assert!(test.take_child_closes().is_empty());
 }
+
+test_editor!(WindowRoot);

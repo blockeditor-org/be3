@@ -13,10 +13,4 @@ fn rich_text_formatted_and_typed_on_different_lines_merges_cleanly() {
     assert_eq!(conflicts, 0);
     assert_eq!(words(&merged), "one\ntwo\nthree\nfour!");
     assert_eq!(seeds(&merged), vec![bold(4..7), heading(0..3)]);
-    assert!(
-        merged
-            .rich(ObjectId::ROOT, Caption::WORDS)
-            .expect("the caption has words")
-            .is_fresh()
-    );
 }

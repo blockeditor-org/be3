@@ -68,8 +68,6 @@ pub(super) fn TomlTab(shared: Shared) -> NodeId {
         }
     };
     let revert = move || reload(stored.get_untracked());
-    let failed = create_memo(move || error.get().is_some());
-    let problem = create_memo(move || error.get().unwrap_or_default());
     view! {
         <Frame padding={Padding::horizontal(SIDE_INSET)}>
             <List spacing=ROW_SPACING>
@@ -82,7 +80,7 @@ pub(super) fn TomlTab(shared: Shared) -> NodeId {
                         emoji=false
                     />
                 </ListItem>
-                <Show condition={failed}>
+                <Show value={error}>|problem: ReadSignal<String>|
                     <Text style={TextStyle::CAPTION.color(TextColor::Danger)}>{problem}</Text>
                 </Show>
                 <List direction=Direction::Horizontal spacing=ROW_SPACING>

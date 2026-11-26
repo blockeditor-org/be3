@@ -1,21 +1,24 @@
 use crate::frame::{ColorRole, Frame, Radius};
-use beui_macros::{component, view};
 
 use crate::border::Separator;
+use crate::focus_ring::FocusRing;
 use crate::list::List;
-use crate::tokens::{Size, Space};
+use crate::tokens::{Size, Space, Stroke};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{AnchoredSheetHandle, SheetGripHandle};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Align;
 
+/// Where a sheet stops, as shares of the screen: low, middle and high. A sheet fitted to what
+/// it holds rises at most to the middle stop, and past that what it holds scrolls.
 pub const SHEET_STOPS: [f32; 3] = [0.3, 0.5, 0.9];
+/// The highest a fitted sheet rises: the middle stop.
+const FITTED: f32 = SHEET_STOPS[1];
 
 const HANDLE_HEIGHT: Size = Size::Md;
 const GRIP_WIDTH: Size = Size::Custom(36.0);
 const GRIP_HEIGHT: Size = Size::Custom(4.0);
-const ANCHORED_STOPS: [f32; 2] = [0.5, 0.9];
 
 pub fn modal_sheet_room(extent: f32) -> f32 {
     let grip = crate::tokens::Stroke::Hairline.px() + HANDLE_HEIGHT.px();
@@ -28,10 +31,17 @@ pub fn Sheet(
     #[prop(default = true)] open: Prop<bool>,
     #[prop(default = SHEET_STOPS[1])] rest: f32,
     #[prop(default = SHEET_STOPS.to_vec())] stops: Vec<f32>,
-    #[prop(default = false)] fit: bool,
+    /// Rests at its own height, never above the middle stop: past that what it holds scrolls.
+    /// It then takes no `rest` or `stops` of its own.
+    #[prop(default = false)]
+    fit: bool,
     on_close: Callback<()>,
-    children: Child,
+    children: NodeId,
 ) -> NodeId {
+    let rest = match fit {
+        true => FITTED,
+        false => rest,
+    };
     view! {
         <unstyled::Sheet
             extent
@@ -40,10 +50,11 @@ pub fn Sheet(
             stops
             fit
             fade={crate::theme::SCROLL_FADE}
-            grip={|_: SheetGripHandle| view! {
-                <SheetGrip />
+            style={crate::scroll::scroll_style()}
+            grip={|handle: SheetGripHandle| view! {
+                <SheetGrip focused={handle.focused} />
             }}
-            panel={|content: Child| view! {
+            panel={|content: NodeId| view! {
                 <SheetPanel>{content}</SheetPanel>
             }}
             on_close={on_close}
@@ -58,29 +69,45 @@ pub fn ModalSheet(
     open: Prop<bool>,
     #[prop(default = SHEET_STOPS[2])] rest: f32,
     #[prop(default = SHEET_STOPS.to_vec())] stops: Vec<f32>,
-    #[prop(default = false)] fit: bool,
+    /// Rests at its own height, never above the middle stop: past that what it holds scrolls.
+    /// It then takes no `rest` or `stops` of its own.
+    #[prop(default = false)]
+    fit: bool,
+    /// A `fit` sheet holding more than the middle stop rises to the top stop before what it
+    /// holds scrolls: a large form.
+    #[prop(default = false)]
+    grows: bool,
     on_close: Callback<()>,
-    #[prop(children)] content: Render,
+    /// A press on the scrim, in place of `on_close` (see `unstyled::ModalSheet`).
+    on_outside: Option<Callback<()>>,
+    #[prop(children)] content: BuildFn<NodeId>,
 ) -> NodeId {
     let theme = crate::theme::use_theme();
     let scrim = create_memo(move || ColorRole::Scrim.resolve(&theme));
+    let rest = match fit {
+        true => FITTED,
+        false => rest,
+    };
     view! {
         <unstyled::ModalSheet
             open
             rest
             stops
             fit
+            grows
             fade={crate::theme::SCROLL_FADE}
+            style={crate::scroll::scroll_style()}
             scrim={scrim}
-            grip={|_: SheetGripHandle| view! {
-                <SheetGrip />
+            grip={|handle: SheetGripHandle| view! {
+                <SheetGrip focused={handle.focused} />
             }}
-            panel={|content: Child| view! {
+            panel={|content: NodeId| view! {
                 <SheetPanel>{content}</SheetPanel>
             }}
             on_close={on_close}
+            on_outside={on_outside}
         >|| {
-            content.call(())
+            content.call()
         }</unstyled::ModalSheet>
     }
 }
@@ -93,14 +120,8 @@ pub(crate) fn AnchoredSheet(handle: AnchoredSheetHandle, padding: Space) -> Node
         content,
     } = handle;
     view! {
-        <ModalSheet
-            open={open}
-            rest={ANCHORED_STOPS[0]}
-            stops={ANCHORED_STOPS.to_vec()}
-            fit=true
-            on_close={on_close}
-        >||
-            <Frame padding>{content.call(())}</Frame>
+        <ModalSheet open={open} fit=true on_close={on_close}>||
+            <Frame padding>{content.call()}</Frame>
         </ModalSheet>
     }
 }
@@ -113,18 +134,23 @@ fn SheetPanel(children: Child) -> NodeId {
 }
 
 #[component]
-fn SheetGrip() -> NodeId {
+fn SheetGrip(focused: ReadSignal<bool>) -> NodeId {
+    // Filled, as it stays over what the sheet holds while that scrolls under it.
     view! {
-        <List spacing=Space::None>
-            <Separator />
-            <Frame height=HANDLE_HEIGHT align=Align::Center>
-                <Frame
-                    width=GRIP_WIDTH
-                    height=GRIP_HEIGHT
-                    radius=Radius::Xs
-                    fill=ColorRole::TextMuted
-                />
-            </Frame>
-        </List>
+        <Frame fill=ColorRole::Surface>
+            <List spacing=Space::None>
+                <Separator />
+                <Frame height=HANDLE_HEIGHT align=Align::Center>
+                    <FocusRing focused offset=Stroke::Focus>
+                        <Frame
+                            width=GRIP_WIDTH
+                            height=GRIP_HEIGHT
+                            radius=Radius::Xs
+                            fill=ColorRole::TextMuted
+                        />
+                    </FocusRing>
+                </Frame>
+            </List>
+        </Frame>
     }
 }

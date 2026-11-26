@@ -8,7 +8,7 @@ use be_host_stack::invite_link::InviteLink;
 enum Reply {
     Link(Result<String, String>),
     Opened(InviteCode, Result<ContactCard, String>),
-    Accepted(Result<ContactCard, String>),
+    Accepted(InviteCode, Result<ContactCard, String>),
 }
 
 struct Offered {
@@ -24,7 +24,13 @@ pub(crate) struct Contacts {
     waiting: Option<String>,
     busy: bool,
     error: Option<String>,
-    connected: Option<String>,
+    /// Whether a contact link is being made (`new_link`), until the server answers it, whatever
+    /// else is being done.
+    making_link: bool,
+    /// Why making the last contact link failed, apart from what else failed.
+    link_error: Option<String>,
+    /// Who the person just connected with.
+    connected: Option<ContactCard>,
     replies: (Mailbox, Post<Reply>),
 }
 
@@ -38,9 +44,15 @@ impl Default for Contacts {
             waiting: None,
             busy: false,
             error: None,
+            making_link: false,
+            link_error: None,
             connected: None,
             replies: crate::desk().mailbox(|core: &mut crate::HostCore, reply| {
-                core.contacts.replied(reply);
+                // An invitation is a contact link that carries a share link with its code: the
+                // share link opens as a pasted one does, once the contact is made.
+                if let Some(code) = core.contacts.replied(reply) {
+                    core.share_links.follow_invitation(code);
+                }
             }),
         }
     }
@@ -57,6 +69,8 @@ impl Contacts {
     pub(crate) fn close(&mut self) {
         *self = Self {
             waiting: self.waiting.take(),
+            making_link: self.making_link,
+            link_error: self.link_error.take(),
             ..Self::default()
         };
     }
@@ -66,6 +80,8 @@ impl Contacts {
         self.busy = true;
         self.error = None;
         self.link = None;
+        self.making_link = true;
+        self.link_error = None;
         be_host_stack::make_contact_link(None, move |made| {
             post.send(Reply::Link(made));
         });
@@ -107,9 +123,10 @@ impl Contacts {
             return;
         };
         let post = self.replies.1.clone();
+        let code = offered.code.clone();
         self.busy = true;
         be_host_stack::accept_contact_link(offered.code, move |accepted| {
-            post.send(Reply::Accepted(accepted));
+            post.send(Reply::Accepted(code, accepted));
         });
     }
 
@@ -145,22 +162,41 @@ impl Contacts {
         be_host_base::watches::publish::<be_sdk_api::ContactsWatch>(&contacts);
     }
 
-    pub(crate) fn poll(&mut self, base: &str, ready: bool) {
+    /// Opens a link the page was opened with once the organization is ready; a local account,
+    /// which has no server and so no contacts, refuses it.
+    pub(crate) fn poll(&mut self, base: &str, ready: bool, local: bool) {
         if ready && let Some(text) = self.waiting.take() {
-            self.paste(&text, base);
+            match local {
+                true => be_host_base::notices::refuse(crate::NO_SERVER.to_owned()),
+                false => self.paste(&text, base),
+            }
         }
     }
 
-    fn replied(&mut self, reply: Reply) {
+    /// Takes a reply; answers the code of a contact link just accepted, whose share link, if
+    /// it carries one, opens next.
+    fn replied(&mut self, reply: Reply) -> Option<InviteCode> {
         self.busy = false;
         match reply {
-            Reply::Link(Ok(link)) => self.link = Some(link),
+            Reply::Link(Ok(link)) => {
+                self.making_link = false;
+                self.link = Some(link);
+            }
+            Reply::Link(Err(error)) => {
+                self.making_link = false;
+                self.link_error = Some(error.clone());
+                self.error = Some(error);
+            }
             Reply::Opened(code, Ok(card)) => self.offered = Some(Offered { code, card }),
-            Reply::Accepted(Ok(card)) => self.connected = Some(described(&card)),
-            Reply::Link(Err(error))
-            | Reply::Opened(_, Err(error))
-            | Reply::Accepted(Err(error)) => self.error = Some(error),
+            Reply::Accepted(code, Ok(card)) => {
+                self.connected = Some(card);
+                return Some(code);
+            }
+            Reply::Opened(_, Err(error)) | Reply::Accepted(_, Err(error)) => {
+                self.error = Some(error)
+            }
         }
+        None
     }
 
     pub(crate) fn view(&self) -> Option<ContactsView> {
@@ -188,6 +224,7 @@ impl Contacts {
                     name: contact.display_name,
                     email: contact.email,
                     verified: contact.public.is_some(),
+                    mismatch: contact.mismatch,
                 })
                 .collect(),
             link: self.link.clone(),
@@ -198,11 +235,66 @@ impl Contacts {
             connected: self
                 .connected
                 .as_ref()
-                .map(|name| format!("You and {name} are now contacts.")),
+                .map(|card| format!("You and {} are now contacts.", described(card))),
             removing,
             busy: self.busy,
             error: self.error.clone(),
         })
+    }
+}
+
+/// What a root guest is shown and handed (`be3:root`'s `core-view` and `make-secret`;
+/// root/block_stack.rs).
+#[cfg(not(target_os = "android"))]
+impl Contacts {
+    /// The person's contacts and the link opened as a root shows them, whether or not the
+    /// host's own dialog is open.
+    pub(crate) fn root_area(&self) -> be_wasm_root_api::ContactsArea {
+        let card = |card: &ContactCard| be_wasm_root_api::ContactCard {
+            name: named(&card.display_name, &card.email),
+            email: card.email.clone(),
+        };
+        be_wasm_root_api::ContactsArea {
+            contacts: be_host_stack::contacts()
+                .into_iter()
+                .map(|contact| be_wasm_root_api::ContactRow {
+                    account: contact.account.into_bytes(),
+                    name: named(&contact.display_name, &contact.email),
+                    email: contact.email,
+                    verified: contact.public.is_some(),
+                    mismatch: contact.mismatch.map(|mismatch| match mismatch {
+                        be_block_client::contacts::Mismatch::Older => {
+                            be_wasm_root_api::ContactMismatch::Older
+                        }
+                        be_block_client::contacts::Mismatch::Unreadable => {
+                            be_wasm_root_api::ContactMismatch::Unreadable
+                        }
+                    }),
+                })
+                .collect(),
+            offered: self.offered.as_ref().map(|offered| card(&offered.card)),
+            connected: self.connected.as_ref().map(card),
+            busy: self.busy,
+            error: self.error.clone(),
+        }
+    }
+
+    /// How the contact link `new_link` asked for stands: the link once made, or why it
+    /// failed; none while it is being made.
+    pub(crate) fn made(&self) -> Option<Result<String, String>> {
+        if let Some(link) = &self.link {
+            return Some(Ok(link.clone()));
+        }
+        match (self.making_link, &self.link_error) {
+            (true, _) => None,
+            (false, Some(error)) => Some(Err(error.clone())),
+            (false, None) => Some(Err("no contact link was made".to_owned())),
+        }
+    }
+
+    /// Lets go of the link made, which the root holds once handed it.
+    pub(crate) fn forget_link(&mut self) {
+        self.link = None;
     }
 }
 

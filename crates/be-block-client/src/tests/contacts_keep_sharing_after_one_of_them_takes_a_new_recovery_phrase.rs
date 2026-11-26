@@ -2,7 +2,7 @@ use super::*;
 
 use be_block_graph::Access;
 use be_block_keys::Party;
-use be_block_protocol::{RecoveryKey, client};
+
 use be_type_text::{TextBlock, TextContent};
 
 async fn note_in(peer: &Peer<MemoryStore>, parent: Uuid, body: &str) -> Uuid {
@@ -42,14 +42,14 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
 
     let team = workspace(&owner, "Team").await;
     let from_owner = note_in(&owner, team, "from the owner").await;
-    let public = owner.keys().contact(guest.account()).unwrap();
+    let public = owner.verified_identity(guest.account()).unwrap();
     owner
         .share(team, guest.account(), Access::Edit, &public)
         .await
         .unwrap();
     let theirs = workspace(&guest, "Guest's").await;
     let from_guest = note_in(&guest, theirs, "from the guest").await;
-    let public = guest.keys().contact(owner.account()).unwrap();
+    let public = guest.verified_identity(owner.account()).unwrap();
     guest
         .share(theirs, owner.account(), Access::View, &public)
         .await
@@ -58,58 +58,48 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
     assert_eq!(text(&owner, from_guest).await, "from the guest");
 
     let fresh = be_block_keys::RecoveryPhrase::generate().secret();
-    let forged = stranger.keys().identity().seal_key_change(
-        owner.account().into_bytes(),
-        &Party {
-            account: guest.account().into_bytes(),
-            public: guest.keys().identity().public(),
-        },
-        stranger.keys().identity().identity(),
-    );
+    let forged = stranger
+        .keys()
+        .identity()
+        .seal_key_change(
+            owner.account().into_bytes(),
+            &Party {
+                account: guest.account().into_bytes(),
+                public: guest.keys().identity().public(),
+            },
+            stranger.keys().identity().identity(),
+        )
+        .unwrap();
+    // A forged change ahead of the real one in the guest's mailbox, as the owner's.
     harness
         .database()
         .execute(
-            "INSERT INTO key_changes (account_id, contact_id, position, sealed)
-             VALUES (?1, ?2, -1, ?3)",
+            "INSERT INTO mailbox (account_id, sender_id, kind, letter, created)
+             VALUES (?1, ?2, 'key-change', ?3, unixepoch())",
             rusqlite::params![
-                owner.account().to_string(),
                 guest.account().to_string(),
-                forged
+                owner.account().to_string(),
+                be_block_protocol::encode(&be_block_protocol::Letter::KeyChange(forged)).unwrap()
             ],
         )
         .unwrap();
-    let RecoveryKey { sealed, own, .. } =
-        crate::ask(client::keys::get_recovery_key(&owner.connection()))
-            .await
-            .expect("the server answers with the recovery key");
     let block = Uuid::new_v4();
     let before = owner.sign_authored(block, b"before");
-    let resealed = crate::contacts::new_identity(
+    let old = owner.keys().identity().clone();
+    take_phrase(
+        &owner.connection(),
         owner.account(),
         owner.keys().identity(),
         &fresh,
-        sealed,
-        own,
     )
-    .expect("the old phrase opens everything sealed to the owner");
-    assert_eq!(resealed.changes.len(), 2, "one change per verified contact");
-    crate::ask(client::keys::set_recovery_key(
-        &owner.connection(),
-        fresh.public().0,
-        fresh.signing().0,
-        resealed.sealed,
-        resealed.own,
-        resealed.changes,
-    ))
-    .await
-    .unwrap();
+    .await;
 
     let owner = with_identity(&harness, &owner, fresh.clone()).await;
     let watcher = guest;
     let guest = harness.second(&watcher).await;
     assert_eq!(
-        guest.keys().contact(owner.account()),
-        Some(fresh.public()),
+        guest.verified_identity(owner.account()),
+        Some(fresh.identity()),
         "the guest took the owner's new key from the change it sealed with its old one"
     );
     assert_eq!(
@@ -119,6 +109,7 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
                 block,
                 b"after",
                 &owner.sign_authored(block, b"after"),
+                None,
             )
             .await
             .unwrap(),
@@ -128,11 +119,52 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
     watcher.refresh_contacts().await.unwrap();
     assert_eq!(
         watcher
-            .verify_authored(owner.account(), block, b"before", &before)
+            .verify_authored(owner.account(), block, b"before", &before, None)
             .await
             .unwrap(),
         Signer::Changed,
         "what the old key signed still verifies, but the old key is no longer the owner's"
+    );
+    let now = watcher
+        .server_now()
+        .expect("the watcher measured the server's clock");
+    assert_eq!(
+        watcher
+            .verify_authored(owner.account(), block, b"before", &before, Some(0))
+            .await
+            .unwrap(),
+        Signer::Changed,
+        "a record the server took before the watcher learned of the new key is the old key's"
+    );
+    assert_eq!(
+        watcher
+            .verify_authored(
+                owner.account(),
+                block,
+                b"before",
+                &before,
+                Some(now + 2 * 60 * 1000),
+            )
+            .await
+            .unwrap(),
+        Signer::Replaced,
+        "one the server took after is louder than a changed key, but not called forged"
+    );
+    // The owner's phone, not yet told of the new phrase, still signs with the old key.
+    let from_phone = old.sign_authored(block.into_bytes(), b"from the phone");
+    assert_eq!(
+        watcher
+            .verify_authored(
+                owner.account(),
+                block,
+                b"from the phone",
+                &from_phone,
+                Some(now + 2 * 60 * 1000),
+            )
+            .await
+            .unwrap(),
+        Signer::Replaced,
+        "an honest device behind on the new phrase is not called forged"
     );
     assert_eq!(text(&guest, from_owner).await, "from the owner");
     assert_eq!(text(&owner, from_guest).await, "from the guest");
@@ -144,7 +176,7 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
 
     let later = workspace(&owner, "Later").await;
     let from_new_owner = note_in(&owner, later, "after the new phrase").await;
-    let public = owner.keys().contact(guest.account()).unwrap();
+    let public = owner.verified_identity(guest.account()).unwrap();
     owner
         .share(later, guest.account(), Access::View, &public)
         .await
@@ -152,7 +184,7 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
     assert_eq!(text(&guest, from_new_owner).await, "after the new phrase");
     let back = workspace(&guest, "Back").await;
     let from_new_guest = note_in(&guest, back, "to the new key").await;
-    let public = guest.keys().contact(owner.account()).unwrap();
+    let public = guest.verified_identity(owner.account()).unwrap();
     guest
         .share(back, owner.account(), Access::View, &public)
         .await

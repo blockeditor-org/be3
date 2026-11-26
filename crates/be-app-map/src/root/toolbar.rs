@@ -1,20 +1,14 @@
-use be_sdk_beui::Fitting;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
-use be_sdk_beui::beui::icons::{
-    ICON_PLUS, ICON_REFRESH_CW, ICON_SCAN, ICON_ZOOM_IN, ICON_ZOOM_OUT,
-};
+use be_sdk_beui::beui::icons::{ICON_PLUS, ICON_REFRESH_CW, ICON_SCAN};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 
-use super::state::{MapState, ZOOM_STEP};
+use super::state::MapState;
 
 #[component]
-pub(crate) fn MapToolbar(state: MapState, fitting: Fitting) -> NodeId {
-    let regionless = create_memo(move || state.preview_region.get().is_none());
+pub(crate) fn MapToolbar(state: MapState) -> NodeId {
     let error = state.last_error;
-    let failed = create_memo(move || error.get().is_some());
-    let reason = create_memo(move || error.get().unwrap_or_default());
     let add = NodeRef::new();
 
     view! {
@@ -32,29 +26,9 @@ pub(crate) fn MapToolbar(state: MapState, fitting: Fitting) -> NodeId {
             />
             <Button
                 icon_only=true
-                glyph=ICON_ZOOM_OUT
-                label="Zoom out"
-                @test_id={"map.zoom-out"}
-                on_click={move || state.zoom(1.0 / ZOOM_STEP)}
-            />
-            <Button
-                icon_only=true
-                glyph=ICON_ZOOM_IN
-                label="Zoom in"
-                @test_id={"map.zoom-in"}
-                on_click={move || state.zoom(ZOOM_STEP)}
-            />
-            <Button
-                label="Whole world"
-                variant=ButtonVariant::Secondary
-                @test_id={"map.fit"}
-                on_click={move || fitting.fit()}
-            />
-            <Button
-                icon_only=true
                 glyph=ICON_SCAN
                 label="Zoom to the preview region"
-                disabled={regionless}
+                disabled={move || state.preview_region.with(Option::is_none)}
                 @test_id={"map.zoom-region"}
                 on_click={move || state.request_fit()}
             />
@@ -65,8 +39,10 @@ pub(crate) fn MapToolbar(state: MapState, fitting: Fitting) -> NodeId {
                 @test_id={"map.reload"}
                 on_click={move || state.reload_tiles()}
             />
-            <Show condition={failed}>
-                <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
+            <Show value={error}>|reason: ReadSignal<String>|
+                <Text style=TextStyle::CAPTION color=TextColor::Danger @test_id={"map.error"}>
+                    {reason}
+                </Text>
             </Show>
         </DockBarSurface>
     }

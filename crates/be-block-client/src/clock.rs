@@ -51,6 +51,11 @@ impl Clock {
         }
     }
 
+    /// Whether this is the system's clock rather than one a test moves.
+    pub fn is_real(&self) -> bool {
+        matches!(self.0, Kind::Real)
+    }
+
     pub fn same(&self, other: &Clock) -> bool {
         match (&self.0, &other.0) {
             (Kind::Real, Kind::Real) => true,

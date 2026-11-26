@@ -10,14 +10,27 @@ talks to its host only through typed operations. be-host's peer, `be` and
 
 - `crates/be-sdk-type-api`: the protocol, the WIT world
   `be3:block-type/type-module` (`wit/*.wit`) and the Rust generated from it.
+  Where the WIT describes a type the block stack already has, the generated
+  code is that type (bindgen's `with`), so host and module hand the stack's
+  values across unconverted: be-block-content's log types (`LogItem`,
+  `LogPage`, `Signer`, …), `Announcement`, `Along`, `ChildChange` and
+  `SearchDocument`, be-block-store's `PartRef`, be-block-protocol's journal,
+  `Participant` and `SessionState`, and be-block-session's `Resume`. Such a
+  WIT record keeps the Rust type's wire form, and changes with it: the crate's
+  `every_type_the_wit_maps_onto_the_stacks_has_its_wire_form` generates the
+  world again unmapped and checks each pair (bindgen's `root` places that
+  second world in the test module). Since be-sdk-type-api depends on
+  be-block-content, be-block-content stays free of any GUI framework, like the
+  protocol itself.
 - `crates/be-sdk-type-guest`: the replica library a type module links. It holds
   a block's live session and undo stack as one deterministic state machine
   that every `Document<R>` and `Blob<K>` works with unchanged.
 - `crates/be-block-type-host`: the host half every host shares (Hosts, below).
 
-A type module is pure Rust and small. It builds for
-`wasm32-unknown-unknown` and runs with no WASI (`be_wasm_host::Host::pure`),
-so it links no C or C++ and no crate made for hosts. Its types crate depends
+A type module is pure Rust and small. It builds for `wasm32-wasip1` with the
+apps (guides/app_libraries.md, Pure guests) and runs as a pure guest
+(`be_wasm_host::Host::pure`), answered only a few WASI calls, so it links no C
+or C++ and no crate made for hosts. Its types crate depends
 on `crates/be-block-content` (`BlockContent` and the traits beside it,
 metadata, `Root`, blobs, settings kinds' `Layered`) and never on
 `crates/be-block`, which holds the types the host applies itself and their
@@ -69,7 +82,7 @@ so the WIT files are buck `resources`, and another crate's package is a
 `foreign_resources` entry named in `deps` (guides/buck2.md); see
 be-sdk-api's BUCK and `lib.rs` for a crate that uses several packages. Its
 options (`with`, `uses`, `copy`, `default`, `inline`, `lenient`, `ordered`,
-`encodings`, `local`, `network`) are documented on the macro.
+`encodings`, `local`, `network`, `root`) are documented on the macro.
 
 It generates, per interface, the types, and:
 - for the guest, `guest::<import>` functions returning `Pending<T>` or
@@ -91,8 +104,13 @@ Traps:
 - A resource named `*-watch` with only `constructor()` and
   `next: async func() -> T` becomes a latest-value watch
   (`be_wasm_ops::Watched`), which editors follow with `editor.watch::<W>()`.
-- `with` substitutes an existing Rust type for a WIT type, and nothing checks
-  that their serde forms agree; use it only for byte arrays and newtype ids.
+- `with` substitutes an existing Rust type for a WIT type, and the generator
+  does not check that their serde forms agree: keep the WIT's fields and cases
+  in the Rust type's order (a record a variant case carries is `inline` when the
+  Rust case has fields), and its byte fields on `serde_bytes`. A crate that maps
+  types with fields checks them with a test that generates its world again
+  without them (be-sdk-type-api's, above). Map an id one way in a world: `hash`
+  is `be_block_store::Hash` wherever a mapped type holds one.
 - Ids and access levels have one shape everywhere: `be3:shared`
   (`crates/be-wasm-ops/wit`) holds `uuid`, `hash` and their named aliases.
 - WIT keywords are written with `%`, and a function may not share its name
@@ -105,11 +123,40 @@ Traps:
 ### Local interfaces
 
 An interface whose host runs inside the guest's own worker or thread on every
-platform (the GPU device: be-wasm-gpu-shim on the web, wasmtime host functions
+platform (the GPU device: be-wasm-gpu-shim on the web, V8 fast-API functions
 natively) is named in `local`. Its functions are plain wasm imports returning
 their results: scalars and records of them flattened into wasm arguments,
-strings and lists as pointer and length, anything else postcard. A
-`list<u8>` result is copied once, straight into a vector of the right length.
+strings and lists as pointer and length, options of those as a tag, pointer
+and length, anything else postcard. A call that would take more than 16 wasm
+arguments has its widest flat records encoded instead. A `list<u8>` result is
+copied once, straight into a vector of the right length; a `result` with
+nothing on success answers 0, or its error's encoded length plus one.
+
+Async funcs, and funcs answering a `future` or a `stream`, answer a `u32`
+ticket at once (the host's `Caller::ticket`, unique within the interface), and
+the host is handed a `be_wasm_ops::local::Promise` or `Sender` to settle it
+with later; it settles every promise it holds, failing them when their device
+is lost. Ticket 0 (`REFUSED`) is what a call answers when the host refused it
+or had nothing to answer with (no gpu): the guest panics there, since nothing
+would ever settle it. Every local interface with tickets gets a `[poll]`
+import taking `wait`: the host's `Host::settle` answers what settled since the
+last poll (`Settled`, each value encoded), and the guest's generated
+`settle(wait)` hands it to the futures and streams waiting (`Ticket`, `Items`)
+and wakes them; `waiting()` says whether any still waits, and a dropped one
+stops waiting. `[poll]` also passes the tickets dropped since the last poll
+before they settled (`Settling::take_dropped`), and `Host::settle` is handed
+them first: it settles none of them and lets go of what it held for them, so
+a waiting poll does not wait for them. With `wait`, a host that can block
+blocks until at least one thing settles, or until nothing pending could (no
+async func or future is unsettled: a stream alone never holds it). A poll the host cannot answer
+answers nothing. So `settle` and `waiting` are names an interface's own free
+funcs may not take. Waking the app when anything settles is the host's part,
+not the generated glue's. A `result` with nothing on success is called with
+no room, answering 0, or its error's length plus one, the error fetched
+through `[returned]`; a call the host refused, or whose answer it could not
+write, answers 0 (success), and the refusal reaches the app's host through
+its own report (`Gpu::report`, which stops the app).
+crates/be-wasm-ops-local-test holds the tests of the generated glue.
 
 ### Network worlds
 
@@ -123,20 +170,36 @@ answered, so a server ignores ones it does not know.
 
 ## The protocol
 
-The module imports `host` and exports `replicas`. `replicas.start(entropy)`
+The module imports `host` and exports `replicas`. `replicas.start()`
 comes first: it answers the module's types, each with everything the host
 keeps about it (`type-info`: its schema, plain form, blank content and that
-content's description), and seeds the module's randomness, since a pure guest
-has none.
+content's description). Its randomness (`random_get`, which getrandom and std's
+hash keys read) is its host's, from a seed be-block-type-host draws afresh for
+each start (`Host::with_seed` natively, `WebGuest::start_pure` on the web). So a
+hash map's iteration order differs on each start: it must never reach content, a commit or an
+answer, which another peer or a later start must reproduce.
 
 Stateless requests (`merge3`, `merge-parts`, `describe`, `to-file`,
-`search-text`, `claims`, `apply`) are answered in the step that asks, except
-`merge-parts` and `search-text`, which may read parts first (below, "Merging
-by parts"). `apply` is how a host that publishes commits rather than joining a
+`search-text`, `places`, `unread`, `claims`, `apply`) are answered in the step that asks,
+except `merge-parts`, `search-text` and `unread`, which may read parts first
+(below, "Merging by parts").
+
+`unread` counts what the account has not read in a commit
+(`be_block_content::Unread`, registered with the type's `unread` part in
+`be_block_types!`): the type names the owner-only settings kind it keeps the
+account's read places in (`type-info.reads`). `places` picks each block's own
+place out of the account's layers of that kind, lowest first, in bytes only the
+type reads (`Unread::Place` in postcard), and `unread` is handed the commit as
+the type loads it with that block's place alone, so the host counts a block
+again only when its head or its place's bytes move. Its manifest
+says `counts_unread`, so the host starts the module for a row before anything
+else asks it; be-tool-cli's
+`a_manifest_says_which_of_its_types_count_what_is_unread` holds the two in
+step (guides/blocks/host.md, "Unread counts"). `apply` is how a host that publishes commits rather than joining a
 session edits a block (`be sync`, version control).
 
 `search-text` answers a commit's searchable text for the search index
-(plans/search.md): `BlockContent::search_text`, whose default answers nothing,
+(guides/blocks/host.md, "Search"): `BlockContent::search_text`, whose default answers nothing,
 so a type that does not implement it is not content-searchable; a `Document`
 answers `Root::search_text_in`. Each `SearchDocument` has a key stable across
 edits (empty for a block that is one document), the part its text came from
@@ -159,7 +222,12 @@ host owes a replica (the WIT documents each call):
 - **Time.** The replica never reads a clock. The host yields its clock on
   `host.clock` whenever it moves, and stamps each `message` with `at`, since
   the clock stream is credit-limited and can arrive after a later message. A
-  test moves time by yielding.
+  test moves time by yielding. A `sleep-until` a moment the clock has reached
+  ends on the host's next pass for it (be-block-type-host's
+  `Module::advance`) whether or not the clock moved, as a held clock (a host
+  test's stopped clock) may never move again, and the clock is yielded again
+  with it: a module runs its timers as a clock value arrives, not as its sleep
+  ends.
 - **Opening.** The host calls `head-moved` for every head landing after the
   one in `opening`; the replica does not reconcile on opening. After a
   reconnect, `reopen` starts the replica over and the host replays what it
@@ -168,18 +236,37 @@ host owes a replica (the WIT documents each call):
   local edits the replica took since it opened, so a status made before it
   took the latest does not let the host drop them; `sealed-taken` says how
   many of them its head holds (all once it is clean) and `journaled-taken` how
-  many its head and this device's journal on it hold, so a reopened replica is
-  given only what neither holds (guides/blocks/host.md, Opening again). An
-  owner sequences local edits in the order it takes them, those it holds back
-  during a seal included, which keeps both counts exact. The host numbers each
+  many the order holds, so a reopened replica is given only what neither holds
+  (guides/blocks/host.md, Opening again). A replica submits local edits in the
+  order it takes them, which keeps both counts exact, and one opened again skips
+  any it is given that the order holds by its origin (below, "Peers"). A
+  message a tentative gesture holds is no local edit until its layer commits
+  (below, "Tentative gestures"). The host
+  numbers each
   opening (`opening.epoch`) and ignores a status whose `epoch` is not the
-  current one: an earlier opening made it.
-- **What the server holds.** `append` answers whether the server took the
-  entries, `publish` answers `kept` for a commit sealed on this device alone
+  current one: an earlier opening made it. The host answers every call a
+  replica made all the same, and the module drops what answers an earlier
+  opening, but for a call made for an editor (a read of the log, a part put,
+  an append, and the part reads of a range it reads, which fill that range as
+  planned against the content it was asked of): the next replica takes those whose
+  editor has not detached (`Carried::asks`, `Carried::ranges`) and hands each
+  answer on to its editor alone
+  (`AnyReplica::late`), so none is made twice, and a page of the log read before
+  it opened never undoes a redaction it has since taken. A released replica's
+  calls carry to no replica: its editors are gone.
+- **The order.** `submit` hands the session's order a submission and answers
+  `held` once the server numbered it, `kept` when this device numbered it
+  offline, `failed` (it may go again once the replica reopens), or `refused`
+  when this account may not edit the block, which the replica gives up as one
+  the order passed over; every replica hears what is numbered through
+  `replica.sequenced`, in order, its own too. The host keeps what it hears in
+  this device's journal, and opens a replica again (rejoining) when it fell
+  behind what the server sent.
+- **What the server holds.** `publish` answers `kept` for a commit sealed on this device alone
   (offline, or behind others in its outbox), `drained` says those commits
   reached the server, or with `refused` lists the commits it refused (set aside, or
   left in the outbox to be tried again), and
-  `opening` says whether it opens on this device's own journal (`journal-kept`),
+  `opening` says whether it opens on a journal this device numbered offline (`journal-kept`),
   whether the device still keeps commits of the block (`commits-kept`) and which
   refused ones it holds (`refused-commits`). The replica tells editors from these what the
   server lacks (guides/blocks/apps.md, "Sending").
@@ -188,12 +275,20 @@ host owes a replica (the WIT documents each call):
   one answer at a time. `load` answers a commit's stored form with the parts it
   was saved in (`loaded`, which becomes a `be_block_store::Stored`), only the
   first part's bytes for a type that loads only that (`be_block_content::Loads`).
-  `read-part` reads a range of a saved part, which a replica answering an
+  It fails with a `load-error` (`be_sdk_type_api::LoadError`): `unreadable`
+  for content that was had and does not read, on which the replica opens no
+  content and tells its editors so; `not-yet` for objects not to be had now (a
+  replaced head the server dropped, a lost connection), on which an opening
+  stops waiting and stays unopened (`not_yet`): it answers jobs as an
+  unreadable one does (Close releases, content and seals answer unknown,
+  changes are not made), tells its editors nothing, and the host opens another
+  replica once the head moves or the connection comes back (guides/blocks/host.md,
+  "Blocks saved by another build"). `read-part` reads a range of a saved part, which a replica answering an
   editor's `Read` uses outside that one-answer rule (guides/blocks/apps.md,
   "Reading a range"). `written` carries the parts a save keeps as they were as
   `reused`, so such a replica saves without the bytes it never loaded.
-  `put-part` uploads bytes as a part of the block before an operation names
-  it (below, "Parts named by hash").
+  A `part-writer` uploads bytes as a part of the block before an operation
+  names it (below, "Parts named by hash").
 - **The lease, relaying and reports.** The host passes on the session's lease
   state, relays `send`s to peers or editors, and stores what the replica
   reports (status, description, history, conflicts, errors).
@@ -202,29 +297,48 @@ host owes a replica (the WIT documents each call):
 
 An operation can carry a part by its ref instead of its bytes: the search index's
 writer adding one, an edit too large to relay.
-The sender calls `put-part(bytes)`, which seals the bytes under the block's
-current key, uploads them and has the server hold them for the block
-(`hold-objects` with `hold.until-committed`), and answers the `part-ref`
-once the upload is done. Only then does it send the operation, with that ref
-(a `be_block_content::PartRef`) in its own payload. The hold ends when a commit of the
-block that uses the part publishes, or once `upload_grace` passed and the
-block's journal holds no entries (an uncommitted operation may still name the
-part). A type's part is put by an editor: `EditorMirror::put_part`
-(`FromEditor::PutPart`, answered `ToEditor::PartPut` under its token), which
-the replica turns into its `Effect::PutPart`. `LiveEdit` has no hook for a
-replica to put a part of its own; the replica puts only an oversized operation's
-bytes. (Chat closes a segment without one: the operation carries the segment's
-bytes, which every replica keeps in memory, as it holds the operation, until the content is dropped or
-reloaded from a save; there is no hook yet that turns them into a saved part, so a replica
-holds a closed segment's bytes once per clone, guides/chat.md.) The
-block must be on the server: a block made offline, or one whose replica has
-not joined yet, is refused.
+The sender makes a `part-writer` under its replica and writes the bytes to it a
+piece at a time: be-block-type-host serves each writer with a task of its own
+holding a `Peer::part_writer`, which seals each chunk under the block's current
+key as the bytes end it, so neither side holds the whole part. `finish` seals
+the rest, has the server hold the part for the block (`Peer::hold_part`:
+`hold-objects` with `hold.until-committed`) and answers the `part-ref` once the
+upload is done; a write that failed fails `finish`, and a writer dropped before
+`finish` lets go of the writer. What a writer sealed is pinned while it is open
+and, once finished, in the replica's reach until a commit reusing the part is
+sealed here (a publish of the replica's, or a merge of the block by
+`merge_diverged`) or the replica goes; a part a long-lived replica writes and
+never seals into a commit here stays pinned that long. After that, or once
+dropped, it is left to the vault's collection (guides/blocks/client.md, "Unnamed
+parts"), which removes it here unless something on the device names it, and
+leaves it while the block keeps edits that may. A writer takes its block's
+sealing key once, as it starts, so a key that rotates mid-write seals the whole
+part under the old key, as a whole put begun just before the rotation would; a
+commit that reuses it seals it again under its own key
+(`Peer::write_content_under` fetches and rewrites a stale part), and until one
+does, the part is readable with the old key, which a member the rotation removed
+still holds. Nothing handles that yet: a module's writes are short-lived and the
+server's access checks stand. A writer may hold at most `UNSEALED_WRITES`
+(8 MiB) unsealed in the host: a write past it, made before earlier ones were
+answered, is refused and the writer let go of. Only then does it send the
+operation, with that ref (a `be_block_content::PartRef`) in its own payload. The
+hold ends when a commit of the block that uses the part publishes, or once
+`upload_grace` passed, the block's journal holds no entries (an uncommitted
+operation may still name the part) and its base names none of the part's objects
+(`journal-base.parts`). A type's part is put by an editor:
+`EditorMirror::put_part` (`FromEditor::PutPart`, answered `ToEditor::PartPut`
+under its token), which the replica turns into its `Effect::PutPart`, which the
+module's runner feeds to a writer as one write (an app frame carries the bytes
+whole anyway). `LiveEdit` has no hook for a replica to put a part of its own;
+the replica puts only an oversized operation's bytes. The block must be on the
+server: a block made offline, or one whose replica has not joined yet, is
+refused.
 
 Each replica that applies the operation keeps the part in its parts as
 `Part::Reused`, so whoever commits next saves a manifest reusing it, uploading
-nothing (the server holds it, so `upload-urls` asks for none of it) and
+nothing (the server holds it, so `reserve-uploads` asks for none of it) and
 downloading its nodes, never its chunks: its top object to learn its key, and
-the rest to list the commit's objects. That needs the server, so an owner
+the rest to list the commit's objects. That needs the server, so a holder
 offline cannot seal a commit reusing a part it never fetched. A type that only
 keeps the part (the search index) never reads it. A type that can rebuild the
 bytes from what it has puts a hash of them in the operation, rebuilds them on applying it
@@ -238,20 +352,121 @@ under a new ref.
 
 An edit too large to relay is the other kind: the part is the operation's own
 bytes, not a part of the content, so the session carries it rather than the
-type (below, "Peers"). Hosts: `Peer::put_part`; be-sdk-test's store refuses.
+type (below, "Peers"). Hosts: be-block-type-host serves the writer as above;
+be-sdk-test's store refuses at `finish`.
 Tests:
 `be-sdk-type-guest/src/tests/an_operation_adds_a_part_by_its_hash.rs` (the
-flow), be-host-stack's `a_part_an_editor_puts_is_held_for_its_block_once_the_server_has_it`
+flow), be-block-type-host's `a_part_a_module_writes_in_pieces_is_held_and_read_back_whole`
+and its `a_part_writer_*` tests (a writer dropped unfinished, open across a module
+restart, written too far ahead), whose module makes writers when told (`Writing`), be-host-stack's `a_part_an_editor_puts_is_held_for_its_block_once_the_server_has_it`
 and be-server's `a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes`.
 
-### Whole bytes
+### Signed logs
 
-`type-info.whole-bytes` (`BlockContent::WHOLE_BYTES`, true unless a type says otherwise) says the
-stored form read whole decodes to the content, so the host copies such a block through its
-bytes: Duplicate, export, `be` transfer, version control's re-listing, a revision's preview or
-restore. A type that loads only its first part and keeps parts its first part cannot rebuild (chat's
-closed segments) sets it false, and the host refuses those paths for a block that has parts after
-its first (`has_later_parts`).
+A type with `type-info.log` keeps a signed log beside its content
+(decisions/a_blocks_records_that_only_grow_are_a_signed_log.md;
+guides/blocks/client.md, "Signed logs"): content is what anyone with Edit may
+rewrite, a log what its authors add. A types crate
+says so with `be_block_types![T { log }]` (`Registration::log`), and the
+content implements `be_block_content::LogFold`: how an entry
+(`be_block_content::LogItem`: place, id, author, arrival, the app's bytes and
+who signed them, `be_block_content::Signer`) changes what the content shows.
+
+- **Appending.** An editor sends `FromEditor::Append` (`EditorMirror::append`,
+  `ContentProjection::append` in be-sdk); the replica calls `host.append`
+  with the bytes alone and what goes along with them (`be_block_content::Along`:
+  the push the entry announces, an entry it takes back), and answers
+  `ToEditor::Appended` with the entry's id and, once the server took it, its
+  place. What goes along waits in the device's outbox with the entry and is
+  done once the server takes it (`Peer::append`): the push is sent, several
+  from one drain as one, and the entry taken back is redacted. The host signs them
+  for the person as the module's app (`be_block_client::Said::hash` with the
+  module's source name, `Modules::name`) and hands them to `Peer::append`, so
+  a module never holds a signature: it cannot skip signing, sign as anyone
+  else, or make an entry that verifies as another app's. Only that app's
+  editors may ask: be-host-stack relays an editor's messages with its app's
+  id (`from_editor`, `Replicas::relay_from_app`), and an `Append` from any
+  other app's editor is answered with an error and goes no further. The
+  module is sent each message as the host decoded it, so it acts on what the
+  host checked, and a message the host cannot decode goes no further.
+- **Hearing.** A replica of a type whose content folds its log
+  (`LogFold::FOLDS`) reads it as it loads, a page at a time to its end
+  (`host.read-log`, which follows the log); one whose content folds nothing
+  (chat) reads and keeps none of it, and its editors read what they show. It
+  hears what is appended through
+  `replica.logged`, every device's own included, which the host takes from
+  `Event::Appended` once `Peer::logged` proved it (`Replicas::appended`) and
+  hands on with who signed each, judged by its arrival (`Peer::verify_entry`,
+  asking about an author it cannot tell of once a page; `bad` for an entry
+  whose payload opens to no salt). A push told after a read already moved
+  the head past it is still handed on, as read again against the kept head,
+  and the replica drops what it holds. A redaction told
+  (`Event::Redacted`) drops the payload this device kept (`Peer::redacted`)
+  and hands the replica the entry as it is now (`Replicas::redacted`),
+  which it takes as told better. Neither is kept for a replica opened again, which
+  reads the log afresh. A first read that fails (a restart, offline) is no
+  error, and the replica describes its content without the log until it
+  hears entries. A follow ends with its connection, and a read made offline
+  makes none: as the device connects, the host reads each open replica's log
+  on from the head it kept (`Replicas::follow_logs`), which follows it again
+  and hands on what was appended meanwhile. An editor hears each entry as
+  `ToEditor::Logged` and reads more with `FromEditor::ReadLog`
+  (`ToEditor::LogRead`, whose `LogPage::kept` also names the entries this
+  device appended that the server has not taken, read from its outbox, and
+  `LogPage::refused` those the server refused, which the device keeps with
+  why until let go). An append the server refuses answers `not-appended`
+  naming it; one a drain refuses reaches each open replica as
+  `replica.refused` (every refused entry the device keeps, which it hands
+  its editors as `ToEditor::Refused`); an editor lets one go with
+  `FromEditor::LetGoRefused` (`host.let-go-refused`).
+- **Folding.** The replica and each `EditorMirror` keep the entries they
+  heard or read by place, each id once at its first place
+  (`editor::take_logged`), so an entry a server serves again under its id is
+  never shown twice, and the place a repeat takes is held as skipped
+  (`editor::HeldLog`); one held is replaced when told better (`Unknown` to a
+  verdict, or `Redacted`), never by `Unknown`. An editor holds the latest
+  `editor::LOG_HELD`, and every entry from where it paged back to (a read
+  from before all it held), so scrolling back is never trimmed away; the
+  floor never rises while the editor is open, so what it holds grows with
+  what it paged back to until it closes; be-sdk reads them through
+  `ContentProjection::with_log`. The replica describes its content with the
+  log folded onto a copy of it, in the log's order: the run of entries from
+  the log's start it holds, up to the first place it lacks (stepping over
+  skipped ones), reading on past a gap it hears entries beyond, and never an
+  entry signed as nobody's (`Bad`); a type decides what the other
+  verdicts count for. It keeps the folded copy and folds entries that follow
+  on onto it, folding from the start again only when the content changed or
+  an entry it folded is told better. What it commits never holds the fold.
+- **Search.** What each entry changes in the type's searchable text is the
+  type's (`LogFold::search`, `replicas.search-log`): the document of an
+  entry, its own or one it names, now says some text or is gone. The host
+  keeps a change to another entry's document only when both have the same
+  author (`Replicas::search_log`), and indexes them as documents of their own
+  (guides/blocks/host.md, "Search").
+- **Unread.** A type that counts what is unread (`Unread::count_unread`) is
+  handed its log's latest entries, `UNREAD_ENTRIES` at most, with its content
+  and place (`replicas.unread`'s `log`).
+- **Export.** An export carries a type's log opened, each entry with its
+  salt and its author's signature (`transfer::SavedBlock::log`,
+  `Peer::export_log`), which verifies against the block it was written in
+  wherever the file goes, with no key of the block (`Peer::verify_exported`);
+  a redacted entry, or one this device could not open, is carried without
+  what it said. An import keeps the entries as history in the new block's
+  log, which a replica is handed with their original author and arrival
+  (the file's word), verified against the block they were written in, and
+  `LogItem::imported` naming that block, their place there and who imported
+  them; one that may not be history here is `Bad` (guides/blocks/client.md,
+  "Imports"). A type folds history apart from the block's own entries, by
+  its places there, and `Replicas::search_log` searches it apart, so neither
+  names the other. A duplicate starts an empty log.
+
+Hosts: be-block-type-host's `Replicas`, be-sdk-test's store (one device, so
+every entry is its own and verified) and be-sdk-type-guest's `Sim`. Tests:
+`two_replicas_append_to_one_log_and_fold_it_in_one_order` and
+`a_log_longer_than_a_page_is_folded_whole` (be-sdk-type-guest), chat's
+(guides/chat.md), and be-block-type-host's
+`what_a_module_appends_reaches_the_server_signed_by_the_host_as_its_apps` and
+`only_the_types_own_app_writes_in_its_blocks_log`.
 
 ### Merging by parts
 
@@ -281,10 +496,10 @@ each part the merge reads goes to the host as `Effect::ReadPart` (`read-part` wi
 its parent, which fetches a part the device lacks from the server). The merge waits while it is
 read, and never resolves without its parts: a read that fails is asked again (three tries). A
 merge that still cannot have a part is dropped, so the replica's jobs go on, reported once
-(`error`), and the owner tries it again as a `Job::Reconcile` on a timer (5 s, doubling to a
-minute; a replica that stops owning the session drops the timer), for as long as it fails: a
+(`error`), and the lease holder tries it again as a `Job::Reconcile` on a timer (5 s, doubling to a
+minute; a replica that stops holding the lease drops the timer), for as long as it fails: a
 `merge_parts` error that always recurs (a corrupt part) is retried for ever at the ceiling. Until
-it resolves the owner makes no due seal (it would publish on the old base and be rejected), and
+it resolves the holder makes no due seal (it would publish on the old base and be rejected), and
 a seal asked for (`Seal` once or rekey) is answered without publishing; the work stays unsealed
 in the journal. While a merge waits, the replica's jobs (an
 editor's edit, a peer's operation, a close) queue behind it and then land on its result.
@@ -294,7 +509,19 @@ once with `Merge::merge3` on the values it loaded, so one that loads only its fi
 `merge3` over what it holds (`Sections` settles a part unloaded on a side by refs where they
 settle it, and otherwise keeps ours with a conflict, never read). `merge_parts` must agree with
 `merge3` wherever `merge3` decides without a conflict (`Sections` shares one function, `by_refs`,
-between them; chat's `merge3` is the union that `merge_parts` then settles by reading).
+between them).
+
+**What a replica reaches.** A module serves every block of its type and may be
+another app's code, so a replica's `read-part`, and the parts its `publish` and
+`stash` reuse, are confined to its reach (`replicas::reach`): the parts of what
+it loaded and put, and any part sealed under a key of its block or of a block
+that content is sealed in (a checkout copy's repository), as a part a peer put
+and names in an edit is: a block whose content the replica was handed is
+reachable whole. A part of another block named by its ref alone is
+refused with `OUTSIDE_REACH`, which a module serving both blocks, or a peer who
+reads both, could otherwise name to show or write one block's bytes as the
+other's (guides/blocks/keys.md, Keys are bound to blocks where the server
+points).
 
 **`read-part` under a stateless request.** A call a module makes while serving
 a stateless request has that request as its parent (`ops::guest::request()`
@@ -313,8 +540,9 @@ then reads the merged commit's reused parts whole, since it becomes a file.
 
 Tests use the types in `crates/be-sdk-type-testing` (a dev-dependency only):
 `Sections`, ten sections each a part after a header of their lengths, and
-`Probe`, whose merge and search read a part its content names and make a call
-other than `read-part`, so a test sees the host refuse both; its search also
+`Probe`, whose merge and search read a part its content names and make a
+`part-writer` (a resource, whose methods the host must refuse too), so a test
+sees the host refuse both; its search also
 answers keys not asked for, a foreign source and a key twice. be-block-type-host's
 `a_merge_over_parts_reads_only_the_parts_each_side_changed`,
 `a_stateless_request_reads_only_parts_of_the_commits_it_was_handed` and
@@ -324,210 +552,271 @@ be-block-sync's `a_type_that_merges_by_parts_merges_edits_on_both_sides`.
 
 ## Peers
 
-Peers exchange `wire::Wire`: be-block-session's `SessionMessage`, plus `Tag`
-and `Incompatible`. A follower sends its `Tag` (the module's hash) before each
-catch-up, and an owner with a different tag answers `Incompatible` and ignores
-it, so two builds of a type never edit one session.
+The server orders the session (guides/blocks/client.md, "Live sessions";
+decisions/live_edits_are_ordered_by_the_server.md). A replica hands the order
+each edit with the host's `submit`: a `be_block_session::Submission` (its id,
+`origin` and a counter it never repeats; `base`, the last sequence it applied;
+`barrier`) whose payload is a `wire::Submitted`, the entry and `through`, how many
+local edits of the replica it holds. Every replica hears the order through
+`replica.sequenced` and applies each entry in order, its own included; what it
+hears early waits in `ahead`. Peers also exchange `SessionMessage`s outside the
+order: presence, channel messages and held layers. The rules an agent most needs:
 
-The session (`crates/be-block-session`) is owner sequencing with follower
-rebase. The rules an agent most needs:
-
-- **Arrival time.** The host hands a peer's message to the replica with when
-  the server took it (`delivery.received`). The owner, sequencing a
-  follower's `Submit`, fills the operation's stamp slot (`LiveEdit::arrival`)
-  and sequences the operation as that changed it, so the stamp is the
-  operation's own content and every replica, journal, snapshot and later owner
-  holds it. One slot reads and writes the stamp, so the check and the stamp
-  cannot disagree; an operation holding others exposes one slot at most. Only
-  the owner stamps: a replica refuses an edit whose slot is already filled, so
-  an honest follower never sends one, and the owner drops a `Submit` that claims
-  one, inline or by its part, and reports it as incompatible, so a type that
-  pre-stamps shows. Undo goes through the same check, so an inverse operation
-  leaves the stamp off. A missing stamp
-  means the arrival is unknown, and content then shows no time, never one the
-  edit claims. Unstamped: the owner's own operations (plans/chat.md), one that
-  travels as a part, and one that stamping would take past
-  `LARGEST_RELAYED_OPERATION`. An operation an old owner never accepted and the
-  follower resubmits to a new one gets the later time, an upper bound on when a
-  sequencing owner first had it. Types that keep no arrival time leave the
-  hook at its default and are unchanged.
-
-- Every operation the owner sequences goes to the block's journal
-  (guides/blocks/client.md, "The journal") through the host's `append`: with
-  others in the session at once, relayed by the same call; alone, folded and
-  every `APPEND_INTERVAL` (250 ms). The owner commits at pauses: `QUIET_INTERVAL`
-  (30 s) with no edits, at most `COMMIT_INTERVAL` (5 min) after it started
-  owing, once it appended `JOURNAL_BYTES` (1 MiB), when it closes, and at once
-  when a peer of another build greets it or a takeover leaves it owing. Each
-  commit `rebase-journal`s, which starts the journal over. While a seal's
-  publish is unanswered the owner keeps sequencing and journaling edits, alone
-  or not: `publish`'s `sealed-through` names the session generation and the last
-  sequence the seal holds, which the host keeps with the commit
-  (`Commit::sealed_through`), and the rebase after it carries what came after in
-  its `entries`, one write on the device. Followers, who applied those already,
-  are sent the seal with a `reload` and hear them again. A seal that restarts
-  the session still holds edits back until its answer.
-- `opening.sealed-head`: the head is a seal this device made on `opening.head`
-  and its own journal is still there (it stopped after the server took the seal
-  and before it heard so). The replica replays the journal on `opening.head`,
-  then takes the seal as its head with the session as of `through`, keeps what
-  came after and rebases onto the seal. The host hands it over only when this
-  device's journal noted that very seal (`Peer::sealing`) and holds the seal's
-  last entry in the seal's generation (`journal_for`, `reaches_seal`);
-  otherwise it opens the seal plainly.
-- A replica opening on the journal's base (`opening.journal`) loads its session
-  state and replays it: as owner it continues the journal's numbering, as a
-  follower it greets with that base and is sent no session state. A follower
-  that takes over appends again what it applied since its last sealed head
-  (`applied_ops`), or commits at once when it cannot number it.
-  `replay` does the same for a reader outside the session. A journal by
-  another build is not handed over: `opening.lost-edits` says it held edits,
-  or that the server marked them lost since the last commit, and the replica
-  reports them lost (`status.undo.lost-edits`).
-- **Restarts.** At a commit, once session state passes `RESTART_STATE_BYTES`
-  (1 MiB) and the content's size, with no gesture open, while alone or past
-  `RESTART_CEILING` times the limit, the owner restarts the session
-  (`Sealed { restart }`): every replica reloads the commit, moves what it has
-  pending onto it with `LiveEdit::carry_over`, and undo stops there
-  (decisions/sessions_restart_when_their_state_outgrows_the_content.md). The
-  last owner to leave rebases the journal with no state, so the next session
-  starts fresh too.
-- An operation is sent as `be_block_session::Payload`: its bytes, or for one
-  over `LARGEST_RELAYED_OPERATION` (1 MiB, a large paste) the part it was put
-  as (`Payload::Part`, put with the host's `put-part` before it is sent). Its
-  sender holds back what it edits after it until the part is put: the owner in
-  `held`, a follower in `unsent`. It is sequenced, relayed, journaled and
-  undone like any other. A replica reads the part with `read-part` before it
-  applies the operation, and holds back every peer message after it until the
-  read answers (`Job::Heard`); one opening on a journal reads the parts its
-  entries name before it replays them. An owner counts the part's bytes
-  towards `JOURNAL_BYTES`, so it commits at once, which ends what a reader
-  outside the session misses: `replay` cannot read a part, so it fails and the
-  host reads the head alone. No commit holds the part, so the server's hold on
-  it lasts the whole upload grace. An owner that cannot put the part (offline,
-  or a block the server does not have yet) commits what it shows instead. A
-  follower whose put fails keeps the edit and puts it again after 5 s, then
-  10, 20 and so on up to a minute (`put_retry_at`), and at once on a lease
-  change (the host's `Lease` input), which is what a rejoin looks like; each
-  failure is reported.
-- A read that fails is tried again after 1, 2 and 4 s, with the messages
-  behind it held; the fourth failure gives up on the part. A part longer than
-  `LARGEST_PART` is given up on without a read, and so are a follower's held
-  messages once more than `MOST_HELD_JOBS` wait behind a read. Giving up
-  drops the messages that name the part. An owner reads a follower's part ten times,
-  the waits growing to a minute (about 4 minutes in all), holding its whole
-  queue meanwhile, then tells the sender `Resend`, which submits all it has
-  pending again (what of it the owner took already it answers with `Accepted`
-  again, guides/blocks/server.md); a follower obeys three in a row, then
-  reports the edit. A follower asks the
-  owner to catch it up (`catch_up_later`), again after 5 s, 10 s and so on up
-  to a minute until an answer applies (a `Snapshot`, a `Sealed` that reloads,
-  or a lease change that resynchronizes). Once the owner's commit of the edit
-  lands, the snapshot starts at a head that holds it; before that it still
-  names the part, so the follower waits. Giving up is never a divergence, only
-  bytes that do not decode are. A follower heeds `Accepted`, `Snapshot`,
-  `Sealed`, `Replaced`, `Saved` and `Resend` from the owner alone and ignores
-  `Submit`, `Catchup` and `Kept` (`not_heeded`), before it reads any part they
-  name. One from a sender it did not know as the owner is remembered, and it
-  asks to be caught up should that sender become the owner. The server checks
-  the sender too: `send` names a `relay-kind` (`Wire::kind`), `peer` for
-  presence, channel messages, `Catchup` and the tag handshake, `edit` for the
-  rest; the server relays `edit` only from an editor (guides/blocks/server.md)
-  and hands each message on with the kind it checked
-  (`message`'s `delivery`). Since the kind is the sender's label, every replica,
-  owner included, drops a message that asks for more than its stamped kind
-  (`Wire::sent_as`), before it reads any part it names: a viewer's `Submit`
-  labelled as presence is never applied. Which messages only the owner sends
-  stays the replicas' check, not the server's: an owner whose lease lapsed
-  unseen still relays what it accepted, and the next owner takes it over
-  (`inherit_accepted`), but only from a client it knew as an owner
-  (`past_owners`). The owner heeds `Replaced` from any editor (a follower
-  that replaced the content sends it) and `Saved` changes nothing on it. Editors
-  are trusted with the block's content and session; only viewers are kept out.
-  The server holds a
-  part for the whole upload grace (a day), and longer while the block's journal holds
-  entries, far longer than a lagging replica needs; a replica may read only
+- **Entries** (`wire::Entry`): `Operation`, an operation's bytes or the part they
+  were put as; `Reload`, the content becomes a commit at that place (`head`: the
+  holder merged a head moved from elsewhere; otherwise a stash every replica
+  remembers in `keep` until the holder seals it as a second parent), with the
+  operations numbered after the entry's base applied again on top unless it
+  `replace`s the content (a barrier) or `restart`s the session; `Keep`, a stash
+  to keep in history. Each entry carries a `floor`, the last barrier, and every
+  replica passes over an entry based below it, and one it cannot decode, alike,
+  so their copies agree.
+- **Own edits.** A replica applies its edit to `visible` at once and submits it
+  once nothing of its own is in flight; what it types meanwhile waits in `unsent`,
+  absorbed, and goes as one submission when the first comes back. An entry of
+  its own coming back is compared with what it submitted; another's numbered
+  first goes beneath its unconfirmed edits (`LiveEdit::apply_beneath`, told to
+  editors as `Beneath`).
+- **Tentative gestures.** An editor's `Gesture::BeginTentative` opens a
+  gesture whose edits are held (decisions/tentative_edits_wait_for_release.md):
+  each is applied to `visible` and told to the editors, but kept in the
+  replica's `tentative` layer, on top of `unsent`, never submitted or journaled.
+  Every open tentative gesture of the block joins that one layer. A commit of
+  one waits for the rest; when the last ends, the edits of those that committed
+  move, in the order made, to the end of `unsent` (and become one undo step), and
+  a cancel drops only its own. Peers' entries go beneath the layer (it is part of
+  `local` for `apply_beneath`), an ordinary edit made meanwhile is queued beneath
+  it, told to editors as going beneath it (`Landed::Under`, so none is shown the
+  content afresh), and recorded for undo against the content without it, and seals, stashes,
+  `content` and descriptions never hold it. An undo while it is held cancels all
+  of it and does nothing else; its open gestures stay open, voided, dropping what
+  their editors send, until they end them, but hold nothing: an undo or redo
+  before then is an ordinary one. A redo is refused while the layer is held. A restart carries the layer
+  after `unsent`; a gesture with an edit that does not carry, and every open one
+  at a replacement, ends here: the editor is told `ToEditor::GestureEnded`, its
+  later edits are dropped, and its `EditorMirror` answers with a cancel of the
+  gesture, which ends it for `Holds` on both sides. `Holds` cannot see a gesture
+  the replica ends so (it ends in a job, not at a message), so until that cancel
+  an undo is spent on it, and a commit crossing the replica's word counts its
+  operations though the replica dropped them: a round trip either way, and the
+  counted edits are covered by `journaled-taken` once nothing else waits. An editor that detaches
+  cancels its own tentative gestures and commits its undo groups. Gestures are named by the editor and an id of its own
+  (`FromEditor::Gesture { id, .. }`, `FromEditor::Operate { gesture, .. }`), so one
+  editor holds several.
+  `be_sdk_type_guest::holds::Holds` decides, from the messages alone, which
+  messages are held, so the host's replay and the replica's counts agree: a
+  tentative gesture's begin, commit and cancel never count as local edits, and
+  its operations count once the layer commits, in the order they arrived,
+  before whatever ended it. The host keeps held messages in `replay` where they
+  arrived, out of every cut and of what it keeps on the device, so a module
+  restart rebuilds the layer and a crash loses it; at the layer's commit it moves
+  the operations that count to the end of `replay` as ordinary ones, and drops
+  the rest.
+- **Peers preview held layers** (`replica/held.rs`). A replica tells its peers its
+  layer as it grows (`SessionMessage::Held { layer, origin, from, to, operations,
+  commits_through }`, at the same rate as presence: one per frame of a drag, the
+  frame's edit alone): each edit held on top goes as an append (`from`, how many
+  edits the peer holds already, `to` after), up to `APPENDS_BETWEEN_WHOLE` in a
+  row; past that, and after any other change (a gesture of it cancelled or
+  voided, a restart carrying it), the layer goes whole after the job, its edits
+  absorbed (`from` zero), which a model document's absorb makes one write of each
+  field that nothing else in it reads (a conditional set, an add, a removal that
+  compares every field keep the earlier write). A participant joining is told it whole too, and so is one asking
+  (`SessionMessage::HeldAgain`, sent once a layer by a peer that holds another
+  count than an append starts from), once for each state of the layer however
+  often it asks. A layer past `LARGEST_RELAYED_OPERATION` bytes or
+  `LARGEST_PEER_LAYER` edits whole, absorbed, is not previewed, and a peer stops showing one past that or `LARGEST_PEER_LAYER`
+  edits until its holder's next layer. Peer messages wait for a replica's load
+  like everything it hears, so a late joiner shows what it was told as it
+  joined. Its commit sends `commits_through`, the last local edit
+  the layer goes out as; one that commits nothing, or a cancel, drops it (empty,
+  with nothing to commit). Each layer has a number (`layer`): one about a newer
+  layer replaces an older one not committing, while one committing stays beneath
+  the newer until the order holds it (a second drag can start before the first's
+  entry comes back), and one about an older layer is dropped. A peer drops a
+  `Held` from a participant that may not edit, keeps each peer's layers
+  (`peer_layers`, by client and layer number) and shows them
+  above its own unconfirmed edits and beneath its own tentative layer, so each
+  device sees its own drag on top. Peer layers count in `unsettled()`: a frame
+  lands on editors as `Landed::On`, or `Under` its own layer; a local edit goes
+  `Under` every layer, and another's entry `Beneath` them. The entry that brings
+  the holder's origin to `commits_through` (`origins`) lands as `Beneath` with
+  `local` no longer holding the layer, so no frame shows both or neither, and one
+  the order passes over (below a barrier) takes the layer with it, as does a
+  `commits_through` told after the order passed over those edits; a layer that
+  leaves with no entry (a cancel, a holder leaving the session or
+  losing edit access, a newer layer told whole) lands as `Landed::Relaid`, which
+  only lays what is unsettled again (`EditorOperation { landed: Landed::Relaid, .. }`,
+  with no edit of its own). A
+  reload or replacement drops every peer layer, and the holder, reloaded too,
+  tells its own whole again. Peer layers are never written, sealed, stashed,
+  described or in `unheld()`/`content`, and touch no `History` or `Holds`: this
+  replica's own edits record undo against what it shows without them
+  (`own_visible`). A peer's edit to an item a layer moves goes beneath it, the
+  layer showing what the commit will make it.
+- **Arrival time.** The server stamps each entry with when it took it
+  (`received`); an entry a device numbered offline has none. Content never
+  holds an arrival: records that need the server's time are a signed log's
+  entries (`LogItem::arrival`).
+- **Sealing.** The lease holder commits at pauses: `QUIET_INTERVAL` (30 s) after
+  the last edit, at most `COMMIT_INTERVAL` (5 min) after it started owing, once
+  the order since the last seal passes `JOURNAL_BYTES` (1 MiB, an operation's
+  part counted), at once when a stash is to be kept, and when it closes. It
+  publishes `confirmed` on the head it last sealed, with the first stash in
+  `keep` as a second parent; `publish`'s `sealed-through` names the last sequence
+  it holds, which the host keeps with the commit (`Commit::sealed_through`), and
+  `journal-state` the session state as of it: the journal's base, which the host
+  hands the server with the publish (`Write::seals_journal`). A state past
+  `LARGEST_RELAYED_OPERATION` goes by the part the replica puts it as first
+  (`journal_state`; the seal waits for the put), which the base names
+  (`BaseState::part`, and `journal-parts`, whose objects the server keeps while
+  the base names them); a replica opening on the base reads it before it
+  replays. The server trims
+  its journal as the seal wins the head and tells every replica
+  (`replica.sealed`), which takes it as its base once it applied that far, so a
+  replica that takes the lease next seals on it even before the head reaches it
+  as the block's (`head-moved`); the host trims
+  this device's journal too. With nothing to commit, the host trims with no new
+  commit. It goes on applying the order while the seal is out, but for a reload: that reads its commit, a wait of its own, so it and what follows wait for the seal (`passes_a_seal`). A rejected seal reconciles
+  and seals once more; a head moved from elsewhere reconciles the holder, which
+  merges what it holds into whatever it fast-forwards or merges onto (a
+  fast-forward too: loaded as it is, the head would hold none of the
+  identities the edits on their way name), stashes its side when the merge
+  conflicts, publishes the result and submits it as a head `Reload` carrying
+  the merge's session state (inline, or past `LARGEST_RELAYED_OPERATION` by
+  the part it is put as, which every replica reads first), so every replica
+  takes those identities and what the order numbers after the merge lands on
+  it, edits not yet submitted included: they rely on it, and need no carrying
+  of their own. It seals nothing while that reload is on its way; one the
+  server refuses is let go, and the merge made again on its timer. A
+  fast-forward merges too, a pass over the content, unless nothing could name
+  what the replica holds (no editor, nothing on its way, alone in the session). A replica made
+  holder carries on from the last seal's head: nothing moves with the lease.
+- **The lease.** The host hands the replica the session's membership
+  (`replica.lease`, applying each membership entry as it hears it, and joining
+  again on a gap), and the replica derives whether it holds the lease from it
+  with the server's function (`Membership::holder`). It may lag the server's
+  view by what is on its way, which at worst has two replicas seal at once, and
+  the server's compare-and-swap takes one. There is nothing to renew, and a
+  replica whose holder left holds it from that entry with no claim of its own.
+  Each seal names the replica's `restarts` as its run of the order, so the
+  server passes over a stale one. `claim` (a
+  terminal host's) asks the server to write a claim, which takes the lease at
+  once. A trim with no new commit (`rebase-journal`: the last one out restarting
+  the session, a new build starting the journal over) reaches the server only
+  from the holder.
+- **Opening.** A replica opens on the journal's base (`opening.journal`) and
+  applies its entries, or, with `opening.sealed-head`, applies them on the commit
+  the seal was made on and takes the seal as its head once it reached the seal's
+  sequence. `replay` does the same for a reader outside the session. A journal
+  by another build is handed over without its entries, at its last number, and
+  `lost` (`journal.lost`, the one place a replica learns it), and the replica
+  reports them lost (`status.undo.lost-edits`); its holder starts the journal
+  over. It reads the parts the journal names first, again on a timer while reads
+  fail, its editors showing it loading meanwhile; one it could not read in
+  `JOURNAL_PART_TRIES` (about a minute) is given up, and a journal needing a
+  part it gave up (its base's state, an operation's, a restart's state) opens
+  the same way, on the commit with the journal's edits lost, rather than replay
+  without it.
+- **Opening again.** A replica's `origin` is kept across its reopenings
+  (`opening.origin`), and `opening.taken-before` says how many local edits the
+  host no longer gives it, so it numbers the edits it is given again as before.
+  An edit whose number is no more than the most `through` of its origin the order
+  holds was numbered already (the answer was lost to a disconnect or a module
+  restart) and is counted, not made twice.
+- **Restarts.** At a seal, once session state passes `RESTART_STATE_BYTES`
+  (1 MiB) and the content's size, with no gesture or tentative layer open,
+  while alone or past
+  `RESTART_CEILING` times the limit, the holder submits a restart `Reload` of
+  the seal, based at the seal's `through` and carrying the state at it, a
+  barrier: every replica reloads the commit, carries the entries the order
+  numbered after the seal from the commit with that state onto it, moves what
+  it has not had numbered onto the result with `LiveEdit::carry_over` and
+  submits it again, and undo stops there; journal replay does the same
+  (decisions/a_restart_carries_what_was_numbered_after_its_seal.md,
+  decisions/sessions_restart_when_their_state_outgrows_the_content.md). A
+  replacement drops what was numbered after its base on purpose, and stashes
+  it; a restart must drop nothing.
+  The last holder to leave rebases the journal with no state, so the next
+  session starts fresh too. A test lowers the limit for a block it opens
+  (`opening.restart-limit`, which be-block-type-host's tests set with
+  `Replicas::restart_limits`), so its restart builds kilobytes of state; the
+  guest's own tests lower it with `RESTART_LIMIT`, even mid-session. A host
+  sends none.
+- **Large operations.** An operation over `LARGEST_RELAYED_OPERATION` (1 MiB, a
+  large paste) goes by the part it was put as (`Payload::Part`, put with the
+  host's `part-writer` before it is submitted); what is typed after it waits in
+  `unsent`. A replica reads the part with `read-part` before it applies the
+  entry, holding the order behind the read, and reads the parts a journal names
+  before it replays it. A read that fails is tried again after 1 s, doubling to a
+  minute, for as long as it fails, since every replica applies the entry; a part
+  longer than `LARGEST_PART` is passed over by every replica unread. A put that
+  fails is tried again after 5 s, doubling to a minute (`put_retry_at`). No
+  commit holds the part until the holder seals, so the server's hold on it
+  lasts the whole upload grace. `replay`, for a reader outside the session,
+  reads the parts the journal names (its base state's, an operation's) under
+  its request, which the host serves only for parts sealed under that block's
+  keys (`Scope::check`, which fetches a part this device lacks only as that
+  block's, `Peer::is_part_of`); it reloads no commit, so a journal holding a reload is read as the head
+  alone.
+- **Replacements.** A whole-content replacement (`Replace`, `FromFile`) wins
+  outright: the replica stashes what it shows, stashes the replacement on top and
+  submits a barrier `Reload` of it, so the holder's next seal has it as second
+  parent and both stay in history. A replica whose edits the barrier drops (not
+  yet numbered, or numbered after the replacement's base) stashes what it showed
+  and submits a `Keep`. Every editor is sent a new snapshot. The change is
+  answered once the server holds the reload, not when the order brings it back:
+  a host that waits on the answer may be what would hand the replica the order.
+- **Who sends what.** The server takes submissions and claims only from editors,
+  submissions of the session's build alone. Relayed messages are presence,
+  channel messages and held layers, which any participant sends (held layers
+  only count from one that may edit); which head
+  holds which number comes from the server (`replica.sealed`), never a peer.
+  Editors are trusted with the block's content and session; only viewers are
+  kept out. The server holds a part for the whole
+  upload grace, far longer than a lagging replica needs; a replica may read only
   objects of blocks it may view, and opens them with that block's key.
-- A whole-content replacement (`Replace`, `FromFile`) wins outright: the
-  replica stashes what it has not saved and publishes the replacement with
-  that stash as second parent, and every editor gets a new snapshot. A follower
-  that has unsaved edits when a replacement lands stashes them and hands the
-  owner a `Kept`, which the owner keeps in history; the follower stays
-  responsible for each stash until the owner answers `Saved`, resending it
-  after a takeover.
 
 ## Announcements
 
-An edit made on this device can tell the block's members who are not connected
-about itself once the server holds it (chat: each message it sends). The type
-names what it tells with `LiveEdit::announcements`, asked as the edit is made,
-of content that holds it: `be_block_content::Announcement`'s text, the accounts it
-mentions, a `key` naming what it announces (chat: the message), unique in the
-block and the same when the edit is made again, and `several`, the text for
-several sent together with `{count}` for how many (chat: "{count} new
-messages"). The notification is tied to the edit, never to an editor or a
-replica:
+An entry appended to a signed log can tell the block's members who are not
+connected about itself once the server holds it, with what goes along with it
+(`Along::announcement`, "Signed logs", above; chat's messages do):
+`be_block_content::Announcement`'s text, the accounts it mentions, a `key`
+naming what it announces, unique in the block and the same when the entry is
+appended again, and `several`, the text for several sent together with
+`{count}` for how many. Content edits announce nothing.
 
-- The replica keeps the announcements with the edit in its lacking list
-  (guides/blocks/apps.md, "Sending"), whether an editor follows or not (with
-  none, the list is only kept: nothing is told). An owner hands them to the
-  host with the `append` holding the edit (`announced`, by sequence; a seal
-  appends what it sequenced first), and from there the host keeps them
-  durably, the text sealed under the block's key, in the refs database
-  (`be-block-client/src/refs/announcements.rs`): beside the journal entry,
-  then, when `rebase-journal` starts the journal from a commit this device
-  sealed (one of the last 16 its replicas published or kept, which `Replicas`
-  remembers per block, or one in its outbox), beside that commit while the
-  outbox keeps it. A rebase from anyone else's commit drops them: the edit
-  never reached the server.
-- The host sends one once the server holds its edit: the append answered, or
-  the commit published or settled by the drain (`Peer::settle`), so it goes
-  with no replica or type module open, and after a restart. A commit the
-  server refuses drops what it announces, and so does setting the block's
-  commits aside (`move_to_unsent`) or giving one up (`abandon`): a message
-  shown "Not sent" tells nobody (sent again, it is a new edit). Forgetting a
-  block, or losing access to it, forgets its announcements.
-- A follower's edit is the owner's to append, but the notification must come
-  from its author's account, so the follower's replica hands the host its
-  announcements with `announce` once the owner accepts the edit (the server
-  holds it then). They live in the replica until then, as the edit does.
+- The announcement waits in the outbox with its entry (`Peer::append`). Once
+  the server takes the entry, the host keeps it durably, the text sealed under
+  the block's key, in the refs database
+  (`be-block-client/src/refs/announcements.rs`), whether a replica is open then
+  or not. An entry the server refuses tells nobody: its announcement never reaches the refs. Forgetting a block, or
+  losing access to it, forgets its announcements.
 - `Peer::send_announcements` sends what is held, after an append the server
-  took, a rebase, an `announce` and at the end of each outbox drain; it sends
-  nothing while one drains, so what a drain publishes goes together. It marks
-  each sent before it calls `notify`, putting them back only when the server
-  cannot be reached, so a crash costs a notification rather than repeating
-  one. `notify` names their keys, and the server pushes nothing for a call
-  whose keys it has all told before: a device stopped after the server took
-  the call but before it heard the answer sends it again on its next start,
-  and the members hear it at most once. What waits together on one block is one notification: the text of one,
+  took and at the end of each outbox drain; it sends nothing while one drains,
+  so what a drain sends goes together. It marks each sent before it calls
+  `notify`, putting them back only when the server cannot be reached, so a
+  crash costs a notification rather than repeating one. `notify` names their
+  keys, and the server pushes nothing for a call whose keys it has all told
+  before: a device stopped after the server took the call but before it heard
+  the answer sends it again on its next start, and the members hear it at most
+  once. What waits together on one block is one notification: the text of one,
   or the newest's `several`, mentioning everyone they mention. The server
   allows `MAX_NOTIFICATIONS_PER_BLOCK` a minute per account and block, and one
   it refuses is dropped, never reported: it was about then.
-- A key is announced once: one held, kept with a commit or sent is not kept
-  again (the host remembers the last 256 sent per block), so an edit a host
-  replays into a restarted replica (guides/blocks/host.md), which announces it
-  again, is not sent again, and a replayed journal entry announces nothing.
-  One still waiting in the journal is replaced by the edit made again.
+- A key is announced once: one held or sent is not kept again (the host
+  remembers the last 256 sent per block).
 
-What is not covered: a follower that closes or restarts before the owner
-accepts its edit tells nobody (the edit is lost too); a host that crashes
-before sealing and whose restarted replica opens as a follower and takes the
-session over drops what its journal entries announced (the takeover rebases
-from the old base); and an owner whose append the server took but whose answer
-was lost to a disconnect, after which another device took the session over,
-never sends it (the server holds the edit, but no commit of this device does).
-
-Tests: be-host-stack's `a_chat_message_*` (through `Peer::notify`, the server's
-recipient selection and a Web Push service on loopback whose device key is the
-P-256 generator, so a test opens each push and checks its text) and chat's
-editor tests over be-sdk-test's store. That store keeps announcements as a
-simpler host: one device, so every rebase is on its own commit; every
-announced key remembered, with no cap; and announcements of a refused kept
-commit dropped by block.
+Tests: be-host-stack's `a_chat_message_*` (through `Peer::notify`, the
+server's recipient selection and a Web Push service on loopback whose device
+key is the P-256 generator, so a test opens each push and checks its text) and
+chat's editor tests over be-sdk-test's store, which keeps announcements as a
+simpler host: one device, every announced key remembered, with no cap.
 
 ## Editors are endpoints
 
-A local editor follows the replica as a peer follows an owner. The host
+A local editor follows the replica as a replica follows the order. The host
 `attach`es an editor instance (with whether it may edit) and `detach`es it;
 the editor's messages are `editor::FromEditor` (operations, gestures,
 replace, presence) and the replica answers `editor::ToEditor` (a snapshot,
@@ -538,7 +827,21 @@ operations the content the replica opened on holds, and the replica sends the
 editor nothing of the content until `resent`: the host calls it right after
 `attach`, or, for an editor still open across a reopen or restart, after it
 gave the replica again what it kept of the editor's edits, so the snapshot
-counts them all in the editor's own count. Detaching forgets the count. On the app protocol both directions travel
+counts them all in the editor's own count. A replica opened again in place of one that
+already told an editor that same snapshot (its block's session joined once its creation was
+sent) does not tell it again: the replica keeps the hash of the snapshot each editor holds,
+until operations change what it shows, and carries it across the reopen, even when the
+editor is attached editable where it was read-only: editability is not in the snapshot, and
+the host tells an app editor that itself (`SetEditable`, guides/blocks/apps.md). A `Resend` is always
+answered. A reload other than a replacement may give what an editor's edits
+name new identities (a restart does): each snapshot carries how many the
+replica took (`Snapshot::reloads`), the mirror answers a new count with
+`FromEditor::Shown`, which must reach the replica, and an edit an editor sent
+before it said so, made on what it showed before a reload, goes as what it
+visibly did there (`LiveEdit::carry_over`) when it would otherwise apply as
+nothing. The carry is positional: it lands at the same place, not where its
+meaning moved. The replica keeps what the editors showed before each reload
+one of them may still show. Detaching forgets the count. On the app protocol both directions travel
 through the editor's `replica` resource (guides/blocks/apps.md, Content on the app protocol); `editor::EditorMirror` is the editor's side,
 which `ContentProjection` is built on. Undo and redo are host `change`s, not
 editor messages, since a shortcut may undo a block no editor shows.
@@ -574,12 +877,12 @@ follows each editor with an `EditorMirror`, and moves time only through
 
 ## Hosts
 
-`crates/be-block-type-host` is the host half, natively under wasmtime and in
-process in tests:
+`crates/be-block-type-host` is the host half, natively on V8 (be-wasm-host)
+and in process in tests:
 
 - `modules`: the process-wide registry of what each type is (`kind_of`), and
   `Modules`, which routes each type to its module, starts and restarts each
-  `Source` (in process, wasmtime, or a web worker), and answers clocks and
+  `Source` (in process, V8, or a web worker), and answers clocks and
   sleeps. A source that declares its types starts lazily, on the first call
   to it, so a host runs only the modules its blocks use; what a host must
   know without running one (names, icons, `plain_file`) comes from the
@@ -593,9 +896,10 @@ process in tests:
 - `replicas`: `Replicas<H: Host>`, the replica IO of
   guides/blocks/host.md (The peer and its registry) for any host.
 
-be-host stages each app's type module beside the app. `be` carries every
-app's manifest and type module inside its executable (`APP_TYPES`), so its
-release stays one file (guides/bootstrap.md), and compiles them once into
-`BE3_CACHE/modules`. A module's session tag is its SHA-256, so a `be` and a
+be-host stages each app's type module beside the app, and `be` reads them as
+be-host does, through be-host-stack's discovery (`be_host_stack::types::app_sources`):
+from the apps staged beside it, or downloaded from its release by hash
+(guides/apps/runtime.md, "Headless"), so no type module is compiled into it. V8
+compiles each as it loads. A module's session tag is its SHA-256, so a `be` and a
 be-host built from one tree share sessions. Tests run every first-party types
 crate in process with `be_type_bundle::sources()`.

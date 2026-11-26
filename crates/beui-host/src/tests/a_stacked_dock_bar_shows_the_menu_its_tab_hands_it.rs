@@ -17,7 +17,7 @@ fn a_stacked_dock_bar_shows_the_menu_its_tab_hands_it() {
     let _root = crate::reactive::RootScope::new();
     let renamed = create_signal(0);
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost>
                 <dock::Docking layout focus=2u64>
@@ -55,7 +55,8 @@ fn a_stacked_dock_bar_shows_the_menu_its_tab_hands_it() {
     harness.click(at);
     harness.settle();
     let root = harness.document().root().expect("the document has a root");
-    let row = text_within(harness.document(), root, "Rename").expect("the menu lists Rename");
+    let row =
+        find_text(harness.document(), root, "Rename", Match::Exact).expect("the menu lists Rename");
     harness.click(harness.center(row));
     harness.settle();
     assert_eq!(

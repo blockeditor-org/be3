@@ -1,5 +1,4 @@
 use accesskit::{Node, Role};
-use beui_macros::{component, view};
 
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
@@ -29,7 +28,7 @@ pub fn PointerLock(
     on_motion: Callback<Vec2>,
     on_key: Callback<KeyPress, bool>,
     accessibility: Option<Prop<Node>>,
-    #[prop(children)] content: Option<Render<PointerLockHandle>>,
+    #[prop(children)] content: Option<Render<PointerLockHandle, NodeId>>,
 ) -> NodeId {
     let current = locked;
     let hovered = create_signal(false);

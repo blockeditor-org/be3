@@ -15,7 +15,7 @@ fn a_change_inside_a_turned_child_still_paints_turned() {
             <List spacing=0.0 align=Align::Start>
                 <Frame width=60.0 height=60.0 radius=0.0 rotate={std::f32::consts::FRAC_PI_2}>
                     <Frame
-                        width={create_memo(move || Extent::px(width.get()))}
+                        width={move || Extent::px(width.get())}
                         height=20.0
                         fill=MARK
                         radius=0.0

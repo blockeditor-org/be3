@@ -22,7 +22,7 @@ fn a_snippet_marks_each_match_around_the_first() {
         .iter()
         .map(|range| &short.text[range.clone()])
         .collect();
-    assert_eq!(marked, ["Big", "River"]);
+    assert_eq!(marked, ["Big River"]);
 
     let none = Query::parse("absent").snippet("Only the name matched\nhere");
     assert_eq!(none.text, "Only the name matched here");

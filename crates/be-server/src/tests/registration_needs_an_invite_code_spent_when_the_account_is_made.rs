@@ -16,17 +16,15 @@ async fn register(
                 ("invite", invite),
                 ("email", email),
                 ("display_name", "New"),
-                ("password", "a good password"),
-                ("confirmation", "a good password"),
             ],
         )
         .await
 }
 
-async fn verify(harness: &Harness, token: &str) -> (u16, String) {
-    Browser::default()
-        .submit(harness, "/auth/verify", "/auth/verify", &[("token", token)])
-        .await
+/// Enters the code mailed to `email` in the browser that asked for it.
+async fn enter(harness: &Harness, browser: &mut Browser, email: &str) -> (u16, String) {
+    let (code, _) = harness.mailed_code(email);
+    browser.enter_code(harness, &code).await
 }
 
 #[tokio::test]
@@ -42,22 +40,26 @@ async fn registration_needs_an_invite_code_spent_when_the_account_is_made() {
     assert_eq!(record.uses, Some(1));
     assert!(record.expires.is_some());
     let typed = once.to_uppercase().replace('-', " ");
+    // Asking for a code spends nothing: two people can wait on one use.
+    let mut first = Browser::default();
     assert_eq!(
-        register(&harness, &mut browser, &typed, "first@example.com")
+        register(&harness, &mut first, &typed, "first@example.com")
+            .await
+            .0,
+        303
+    );
+    let mut second = Browser::default();
+    assert_eq!(
+        register(&harness, &mut second, &once, "second@example.com")
             .await
             .0,
         303
     );
     assert_eq!(
-        register(&harness, &mut browser, &once, "second@example.com")
-            .await
-            .0,
+        enter(&harness, &mut first, "first@example.com").await.0,
         303
     );
-    let first = harness.mail_token("first@example.com");
-    let second = harness.mail_token("second@example.com");
-    assert_eq!(verify(&harness, &first).await.0, 303);
-    let (status, page) = verify(&harness, &second).await;
+    let (status, page) = enter(&harness, &mut second, "second@example.com").await;
     assert_eq!(status, 400);
     assert!(page.contains("\"field\":\"Invite\""), "{page}");
     assert_eq!(invite_codes::list(&harness.directory).unwrap()[0].used, 1);

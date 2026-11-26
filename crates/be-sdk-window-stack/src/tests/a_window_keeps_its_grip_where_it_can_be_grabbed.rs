@@ -1,5 +1,9 @@
 use super::*;
 
+fn grabbable(rect: Rect, works: &[Rect], home: Rect) -> Pos2 {
+    rect.grabbable(KEPT.min(rect.size()), works, home)
+}
+
 #[test]
 fn a_window_keeps_its_grip_where_it_can_be_grabbed() {
     let display = Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0));

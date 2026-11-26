@@ -1,6 +1,5 @@
 use std::rc::Rc;
 
-use beui_macros::{component, view};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::Painter;

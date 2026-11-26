@@ -7,17 +7,14 @@ fn an_invitation_code_opened_as_a_contact_link_is_refused() {
     let harness = Harness::start();
     let url = harness.url.clone();
     let guest = Someone::register(
-        &harness.directory.join("server"),
+        harness.server.directory(),
         &url,
         "guest@example.com",
         "Guest",
     );
     harness.connect();
     let link = runtime()
-        .block_on(crate::invite(
-            "guest@example.com".to_owned(),
-            be_block_protocol::OrganizationRole::Administrator,
-        ))
+        .block_on(crate::invite())
         .expect("the owner invites the guest");
     let parsed = crate::invite_link::InviteLink::parse(&link).expect("the link parses");
 
@@ -50,6 +47,7 @@ fn an_invitation_code_opened_as_a_contact_link_is_refused() {
         &guest.me().card(),
         &parsed.code,
         be_block_client::contacts::Expected::Contact,
+        &Default::default(),
     ));
     assert!(accepted.is_err(), "{accepted:?}");
 

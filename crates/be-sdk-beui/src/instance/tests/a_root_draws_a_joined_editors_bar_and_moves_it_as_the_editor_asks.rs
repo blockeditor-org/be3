@@ -40,6 +40,7 @@ fn barred() -> DockDeclaration {
             glyph: String::new(),
             closable: false,
             back_closes: true,
+            unread: 0,
             menu: Vec::new(),
         }],
         dialogs: Vec::new(),
@@ -146,7 +147,7 @@ fn a_root_draws_a_joined_editors_bar_and_moves_it_as_the_editor_asks() {
             },
             _ => None,
         })
-        .last()
+        .next_back()
         .expect("the root hosts its child again");
     assert_eq!(hosted.layout.bars[0].bar, DockTabPath::own(9));
     assert_eq!(

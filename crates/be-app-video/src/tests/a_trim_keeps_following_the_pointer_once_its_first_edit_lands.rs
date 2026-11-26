@@ -12,18 +12,14 @@ fn a_trim_keeps_following_the_pointer_once_its_first_edit_lands() {
         .rect_of(&format!("video.trim.{clip}"))
         .center();
     fixture.editor.down(from, PointerButton::Primary);
-    fixture.editor.run();
     fixture
         .editor
         .hover(Pos2::new(from.x + 10.0 * scale, from.y));
-    fixture.editor.run();
     assert_eq!(fixture.video().clips()[0].length, 40);
 
     let to = Pos2::new(from.x + 20.0 * scale, from.y);
     fixture.editor.hover(to);
-    fixture.editor.run();
     fixture.editor.up(to, PointerButton::Primary);
-    fixture.editor.run();
 
     assert_eq!(
         fixture.video().clips()[0].length,

@@ -4,11 +4,14 @@ use uuid::Uuid;
 
 use crate::ui::{MemberRow, MembersView};
 
-type Reply = Result<Vec<Member>, String>;
+type Reply = Result<be_host_stack::MemberList, String>;
 
 pub(crate) struct Members {
     open: bool,
     members: Vec<Member>,
+    /// Members no record in the organization's log signed in: ones the server added on its own,
+    /// since a person signs in as they accept an invitation.
+    unsigned: Vec<Uuid>,
     removing: Option<Uuid>,
     busy: bool,
     error: Option<String>,
@@ -20,6 +23,7 @@ impl Default for Members {
         Self {
             open: false,
             members: Vec::new(),
+            unsigned: Vec::new(),
             removing: None,
             busy: false,
             error: None,
@@ -72,7 +76,10 @@ impl Members {
     fn replied(&mut self, reply: Reply) {
         self.busy = false;
         match reply {
-            Ok(members) => self.members = members,
+            Ok(listed) => {
+                self.members = listed.members;
+                self.unsigned = listed.unsigned;
+            }
             Err(error) => self.error = Some(error),
         }
     }
@@ -108,12 +115,50 @@ impl Members {
                     administrator: member.role == OrganizationRole::Administrator,
                     me: member.account == me,
                     agent: member.created_by.is_some(),
+                    // An agent waits unsigned until its maker's next `tend` signs it in.
+                    unsigned: member.created_by.is_none()
+                        && self.unsigned.contains(&member.account),
                 })
                 .collect(),
             removing,
             busy: self.busy,
             error: self.error.clone(),
         })
+    }
+}
+
+/// What a root guest is shown (`be3:root`'s `core-view`; root/block_stack.rs).
+#[cfg(not(target_os = "android"))]
+impl Members {
+    /// The organization's members as a root shows them, `me` the person's own account:
+    /// listed once `show` asked and the server answered.
+    pub(crate) fn root_area(&self, me: Uuid) -> be_wasm_root_api::MembersArea {
+        be_wasm_root_api::MembersArea {
+            listed: self.open && !self.busy,
+            members: self
+                .members
+                .iter()
+                .map(|member| be_wasm_root_api::MemberRow {
+                    account: member.account.into_bytes(),
+                    name: named(member),
+                    email: member.email.clone(),
+                    role: match member.role {
+                        OrganizationRole::Administrator => {
+                            be_wasm_root_api::MemberRole::Administrator
+                        }
+                        OrganizationRole::Editor => be_wasm_root_api::MemberRole::Editor,
+                        OrganizationRole::Guest => be_wasm_root_api::MemberRole::Guest,
+                    },
+                    me: member.account == me,
+                    agent: member.created_by.is_some(),
+                    // An agent waits unsigned until its maker's next `tend` signs it in.
+                    unsigned: member.created_by.is_none()
+                        && self.unsigned.contains(&member.account),
+                })
+                .collect(),
+            busy: self.busy,
+            error: self.error.clone(),
+        }
     }
 }
 

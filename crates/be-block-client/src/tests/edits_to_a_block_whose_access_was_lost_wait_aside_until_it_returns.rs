@@ -19,7 +19,7 @@ async fn edits_to_a_block_whose_access_was_lost_wait_aside_until_it_returns() {
         .unwrap()
         .published()
         .unwrap();
-    let public = owner.keys().contact(member.account()).unwrap();
+    let public = owner.verified_identity(member.account()).unwrap();
     owner
         .share(team, member.account(), Access::Edit, &public)
         .await
@@ -36,7 +36,7 @@ async fn edits_to_a_block_whose_access_was_lost_wait_aside_until_it_returns() {
         offline
             .save(note, &TextBlock::of("written while away"), Some(base))
             .await
-            .is_err()
+            .is_ok_and(|saved| matches!(saved, Saved::Kept(_)))
     );
     let unsent = offline.local_head(note).unwrap();
 
@@ -70,13 +70,20 @@ async fn edits_to_a_block_whose_access_was_lost_wait_aside_until_it_returns() {
     assert!(offline.unsent()[0].offerable);
     assert!(!offline.restore_unsent(note).unwrap().is_empty());
     assert!(offline.unsent().is_empty());
+    // Sealed under the epoch before the revocation, which the log, read again now that the
+    // member may read it, outdates: sealed again under the one the owner made since.
     let drained = offline.drain(|_| false).await.unwrap();
+    let resealed = offline.local_head(note).unwrap();
+    assert_ne!(resealed, unsent);
     assert_eq!(
         drained,
-        [Drained::Published {
-            block: note,
-            head: unsent
-        }]
+        [
+            Drained::Resealed { block: note },
+            Drained::Published {
+                block: note,
+                head: resealed
+            }
+        ]
     );
     assert_eq!(text(&owner, note).await, "written while away");
 

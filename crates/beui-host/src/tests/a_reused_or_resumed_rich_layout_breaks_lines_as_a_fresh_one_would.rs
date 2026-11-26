@@ -31,7 +31,6 @@ fn options(wrap_width: f32, anywhere: bool) -> RichOptions {
         style: SpanStyle::new(FontId::proportional(14.0), Color32::WHITE),
         hang: 0,
         anywhere,
-        least: false,
     }
 }
 
@@ -41,7 +40,7 @@ fn breaks(layout: &RichLayout) -> Vec<std::ops::Range<usize>> {
 
 #[test]
 fn a_reused_or_resumed_rich_layout_breaks_lines_as_a_fresh_one_would() {
-    let context = Context::new(crate::native::FreetypeFonts::default());
+    let context = Context::new(crate::native::SkrifaFonts::default());
     let mut shaper =
         |text: &str, font: FontId| -> Galley { context.layout(text, font, TextLayout::DEFAULT) };
     let mut seed: u64 = 7;

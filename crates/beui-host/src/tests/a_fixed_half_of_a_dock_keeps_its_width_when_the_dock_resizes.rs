@@ -16,7 +16,7 @@ fn a_fixed_half_of_a_dock_keeps_its_width_when_the_dock_resizes() {
     let left = NodeRef::new();
     let right = NodeRef::new();
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost>
                 <dock::Docking layout>

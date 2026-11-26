@@ -1,0 +1,8 @@
+# A virtual list keeps its anchor row where it is shown as the rows above it grow. In the
+# browser the list does it itself where the browser does not anchor the scroll: Safari has no
+# overflow-anchor, which the script turns off to stand in for it.
+#web css '* { overflow-anchor: none !important; }'
+clock stop
+wait 'Row 39 20 tall, row 40 at 0'
+click '#anchor.grow'
+wait 'Row 39 60 tall, row 40 at 0'

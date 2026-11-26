@@ -198,10 +198,10 @@ impl Editor {
         if blocks.info(block).is_none() {
             let state = self.state();
             let mut cache = state.settings.borrow_mut();
-            if !cache.held.contains_key(&block) {
-                let list = state._scope.run(|| blocks.watch(BlockQuery::Block(block)));
-                cache.held.insert(block, list);
-            }
+            cache
+                .held
+                .entry(block)
+                .or_insert_with(|| state._scope.run(|| blocks.watch(BlockQuery::Block(block))));
         }
         blocks.info(block).is_some_and(|info| {
             info.block_type == block_type && info.parent == Some(BlockParent::Block(parent))
@@ -268,7 +268,14 @@ impl Editor {
                 let client = editor.host().client_id();
                 let own = RootSettings::default()
                     .read(&editor)
-                    .map(|held| layers(&editor, &held, R::CONTENT_TYPE, client))
+                    .map(|held| {
+                        layers(
+                            &editor,
+                            &held.settings,
+                            R::CONTENT_TYPE,
+                            held.settings.profile(client),
+                        )
+                    })
                     .unwrap_or_default();
                 let organization = editor.organization_layers(R::CONTENT_TYPE);
                 let set = kinds
@@ -309,8 +316,13 @@ impl Editor {
             let below = RootSettings::default()
                 .read(&editor)
                 .map(|held| {
-                    layers(&editor, &held, R::CONTENT_TYPE, editor.host().client_id())
-                        .below(editor.block_id())
+                    layers(
+                        &editor,
+                        &held.settings,
+                        R::CONTENT_TYPE,
+                        held.settings.profile(editor.host().client_id()),
+                    )
+                    .below(editor.block_id())
                 })
                 .unwrap_or_default();
             be_block_content::layered(below.into_iter().filter_map(|block| {

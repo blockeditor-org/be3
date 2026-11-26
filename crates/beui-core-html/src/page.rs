@@ -1,4 +1,4 @@
-use beui_reactive::{Get, Memo, ReadSignal, Signal, create_memo};
+use beui_reactive::{Get, Memo, ReadSignal, Signal, Trigger, create_memo};
 use beui_types::Vec2;
 use beui_types::{
     Motion, PreferenceLayer, PreferenceLayers, PreferenceSource, Preferences, ThemeKind,
@@ -11,7 +11,8 @@ struct PageSignals {
     motion: Signal<Option<Motion>>,
     viewport: Signal<Vec2>,
     pixels_per_point: Signal<f32>,
-    font_revision: Signal<u64>,
+    share_sheet: Signal<bool>,
+    fonts_loaded: Trigger,
 }
 
 thread_local! {
@@ -22,7 +23,8 @@ thread_local! {
         motion: crate::global_signal(None),
         viewport: crate::global_signal(Vec2::ZERO),
         pixels_per_point: crate::global_signal(1.0),
-        font_revision: crate::global_signal(0),
+        share_sheet: crate::global_signal(false),
+        fonts_loaded: crate::global_trigger(),
     };
 }
 
@@ -59,9 +61,7 @@ pub fn set_preference_layer(source: PreferenceSource, layer: PreferenceLayer) {
     let layers = signals().layers;
     let mut changed = layers.get_untracked();
     *changed.layer_mut(source) = layer;
-    if changed != layers.get_untracked() {
-        layers.set(changed);
-    }
+    layers.set(changed);
 }
 
 pub fn chosen_theme() -> Memo<Option<ThemeKind>> {
@@ -131,8 +131,8 @@ pub fn pixels_per_point() -> ReadSignal<f32> {
     signals().pixels_per_point.read_only()
 }
 
-pub fn use_font_revision() -> ReadSignal<u64> {
-    signals().font_revision.read_only()
+pub fn use_font_changes() -> Trigger {
+    signals().fonts_loaded
 }
 
 /// Writes the clip's plain text to the system clipboard (empty when it has
@@ -147,6 +147,19 @@ pub fn copy(clip: &beui_types::Clip) {
         let _ = window.navigator().clipboard().write_text(&text);
     }
     HELD.with(|held| held.borrow_mut().copy(clip.clone()));
+}
+
+/// Hands `clip` to the browser's share sheet, from the press that asks for it.
+pub fn share(clip: &beui_types::Clip) {
+    #[cfg(target_arch = "wasm32")]
+    beui_web_input::share::share(clip);
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = clip;
+}
+
+/// Whether the browser has a share sheet for `share`.
+pub fn use_share_sheet() -> ReadSignal<bool> {
+    signals().share_sheet.read_only()
 }
 
 /// The clip this page copied, while `text`, the plain text a paste carries,
@@ -197,22 +210,17 @@ pub(crate) fn watch(window: &web_sys::Window) -> Vec<crate::dom::Listener> {
                     .unwrap_or_default() as f32,
             );
             let scale = window.device_pixel_ratio() as f32;
-            if signals.theme.get_untracked() != theme {
-                signals.theme.set(theme);
-            }
-            if signals.motion.get_untracked() != motion {
-                signals.motion.set(motion);
-            }
-            if signals.viewport.get_untracked() != size {
-                signals.viewport.set(size);
-            }
-            if signals.pixels_per_point.get_untracked() != scale {
-                signals.pixels_per_point.set(scale);
-            }
+            signals.theme.set(theme);
+            signals.motion.set(motion);
+            signals.viewport.set(size);
+            signals.pixels_per_point.set(scale);
             crate::frame::request_frame();
         }
     };
     report();
+    signals
+        .share_sheet
+        .set(beui_web_input::share::has_share_sheet());
     for media in [
         "(prefers-color-scheme: dark)",
         "(prefers-color-scheme: light)",
@@ -247,7 +255,7 @@ pub(crate) fn watch(window: &web_sys::Window) -> Vec<crate::dom::Listener> {
             "loadingdone",
             false,
             move |_: web_sys::Event| {
-                signals.font_revision.update(|revision| *revision += 1);
+                signals.fonts_loaded.notify();
                 crate::frame::request_frame();
             },
         ));

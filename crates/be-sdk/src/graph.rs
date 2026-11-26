@@ -63,6 +63,8 @@ pub enum BlockQuery {
     Parents(Uuid),
     Block(Uuid),
     OpenSettings(Uuid),
+    /// The blocks offered to this account to own, not yet accepted or withdrawn.
+    OwnerOffers,
 }
 
 impl BlockQuery {
@@ -79,6 +81,7 @@ impl BlockQuery {
             Self::Parents(id) => Wire::Parents(id.into_bytes()),
             Self::Block(id) => Wire::Block(id.into_bytes()),
             Self::OpenSettings(id) => Wire::OpenSettings(id.into_bytes()),
+            Self::OwnerOffers => Wire::OwnerOffers,
         }
     }
 
@@ -95,6 +98,7 @@ impl BlockQuery {
             Wire::Parents(id) => Self::Parents(Uuid::from_bytes(id)),
             Wire::Block(id) => Self::Block(Uuid::from_bytes(id)),
             Wire::OpenSettings(id) => Self::OpenSettings(Uuid::from_bytes(id)),
+            Wire::OwnerOffers => Self::OwnerOffers,
         }
     }
 }
@@ -118,6 +122,12 @@ pub struct BlockInfo {
     /// The host is offline and holds no version of the block's content whole, so the block can
     /// be neither opened nor changed until it reconnects.
     pub out_of_reach: bool,
+    /// How many things in the block's content this account has not read, for a type that
+    /// counts them (a chat's new messages): what a row shows as a badge. Zero otherwise.
+    pub unread: u32,
+    /// Doubt this device holds about the block's signed log, until the person dismisses it
+    /// (guides/blocks/keys.md, "Forks"): the shell shows it above the block.
+    pub log_doubt: Option<be_sdk_api::blocks::LogDoubt>,
 }
 
 impl BlockInfo {
@@ -136,6 +146,8 @@ impl BlockInfo {
             size: 0,
             tree_size: 0,
             out_of_reach: false,
+            unread: 0,
+            log_doubt: None,
         }
     }
 
@@ -154,11 +166,13 @@ impl BlockInfo {
         !self.access.can_view()
     }
 
+    /// Whether the block opens. One this account may only join opens as a Join member, with
+    /// no content (guides/blocks/hosted.md, "Access"), so it is reached, named by its type.
     pub fn reach(&self) -> be_sdk_ui::Reach {
-        match (self.no_access(), self.locked) {
-            (true, _) => be_sdk_ui::Reach::NoAccess,
-            (false, true) => be_sdk_ui::Reach::Locked,
-            (false, false) => be_sdk_ui::Reach::Open,
+        match (self.access.can_join(), self.locked) {
+            (false, _) => be_sdk_ui::Reach::NoAccess,
+            (true, true) => be_sdk_ui::Reach::Locked,
+            (true, false) => be_sdk_ui::Reach::Open,
         }
     }
 
@@ -221,6 +235,8 @@ impl BlockInfo {
             size: self.size,
             tree_size: self.tree_size,
             out_of_reach: self.out_of_reach,
+            unread: self.unread,
+            log_doubt: self.log_doubt,
         }
     }
 
@@ -242,6 +258,8 @@ impl BlockInfo {
             size: info.size,
             tree_size: info.tree_size,
             out_of_reach: info.out_of_reach,
+            unread: info.unread,
+            log_doubt: info.log_doubt,
         }
     }
 }
@@ -287,6 +305,7 @@ pub enum GraphCommand {
     },
 }
 
+#[derive(Default)]
 pub(crate) struct GraphState {
     watched: RefCell<BTreeMap<BlockQuery, usize>>,
     watch_changed: Cell<bool>,
@@ -301,26 +320,6 @@ pub(crate) struct GraphState {
     commands: RefCell<Vec<GraphCommand>>,
     on_query: Callbacks<BlockQuery, dyn Fn()>,
     on_info: Callbacks<Uuid, dyn Fn()>,
-}
-
-impl Default for GraphState {
-    fn default() -> Self {
-        Self {
-            watched: RefCell::default(),
-            watch_changed: Cell::default(),
-            results: RefCell::default(),
-            retired: RefCell::default(),
-            known: RefCell::default(),
-            revision: Cell::default(),
-            changed_queries: RefCell::default(),
-            changed_blocks: RefCell::default(),
-            changes: crate::state::ChangeFlags::default(),
-            ready: RefCell::default(),
-            commands: RefCell::default(),
-            on_query: Callbacks::default(),
-            on_info: Callbacks::default(),
-        }
-    }
 }
 
 impl GraphState {
@@ -507,19 +506,6 @@ impl BlockGraph {
         )
     }
 
-    pub fn create_artifact<C: be_block_content::BlockContent>(
-        &self,
-        content: &C,
-        parent: BlockParent,
-        name: Option<String>,
-        artifact: be_block_content::Artifact,
-    ) -> Uuid {
-        let mut metadata = BlockMetadata::default();
-        metadata.put(&be_block_content::NAME, name.as_ref());
-        metadata.insert(&be_block_content::ARTIFACT, &artifact);
-        self.create_with(C::CONTENT_TYPE, Some(content.encode()), parent, metadata)
-    }
-
     pub fn create_with(
         &self,
         block_type: Uuid,
@@ -594,9 +580,9 @@ impl BlockGraph {
     }
 }
 
-/// A full-text search over names and content (plans/search.md): words, `"quoted phrases"`, the
-/// last word a prefix, over everything the account views or within a block's tree. Watched
-/// with `EditorHost::watch_search`, it is answered again whenever an index it read changes.
+/// A full-text search over names and content (guides/blocks/host.md, "Search"): words, `"quoted
+/// phrases"`, the last word a prefix, over everything the account views or within a block's tree.
+/// Watched with `EditorHost::watch_search`, it is answered again whenever an index it read changes.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Search {
     pub text: String,

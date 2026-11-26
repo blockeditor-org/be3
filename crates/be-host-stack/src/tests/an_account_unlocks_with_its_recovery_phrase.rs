@@ -28,7 +28,7 @@ fn an_account_unlocks_with_its_recovery_phrase() {
         ))
         .expect("the keys load");
     let mut state = crate::keys::KeyState::default();
-    state.loaded(keys);
+    state.loaded(keys, None);
     assert!(!state.needs_recovery());
     assert!(
         state.needs_unlock(None),

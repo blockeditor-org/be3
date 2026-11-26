@@ -40,17 +40,18 @@ def per_cross_platform(default, value, extra = {}):
 def plan_name(platform: str) -> str:
     return platform.replace("_", "-", 1)
 
-# Every plan, and the setting a configuration is matched to it by. The three
-# wasi plans are the same triple, and the two host plans another: the guest's
-# and the HTML core's settings are the plain one's with one more constraint, so
-# select() takes them as the more specific.
+# Every plan, and the setting a configuration is matched to it by. The wasi
+# and wasi-html plans are one triple, the guests' another (wasm32-wasip1), the
+# gpu shim's a third (wasm32-unknown-unknown) and the two host plans a fourth:
+# the guests' and the HTML core's settings are the plain one's with one more
+# constraint, so select() takes them as the more specific.
 PLAN_SETTINGS = {
     "linux-x86_64": "root//buck/platforms:linux_x86_64_setting",
     "linux-x86_64-html": "root//buck/platforms:linux_x86_64_html_setting",
     "wasi": "root//buck/platforms:wasi_setting",
     "wasi-guest": "root//buck/platforms:wasi_guest_setting",
     "wasi-html": "root//buck/platforms:wasi_html_setting",
-    "wasm32": "root//buck/platforms:wasm32_setting",
+    "wasm32-bindgen": "root//buck/platforms:wasm32_bindgen_setting",
 } | {plan_name(name): cross_setting(name) for name in CROSS_PLATFORMS}
 
 # The plans for beui's HTML core (buck/constraints:html), and the platform each

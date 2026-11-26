@@ -5,7 +5,7 @@ use be_sdk_type_guest::editor::EditorOperation;
 use be_type_example_counter::{Counter, CounterContent};
 
 fn counted(block: Uuid, expected: i64) {
-    be_host_stack::wait_until(|shared| {
+    be_host_stack::wait_until(&format!("counted {expected}"), |shared| {
         let held = shared.blocks.get(&block)?;
         let counter = CounterContent::decode(held.bytes()).ok()?;
         (counter.root().value() == expected).then_some(())
@@ -41,22 +41,29 @@ fn an_editor_can_read_and_edit_a_block_it_watches() {
     assert!(to_replica(
         &mut instances,
         other,
-        &FromEditor::Operate(add.clone())
+        &FromEditor::Operate {
+            gesture: None,
+            operation: add.clone()
+        }
     ));
     counted(other, 3);
     let sent = replica_sent_until(&mut instances, other, |sent| !sent.is_empty());
     assert_eq!(
         sent,
         [ToEditor::Operations(vec![EditorOperation {
-            operation: add,
+            landed: be_block_content::Landed::On {
+                operation: add,
+                // Its own edit stays unsettled until the server's order holds it.
+                unsettled: 1,
+            },
             mine: true,
-            unsettled: 0,
-            beneath: None,
         }])]
     );
 
     instances.ended(watched);
     instances.ended(unknown);
-    be_host_stack::wait_until(|shared| (!shared.blocks.contains_key(&other)).then_some(()));
+    be_host_stack::wait_until("let go of the other block", |shared| {
+        (!shared.blocks.contains_key(&other)).then_some(())
+    });
     assert!(be_host_stack::content(own).is_some());
 }

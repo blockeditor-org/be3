@@ -120,15 +120,13 @@ pub(crate) fn PowerRow(choice: PowerChoice, on_chose: Callback<()>) -> NodeId {
 #[component]
 fn PowerButton(action: PowerAction, choice: PowerChoice, on_chose: Callback<()>) -> NodeId {
     let available = choice.available;
-    let disabled = create_memo(move || !available.get().allows(action));
-    let description = create_memo(move || unavailable(available.get(), action).to_owned());
     view! {
         <Button
             icon_only=true
             glyph={glyph(action)}
             label={label(action).to_owned()}
-            disabled
-            description
+            disabled={move || !available.get().allows(action)}
+            description={move || unavailable(available.get(), action).to_owned()}
             @test_id={format!("desktop.power.{}", key(action))}
             on_click={move || {
                 on_chose.call(());

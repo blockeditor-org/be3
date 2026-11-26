@@ -25,5 +25,6 @@ fn a_dragged_task_lifts_parts_its_neighbours_and_settles_where_it_is_dropped() {
         test.record();
     }
     test.settle();
+    test.record();
     test.snapshot("a_dragged_task_lifts_parts_its_neighbours_and_settles_where_it_is_dropped");
 }

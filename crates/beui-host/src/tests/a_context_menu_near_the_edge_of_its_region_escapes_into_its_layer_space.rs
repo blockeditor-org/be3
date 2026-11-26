@@ -8,7 +8,7 @@ fn a_context_menu_near_the_edge_of_its_region_escapes_into_its_layer_space() {
     let region = NodeRef::new();
     let (document, [menu]) = toolbar_of(move || {
         let items = view! {
-            <ForEach keys={(0..8).collect::<Vec<usize>>()}>|index: usize| {
+            <ForEach value={(0..8).collect::<Vec<usize>>()}>|index: usize| {
                 let label = format!("Item {index}");
                 view! {
                     <unstyled::MenuItem label />

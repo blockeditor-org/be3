@@ -29,7 +29,7 @@ fn rich_text_html_written_from_a_copy_reads_back_into_its_marks() {
     );
 
     let mut target = EditorTester::rich(b"");
-    let read = schema.html().expect("and reads it back").from_html(&html);
+    let read = schema.html().expect("and reads it back").read_html(&html);
     target.execute(EditorCommand::Paste(&read));
     assert_eq!(formatted(&target), formatted(&source));
 }

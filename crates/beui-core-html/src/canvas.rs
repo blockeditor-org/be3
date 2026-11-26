@@ -18,6 +18,7 @@ pub struct Canvas {
     canvas: NodeId,
     view_node: NodeId,
     view: Cell<Option<CanvasView>>,
+    local_view: Cell<bool>,
     placed_at: Cell<Pos2>,
     unclipped: Cell<usize>,
     on_reveal: Callback<Vec2>,
@@ -38,6 +39,7 @@ pub fn canvas(canvas: NodeId, view_node: NodeId, on_reveal: Callback<Vec2>) -> R
         canvas,
         view_node,
         view: Cell::new(None),
+        local_view: Cell::new(false),
         placed_at: Cell::new(Pos2::ZERO),
         unclipped: Cell::new(0),
         on_reveal,
@@ -75,6 +77,13 @@ pub fn scale_property(length: f32) -> String {
 impl Canvas {
     pub fn set_view(&self, view: Option<CanvasView>) {
         if self.view.replace(view) != view {
+            self.apply();
+            crate::frame::request_frame();
+        }
+    }
+
+    pub fn set_local_view(&self, local: bool) {
+        if self.local_view.replace(local) != local {
             self.apply();
             crate::frame::request_frame();
         }
@@ -126,7 +135,10 @@ impl Canvas {
     fn shift(&self) -> Vec2 {
         self.view
             .get()
-            .map_or(Vec2::ZERO, |view| view.origin - self.placed_at.get())
+            .map_or(Vec2::ZERO, |view| match self.local_view.get() {
+                true => view.origin.to_vec2(),
+                false => view.origin - self.placed_at.get(),
+            })
     }
 
     fn apply(&self) {
@@ -172,7 +184,11 @@ impl Canvas {
         let origin = crate::dom::origin();
         let placed_at = Pos2::new(rect.min.x - origin.x, rect.min.y - origin.y);
         let mut changed = self.arrange(rect.size());
-        if self.view.get().is_some() && (placed_at - self.placed_at.get()).length() >= 0.25 {
+        // A local view does not follow where the canvas is placed, so a scroll moves nothing.
+        if self.view.get().is_some()
+            && !self.local_view.get()
+            && (placed_at - self.placed_at.get()).length() >= 0.25
+        {
             self.placed_at.set(placed_at);
             self.apply();
             changed = true;

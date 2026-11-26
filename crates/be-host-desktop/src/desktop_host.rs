@@ -3,6 +3,8 @@ mod linux;
 #[cfg(windows)]
 mod win32;
 #[cfg(any(windows, test))]
+mod win32_content;
+#[cfg(any(windows, test))]
 mod win32_map;
 #[cfg(any(windows, test))]
 mod win32_overlay;
@@ -74,6 +76,36 @@ pub fn configure(change: impl FnOnce(&mut DesktopSettings)) {
     }
 }
 
+/// Publishes the platform's program windows and their programs to the apps
+/// (be3:desktop's `windows` and `open-programs`), less the windows bound to a block's editor,
+/// from an effect in the current scope that runs again whenever either changes.
+pub fn publish_windows() {
+    let bound = crate::programs::bound_windows();
+    create_effect(move || {
+        let listed = bound.with(|bound| Host::listed(bound));
+        be_host_base::watches::publish::<be_sdk_api::OpenProgramsWatch>(&open_programs(&listed));
+        be_host_base::watches::publish::<be_sdk_api::WindowsWatch>(&listed);
+    });
+}
+
+/// The programs of the listed windows, each once, for apps other than the shell.
+fn open_programs(listed: &[HostWindow]) -> Vec<be_sdk_api::OpenProgram> {
+    let mut programs: Vec<be_sdk_api::OpenProgram> = Vec::new();
+    for window in listed {
+        if window.kind != be_sdk_api::WindowKind::Window {
+            continue;
+        }
+        let program = be_sdk_api::OpenProgram {
+            program_id: window.program_id.clone(),
+            command: window.origin.command.clone(),
+        };
+        if !programs.contains(&program) {
+            programs.push(program);
+        }
+    }
+    programs
+}
+
 #[cfg(not(any(target_os = "linux", windows)))]
 impl DesktopHost for Host {
     type Source = ();
@@ -111,12 +143,15 @@ pub trait DesktopHost {
         false
     }
 
-    fn set_locked(_locked: bool) {}
-
-    fn revision() -> u64 {
-        0
+    /// Whether the person has left the session alone past its blank time (the screens off).
+    fn idle() -> bool {
+        false
     }
 
+    fn set_locked(_locked: bool) {}
+
+    /// The program windows listed, less `hidden`, tracking what they are read from, so an
+    /// effect over them (`publish_windows`) runs again when they change.
     fn listed(_hidden: &[HostWindowId]) -> Vec<HostWindow> {
         Vec::new()
     }
@@ -126,6 +161,29 @@ pub trait DesktopHost {
     }
 
     fn window_status(_window: HostWindowId) -> Option<WindowStatus> {
+        None
+    }
+
+    /// What `window` shows, for a host that composites program windows itself rather than in
+    /// their views (be-host's `RootShell`): none until it drew, and none on a platform whose
+    /// windows are not textures.
+    fn picture(_window: HostWindowId) -> Option<WindowPicture> {
+        None
+    }
+
+    /// The program windows a host that composites them itself shows this frame, each where it
+    /// is in the host window's points: each configured to its size, as a view laid out there
+    /// configures it, and every other one it showed before let go of, as a view's going does.
+    fn place_windows(_placed: &[(HostWindowId, Rect)]) {}
+
+    /// Hands `window`, which a host that composites windows itself shows (`place_windows`),
+    /// what its router delivered to it, in the window's logical pixels, each with when it was
+    /// sampled: the pointer, the keys and the keyboard's focus, as its view would catch them.
+    fn deliver(_window: HostWindowId, _input: Vec<(beui::Input, std::time::Instant)>) {}
+
+    /// Why the desktop is not settled, if it is not (a program window shown has yet to draw
+    /// what it was configured to), which a host waits out as it waits for its own UI.
+    fn busy() -> Option<String> {
         None
     }
 
@@ -144,8 +202,11 @@ pub trait DesktopHost {
         }
     }
 
+    /// Draws `window`. `focus` fires when the shell gives the window the keyboard: it gives the
+    /// surface's node beui's keyboard focus and nothing more, so on Windows it never starts focus
+    /// mode, which only a click on the content does (`win32_content`).
     #[component]
-    fn WindowSurface(window: HostWindowId, focus: Memo<u64>) -> NodeId {
+    fn WindowSurface(window: HostWindowId, focus: Trigger) -> NodeId {
         let _ = (window, focus);
         view! {
             <Frame />
@@ -153,8 +214,54 @@ pub trait DesktopHost {
     }
 }
 
+/// What a program window shows (`DesktopHost::picture`): its surfaces, bottom first, each a
+/// texture on the host's device where it is in the window's logical pixels. The same picture
+/// while the window draws nothing new (`same`).
+#[derive(Clone)]
+pub struct WindowPicture {
+    pub surfaces: Vec<PictureSurface>,
+    source: std::rc::Rc<dyn PictureSource>,
+}
+
+/// One of a window's surfaces in its picture: the part of `texture` that `uv` (from 0 to 1
+/// across and down) names, drawn over `rect`, in the window's logical pixels.
+#[derive(Clone)]
+pub struct PictureSurface {
+    pub texture: wgpu::Texture,
+    pub opaque: bool,
+    pub rect: Rect,
+    pub uv: Rect,
+    pub alpha: f32,
+}
+
+/// Where a picture came from, which hears that it was drawn.
+trait PictureSource {
+    fn painted(&self);
+    fn pixels(&self, texture: &wgpu::Texture) -> Option<beui::native::painting::Pixels>;
+    fn key(&self) -> usize;
+}
+
+impl WindowPicture {
+    /// Whether it is `other`: what the window drew last both times.
+    pub fn same(&self, other: &Self) -> bool {
+        self.source.key() == other.source.key()
+    }
+
+    /// It was drawn, which the program hears with its next frame callbacks, as when its view
+    /// draws it.
+    pub fn painted(&self) {
+        self.source.painted();
+    }
+
+    /// The pixels of one of its surfaces' textures, for a painting: none for one the device
+    /// cannot read back.
+    pub fn pixels(&self, texture: &wgpu::Texture) -> Option<beui::native::painting::Pixels> {
+        self.source.pixels(texture)
+    }
+}
+
 #[component]
-pub fn PlacedWindow(window: HostWindowId, focus: Memo<u64>) -> NodeId {
+pub fn PlacedWindow(window: HostWindowId, focus: Trigger) -> NodeId {
     let status = create_memo(move || Host::window_status(window));
     let on_force_close = Callback::new(move |()| Host::close(window));
     view! {

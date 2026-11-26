@@ -3,7 +3,6 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use be_block_content::presence::{ChannelKind, PresenceKind};
-use be_block_content::{EditorViewContent, ViewState};
 use be_sdk_api::{
     BlockPick, ChildId, ChildLayer, ChildMode, DialogFrame, HostPanel, TopBar, Watched,
 };
@@ -27,16 +26,23 @@ use be_sdk_api::{AudioStatus, FitArea};
 #[derive(Clone)]
 pub struct Artifacts(Rc<ArtifactSignals>);
 
+type Regenerate = Rc<dyn Fn(&[u8])>;
+type PollArtifact = Rc<dyn Fn() -> Option<Result<(), String>>>;
+
 struct ArtifactSignals {
     core: ArtifactsCore,
     settings: OwnedSignal<Vec<u8>>,
     saved: OwnedSignal<Vec<u8>>,
     _changes: [Subscription; 2],
+    /// How the artifact's exporter makes it again (`crate::export::ArtifactRun`).
+    regenerate: RefCell<Option<Regenerate>>,
+    poll: RefCell<Option<PollArtifact>>,
 }
 
 impl Artifacts {
     pub fn new(host: EditorHost, artifact: crate::Artifact) -> Self {
         defer_graph_changes(&host);
+        run_async_memos();
         let core = ArtifactsCore::new(host, artifact);
         let settings = OwnedSignal::new(core.settings());
         let saved = OwnedSignal::new(core.saved_settings());
@@ -50,7 +56,29 @@ impl Artifacts {
             settings,
             saved,
             _changes: changes,
+            regenerate: RefCell::new(None),
+            poll: RefCell::new(None),
         }))
+    }
+
+    pub(crate) fn on_regenerate(&self, work: impl Fn(&[u8]) + 'static) {
+        *self.0.regenerate.borrow_mut() = Some(Rc::new(work));
+    }
+
+    pub(crate) fn on_poll(&self, work: impl Fn() -> Option<Result<(), String>> + 'static) {
+        *self.0.poll.borrow_mut() = Some(Rc::new(work));
+    }
+
+    pub(crate) fn regenerate(&self, data: &[u8]) {
+        let work = self.0.regenerate.borrow().clone();
+        if let Some(work) = work {
+            work(data);
+        }
+    }
+
+    pub(crate) fn poll(&self) -> Option<Result<(), String>> {
+        let work = self.0.poll.borrow().clone();
+        work.and_then(|work| work())
     }
 
     pub fn settings(&self) -> ReadSignal<Vec<u8>> {
@@ -87,6 +115,8 @@ struct ChildRecord {
     fit: Prop<Option<Vec2>>,
     dialog: Prop<Option<DialogFrame>>,
     fullscreen: Prop<bool>,
+    /// The serial of the editor's latest ask that the child take the keyboard (`keyboard-ask`).
+    keyboard: ReadSignal<u64>,
     placed: PlacedChild,
     zone: u64,
     dock_tab: Option<u64>,
@@ -94,7 +124,19 @@ struct ChildRecord {
     tab: Option<DockTabControl>,
 }
 
-type Revision = OwnedSignal<u64>;
+/// What `read` answers, read again each time `changed` fires. Its readiness is the graph's,
+/// so whatever reads it waits until `read` answers.
+fn answered<T: Clone + PartialEq + 'static>(
+    changed: Trigger,
+    read: impl Fn() -> Ready<T> + 'static,
+) -> Memo<Ready<T>> {
+    let answer = create_source();
+    create_binding(move || {
+        changed.track();
+        answer.set(read());
+    });
+    create_memo(move || answer.get())
+}
 
 fn then<T: 'static>(
     host: &EditorHost,
@@ -117,8 +159,8 @@ enum Changed {
 
 struct Mirror {
     host: EditorHost,
-    pushed: [Revision; Pushed::ALL.len()],
-    watches: RefCell<be_lib_stable_hash::HashMap<std::any::TypeId, (Subscription, Revision)>>,
+    pushed: [OwnedTrigger; Pushed::ALL.len()],
+    watches: RefCell<be_lib_stable_hash::HashMap<std::any::TypeId, (Subscription, OwnedTrigger)>>,
     changed: Rc<RefCell<Vec<Changed>>>,
     _pushes: Vec<Subscription>,
 }
@@ -139,22 +181,22 @@ impl Mirror {
             .collect();
         Self {
             host: host.clone(),
-            pushed: Pushed::ALL.map(|pushed| OwnedSignal::new(host.revision(pushed))),
+            pushed: Pushed::ALL.map(|_| OwnedTrigger::new()),
             watches: RefCell::default(),
             changed,
             _pushes: pushes,
         }
     }
 
-    fn watch(&self, pushed: Pushed) -> ReadSignal<u64> {
-        self.pushed[pushed as usize].read_only()
+    fn watch(&self, pushed: Pushed) -> Trigger {
+        self.pushed[pushed as usize].handle()
     }
 
     fn track(&self, pushed: Pushed) {
-        self.pushed[pushed as usize].get();
+        self.pushed[pushed as usize].track();
     }
 
-    fn watched(&self, watch: std::any::TypeId) -> ReadSignal<u64> {
+    fn watched(&self, watch: std::any::TypeId) -> Trigger {
         self.watches
             .borrow_mut()
             .entry(watch)
@@ -165,30 +207,25 @@ impl Mirror {
                         changed.borrow_mut().push(Changed::Watch(watch));
                     }
                 });
-                (
-                    changes,
-                    OwnedSignal::new(self.host.watch_revision_of(watch)),
-                )
+                (changes, OwnedTrigger::new())
             })
             .1
-            .read_only()
+            .handle()
     }
 
     fn sync(&self) {
         let changed = std::mem::take(&mut *self.changed.borrow_mut());
         for changed in changed {
             match changed {
-                Changed::Pushed(pushed) => {
-                    self.pushed[pushed as usize].set(self.host.revision(pushed));
-                }
+                Changed::Pushed(pushed) => self.pushed[pushed as usize].notify(),
                 Changed::Watch(watch) => {
-                    let revision = self
+                    let changes = self
                         .watches
                         .borrow()
                         .get(&watch)
-                        .map(|(_, revision)| revision.handle());
-                    if let Some(revision) = revision {
-                        revision.set(self.host.watch_revision_of(watch));
+                        .map(|(_, changes)| changes.handle());
+                    if let Some(changes) = changes {
+                        changes.notify();
                     }
                 }
             }
@@ -198,6 +235,15 @@ impl Mirror {
 
 pub(crate) fn defer_graph_changes(host: &EditorHost) {
     host.defer_graph_changes_unless(|| beui::native::try_with_document(|_| ()).is_some());
+}
+
+/// Runs async memos (`create_async_memo`) on be-sdk's executor. An answer arrives with a
+/// message from the host, which the editor draws a frame for.
+pub(crate) fn run_async_memos() {
+    spawn_with(|future| {
+        be_sdk_api::ops::guest::spawn(future);
+        Ok(())
+    });
 }
 
 #[derive(Default)]
@@ -278,6 +324,15 @@ impl OwnedEditor {
         Self::scaled(host, block, Rc::default(), Rc::default())
     }
 
+    /// An editor reading `block`, which is not the instance's own: its `block_content` is the
+    /// block's content as `content_of` reads another's. An exporter reads its source so in an
+    /// instance opened for the export or the artifact it makes (`crate::export`).
+    pub fn reading(host: EditorHost, block: Uuid) -> Self {
+        let owned = Self::new(host, block);
+        owned.editor.state().reads_another.set(true);
+        owned
+    }
+
     pub(crate) fn scaled(
         host: EditorHost,
         block: Uuid,
@@ -285,6 +340,7 @@ impl OwnedEditor {
         contents: Rc<Contents>,
     ) -> Self {
         defer_graph_changes(&host);
+        run_async_memos();
         let core = EditorCore::scaled(host.clone(), block, scale, Rc::clone(&contents.live));
         let owner = RootScope::new();
         let shown = ShownSignals::new(&core.shown());
@@ -292,6 +348,9 @@ impl OwnedEditor {
         let frame_children = create_signal(Vec::<(u64, Memo<Vec<MenuNode>>)>::new());
         let picking = create_signal(None::<crate::picking::Picking>);
         let popped = create_signal(None::<crate::popover::Popped>);
+        let zoom = create_signal(None);
+        let fit = create_signal(None);
+        let notices = create_signal(Vec::new());
         let pushed = Rc::new(Mirror::new(&host));
         let mirrored = Rc::downgrade(&pushed);
         let syncing = core.on_pumped(move || {
@@ -310,6 +369,7 @@ impl OwnedEditor {
             contents,
             children: RefCell::new(Vec::new()),
             next_child: Cell::new(0),
+            keyboard_asks: Cell::new(0),
             picking,
             popped,
             next_pick: Cell::new(0),
@@ -317,6 +377,11 @@ impl OwnedEditor {
             fitted: Cell::new(None),
             pushed,
             frame_children,
+            zoom,
+            fit,
+            notices,
+            reads_another: Cell::new(false),
+            exporters: RefCell::new(Rc::from([])),
         });
         Self {
             editor: Editor(state.handle()),
@@ -352,6 +417,9 @@ struct EditorState {
     contents: Rc<Contents>,
     children: RefCell<Vec<(u64, Rc<ChildRecord>)>>,
     next_child: Cell<u64>,
+    /// The serial of the latest ask that one of its children take the keyboard
+    /// (`keyboard-ask`).
+    keyboard_asks: Cell<u64>,
     picking: Signal<Option<crate::picking::Picking>>,
     popped: Signal<Option<crate::popover::Popped>>,
     next_pick: Cell<u64>,
@@ -359,15 +427,49 @@ struct EditorState {
     fitted: Cell<Option<NodeRef>>,
     pushed: Rc<Mirror>,
     frame_children: Signal<Vec<(u64, Memo<Vec<MenuNode>>)>>,
+    /// The frame's zoom actions, while the manifest declares `pan_and_zoom` (`zoom.rs`).
+    pub(crate) zoom: Signal<Option<crate::zoom::ZoomActions>>,
+    /// What "fit" does here: what the editor keeps fitted (`keep_fitted`), or its own
+    /// (`fit_with`).
+    pub(crate) fit: Signal<Option<crate::zoom::Fitter>>,
+    /// The toasts the frame shows over the editor (`notify`).
+    notices: Signal<Vec<beui::styled::Toast>>,
+    /// The block is not the instance's own (`OwnedEditor::reading`).
+    reads_another: Cell<bool>,
+    /// What the editor exports its block as (`BeuiRoot::exporters`).
+    exporters: RefCell<Rc<[crate::Exporter]>>,
 }
 
 impl Editor {
+    pub(crate) fn zoom_state(
+        &self,
+    ) -> (
+        Signal<Option<crate::zoom::ZoomActions>>,
+        Signal<Option<crate::zoom::Fitter>>,
+    ) {
+        let state = self.state();
+        (state.zoom, state.fit)
+    }
+
     fn state(&self) -> Rc<EditorState> {
         self.0.value()
     }
 
     pub fn core(&self) -> EditorCore {
         self.state().core.clone()
+    }
+
+    /// Shows `toast` over the editor, in place of one with its id: a change the editor refused
+    /// (a name too long), something done that needs saying.
+    pub fn notify(&self, toast: beui::styled::Toast) {
+        self.state().notices.update(|notices| {
+            notices.retain(|shown| shown.id != toast.id);
+            notices.push(toast);
+        });
+    }
+
+    pub(crate) fn notices(&self) -> Signal<Vec<beui::styled::Toast>> {
+        self.state().notices
     }
 
     pub fn host(&self) -> EditorHost {
@@ -400,13 +502,26 @@ impl Editor {
         create_memo(move || !editable.get())
     }
 
+    /// The editor's own content, which reads as loading until it arrives.
     pub fn block_content<C>(&self) -> ContentProjection<C>
     where
         C: be_block_content::LiveEdit + Clone + Default,
     {
-        self.projection(None)
+        let block = match self.state().reads_another.get() {
+            true => Some(self.block_id()),
+            false => None,
+        };
+        let projection = self.projection_of(block);
+        // Read where it is asked for: an editor shows its own content, so a `Loaded` it is
+        // asked for under holds until the content arrives, however the editor reads it later
+        // (in an effect, a callback, a painting).
+        let _ = untrack(|| projection.ready());
+        projection
     }
 
+    /// The content of `block`, which reads as loading until it arrives. A block this viewer
+    /// cannot view (deleted elsewhere, or no longer shared) never arrives: its projection
+    /// settles with the empty content once the graph says so.
     pub fn content_of<C>(&self, block: Uuid) -> ContentProjection<C>
     where
         C: be_block_content::LiveEdit + Clone + Default,
@@ -414,46 +529,27 @@ impl Editor {
         if block == self.block_id() {
             return self.block_content();
         }
-        let projection = self.projection_of(Some(block));
-        if Boundary::current().is_none() {
-            return projection;
-        }
-        let found = self.blocks().watch(BlockQuery::Block(block));
-        wait_for(move || {
-            if !projection.is_alive() || projection.ready().is_ok() {
-                return Ok(());
-            }
-            let viewable = found
-                .read()?
-                .first()
-                .is_some_and(|info| info.access.can_view());
-            if viewable {
-                Err(Pending::Loading)
-            } else {
-                Ok(())
-            }
-        });
-        projection
+        self.projection_of(Some(block))
     }
 
     pub fn view_block(&self) -> Option<Uuid> {
         self.state().core.host().view_block()
     }
 
-    pub fn view_content(&self) -> Option<ContentProjection<EditorViewContent>> {
-        self.view_block()
-            .map(|block| self.content_of::<EditorViewContent>(block))
+    /// What the editor exports its block as (`BeuiRoot::exporters`; guides/apps/editor.md,
+    /// "Exporting").
+    pub fn exporters(&self) -> Rc<[crate::Exporter]> {
+        Rc::clone(&self.state().exporters.borrow())
     }
 
-    pub fn view_state(&self, key: &str) -> Option<ViewState> {
-        self.view_content()?
-            .read(|view| view.root().state(key).cloned())
-            .ok()
-            .flatten()
+    pub(crate) fn set_exporters(&self, exporters: Rc<[crate::Exporter]>) {
+        *self.state().exporters.borrow_mut() = exporters;
     }
 
-    pub fn set_view_state(&self, key: &str, state: Option<&ViewState>) {
-        self.state().core.set_view_state(key, state);
+    /// The `K` kept in the editor's view block, which outlives the editor: where it was
+    /// scrolled, what was open. Read it with `get` and write it on every change with `set`.
+    pub fn view_state<K: be_block_content::ViewStateKind>(&self) -> ViewStateHandle<K> {
+        ViewStateHandle::new(*self)
     }
 
     pub fn related_content<C>(&self, block: Memo<Option<Uuid>>) -> crate::RelatedContent<C>
@@ -475,29 +571,24 @@ impl Editor {
         self.state().core.create_child(content)
     }
 
-    pub fn stored_head(&self, block: Uuid) -> Memo<crate::HeadRead> {
+    /// The head stored for `block`, loading until the host answers.
+    pub fn stored_head(&self, block: Uuid) -> Memo<Ready<crate::HeadRead>> {
         let host = self.host();
         host.watch_head(block);
-        let revision = self.pushed(Pushed::Heads);
-        let read = create_memo(move || {
-            revision.get();
-            host.head(block)
-        });
-        wait_for(move || match read.with(Option::is_some) {
-            true => Ok(()),
-            false => Err(Pending::Loading),
-        });
-        create_memo(move || read.get().unwrap_or(Ok(None)))
+        answered(self.pushed(Pushed::Heads), move || {
+            host.head(block).ok_or(Pending::Loading)
+        })
     }
 
-    /// The results of the full-text search `search` holds (plans/search.md): none while it
-    /// holds none or until the host answers, which it does again whenever an index changes.
+    /// The results of the full-text search `search` holds (guides/blocks/host.md, "Search"): none
+    /// while it holds none or until the host answers, which it does again whenever an index
+    /// changes.
     pub fn search(
         &self,
         search: Memo<Option<be_sdk::Search>>,
     ) -> Memo<Option<be_sdk::SearchResults>> {
         let host = self.host();
-        let revision = self.pushed(Pushed::Searches);
+        let changed = self.pushed(Pushed::Searches);
         let watching = host.clone();
         create_effect(move || {
             let Some(asked) = search.get() else {
@@ -508,27 +599,12 @@ impl Editor {
             on_cleanup(move || host.unwatch_search(&asked));
         });
         create_memo(move || {
-            revision.get();
+            changed.track();
             search.with(|asked| asked.as_ref().and_then(|asked| host.search(asked)))
         })
     }
 
-    fn projection<C>(&self, block: Option<Uuid>) -> ContentProjection<C>
-    where
-        C: be_block_content::LiveEdit + Clone + Default,
-    {
-        let projection = self.projection_of(block);
-        wait_for(move || {
-            if projection.is_alive() {
-                projection.ready()
-            } else {
-                Ok(())
-            }
-        });
-        projection
-    }
-
-    fn projection_of<C>(&self, block: Option<Uuid>) -> ContentProjection<C>
+    pub(crate) fn projection_of<C>(&self, block: Option<Uuid>) -> ContentProjection<C>
     where
         C: be_block_content::LiveEdit + Clone + Default,
     {
@@ -543,11 +619,17 @@ impl Editor {
         if let Some(source) = cached {
             return source;
         }
-        let live = match block {
-            Some(block) => state.core.content_of::<C>(block),
-            None => state.core.content::<C>(None),
+        let owned = match block {
+            // A reading editor's block is not its instance's own, so it is held as another's.
+            Some(block) => OwnedContentProjection::unless_unviewable(
+                match state.reads_another.get() {
+                    true => state.core.watched_content::<C>(block),
+                    false => state.core.content_of::<C>(block),
+                },
+                state.core.host().graph().watch(BlockQuery::Block(block)),
+            ),
+            None => OwnedContentProjection::from(state.core.content::<C>(None)),
         };
-        let owned = OwnedContentProjection::from(live);
         let source = owned.handle();
         state
             .contents
@@ -557,7 +639,8 @@ impl Editor {
         source
     }
 
-    pub fn pushed(&self, pushed: Pushed) -> ReadSignal<u64> {
+    /// Notified each time the host pushes `pushed`; `track` it and read what changed from the host.
+    pub fn pushed(&self, pushed: Pushed) -> Trigger {
         self.state().pushed.watch(pushed)
     }
 
@@ -569,11 +652,11 @@ impl Editor {
         then(self.state().core.host(), asked, answered)
     }
 
-    pub fn woken(&self) -> (Waker, ReadSignal<u64>) {
-        let woken = create_signal(0);
-        let (waker, wakes) = self.state().core.woken(move |count| woken.set(count));
+    pub fn woken(&self) -> (Waker, Trigger) {
+        let woken = create_trigger();
+        let (waker, wakes) = self.state().core.woken(move |_| woken.notify());
         crate::content::keep(wakes);
-        (waker, woken.read_only())
+        (waker, woken)
     }
 
     /// Changes only when playback starts, pauses, seeks, ends or fails, so its position is
@@ -581,9 +664,9 @@ impl Editor {
     /// media type only, so load the bytes again after the content changes.
     pub fn audio(&self) -> Memo<AudioStatus> {
         let host = self.host();
-        let revision = self.pushed(Pushed::Audio);
+        let changed = self.pushed(Pushed::Audio);
         create_memo(move || {
-            revision.get();
+            changed.track();
             host.audio()
         })
     }
@@ -591,45 +674,37 @@ impl Editor {
     pub fn history(&self, block: Uuid) -> Memo<BlockHistory> {
         let host = self.host();
         host.watch_history([block]);
-        let revision = self.pushed(Pushed::Histories);
+        let changed = self.pushed(Pushed::Histories);
         create_memo(move || {
-            revision.get();
+            changed.track();
             host.history(block)
         })
     }
 
-    pub fn version_status(&self) -> Memo<be_sdk::VersionStatus> {
-        let host = self.host();
-        host.watch_version();
-        let revision = self.pushed(Pushed::Version);
-        let known = create_memo({
-            let host = host.clone();
-            move || {
-                revision.get();
-                host.version_known()
-            }
-        });
-        wait_for(move || match known.get() {
-            true => Ok(()),
-            false => Err(Pending::Loading),
-        });
+    /// Where the block stands against its repository, loading until the host knows.
+    pub fn version_status(&self) -> Memo<Ready<be_sdk::VersionStatus>> {
+        self.host().watch_version();
         let core = self.core();
-        create_memo(move || {
-            revision.get();
-            core.version_status().unwrap_or_default()
+        answered(self.pushed(Pushed::Version), move || {
+            crate::content::ready(core.version_status())
+        })
+    }
+
+    /// The accounts that may view the editor's own block, each named by its contact card or by
+    /// what the server says (`BlockMember::verified`), loading until the host answers and
+    /// answered again as they change.
+    pub fn members(&self) -> Memo<Ready<Vec<be_sdk::BlockMember>>> {
+        let host = self.host();
+        host.watch_members();
+        answered(self.pushed(Pushed::Members), move || match host.members() {
+            None => Err(Pending::Loading),
+            Some(Ok(members)) => Ok(members),
+            Some(Err(failure)) => Err(Pending::Failed(failure.to_string())),
         })
     }
 
     pub fn version(&self, command: be_sdk::VersionCommand) {
         self.state().core.version(command);
-    }
-
-    pub fn histories(&self) -> ReadSignal<u64> {
-        self.pushed(Pushed::Histories)
-    }
-
-    pub fn artifacts(&self) -> ReadSignal<u64> {
-        self.pushed(Pushed::Artifacts)
     }
 
     /// Whether one of this editor's views has the keyboard: the host gave it to that view, not
@@ -644,9 +719,9 @@ impl Editor {
 
     pub fn focused_block(&self) -> Memo<FocusedBlock> {
         let host = self.host();
-        let revision = self.pushed(Pushed::Focus);
+        let changed = self.pushed(Pushed::Focus);
         create_memo(move || {
-            revision.get();
+            changed.track();
             host.focused_block()
         })
     }
@@ -677,14 +752,17 @@ impl Editor {
                 })
                 .collect(),
         };
+        // With no link base (a local server's, or none told yet), the text carries the URL's
+        // fragment alone, which a text still reads as naming the block.
+        let base = base.unwrap_or_default();
         let text = blocks
             .iter()
-            .map(|(id, _, title)| match &base {
-                Some(base) if !base.is_empty() && !organization.is_nil() => format!(
+            .map(|(id, _, title)| match organization.is_nil() {
+                false => format!(
                     "{title} {}",
-                    be_block_content::block_url::block_url(base, organization, *id)
+                    be_block_content::block_url::block_url(&base, organization, *id)
                 ),
-                _ => title.clone(),
+                true => title.clone(),
             })
             .collect::<Vec<_>>()
             .join("\n");
@@ -700,18 +778,18 @@ impl Editor {
         W::Value: Default,
     {
         let host = self.host();
-        let revision = self.watch_revision::<W>();
+        let changed = self.watch_changes::<W>();
         create_memo(move || {
-            revision.get();
+            changed.track();
             host.watched::<W>().unwrap_or_default()
         })
     }
 
     pub fn offered<W: Watched>(&self) -> Memo<bool> {
         let host = self.host();
-        let revision = self.watch_revision::<W>();
+        let changed = self.watch_changes::<W>();
         create_memo(move || {
-            revision.get();
+            changed.track();
             host.offers::<W>()
         })
     }
@@ -748,16 +826,12 @@ impl Editor {
         value.read_only()
     }
 
-    fn watch_revision<W: Watched>(&self) -> ReadSignal<u64> {
+    fn watch_changes<W: Watched>(&self) -> Trigger {
         self.state().pushed.watched(std::any::TypeId::of::<W>())
     }
 
     pub fn act(&self, call: impl FnOnce() + 'static) {
         self.state().core.host().act(call);
-    }
-
-    pub fn web_view_events(&self) -> ReadSignal<u64> {
-        self.pushed(Pushed::WebView)
     }
 
     pub fn files(&self) -> ReadSignal<Option<FileDrop>> {
@@ -810,18 +884,16 @@ impl Editor {
         self.state().core.host().block_types()
     }
 
-    pub fn block_types_known(&self) -> Memo<bool> {
+    /// Whether the host has told the block types yet: loading until it has. Read it beside
+    /// `block_types` where an empty catalog must not show first.
+    pub fn block_types_known(&self) -> Memo<Ready<()>> {
         let host = self.host();
-        let revision = self.pushed(Pushed::Catalog);
-        let known = create_memo(move || {
-            revision.get();
-            host.block_types_known()
-        });
-        wait_for(move || match known.get() {
-            true => Ok(()),
-            false => Err(Pending::Loading),
-        });
-        known
+        answered(self.pushed(Pushed::Catalog), move || {
+            match host.block_types_known() {
+                true => Ok(()),
+                false => Err(Pending::Loading),
+            }
+        })
     }
 
     pub fn fit_to(&self, node: Option<NodeRef>) {
@@ -855,11 +927,15 @@ impl Editor {
         self.state().core.intrinsic_size()
     }
 
+    /// Asks the person for a block with the host's picker, anchored at `anchor`. `picked` hears
+    /// the block they chose; nothing, when they cancel. A pick that failed (the picker did not
+    /// open, the host did not make the block) is reported to the host
+    /// (`EditorHost::report_failure`), so the editor has nothing to show for it.
     pub fn pick_block(
         &self,
         filter: BlockFilter,
         anchor: impl Into<crate::PickAnchor>,
-        picked: impl FnOnce(Result<PickedBlock, be_sdk::Failure>) + 'static,
+        picked: impl FnOnce(PickedBlock) + 'static,
     ) {
         let state = self.state();
         let anchor = anchor.into();
@@ -998,6 +1074,10 @@ impl Editor {
             return;
         };
         state.picking.set(None);
+        if let Err(failure) = &answer {
+            self.host()
+                .report_failure(format!("The block could not be picked. {failure}"));
+        }
         picking.answer(answer);
     }
 
@@ -1015,6 +1095,7 @@ impl Editor {
         fit: Prop<Option<Vec2>>,
         dialog: Prop<Option<DialogFrame>>,
         fullscreen: Prop<bool>,
+        keyboard: Prop<u64>,
         report: Callback<ChildState>,
         details: Callback<()>,
         focus: Callback<()>,
@@ -1024,6 +1105,28 @@ impl Editor {
     ) -> ReadSignal<ChildState> {
         let editor_state = self.state();
         let state = create_signal(ChildState::default());
+        // Each time the count of asks grows above the highest it reached, the child carries the
+        // editor's next serial; a count that falls asks nothing.
+        let ask = create_signal(0_u64);
+        let counted = StoredCell::new(0_u64);
+        let editor = self.0;
+        create_effect(move || {
+            let asks = keyboard.get();
+            if asks <= counted.get() {
+                return;
+            }
+            counted.set(asks);
+            let serial = editor
+                .try_with(|editor| {
+                    let serial = editor.keyboard_asks.get() + 1;
+                    editor.keyboard_asks.set(serial);
+                    serial
+                })
+                .unwrap_or_default();
+            untrack(|| ask.set(serial));
+            // An ask changes nothing drawn: a frame carries it to the host in its layout commit.
+            try_with_document(|document| document.request_repaint_after(std::time::Duration::ZERO));
+        });
         let placed = editor_state.core.add_child(
             move |now: &ChildState| {
                 state.set(now.clone());
@@ -1049,6 +1152,7 @@ impl Editor {
                 fit,
                 dialog,
                 fullscreen,
+                keyboard: ask.read_only(),
                 placed,
                 zone: document_zone(),
                 dock_tab,
@@ -1056,7 +1160,6 @@ impl Editor {
                 tab,
             }),
         ));
-        let editor = self.0;
         on_cleanup(move || {
             editor.try_with(|editor| {
                 editor
@@ -1115,10 +1218,10 @@ impl Editor {
         let peers = create_signal(Vec::new());
         let core = self.core();
         core.host().ask_for_peers(None);
-        let revision = self.pushed(Pushed::Peers);
+        let changed = self.pushed(Pushed::Peers);
         let seen = Cell::new(0);
         create_effect(move || {
-            revision.get();
+            changed.track();
             if let Some(decoded) = core.new_peers::<P>(&seen) {
                 peers.set(decoded);
             }
@@ -1136,10 +1239,10 @@ impl Editor {
     {
         let core = self.core();
         core.host().ask_for_peers(None);
-        let revision = self.pushed(Pushed::PeerMessages);
+        let changed = self.pushed(Pushed::PeerMessages);
         let seen = Cell::new(core.host().peer_messages_seen());
         create_effect(move || {
-            revision.get();
+            changed.track();
             let received = core.new_peer_messages::<M>(&seen);
             untrack(|| {
                 for (from, message) in received {
@@ -1147,6 +1250,75 @@ impl Editor {
                 }
             });
         });
+    }
+
+    /// For a host component (`BeuiRoot::host`): calls `receive` with each member of the
+    /// block's host channel that comes, speaks or goes (guides/blocks/hosted.md, "Hosting"), in
+    /// order. A member is known by the number the host gives it while it stays.
+    pub fn on_member(&self, receive: impl Fn(be_sdk_api::blocks::MemberEvent) + 'static) {
+        let core = self.core();
+        let changed = self.pushed(Pushed::MemberEvents);
+        create_effect(move || {
+            changed.track();
+            let events = core.host().take_member_events();
+            untrack(|| {
+                for event in events {
+                    receive(event);
+                }
+            });
+        });
+    }
+
+    /// For a host component: tells `member` of the block's host channel `payload`, sealed on
+    /// its channel; nothing when it is no member the component heard join.
+    pub fn tell_member(&self, member: u64, payload: Vec<u8>) {
+        self.core()
+            .host()
+            .tell_member(self.block_id(), member, payload);
+    }
+
+    /// Whether the editor opened as a Join member of its block (`EditorHost::joined`): it has
+    /// no content, only the block's host channel (`on_channel`, `tell_host`).
+    pub fn joined(&self) -> bool {
+        self.core().host().joined()
+    }
+
+    /// For a Join member: calls `receive` with each change of the block's host channel, in
+    /// order: opened to the account that hosts, closed, or what the host said.
+    pub fn on_channel(&self, receive: impl Fn(be_sdk_api::blocks::ChannelEvent) + 'static) {
+        let core = self.core();
+        let changed = self.pushed(Pushed::Channel);
+        create_effect(move || {
+            changed.track();
+            let events = core.host().take_channel_events();
+            untrack(|| {
+                for event in events {
+                    receive(event);
+                }
+            });
+        });
+    }
+
+    /// For a Join member: tells the block's host `payload`, sealed on its channel; lost while
+    /// the channel is not open.
+    pub fn tell_host(&self, payload: Vec<u8>) {
+        self.core().host().tell_host(self.block_id(), payload);
+    }
+
+    /// Whether this device hosts the block (guides/blocks/hosted.md, "Hosting"): runs its host
+    /// component, and keeps hosting it after its editors here close (`keep_hosting`).
+    pub fn hosting(&self) -> Memo<be_sdk_api::blocks::HostingHere> {
+        let core = self.core();
+        let changed = self.pushed(Pushed::Hosting);
+        create_memo(move || {
+            changed.track();
+            core.host().hosting()
+        })
+    }
+
+    /// Keeps this device hosting the block after its last editor here closes, or no longer.
+    pub fn keep_hosting(&self, keep: bool) {
+        self.core().host().keep_hosting(self.block_id(), keep);
     }
 
     pub fn presence_visible(&self) -> ReadSignal<bool> {
@@ -1163,14 +1335,6 @@ impl Editor {
 
     pub fn report_reveal(&self, client_id: u64) {
         self.state().core.report_reveal(client_id);
-    }
-
-    pub fn on_replace_child(&self, replace: impl Fn(Uuid, Uuid) -> bool + 'static) {
-        self.state().core.on_replace_child(replace);
-    }
-
-    pub fn replace_child(&self, old: Uuid, new: Uuid) -> bool {
-        self.state().core.replace_child(old, new)
     }
 
     pub fn drag(&self) -> ReadSignal<Option<Drag>> {
@@ -1321,6 +1485,7 @@ impl Editor {
                 record.docks,
                 anchor,
                 record.fullscreen.get_untracked(),
+                record.keyboard.get_untracked(),
             )
         };
         Some(match escaped {
@@ -1351,6 +1516,7 @@ impl Creation {
 
     pub fn for_template(host: EditorHost, template: impl Into<String>) -> Self {
         defer_graph_changes(&host);
+        run_async_memos();
         Self(Rc::new(CreationSignals {
             pushed: Mirror::new(&host),
             children: OwnedEditor::new(host.clone(), Uuid::nil()),
@@ -1379,7 +1545,7 @@ impl Creation {
         &self,
         filter: BlockFilter,
         anchor: impl Into<crate::PickAnchor>,
-        picked: impl FnOnce(Result<PickedBlock, be_sdk::Failure>) + 'static,
+        picked: impl FnOnce(PickedBlock) + 'static,
     ) {
         self.0.children.pick_block(filter, anchor, picked);
     }
@@ -1424,9 +1590,15 @@ impl crate::root_settings::SettingsGraph for Editor {
         block: Uuid,
         block_type: Uuid,
         content: Vec<u8>,
-        parent: BlockParent,
+        parent: be_block_graph::BlockParent,
         owner_only: bool,
     ) -> Uuid {
+        // The graph's parent, as the app protocol names it.
+        let parent = match parent {
+            be_block_graph::BlockParent::Detached => BlockParent::Detached,
+            be_block_graph::BlockParent::Root => BlockParent::Root,
+            be_block_graph::BlockParent::Block(parent) => BlockParent::Block(parent),
+        };
         self.blocks().create_at(
             block,
             block_type,
@@ -1461,8 +1633,10 @@ pub fn node_anchor(node: &NodeRef) -> Option<Rect> {
 
 mod settings;
 mod tags;
+mod view_state;
 
 pub use settings::{KindsAbove, OrganizationLayers, SetKind};
+pub use view_state::ViewStateHandle;
 
 #[cfg(test)]
 mod tests;

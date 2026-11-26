@@ -18,7 +18,7 @@ fn a_terminal_hosts_be_is_the_deployments_or_one_built_here() {
             );
             assert_eq!(download.sha256, "ab12");
         }
-        TerminalHostSource::Bytes(_) => panic!("a deployed build downloads be"),
+        TerminalHostSource::Files(_) => panic!("a deployed build downloads be"),
     }
     let beside = Metadata::parse(&answered.build_info).unwrap();
     assert_eq!(beside.id, "tree");
@@ -36,7 +36,7 @@ fn a_terminal_hosts_be_is_the_deployments_or_one_built_here() {
     let missing = answer(&development, "arm64", Some(&built)).unwrap_err();
     assert!(
         missing.contains(
-            "./scripts/buck build //crates/be-tool-cli:native --target-platforms root//buck/platforms:linux_arm64 --out"
+            "./scripts/buck build //crates/be-tool-cli:terminal-host --target-platforms root//buck/platforms:linux_arm64 --out"
         ),
         "the missing build names what to build: {missing}"
     );
@@ -57,7 +57,43 @@ fn a_terminal_hosts_be_is_the_deployments_or_one_built_here() {
         r#"{"id":"work","program_id":"be-host-dev"}"#,
     )
     .unwrap();
+    let only_be = answer(&development, "arm64", Some(&built)).unwrap_err();
+    assert!(
+        only_be.contains("no apps beside it") && only_be.contains(":terminal-host"),
+        "a be built alone reads no block: {only_be}"
+    );
+
+    // As //crates/be-tool-cli:terminal-host lays it out: the apps' manifests and type
+    // modules beside be, the terminal's among them.
+    std::fs::write(arm.join("apps.json"), r#"["be3.terminal.app.json"]"#).unwrap();
+    std::fs::write(arm.join("be3.terminal.app.json"), "{}").unwrap();
+    std::fs::write(arm.join("terminal_types.wasm"), b"\0asm terminal").unwrap();
+    std::fs::write(arm.join("terminal_types.sha256"), "ab12\n").unwrap();
+    std::fs::write(arm.join("program-files.txt"), "be\n").unwrap();
     let answered = answer(&development, "arm64", Some(&built)).unwrap();
-    assert!(matches!(answered.source, TerminalHostSource::Bytes(ref be) if be == b"\x7fELF be"));
+    let TerminalHostSource::Files(files) = answered.source else {
+        panic!("a development build uploads its own files");
+    };
+    let names: Vec<&str> = files.iter().map(|file| file.name.as_str()).collect();
+    assert_eq!(
+        names,
+        [
+            "apps.json",
+            "be",
+            "be3.terminal.app.json",
+            "terminal_types.sha256",
+            "terminal_types.wasm"
+        ],
+        "be with the terminal's type module beside it, and its build-info.json as the answer's own"
+    );
+    let types = files
+        .iter()
+        .find(|file| file.name == "terminal_types.wasm")
+        .unwrap();
+    assert_eq!(types.bytes, b"\0asm terminal");
+
+    std::fs::write(arm.join("-stray"), "").unwrap();
+    let stray = answer(&development, "arm64", Some(&built)).unwrap_err();
+    assert!(stray.contains("-stray"), "a stray file is named: {stray}");
     let _ = std::fs::remove_dir_all(&built);
 }

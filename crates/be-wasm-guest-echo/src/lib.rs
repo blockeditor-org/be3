@@ -7,6 +7,16 @@ pub const HANG: &[u8] = b"hang";
 pub const WAKE: &[u8] = b"wake";
 pub const GROW: &[u8] = b"grow";
 pub const FINISH: &[u8] = b"finish";
+/// Asks for the wall clock through WASI, which only the staged app build (:app) has: answered with
+/// `CLOCK_READ` once the clock reads after 2020. The pure build has no clock, and panics.
+pub const CLOCK: &[u8] = b"clock";
+pub const CLOCK_READ: &[u8] = b"the clock reads after 2020";
+/// Asks for a value std's hash keys decide: answered with 8 bytes, the hash of 0 under a fresh
+/// `RandomState`, whose keys a pure guest's host draws from its seed.
+pub const HASH: &[u8] = b"hash";
+
+/// The id the staged app build (:app) has in its manifest.
+pub const APP_ID: &str = "be3.echo";
 
 pub const PANIC_MESSAGE: &str = "the echo guest was asked to panic";
 
@@ -41,6 +51,20 @@ impl Guest for Echo {
                     outbound.push(vec![grown[GROWTH - 1]]);
                 }
                 FINISH => return Ok(Flow::Finished),
+                HASH => {
+                    use std::hash::BuildHasher;
+                    let hash = std::collections::hash_map::RandomState::new().hash_one(0u8);
+                    outbound.push(hash.to_le_bytes().to_vec());
+                }
+                #[cfg(target_os = "wasi")]
+                CLOCK => {
+                    let since = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map_err(|error| error.to_string())?;
+                    if since.as_secs() > 1_577_836_800 {
+                        outbound.push(CLOCK_READ.to_vec());
+                    }
+                }
                 _ => outbound.push(frame),
             }
         }

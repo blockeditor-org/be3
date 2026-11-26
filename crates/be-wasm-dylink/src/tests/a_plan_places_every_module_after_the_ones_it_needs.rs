@@ -9,31 +9,12 @@ fn a_plan_places_every_module_after_the_ones_it_needs() {
         panic!("{plan:?}");
     };
     assert_eq!((root.memory_base, root.imports.len()), (0, 0));
-    assert_eq!(
-        (left.memory_base, left.table_base, left.block),
-        (65536, 12, 0)
-    );
-    assert_eq!(
-        (app.memory_base, app.table_base, app.block),
-        (65636, 15, 16)
-    );
+    assert_eq!((left.memory_base, left.table_base), (65536, 12));
+    assert_eq!((app.memory_base, app.table_base), (65636, 15));
     assert_eq!(plan.region, 65648);
     assert_eq!(
-        plan.blocks,
-        Blocks {
-            size: 40,
-            align: 8,
-            pages: 1
-        }
-    );
-    assert_eq!(
         left.imports,
-        vec![
-            Import::Table,
-            Import::Constant(65536),
-            Import::Function(0),
-            Import::ThreadLocal(0),
-        ]
+        vec![Import::Table, Import::Constant(65536), Import::Function(0),]
     );
     assert_eq!(
         app.imports,
@@ -44,7 +25,6 @@ fn a_plan_places_every_module_after_the_ones_it_needs() {
             Import::Address(0),
             Import::Address(1),
             Import::Address(2),
-            Import::ThreadLocal(1),
             Import::Elsewhere,
         ]
     );
@@ -65,5 +45,4 @@ fn a_plan_places_every_module_after_the_ones_it_needs() {
     );
     assert_eq!(plan.table_grow, 8);
     assert_eq!(plan.address(2, 8), Ok(65644));
-    assert_eq!(plan.block(1000, 2), 1016);
 }

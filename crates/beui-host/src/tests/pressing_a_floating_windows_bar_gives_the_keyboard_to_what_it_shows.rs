@@ -15,7 +15,7 @@ fn pressing_a_floating_windows_bar_gives_the_keyboard_to_what_it_shows() {
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost @node_ref=&dock>
                 <dock::Docking layout>

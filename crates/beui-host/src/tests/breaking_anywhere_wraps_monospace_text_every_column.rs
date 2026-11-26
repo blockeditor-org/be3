@@ -7,7 +7,7 @@ const COLUMNS: usize = 12;
 
 #[test]
 fn breaking_anywhere_wraps_monospace_text_every_column() {
-    let context = Context::new(crate::native::FreetypeFonts::default());
+    let context = Context::new(crate::native::SkrifaFonts::default());
     let mut shaper =
         |text: &str, font: FontId| -> Galley { context.layout(text, font, TextLayout::DEFAULT) };
     let text = "ls -la /usr/local/share/caf\u{e9} && echo done-and-dusted now";
@@ -21,7 +21,6 @@ fn breaking_anywhere_wraps_monospace_text_every_column() {
             style,
             hang: 0,
             anywhere,
-            least: false,
         };
         let pieces = [
             Piece::text(&text[..20], style),

@@ -1,19 +1,25 @@
-use crate::{HostTest, Options, Server};
+use crate::{HostTest, Options, Player, server};
 
 mod a_beui_demos_dock_joins_the_workspace_dock_as_a_locked_group;
 mod a_block_added_from_the_files_is_named_in_its_row;
 mod a_block_added_to_my_files_from_a_slow_server_stays_in_it;
+mod a_block_dragged_from_the_files_onto_a_canvas_lands_on_it;
+mod a_canvas_exported_from_the_files_with_its_editor_closed_becomes_an_image_that_follows_it;
 mod a_canvas_in_a_canvas_keeps_to_its_card_and_closes_when_pressed_outside;
 mod a_canvas_in_a_canvas_shows_its_tool_bar_in_place_of_the_outer_ones;
 mod a_canvas_pans_with_the_wheel_and_drags_and_zooms_with_ctrl;
 mod a_canvas_popped_out_into_a_window_hides_the_files_behind_it;
+mod a_canvas_revision_previews_under_its_revision_bar;
 mod a_canvas_tool_bar_dragged_by_its_grip_goes_where_it_is_dropped_and_stays_there;
 mod a_canvas_tool_bar_goes_where_its_grip_menu_puts_it;
 mod a_canvas_tool_bar_popped_out_lifts_out_of_its_window_and_follows_its_grip;
 mod a_chat_message_sent_offline_shows_as_sending_until_the_device_reconnects;
 mod a_checklist_on_a_canvas_works_in_place_and_zooms_with_it;
 mod a_child_placed_in_a_popover_shows_above_it;
+mod a_click_into_the_second_of_two_empty_texts_types_there;
+mod a_confirmation_in_one_editor_leaves_the_files_beside_it_live;
 mod a_contact_link_asks_before_connecting_two_accounts;
+mod a_contact_the_server_rolls_back_keeps_the_key_this_device_saw;
 mod a_control_focused_in_the_desktops_apps_panel_reads_as_focused;
 mod a_deleted_joined_block_says_so_on_each_of_its_tabs;
 mod a_demo_tab_unlocked_from_its_grip_moves_beside_the_files_with_its_page;
@@ -32,6 +38,8 @@ mod a_joined_blocks_tab_opens_its_details_and_palette;
 mod a_joined_blocks_tabs_carry_its_menu;
 mod a_joined_demos_tab_bodies_are_in_the_accessibility_tree;
 mod a_local_account_needs_only_a_display_name;
+mod a_local_accounts_block_menus_offer_no_share;
+mod a_long_markdown_text_reopens_after_a_restart_at_the_line_it_showed;
 mod a_menu_from_a_zoomed_out_checklist_on_a_canvas_escapes_its_card_at_full_size;
 mod a_new_folder_opens_its_editor;
 mod a_new_image_asks_for_its_file_in_the_image_editors_own_dialog;
@@ -40,23 +48,32 @@ mod a_note_made_while_a_device_is_offline_reaches_it_once_it_reconnects;
 mod a_pan_and_zoom_editor_on_a_canvas_takes_the_frame_in_place_and_pans_with_it;
 mod a_pen_draws_a_line_on_a_canvas_with_the_pen_tool;
 mod a_personal_organization_can_create_an_agent;
+mod a_player_digs_through_the_editor_that_hosts_the_hunt;
 mod a_popup_a_joined_demo_tab_places_over_its_own_window_opens_over_that_tab;
 mod a_popup_in_space_closes_on_a_press_in_another_panel;
 mod a_presentation_menu_offers_new_slides_first;
 mod a_presented_slide_takes_clicks_and_leaves_the_keys_to_the_deck;
 mod a_press_on_the_files_add_button_closes_a_canvas_menu_and_opens_theirs;
 mod a_press_outside_a_menu_and_its_submenu_closes_both_and_reaches_what_it_landed_on;
+mod a_root_in_place_of_the_hosts_ui_hands_its_editor_keys_presses_and_touches;
+mod a_root_in_place_of_the_hosts_ui_opens_a_dialog_on_the_hosts_clipboard_and_input_method;
+mod a_root_in_place_of_the_hosts_ui_shows_the_editor_it_embeds;
+mod a_root_in_place_of_the_hosts_ui_shows_the_hosts_statistics_in_a_panel;
 mod a_second_click_on_a_zoomed_workspaces_add_button_closes_its_menu;
 mod a_second_finger_turns_a_pen_stroke_into_a_pinch;
 mod a_session_in_the_desktop_gives_each_tab_only_its_own_blocks_actions;
 mod a_setting_opens_from_the_settings_tab_beside_the_files;
 mod a_settings_page_and_the_settings_list_show_the_same_block_side_by_side;
+mod a_share_link_asks_before_opening_a_block_someone_shared;
 mod a_slides_canvas_bar_shares_the_top_band_with_the_presentation_toolbar;
 mod a_slides_preview_catches_up_with_quick_changes_after_a_pause;
 mod a_tab_keeps_its_view_through_a_resize;
 mod a_tab_popped_out_in_space_is_a_panel_of_its_own;
 mod a_text_reopened_after_going_back_or_a_restart_keeps_its_scroll_and_caret;
+mod a_text_shown_while_its_app_is_slow_takes_the_caret_once_it_catches_up;
 mod a_tooltip_from_the_files_reaches_past_them;
+mod a_wait_names_an_app_that_stopped_instead_of_running_out;
+mod a_web_browser_tab_says_why_it_shows_no_page;
 mod a_window_dragged_over_the_desktops_bars_passes_beneath_them;
 mod a_window_over_a_tab_docked_on_the_desktop_draws_above_it;
 mod adding_an_account_chooses_a_local_or_custom_server;
@@ -66,16 +83,80 @@ mod an_invitation_shows_the_link_to_send_the_invited_person;
 mod an_offline_device_refuses_to_move_a_block_into_a_folder_it_never_opened;
 mod an_offline_device_says_a_block_it_never_opened_is_not_on_it_yet;
 mod an_offline_device_that_never_opened_my_files_is_told_it_cannot_add_to_it;
+mod an_outsider_opens_a_share_link_as_a_guest;
+mod be_root_in_place_of_the_hosts_ui_adds_a_local_account_with_only_a_display_name;
+mod be_root_in_place_of_the_hosts_ui_adds_an_account_on_a_local_or_custom_server;
+mod be_root_in_place_of_the_hosts_ui_asks_before_connecting_two_accounts_by_a_contact_link;
+mod be_root_in_place_of_the_hosts_ui_asks_before_leaving_a_workspace_someone_shared;
+mod be_root_in_place_of_the_hosts_ui_asks_before_opening_a_block_someone_shared_by_a_link;
+mod be_root_in_place_of_the_hosts_ui_asks_before_removing_a_local_account;
+mod be_root_in_place_of_the_hosts_ui_closes_a_programs_window_from_its_tab;
+mod be_root_in_place_of_the_hosts_ui_creates_an_agent_in_a_personal_organization;
+mod be_root_in_place_of_the_hosts_ui_draws_a_host_panel_the_workspace_places;
+mod be_root_in_place_of_the_hosts_ui_floats_a_window_the_desktop_opens;
+mod be_root_in_place_of_the_hosts_ui_hands_a_canvas_frame_to_the_editor_on_it;
+mod be_root_in_place_of_the_hosts_ui_hands_a_childs_keys_to_it;
+mod be_root_in_place_of_the_hosts_ui_hands_a_programs_window_its_input;
+mod be_root_in_place_of_the_hosts_ui_holds_the_desktops_bars_and_opens_their_grips_menus;
+mod be_root_in_place_of_the_hosts_ui_keeps_a_window_dragged_onto_the_bar_clear_of_it;
+mod be_root_in_place_of_the_hosts_ui_keeps_the_key_it_saw_of_a_contact_the_server_rolls_back;
+mod be_root_in_place_of_the_hosts_ui_lands_a_block_dragged_from_the_files_on_a_canvas;
+mod be_root_in_place_of_the_hosts_ui_lands_a_file_dropped_from_outside_on_a_canvas;
+mod be_root_in_place_of_the_hosts_ui_leaves_the_workspace_tabs_alone_while_its_palette_is_open;
+mod be_root_in_place_of_the_hosts_ui_lets_a_player_dig_through_the_editor_that_hosts_the_hunt;
+mod be_root_in_place_of_the_hosts_ui_lists_a_programs_window_on_the_desktop;
+mod be_root_in_place_of_the_hosts_ui_lists_a_text_on_a_canvas_in_its_palette;
+mod be_root_in_place_of_the_hosts_ui_lists_an_organizations_members_and_their_roles;
+mod be_root_in_place_of_the_hosts_ui_lists_the_desktops_window_keys_in_its_palette;
+mod be_root_in_place_of_the_hosts_ui_locks_the_screen_on_super_l;
+mod be_root_in_place_of_the_hosts_ui_makes_a_block_a_picker_creates;
+mod be_root_in_place_of_the_hosts_ui_makes_a_block_in_my_files;
+mod be_root_in_place_of_the_hosts_ui_makes_a_block_its_expanded_picker_offers;
+mod be_root_in_place_of_the_hosts_ui_moves_a_window_the_desktop_opens_by_its_grip;
+mod be_root_in_place_of_the_hosts_ui_moves_the_keyboard_between_views_with_f6;
+mod be_root_in_place_of_the_hosts_ui_names_an_app_that_stopped_while_a_wait_ran;
+mod be_root_in_place_of_the_hosts_ui_names_what_it_shows_to_drive;
+mod be_root_in_place_of_the_hosts_ui_opens_a_block_its_files_open;
+mod be_root_in_place_of_the_hosts_ui_opens_a_joined_blocks_details_from_its_tab;
+mod be_root_in_place_of_the_hosts_ui_opens_a_picker_as_a_sheet_on_a_phone;
+mod be_root_in_place_of_the_hosts_ui_opens_a_share_link_for_an_outsider_as_a_guest;
+mod be_root_in_place_of_the_hosts_ui_opens_its_palette_from_a_frame_menu;
+mod be_root_in_place_of_the_hosts_ui_opens_the_host_menu_under_its_button;
+mod be_root_in_place_of_the_hosts_ui_opens_the_share_dialog_an_editor_asks_for;
+mod be_root_in_place_of_the_hosts_ui_picks_from_a_joined_canvas_tab_menu;
+mod be_root_in_place_of_the_hosts_ui_quick_opens_a_file_from_the_workspace;
+mod be_root_in_place_of_the_hosts_ui_quick_opens_a_text_by_a_word_inside_it;
+mod be_root_in_place_of_the_hosts_ui_rises_the_host_menu_as_a_sheet_on_a_phone;
+mod be_root_in_place_of_the_hosts_ui_says_why_a_web_browser_tab_shows_no_page;
+mod be_root_in_place_of_the_hosts_ui_shows_a_block_placed_twice_with_an_editor_in_each;
+mod be_root_in_place_of_the_hosts_ui_shows_a_checklist_in_place_on_a_canvas;
+mod be_root_in_place_of_the_hosts_ui_shows_a_joined_dock;
+mod be_root_in_place_of_the_hosts_ui_shows_a_picker_a_canvas_places;
+mod be_root_in_place_of_the_hosts_ui_shows_a_presentations_slides_as_previews;
+mod be_root_in_place_of_the_hosts_ui_shows_an_artifacts_settings;
+mod be_root_in_place_of_the_hosts_ui_shows_its_onboarding;
+mod be_root_in_place_of_the_hosts_ui_shows_its_signed_in_block_stack;
+mod be_root_in_place_of_the_hosts_ui_shows_the_children_its_session_places;
+mod be_root_in_place_of_the_hosts_ui_shows_the_desktop_shell;
+mod be_root_in_place_of_the_hosts_ui_shows_the_link_to_send_the_invited_person;
+mod be_root_in_place_of_the_hosts_ui_shows_the_session_picker_once_the_desktop_shell_is_killed;
+mod be_root_in_place_of_the_hosts_ui_takes_an_invite_link_on_its_organizations;
+mod be_root_in_place_of_the_hosts_ui_warns_of_a_member_no_invitation_signed_in;
 mod choosing_a_scale_draws_the_host_larger;
 mod choosing_another_workspace_on_the_add_pickers_location_page_moves_it_there;
+mod clicking_another_texts_tab_hands_it_the_caret;
 mod closing_a_demos_block_tab_closes_the_tabs_its_dock_put_in_the_workspace;
 mod closing_a_presentation_while_its_notes_wait_for_the_keyboard_leaves_the_host_settled;
 mod closing_a_tab_shuts_its_editor_down;
+mod ctrl_tab_between_two_texts_hands_the_caret_to_the_text_shown;
+mod ctrl_tab_leaves_the_workspace_tabs_alone_while_the_host_palette_is_open;
+mod ctrl_tab_walks_the_workspace_tabs_while_an_editor_has_the_keyboard;
 mod dragging_the_workspace_splitter_draws_the_files_at_their_new_width_in_the_same_frame;
 mod fit_on_an_active_child_fits_its_content_in_its_view;
 mod going_back_from_the_add_pickers_location_page_draws_the_menu_and_its_card_in_the_same_frame;
 mod going_back_from_the_add_pickers_location_page_grows_the_menu_again;
 mod in_a_narrow_pane_a_deleted_block_puts_restore_below_its_notice;
+mod keep_hosting_outlives_the_editor_until_stop;
 mod killing_the_desktop_shell_shows_the_session_picker;
 mod leaving_a_workspace_someone_shared_asks_first;
 mod more_blocks_from_the_add_menu_in_space_opens_the_search;
@@ -84,11 +165,16 @@ mod my_files_offers_no_delete;
 mod on_a_narrow_window_the_add_menu_from_the_files_rises_as_a_sheet;
 mod on_a_phone_a_demos_dock_tabs_are_tabs_of_the_workspace;
 mod on_a_phone_a_held_file_rises_its_menu_as_a_sheet_over_the_whole_host;
+mod on_a_phone_a_new_text_opens_from_its_row_with_one_tap_after_back;
 mod on_a_phone_an_editor_stacks_over_the_files_with_its_panes_gathered_below_its_stage;
 mod on_a_phone_back_leaves_each_document_opened_from_the_files;
+mod on_a_phone_each_frame_of_opening_a_document_is_the_same_every_run_under_step_on;
+mod on_a_phone_opening_a_document_from_the_files_steps_frame_by_frame_with_presents_late;
+mod on_a_phone_renaming_a_canvas_opens_a_sheet;
 mod on_a_phone_tapping_a_blocks_name_renames_it_in_a_sheet;
 mod on_a_phone_the_files_show_what_the_device_keeps_after_its_connection_drops;
 mod on_a_phone_the_host_menu_rises_as_a_sheet_it_draws_itself;
+mod players_carry_on_with_the_next_host_once_the_first_closes_the_world;
 mod presenting_a_deck_again_and_again_adds_no_blocks;
 mod presenting_a_deck_fills_the_screen_until_escape;
 mod pressing_the_files_after_a_text_block_moves_the_focus_to_them;
@@ -109,26 +195,42 @@ mod the_desktop_shell_opens_and_closes_cleanly;
 mod the_desktops_bars_hold_their_place_empty_and_their_grips_open_their_menu;
 mod the_files_new_menu_row_loses_its_highlight_when_the_pointer_leaves;
 mod the_host_menu_opens_under_its_button;
+mod the_host_moves_the_keyboard_between_views_with_f6;
 mod the_host_opens_its_files_and_closes_cleanly;
 mod the_host_palette_lists_a_text_on_a_canvas_before_the_canvas;
 mod the_host_palette_lists_the_desktops_window_keys;
 mod the_inspector_chord_in_the_more_blocks_search_inspects_the_workspace;
 mod the_inspector_opens_in_the_focused_app_over_its_view_and_keeps_its_children;
 mod the_members_dialog_lists_an_organizations_members_and_their_roles;
+mod the_members_dialog_warns_of_a_member_no_invitation_signed_in;
 mod the_more_card_from_the_files_reaches_over_the_block_beside_them;
 mod the_more_card_hangs_on_its_tab_and_leaves_the_files_usable;
 mod the_organizations_screen_takes_an_invite_link;
 mod the_rename_card_from_the_files_reaches_past_them;
 mod the_rename_card_takes_the_keyboard_with_its_name_selected;
 mod the_storage_page_says_what_the_server_counts;
+mod the_text_menu_lists_each_item_once_and_checks_line_numbers;
 mod the_text_settings_point_at_the_tab_from_its_menu_and_the_palette;
 mod the_workspace_splitter_reaches_over_the_files_and_its_tabs_scroll_with_the_wheel;
 mod two_canvas_tabs_share_one_popped_out_tool_bar_that_follows_the_tab_shown;
 mod typing_after_a_new_session_opens_reaches_the_session;
 mod typing_after_a_pause_undoes_as_its_own_step;
+mod typing_after_adding_notes_reaches_the_notes;
 mod typing_as_the_connection_silently_drops_leaves_the_host_settled;
 mod typing_in_the_add_menu_from_the_files_reaches_it_straight_away;
-mod typing_right_after_adding_notes_reaches_the_notes;
+mod unlinking_a_reference_in_a_text_puts_a_copy_in_its_place;
+
+/// The link the open share dialog made (`#share.links.make`), read from its field.
+fn share_link(host: &mut HostTest) -> String {
+    host.tree()
+        .lines()
+        .find_map(|line| {
+            let (_, value) = line.split_once("value=\"")?;
+            let value = value.split('"').next()?;
+            value.contains("#share/").then(|| value.to_owned())
+        })
+        .expect("the share dialog shows the link it made")
+}
 
 fn add_to_my_files(host: &mut HostTest, label: &str) {
     start_adding_to_my_files(host, label);
@@ -203,6 +305,23 @@ fn open_beui_demo(host: &mut HostTest) {
     host.run(&["settle"]);
 }
 
+const MORE: &str = "#dock.editors.menu";
+const KEEP_HOSTING: &str = "#dock.editors.menu.editor.keep-hosting";
+const DETAILS: &str = "#dock.editors.menu.editor.details";
+
+/// Waits until the open counter's More menu offers Keep hosting (`hosting`), which it does only
+/// while this device hosts the counter, or until it shows the menu without it.
+fn hosts(host: &mut HostTest, hosting: bool) {
+    host.click(MORE);
+    host.wait(DETAILS);
+    match hosting {
+        true => host.wait(KEEP_HOSTING),
+        false => host.gone(KEEP_HOSTING),
+    }
+    host.key("Escape");
+    host.gone(DETAILS);
+}
+
 fn open_add_to_my_files(host: &mut HostTest) {
     host.click(NEW);
     host.click(NEW_IN_MY_FILES);
@@ -216,4 +335,48 @@ fn pan_zoom_world(host: &mut HostTest) -> (f32, f32, f32, f32) {
     let right = host.place("#pan_zoom.card.5");
     let scale = (right.0 + right.2 - origin.0) / 820.0;
     (origin.0, origin.1, 880.0 * scale, 580.0 * scale)
+}
+
+/// Makes an organization named `name` from be-host's own host menu, which opens it.
+fn create_organization(host: &mut HostTest, name: &str) {
+    host.click("#file-tree.host-menu");
+    host.click("#host.menu.switch-organization");
+    host.click("TextInput \"Organization name\"");
+    host.type_text(name);
+    host.click("Button \"Create\"");
+    host.wait("#file-tree.host-menu");
+}
+
+/// Makes a contact link from the host menu's Contacts, and closes them: the link they showed.
+fn make_contact_link(host: &mut HostTest) -> String {
+    host.click("#file-tree.host-menu");
+    host.click("#host.menu.contacts");
+    host.click("#host.contacts.new-link");
+    host.wait("#host.contacts.link");
+    let link = host
+        .tree()
+        .lines()
+        .find_map(|line| {
+            let (_, value) = line.split_once("value=\"")?;
+            let value = value.split('"').next()?;
+            value.contains("#contact/").then(|| value.to_owned())
+        })
+        .expect("the dialog shows the link it made");
+    host.key("Escape");
+    host.pause(500);
+    host.gone("Dialog \"Contacts\"");
+    link
+}
+
+/// Opens `link`, made on `maker`, from the host menu's Contacts, up to the question of whether
+/// to connect.
+fn open_contact_link(host: &mut HostTest, maker: &HostTest, link: &str) {
+    // Made on another device, the link names the server as that device reaches it.
+    let link = link.replacen(&maker.server_url(), &host.server_url(), 1);
+    host.click("#file-tree.host-menu");
+    host.click("#host.menu.contacts");
+    host.click("#host.contacts.paste");
+    host.type_text(&link);
+    host.click("#host.contacts.open");
+    host.wait("#host.contacts.offer");
 }

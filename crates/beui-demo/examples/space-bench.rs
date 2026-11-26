@@ -1,4 +1,3 @@
-#[cfg(not(target_arch = "wasm32"))]
 mod bench {
     use std::any::Any;
     use std::cell::RefCell;
@@ -208,13 +207,13 @@ mod bench {
             let sky = Pos2::new(PLATFORM.x / 2.0, 30.0);
             self.drag_to(tab, sky);
             let space = self.space.borrow();
-            let window = space
+
+            space
                 .panels
                 .iter()
                 .map(|panel| panel.window)
                 .find(|window| !window.is_main())
-                .expect("the tab floated into a window of its own");
-            window
+                .expect("the tab floated into a window of its own")
         }
 
         fn drag_to(&mut self, from: Pos2, to: Pos2) {
@@ -335,6 +334,7 @@ mod bench {
 
     pub fn main() {
         let mode = std::env::args().nth(1);
+        #[allow(clippy::type_complexity)] // the bench's modes by name, listed once, here
         let modes: &[(&str, fn(&mut Bench))] = &[("cursor", cursor), ("resize", resize)];
         if let Some(mode) = &mode
             && !modes.iter().any(|(name, _)| name == mode)
@@ -356,6 +356,5 @@ mod bench {
 }
 
 fn main() {
-    #[cfg(not(target_arch = "wasm32"))]
     bench::main();
 }

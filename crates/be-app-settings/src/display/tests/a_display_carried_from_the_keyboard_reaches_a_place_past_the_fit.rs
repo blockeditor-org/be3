@@ -1,0 +1,60 @@
+use super::*;
+use crate::display::arrangement::{View, tiles};
+use be_sdk_beui::be_block::display_settings::Arrangement;
+use be_sdk_beui::beui::{Key, Modifiers, Rect, pos2};
+
+#[test]
+fn a_display_carried_from_the_keyboard_reaches_a_place_past_the_fit() {
+    let displays = laptop_beside(gaming_monitor());
+    let mut settings = Harness::in_a_session(displays.clone()).on_this_device();
+    let laid = tiles(&displays, &Arrangement::default());
+    let (laptop, monitor) = (laid[0].rect, laid[1].rect);
+    let fit = View::of(&[laptop, monitor]);
+    let below = Rect::from_min_size(pos2(monitor.left(), monitor.bottom()), laptop.size());
+    let desk = settings.editor.rect_of("display.arrangement");
+    assert!(
+        desk.min.y + fit.to_area(below.max).y > desk.max.y,
+        "below the monitor is beyond the fit before the lift"
+    );
+
+    let tile = settings
+        .editor
+        .rect_of("display.arrangement.eDP-1")
+        .center();
+    let fill = tile_fill(&settings.editor, "display.arrangement.eDP-1");
+    settings.editor.click(tile);
+    let lifted = settings.editor.rect_of("display.arrangement.eDP-1");
+    settings.editor.key(Key::Space, Modifiers::NONE);
+    settings.run();
+    // The refit lays the laptop out smaller after the lift, with no point to move it: a
+    // keyboard carry has no pointer to send one, so the board chooses again as the laptop
+    // is laid out anew, and draws it where it now stands, at that size.
+    let refit = drawn_tile(&settings.editor, fill);
+    let home = settings.editor.rect_of("display.arrangement.eDP-1");
+    assert!(
+        refit.width() < lifted.width() - 1.0
+            && (refit.min - home.min).length() < 1.0
+            && (refit.max - home.max).length() < 1.0,
+        "held still, the refit laptop is drawn where it is laid out, {home:?}, not {refit:?}"
+    );
+    settings.editor.key(Key::ArrowDown, Modifiers::NONE);
+    settings.run();
+    let carried = drawn_tile(&settings.editor, fill);
+    assert!(
+        desk.contains_rect(carried),
+        "the laptop is carried in sight: {carried:?} in {desk:?}"
+    );
+    settings.editor.key(Key::Enter, Modifiers::NONE);
+    settings.run();
+
+    let arrangement = settings.here().arrangement();
+    let (laptop_at, monitor_at) = (
+        arrangement.place(LAPTOP).expect("the laptop is placed"),
+        arrangement.place(MONITOR).expect("the monitor is placed"),
+    );
+    assert_eq!(
+        (laptop_at.0, laptop_at.1),
+        (monitor_at.0, monitor_at.1 + monitor.height() as i32),
+        "the laptop stands below the monitor, at its left: {laptop_at:?} by {monitor_at:?}"
+    );
+}

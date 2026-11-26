@@ -13,7 +13,7 @@ fn a_restarted_app_no_longer_shows_its_views_stopped() {
     ));
     assert!(instances.stopped(INSTANCE, REGION).is_some());
 
-    instances.reopen();
+    restart(&mut instances);
 
     assert!(
         instances.stopped(INSTANCE, REGION).is_none(),

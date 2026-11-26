@@ -35,7 +35,7 @@ async fn what_is_made_in_a_block_the_server_refused_waits_aside_with_it() {
     assert!(
         drained.contains(&Drained::SetAside {
             block: child,
-            code: refused
+            why: crate::Aside::Refused(refused)
         }),
         "{drained:?}"
     );
@@ -44,7 +44,7 @@ async fn what_is_made_in_a_block_the_server_refused_waits_aside_with_it() {
         .iter()
         .find(|unsent| unsent.block == child)
         .expect("the child is set aside");
-    assert_eq!(row.refused, Some(refused));
+    assert_eq!(row.refused, Some(crate::Aside::Refused(refused)));
     assert_eq!(owner.pending().operations, 0);
 
     assert_eq!(owner.restore_unsent(parent).unwrap(), vec![parent, child]);

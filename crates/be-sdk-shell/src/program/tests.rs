@@ -18,6 +18,7 @@ fn window(id: u64, program_id: &str, launch: Option<u64>) -> HostWindow {
         },
         size: None,
         maximized: false,
+        opens_hidden: false,
     }
 }
 

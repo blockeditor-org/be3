@@ -5,9 +5,10 @@ use std::rc::Rc;
 
 use std::rc::Weak;
 
+use beui_tree::reactive::LazyChild;
 use beui_tree::reactive::{
-    ComponentContext, Get, IntoProp, IntoSlotHost, Prop, ReadSignal, ScopeContext, Set, Signal,
-    SlotHost, SlotId, create_effect, create_signal, current_component, on_cleanup,
+    ComponentContext, Get, IntoSlotHost, Prop, Reader, ScopeContext, Set, Signal, SlotHost, SlotId,
+    create_effect, create_memo, create_signal, current_component, on_cleanup,
 };
 use beui_types::node::{CoreHooks, NodeCell, install_core_hooks};
 
@@ -50,20 +51,18 @@ pub fn component_node() -> beui_types::NodeRef {
     node
 }
 
-pub fn component_placed() -> ReadSignal<bool> {
+pub fn component_placed() -> Reader<bool> {
     let bindings = bindings();
     if let Some(target) = bindings.target.get() {
         let measured = with_document(|document| document.watch_measure(target));
-        let placed = create_signal(measured.get_untracked().is_some());
-        create_effect(move || placed.set(measured.get().is_some()));
-        return placed.read_only();
+        return create_memo(move || measured.with(Option::is_some)).into();
     }
     if let Some(placed) = bindings.placed.borrow().as_ref() {
-        return placed.read_only();
+        return placed.read_only().into();
     }
     let placed = create_signal(false);
     bindings.placed.replace(Some(placed));
-    placed.read_only()
+    placed.read_only().into()
 }
 
 pub fn set_component_state<T: 'static>(state: T) {
@@ -80,9 +79,9 @@ pub fn accessibility_reference(node: NodeId) -> accesskit::NodeId {
     crate::accessibility::reference(node)
 }
 
-pub fn component_accessibility(node: impl IntoProp<accesskit::Node>) {
+pub fn component_accessibility(node: Prop<accesskit::Node>) {
     let bindings = bindings();
-    let node = node.into_prop();
+
     create_effect(move || {
         let node = node.get();
         let rank = bindings.rank.get();
@@ -134,7 +133,16 @@ pub(crate) fn install_hooks() {
     install_core_hooks(CoreHooks {
         fill_ref,
         finish_component,
+        create_host,
     });
+}
+
+/// A bare frame: it sizes to its child, draws nothing and swaps the child in place. Not a
+/// one-child `Layers`, which does not pass scroll anchoring through to what it holds.
+fn create_host(child: LazyChild<NodeId>) -> NodeId {
+    let frame = with_document(|document| document.create_host_frame());
+    child.mount(move |child| with_document(|document| document.set_frame_child(frame, child)));
+    frame.id()
 }
 
 #[diagnostic::on_unimplemented(

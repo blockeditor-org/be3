@@ -12,7 +12,7 @@ fn disposing_a_scope_removes_the_nodes_it_owns() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Show condition={shown}>|| {
+                <Show value={shown}>|| {
                     component(&ComponentInfo { name: "Outer", module: module_path!() }, move || {
                         on_cleanup(move || cleaned.update(|cleaned| cleaned.push("outer")));
                         let inner = component(&ComponentInfo { name: "Inner", module: module_path!() }, move || {

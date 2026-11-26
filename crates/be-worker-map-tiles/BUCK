@@ -1,0 +1,16 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_package", "cargo_test")
+load("@root//buck/wasm:defs.bzl", "worker")
+
+cargo_package()
+
+# The map's tile rasterizer: the library, which the map's tests serve in their
+# own instance, its tests, natively, and :module, worker.rs linked against the
+# base library alone, which the map stages as tiles.wasm.
+cargo_library()
+
+cargo_test()
+
+worker(
+    libraries = ["//crates/be-sdk-library-base:module"],
+    module = "tiles",
+)

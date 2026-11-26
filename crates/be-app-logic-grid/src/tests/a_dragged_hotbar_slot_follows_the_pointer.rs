@@ -4,7 +4,8 @@ use be_sdk_beui::beui::{Input, PointerButton};
 #[test]
 fn a_dragged_hotbar_slot_follows_the_pointer() {
     let mut editor = editor();
-    let from = editor.rect_of("logic-grid.slot.0").center();
+    let slot = editor.rect_of("logic-grid.slot.0");
+    let from = slot.center();
     let to = editor.rect_of("logic-grid.canvas").center();
 
     editor.step(vec![Input::PointerMoved(from)]);
@@ -16,9 +17,11 @@ fn a_dragged_hotbar_slot_follows_the_pointer() {
     editor.step(vec![Input::PointerMoved(to)]);
     editor.run();
     let ghost = editor.rect_of("logic-grid.slot-ghost");
+    let held = to - (from - slot.min);
     assert!(
-        ghost.left() >= to.x && ghost.left() - to.x < 40.0 && ghost.top() >= to.y,
-        "the dragged slot is drawn beside the pointer, at {ghost:?}"
+        (ghost.min - held).length() <= 1.0,
+        "the dragged slot is drawn under the pointer, held where it was pressed: at {ghost:?}, \
+         not {held:?}"
     );
     assert!(editor.label("logic-grid.slot-ghost").contains("Wire"));
 

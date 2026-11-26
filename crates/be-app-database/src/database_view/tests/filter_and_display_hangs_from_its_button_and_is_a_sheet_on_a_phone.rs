@@ -9,7 +9,6 @@ fn filter_and_display_hangs_from_its_button_and_is_a_sheet_on_a_phone() {
     harness.set_size(Vec2::new(560.0, 640.0));
 
     harness.click("database-view.filter-and-display");
-    harness.run();
     assert!(harness.shown("database-view.sheet.close"));
     let button = harness.rect_of("database-view.filter-and-display");
     let close = harness.rect_of("database-view.sheet.close");
@@ -20,11 +19,11 @@ fn filter_and_display_hangs_from_its_button_and_is_a_sheet_on_a_phone() {
     harness.snapshot("filter_and_display_hangs_from_its_button");
 
     harness.click("database-view.sheet.close");
-    harness.run();
     harness.set_size(Vec2::new(360.0, 640.0));
     harness.click("database-view.filter-and-display");
     for _ in 0..30 {
         harness.advance(std::time::Duration::from_millis(16));
+        harness.run();
     }
     let close = harness.rect_of("database-view.sheet.close");
     assert!(

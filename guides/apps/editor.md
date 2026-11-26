@@ -8,7 +8,8 @@ parts that span many editors.
 
 An editor gets the whole frame and the framework draws nothing across it. When
 the host asks for a top bar (`FrameSpec::top_bar`: `Shown` on a desktop,
-`Phone`, `Hidden`), the framework sends the host the frame's menu: undo, redo,
+`Hidden` on a phone, where the stacked dock's bar stands in, and for a frame
+placed bare), the framework sends the host the frame's menu: undo, redo,
 rename, share, the command palette, the editor's own commands, file details,
 and Close for a child that took the frame over. An editor draws no undo, redo
 or exit buttons of its own.
@@ -19,12 +20,15 @@ runs the command whose id comes back. The protocol knows nothing of beui.
 
 An editor adds its part while its view is built:
 `add_to_menu(vec![MenuNode::action(&action), MenuNode::submenu(..), ..])`
-over actions it registered; the part goes when the adding scope does. Every
+over actions it registered; the part goes when the adding scope does. It joins
+only its own frame's menu (`menu_scope`), though the app's other editors share its
+document. Every
 action is also in the command palette, and buttons and menu rows that take it
 as their `action` prop share its label, enabled state, tick and shortcut
 (guides/beui_keyboard.md, Actions and the command palette). An action with
 `.pin(Pin::Icon | Pin::Label)` sits in the tab bar beside More; `Pin::Title`
-runs when a phone's stacked bar's title is tapped (Rename). The canvas builds
+runs when a phone's stacked bar's title is tapped (Rename), which shows its
+glyph after the title as the cue. The canvas builds
 its frame menu and context menu from the same submenus (`root/menu.rs`); the
 text editor offers what does not fit its bar there.
 
@@ -60,14 +64,37 @@ framework reports its rectangle after every layout; the host pans, zooms and
 reads wheel gestures against it, so a wheel over a sidebar is not a wheel
 over the content.
 
-Side panels go in the editor's own dock (guides/beui/docking.md): a locked
-panel pane beside a bare locked stage pane, under a `Show` of
-`chrome_shown()`, sized with `SplitSize::Second(SIDE_PANEL_WIDTH)` so the
-stage takes what the frame gains. The canvas splits its stage with Inspector
-above Layers; the deterministic game puts a locked History pane beside its
-board and its seat picker in a `DockBar`. Database, worktree, game module and
-audio are further examples. When the editor's dock joins the workspace's
-([children.md](children.md#docks-across-apps)) these panes become the root's.
+Side panels go in the editor's own dock (guides/beui/docking.md). A stage and a
+side panel is all defaults:
+
+```rust
+view! {
+    <Docking>
+        <DockSplit>
+            <DockPane stage=true>
+                <DockTab><Track @node_ref={&content} editor /></DockTab>
+            </DockPane>
+            <DockPane chrome=true>
+                <DockTab title="Audio"><ContentFileReplace editor .. /></DockTab>
+            </DockPane>
+        </DockSplit>
+    </Docking>
+}
+```
+
+The stage is bare and focused, every pane of a dock with a stage is locked, a
+`chrome` pane leaves while the frame hides the chrome, the split gives the
+panel `SIDE_PANEL_WIDTH` so the stage takes what the frame gains, and the
+panel's body is the standard panel (`Surface`, a `Scroll`, padding). Give an id
+only to what the code names: the stage's tab when a `DockBar` hangs from it, a
+tab `DockingLayout::show` brings forward, a pane or tab a test finds by its id.
+A body that fills the panel itself (a list with its own scroll) takes `bare`;
+a size is given only to differ. The canvas splits its stage with Inspector
+above Layers; the deterministic game puts a History pane beside its board and
+its seat picker in a `DockBar`. Audio, image, PDF, map, logic grid, database
+and game module are further examples. When the editor's dock joins the
+workspace's ([children.md](children.md#docks-across-apps)) these panes become
+the root's.
 
 ## Phones
 
@@ -79,10 +106,14 @@ writes nothing for phones. `DockingLayout::show` brings a folded pane
 forward, as the canvas's selection bar does with the Inspector.
 
 Prefer one layout for both. The canvas keeps tools and zoom in `DockBar`s the
-user can move to any edge or window. `be_sdk_beui::Toolbar` is for a band
+user can move to any edge or window, and the text editor its format bar, in a
+band beside its bottom edge (`DockBarPlacement::Beside`), so on a phone it sits
+above the on-screen keyboard and never covers the text. `be_sdk_beui::Toolbar` is for a band
 outside a dock (the file tree's); its buttons scroll sideways on a narrow
 frame. `narrow_chrome()` tests the frame's width, which a desktop pane can be
-too; `phone_layout()` says the host itself is on a phone.
+too; `phone_layout()` says the shell lays out as on a phone (its frame's
+`FrameSpec::phone`, which the host sets on every frame from what the shell
+says, `EditorHost::set_phone_layout`).
 
 ## Pan and zoom
 
@@ -133,20 +164,69 @@ is the whole dialog for a block made from a picked file. "Import a file…"
 makes a block with no editor at all, by the type module that claims the file
 (guides/blocks/host.md, Exporting and importing).
 
-## Artifacts
+## Exporting
 
-A type that produces dynamic artifacts (a PNG exported from a drawing) lists
-`ArtifactSettings` among its views. The editor creates one with
-`editor.blocks().create_artifact(..)`, pointing at the source block and
-carrying the app's settings as an opaque payload. The host keeps a second
-instance of the app open while the artifact is shown and asks it, through
-`connect_artifact`, `describe_artifact`, the `ArtifactSettings` component and
-the `Artifacts` handle (`source`, `on_regenerate`, `on_poll`), what the
-settings produce and how to rebuild it. The settings component edits a copy
-inside a `DialogBody` with Cancel and Apply that be-sdk-beui provides; the
-host stores the settings only on Apply. Regeneration reads its source as a
-projection, so `on_poll` answers `None` until the source arrives. Compiled
-logic is the example.
+Every export of a block goes through the exporters its editor declares
+(`be_sdk_beui::export`). The manifest names each under the editor's
+`exporters` (`"png": {"label": "PNG image"}`; an editor with any lists
+`ArtifactSettings` among its views), and `BeuiRoot::exporters` returns its
+code: an `ExporterOf<C, S>`, where `C` is the block type it makes (an image
+block's `ImageContent` for the canvas's PNG, the workspace's plain file,
+`FileContent`, for its SVG, compiled logic for logic-grid) and `S` its
+settings, kept as JSON. `ExporterOf::new(name, prepare)` runs `prepare` once
+on the source, given an editor reading it as an editor reads its own block,
+in a scope that lasts as long as the export and has no document (whatever
+the export reads the source through it makes there, never a `CanvasState`
+or anything else that needs a window); what `prepare` returns makes a
+`Made<C>` (the content and a name) from the settings, tracked, `Loading`
+until all it read arrived. `.settings(component)` edits an
+`ExportSettings<S>`, `.describe` says what an artifact is made with, and
+`.initial(editor)` picks the settings an export from the open editor starts
+from (the canvas: what is selected).
+
+Registering an exporter gives the editor an `editor.export.<name>` action,
+which the frame's menu lists (`Editor::export_actions` for the editor's own
+menus). It asks the host for the block's Export dialog
+(`EditorHost::export_block_with`, `block-command.export`), which the
+instance drawing the window shows as a `SubregionContent::Export` child; the
+host runs it in the app of the block's editor, open or not
+(`opening-kind.export`), and be-sdk-beui draws it: the exporter's settings,
+and where what it makes goes. **Save…** and **Copy** ask the host for the
+made content's own file form (`file-of-content`, what `read-plain-file`
+reads for a block holding it) and save or copy that. **Add to workspace**
+makes the block in Unfiled as an artifact of the source
+(`be_block_content::Artifact`: the source, the exporter, its settings and a
+fingerprint of what it made) and opens it; `ExporterOf::add_to_workspace`
+does the same from code (logic-grid's Compile). The files pane's Export as
+lists the type's exporters beside its own file and the block file
+(`block_menu::ExportAs`), from the catalog, so it needs no editor open.
+
+While an artifact is shown, the host keeps an artifact instance open in the
+source's app, beside its other instances (`InstanceRole::Artifact`); it is
+given no frame, only a pass each time it is woken. be-sdk-beui runs the
+exporter there on the source and writes the artifact again whenever what it
+makes changes, comparing fingerprints rather than content (a blob's
+projection holds only its header), and renames it when the exporter's
+`Made` says so. Its settings show in the `ArtifactSettings` view inside a
+`DialogBody` with Cancel and Apply; the host stores them only on Apply, and
+asks for a regeneration then. An export draws in no device's theme while it is made: a
+theme is a setting the exporter stores (set from the host's when the dialog
+opens), so every device makes the same artifact.
+
+## View state
+
+What the viewer would want back on reopening (where the text was scrolled and
+the caret, which folders were open) is a `ViewStateKind` value in the editor's
+view block, read and written with `editor.view_state::<K>()`
+(guides/blocks/workspaces.md, View state). Write it on every change, from an
+effect over what it describes: never debounce it, delay it on a timer, skip
+writes to save edits, or save only as the editor hides; a burst of writes is
+folded where it is stored. (Data from an outside service, kept in view state
+as a cache, is the exception: an unchanged poll is not written again until the
+copy ages, decisions/live_data_from_an_outside_service_is_not_block_content.md.)
+Put it back once, the first time `get()` is no longer `Loading`, starting
+afresh on `Failed` (`keep` does both; the text editor's `keep_position` waits
+for its text too).
 
 ## Presence
 
@@ -157,10 +237,6 @@ to scroll a peer's cursor into view. `editor.show(Some(&value))` publishes a
 removed when the instance closes); `editor.peers::<P>()` is everyone else's.
 A peer never sees its own, so an editor never draws a cursor for the person
 at the keyboard. Pick colours with `pick_free_color`.
-
-`on_replace_child` answers a block the host copied because it was edited in
-two places at once: an editor whose references live in its content (the text
-editor's block URLs) rewrites them and answers true.
 
 beui has no IME output yet, so a beui editor cannot report an IME area.
 
@@ -220,7 +296,9 @@ tree, so a beui editor needs only the labels and `@test_id`s it already has;
 another framework fills `Frame::description` itself. The host renumbers the
 nodes into its own tree, repairs whatever the app sent, shows each view as a
 pane named after the app with its actions, and calls back `node-action` and
-`run-action`.
+`run-action`. The grafting is be-sdk-app-host's (`accessibility::Graft`, one per
+view, on be-lib-geometry and AccessKit), so any host of the protocol shows an
+app's tree as be-host does; the host puts the pane under its own tree.
 
 ## Holding the pointer and sound
 
@@ -230,6 +308,6 @@ editor). The host holds it while any screen asks, so a closed instance cannot
 leave it trapped.
 
 `editor.audio()` changes only when playback starts, pauses, seeks, ends or
-fails; the editor advances the position on its own clock. The host decodes
-only by media type, so an editor loads its bytes again after its content
+fails; the editor advances the position on its own clock. `be`, which has no
+audio output, answers a play with an error. The host decodes only by media type, so an editor loads its bytes again after its content
 changes.

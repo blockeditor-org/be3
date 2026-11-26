@@ -20,7 +20,6 @@ fn a_device_follows_its_default_until_it_is_overridden() {
     );
 
     editor.click(TAP);
-    editor.run();
     assert_eq!(
         tap(&editor),
         Some(false),
@@ -28,7 +27,6 @@ fn a_device_follows_its_default_until_it_is_overridden() {
     );
 
     editor.click(TAP);
-    editor.run();
     assert_eq!(
         tap(&editor),
         Some(true),

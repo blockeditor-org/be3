@@ -1,7 +1,6 @@
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::types::*;
-use beui_macros::view;
 use beui_paint_snapshot::BrowserSnapshot;
 
 const INK: Color32 = Color32::from_rgb(30, 30, 40);
@@ -26,6 +25,7 @@ fn swatch(color: Color32, width: f32, height: f32) -> NodeId {
 }
 
 mod a_canvas_pans_and_scales_its_items;
+mod a_canvas_with_a_local_view_places_its_items_from_its_own_corner;
 mod a_drawing_draws_images_cropped_rounded_and_tinted;
 mod a_drawing_paints_shapes_paths_transforms_and_clips_as_svg;
 mod a_drawing_redraws_its_svg_when_its_callback_changes;
@@ -35,6 +35,7 @@ mod a_grid_shares_its_columns_between_its_cells;
 mod a_list_holds_a_shared_child_to_its_share_whatever_it_holds;
 mod a_list_lays_out_its_children_in_a_line_by_their_sizing;
 mod a_portal_shows_a_node_built_elsewhere;
+mod a_replica_draws_a_node_its_offset_clips_whole_and_elsewhere;
 mod a_tree_local_outlives_and_ignores_the_scope_that_first_asked_for_it;
 mod a_virtual_list_builds_the_rows_its_first_reach_covers;
 mod an_interactive_decorates_the_element_of_what_it_holds;
@@ -45,3 +46,4 @@ mod layers_stack_their_children_over_one_box;
 mod text_in_a_drawing_lands_where_a_text_node_puts_it;
 mod text_shows_glyphs_over_the_bytes_they_cover;
 mod text_wraps_cuts_and_styles_its_spans;
+mod the_drag_space_places_only_the_nodes_the_page_holds_in_its_window;

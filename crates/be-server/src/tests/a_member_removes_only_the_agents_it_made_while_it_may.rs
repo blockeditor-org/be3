@@ -6,19 +6,15 @@ use be_block_graph::Access;
 #[tokio::test]
 async fn a_member_removes_only_the_agents_it_made_while_it_may() {
     let harness = Harness::start().await;
-    let mut admin = harness.client().await;
-    admin.register("admin@example.com").await;
+    let mut admin = harness.member("admin@example.com").await;
     let organization = admin.organization("team").await;
-    let mut creator = harness.client().await;
-    let creator_id = creator.register("creator@example.com").await;
-    let mut colleague = harness.client().await;
-    let colleague_id = colleague.register("colleague@example.com").await;
-    for (member, email) in [
-        (&mut creator, "creator@example.com"),
-        (&mut colleague, "colleague@example.com"),
-    ] {
+    let mut creator = harness.member("creator@example.com").await;
+    let creator_id = creator.id();
+    let mut colleague = harness.member("colleague@example.com").await;
+    let colleague_id = colleague.id();
+    for member in [&mut creator, &mut colleague] {
         let invitation = admin
-            .invite(organization, email)
+            .invite(organization)
             .await
             .expect("an administrator invites");
         let joined = member.accept(invitation, &[]).await;
@@ -26,11 +22,9 @@ async fn a_member_removes_only_the_agents_it_made_while_it_may() {
         member.open(organization).await;
     }
 
-    let refused = creator
-        .call(|peer| client::members::remove_member(peer, colleague_id))
-        .await;
+    let refused = creator.remove_member(colleague_id).await;
     assert!(
-        refused_as(&refused, ErrorCode::MemberNotFound),
+        refused_as(&refused, ErrorCode::PermissionDenied),
         "an editor removed a person: {refused:?}"
     );
 
@@ -46,15 +40,13 @@ async fn a_member_removes_only_the_agents_it_made_while_it_may() {
     assert!(matches!(trashed, Ok(())), "{trashed:?}");
     let lowered = admin.grant(block, creator_id, Access::View).await;
     assert!(matches!(lowered, Ok(())), "{lowered:?}");
-    let refused = creator
-        .call(|peer| client::members::remove_member(peer, agent))
-        .await;
+    let refused = creator.remove_member(agent).await;
     assert!(
         refused_as(&refused, ErrorCode::PermissionDenied),
         "a creator that no longer manages the block removed its agent: {refused:?}"
     );
     let members = admin
-        .call(|peer| client::members::list_members(peer))
+        .call(|peer| peer.read::<Vec<be_block_protocol::Member>>(be_block_protocol::Query::Members))
         .await
         .expect("listing members failed");
     assert!(

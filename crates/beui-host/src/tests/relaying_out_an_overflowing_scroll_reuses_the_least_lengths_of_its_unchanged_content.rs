@@ -14,9 +14,9 @@ fn relaying_out_an_overflowing_scroll_reuses_the_least_lengths_of_its_unchanged_
     let document = build_node(move || {
         view! {
             <List spacing=0.0 align=Align::Start>
-                <Frame width={create_memo(move || Extent::px(width.get()))} height=40.0>
-                    <Scroll direction=Direction::Horizontal>
-                        <ForEach keys={(0..LABELS).collect::<Vec<_>>()}>|label: usize|
+                <Frame width={move || Extent::px(width.get())} height=40.0>
+                    <Scroll direction=Direction::Horizontal style={plain_scroll()}>
+                        <ForEach value={(0..LABELS).collect::<Vec<_>>()}>|label: usize|
                             <ListItem shrink=1.0>
                                 <Text overflow=Overflow::Ellipsis>
                                     {format!("Label number {label}")}

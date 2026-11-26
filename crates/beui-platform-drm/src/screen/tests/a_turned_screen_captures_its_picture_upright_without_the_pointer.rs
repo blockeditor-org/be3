@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn a_turned_screen_captures_its_picture_upright_without_the_pointer() {
     let (device, queue) = vulkan_device();
-    let gpu = Gpu::new(device, queue, FORMAT);
+    let gpu = Gpu::new(device, queue, FORMAT, &Default::default());
     let pointer = gpu.rgba(4, 12, &[255; 4 * 12 * 4]);
     let context = beui_host::native::context();
     let mut screen = Screen::new(&gpu, (WIDTH, HEIGHT), Rotation::Clockwise90);

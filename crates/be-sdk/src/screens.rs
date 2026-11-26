@@ -20,7 +20,9 @@ use crate::{
     wire::Delivery,
 };
 
-pub(crate) type Opener = Open;
+/// How an editor of this app is opened, and what its manifest says it can do
+/// (`EditorHost::capabilities`).
+pub(crate) type Opener = (Open, crate::EditorCapabilities);
 
 pub(crate) struct Screens {
     sessions: HashMap<EditorInstanceId, EditorSession>,
@@ -211,7 +213,7 @@ impl Screens {
     fn anchor(&mut self, region: &ShownView, hung: Vec<Anchored>, out: &mut Vec<AnchoredScreen>) {
         let Some(space) = region
             .anchor_space
-            .filter(|_| region.view.placement.reports())
+            .filter(|_| region.view.placement.anchors())
         else {
             return;
         };
@@ -391,12 +393,12 @@ impl Screens {
         });
         let module = &self.module;
         self.sessions.entry(instance).or_insert_with(|| {
-            let open = openers
+            let (open, capabilities) = openers
                 .iter()
                 .find(|(declared, _)| *declared == editor)
-                .map(|(_, open)| *open)
+                .map(|(_, opener)| *opener)
                 .unwrap_or_else(|| panic!("this app has no editor {editor}"));
-            EditorSession::joining(instance, waker, open, module)
+            EditorSession::joining(instance, waker, open, capabilities, module)
         })
     }
 
@@ -550,6 +552,7 @@ impl Screens {
             account_id,
             organization_id,
             client_id,
+            offers_share,
             kind,
         } = opening;
         let session = self.open(instance, Uuid::from_bytes(editor));
@@ -557,6 +560,7 @@ impl Screens {
         session.set_client_id(Uuid::from_bytes(client_id));
         session.set_account_id(Uuid::from_bytes(account_id));
         session.set_organization_id(Uuid::from_bytes(organization_id));
+        session.set_offers_share(offers_share);
         match kind {
             OpeningKind::Block(open) => {
                 session.set_view_block(open.view_block.map(Uuid::from_bytes));
@@ -564,6 +568,26 @@ impl Screens {
                 session.set_page_origin(open.page_origin);
                 session.set_host_palette(open.host_palette);
                 session.connect(
+                    Uuid::from_bytes(open.block_id),
+                    Uuid::from_bytes(open.block_type),
+                );
+            }
+            // A host component: the same session on its block, which the host never gives a
+            // screen, so it lays out and paints nothing.
+            OpeningKind::Host(open) => {
+                session.set_editable(open.editable);
+                session.connect_host(
+                    Uuid::from_bytes(open.block_id),
+                    Uuid::from_bytes(open.block_type),
+                );
+            }
+            // A Join member: an editor on its block that is given no content, only the block's
+            // host channel.
+            OpeningKind::Join(open) => {
+                session.set_editable(false);
+                session.set_page_origin(open.page_origin);
+                session.set_host_palette(open.host_palette);
+                session.connect_join(
                     Uuid::from_bytes(open.block_id),
                     Uuid::from_bytes(open.block_type),
                 );
@@ -583,9 +607,16 @@ impl Screens {
                     block_id: Uuid::from_bytes(open.block_id),
                     block_type: Uuid::from_bytes(open.block_type),
                     source: Uuid::from_bytes(open.source),
+                    exporter: open.exporter,
                 },
                 open.data,
             ),
+            OpeningKind::Export(open) => session.connect_export(crate::host::ExportDialogRequest {
+                source: Uuid::from_bytes(open.block_id),
+                source_type: Uuid::from_bytes(open.block_type),
+                exporter: open.request.exporter,
+                settings: open.request.settings,
+            }),
         }
     }
 
@@ -632,10 +663,19 @@ impl Screens {
             .clone();
         let everything = std::mem::take(&mut self.reporting_everything);
         let reporting = std::mem::take(&mut self.reporting);
+        let mut passed = Vec::new();
         for (instance, session) in &mut self.sessions {
             if everything || reporting.contains(instance) || woken.contains(instance) {
                 session.outbound();
+                if session.hosting() {
+                    passed.push(*instance);
+                }
             }
+        }
+        // A host component is never drawn, so no frame takes its mark: its pass just did.
+        let mut dirty = self.dirty.lock().unwrap_or_else(|held| held.into_inner());
+        for instance in passed {
+            dirty.remove(&instance);
         }
     }
 
@@ -764,12 +804,22 @@ fn catalog(catalog: &Catalog, debug: &[DebugTemplate]) -> BlockCatalog {
             dialog: template.dialog,
         }
     }))
-    .with_editors(catalog.editors.iter().map(|editor| EditorEntry {
-        editor: Uuid::from_bytes(editor.editor),
-        edits: editor.edits,
-        name: editor.name.clone(),
-        icon: Glyph::from_codepoint(&editor.icon_codepoint),
-        extensions: editor.extensions.clone(),
+    .with_editors(catalog.editors.iter().map(|editor| {
+        EditorEntry {
+            editor: Uuid::from_bytes(editor.editor),
+            edits: editor.edits,
+            name: editor.name.clone(),
+            icon: Glyph::from_codepoint(&editor.icon_codepoint),
+            extensions: editor.extensions.clone(),
+            exporters: editor
+                .exporters
+                .iter()
+                .map(|exporter| be_sdk_ui::ExporterEntry {
+                    name: exporter.name.clone(),
+                    label: exporter.label.clone(),
+                })
+                .collect(),
+        }
     }))
 }
 

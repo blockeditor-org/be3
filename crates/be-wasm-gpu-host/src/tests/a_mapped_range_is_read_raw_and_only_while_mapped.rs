@@ -1,39 +1,52 @@
+use super::web::*;
 use super::*;
+
+/// The bytes of a read the guest was answered, as its encoded `result`.
+fn read(encoded: &[u8]) -> Option<Vec<u8>> {
+    be_wasm_ops::decode::<Result<Vec<u8>, GetMappedRangeError>>(encoded)?.ok()
+}
 
 #[test]
 fn a_mapped_range_is_read_raw_and_only_while_mapped() {
     let mut guest = Guest::new();
-    let buffer = guest
-        .gpu
-        .create_buffer(abi::BufferDescriptor {
-            label: None,
+    let device = device(&mut guest.gpu, Vec::new()).unwrap();
+    let buffer = guest.gpu.gpu_device_create_buffer(
+        device,
+        GpuBufferDescriptor {
             size: 16,
-            usage: wgpu::BufferUsages::MAP_WRITE.bits() | wgpu::BufferUsages::COPY_SRC.bits(),
-            mapped_at_creation: true,
-        })
-        .unwrap();
-    guest.gpu.buffer_write_mapped(
-        buffer,
-        0,
-        &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+            usage: GpuBufferUsage::MAP_WRITE | GpuBufferUsage::COPY_SRC,
+            mapped_at_creation: Some(true),
+            label: None,
+        },
     );
-    let length = glue::buffer_read_mapped(&mut guest, buffer.0, 0, 8, 64, 8);
-    assert_eq!(length, 8);
-    assert_eq!(guest.memory[64..72], [1, 2, 3, 4, 5, 6, 7, 8]);
-    let length = glue::buffer_read_mapped(&mut guest, buffer.0, 8, 4, 0, 0);
-    assert_eq!(length, 4, "a read with no room waits to be taken");
-    glue::returned(&mut guest, 128);
-    assert_eq!(guest.memory[128..132], [9, 10, 11, 12]);
-    assert_eq!(guest.gpu.take_error(), None);
-    guest.gpu.buffer_read_mapped(buffer, 2, 4);
-    let error = guest.gpu.take_error().expect("a misaligned read reports");
-    assert!(error.contains("multiple"), "{error}");
-    guest.gpu.buffer_unmap(buffer);
-    assert_eq!(guest.gpu.buffer_read_mapped(buffer, 0, 8), Vec::<u8>::new());
-    let error = guest
+    let written: Vec<u8> = (1..=16).collect();
+    guest
         .gpu
-        .take_error()
-        .expect("a read of an unmapped buffer reports");
-    assert!(error.contains("not mapped"), "{error}");
-    assert!(guest.refused.is_empty());
+        .gpu_buffer_get_mapped_range_set_with_copy(GpuBuffer(buffer.0), &written, Some(0), Some(16))
+        .unwrap();
+    let length =
+        glue::gpu_buffer_get_mapped_range_get_with_copy(&mut guest, buffer.0, 1, 0, 1, 8, 64, 64);
+    assert_eq!(length, 10, "the read is answered, its encoding's length");
+    glue::returned(&mut guest, 64);
+    assert_eq!(
+        read(&guest.memory[64..74]),
+        Some(vec![1, 2, 3, 4, 5, 6, 7, 8])
+    );
+    let length =
+        glue::gpu_buffer_get_mapped_range_get_with_copy(&mut guest, buffer.0, 1, 8, 1, 4, 0, 0);
+    assert_eq!(length, 6, "a read waits to be taken");
+    glue::returned(&mut guest, 128);
+    assert_eq!(read(&guest.memory[128..134]), Some(vec![9, 10, 11, 12]));
+    let misaligned =
+        guest
+            .gpu
+            .gpu_buffer_get_mapped_range_get_with_copy(GpuBuffer(buffer.0), Some(2), Some(4));
+    assert!(misaligned.is_err(), "a misaligned read is refused");
+    guest.gpu.gpu_buffer_unmap(GpuBuffer(buffer.0)).unwrap();
+    let unmapped =
+        guest
+            .gpu
+            .gpu_buffer_get_mapped_range_get_with_copy(GpuBuffer(buffer.0), Some(0), Some(8));
+    assert!(unmapped.is_err(), "a read of an unmapped buffer is refused");
+    assert!(guest.refused.is_empty(), "{:?}", guest.refused);
 }

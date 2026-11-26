@@ -1,5 +1,5 @@
+use be_block_repository::RepositoryContent;
 use be_sdk_beui::Loaded;
-use be_sdk_beui::be_block::RepositoryContent;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::Root;
 use be_sdk_beui::{Creation, Editor};

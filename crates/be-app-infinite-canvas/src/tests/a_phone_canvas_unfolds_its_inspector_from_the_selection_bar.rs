@@ -12,7 +12,6 @@ fn a_phone_canvas_unfolds_its_inspector_from_the_selection_bar() {
     );
 
     editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
-    editor.run();
     editor.record();
     editor.click("infinite-canvas.inspect");
     editor.settle();

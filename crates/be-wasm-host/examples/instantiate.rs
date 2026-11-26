@@ -16,7 +16,7 @@ const HEIGHT: u32 = 400;
 fn main() {
     let mut arguments = std::env::args().skip(1);
     let (Some(path), Some(editor)) = (arguments.next(), arguments.next()) else {
-        eprintln!("usage: instantiate APP.wasm EDITOR_ID [CACHE_DIRECTORY]");
+        eprintln!("usage: instantiate APP.wasm EDITOR_ID");
         std::process::exit(2);
     };
     let editor = match uuid::Uuid::parse_str(&editor) {
@@ -26,9 +26,8 @@ fn main() {
             std::process::exit(2);
         }
     };
-    let cache = arguments.next().map(std::path::PathBuf::from);
     let (device, queue) = wgpu::Device::noop(&wgpu::DeviceDescriptor::default());
-    let host = match Host::new(device, queue, cache.as_deref()) {
+    let host = match Host::new(device, queue) {
         Ok(host) => host,
         Err(error) => {
             eprintln!("host failed: {error}");
@@ -154,6 +153,7 @@ fn opening(editor: [u8; 16]) -> Opening {
         account_id: [3; 16],
         organization_id: [4; 16],
         client_id: [5; 16],
+        offers_share: true,
         kind: OpeningKind::Block(OpenBlock {
             block_id: [1; 16],
             block_type: [2; 16],
@@ -192,6 +192,7 @@ fn screens() -> Vec<ScreenRequest> {
                 top_bar: be_sdk_api::TopBar::Hidden,
                 dialog: None,
                 anchor: None,
+                phone: false,
             }),
             metrics: metrics(),
             windows: false,

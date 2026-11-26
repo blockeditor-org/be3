@@ -4,8 +4,8 @@ use be_block_protocol::PushService;
 #[tokio::test]
 async fn a_logout_naming_the_devices_endpoint_forgets_it_in_every_organization() {
     let harness = Harness::configured(pushing_locally()).await;
-    let mut device = harness.client().await;
-    let account = device.register("device@example.com").await;
+    let mut device = harness.member("device@example.com").await;
+    let account = device.id();
     let address = "http://127.0.0.1:9/device".to_owned();
     let endpoint = || TestDevice::new().endpoint(PushService::WebPush, address.clone());
     let personal = device.personal().await;
@@ -19,7 +19,7 @@ async fn a_logout_naming_the_devices_endpoint_forgets_it_in_every_organization()
     device.register_endpoint(endpoint()).await;
 
     let logged_out = device
-        .call(|peer| client::account::logout(peer, Some(address.clone())))
+        .call(|peer| peer.write::<()>(be_block_protocol::Op::RevokeToken(Some(address.clone()))))
         .await;
     assert!(logged_out.is_ok(), "{logged_out:?}");
 

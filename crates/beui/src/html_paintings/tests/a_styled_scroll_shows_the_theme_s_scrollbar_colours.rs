@@ -1,6 +1,6 @@
 use super::*;
 use crate::ThemeKind;
-use beui_macros::view;
+use crate::reactive::view;
 
 fn scroll() -> crate::primitives::Root {
     view! {
@@ -8,7 +8,7 @@ fn scroll() -> crate::primitives::Root {
             <Frame height=Size::Custom(160.0)>
                 <Scroll>
                     <List spacing=Space::None>
-                        <ForEach keys={(1..=20).collect::<Vec<usize>>()}>|row: usize|
+                        <ForEach value={(1..=20).collect::<Vec<usize>>()}>|row: usize|
                             <ListRow label={format!("Row {row}")} />
                         </ForEach>
                     </List>

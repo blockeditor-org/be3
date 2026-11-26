@@ -5,7 +5,7 @@ use crate::dock::{DockGroup, DockPane, DockTab, DockingLayout};
 fn a_pinned_tab_parts_only_the_bar_of_its_own_group() {
     let _root = crate::reactive::RootScope::new();
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost>
                 <dock::Docking layout focus=10u64>

@@ -7,7 +7,7 @@ use std::cell::OnceCell;
 use std::ops::Range;
 use std::rc::{Rc, Weak};
 
-use crate::rich::{RichLayout, Shaper};
+use crate::rich::{RichLayout, Shaper, SpanKind};
 use beui_types::Color32;
 use beui_types::{Piece, RichOptions, SpanStyle};
 use beui_types::{Pos2, Rect, Vec2, pos2, vec2};
@@ -230,7 +230,11 @@ impl Galley {
         for line in &rich.lines {
             let mut cursors: Vec<(usize, f32)> = Vec::new();
             for run in &line.runs {
-                let Some(galley) = &run.galley else {
+                let Some(galley) = run
+                    .galley
+                    .as_ref()
+                    .filter(|_| !matches!(run.kind, SpanKind::Blank(_)))
+                else {
                     continue;
                 };
                 let (left, top) = (line.run_left(run), line.run_top(run));
@@ -463,71 +467,6 @@ impl Galley {
             .collect()
     }
 
-    pub fn slice(&self, range: Range<usize>, pixels_per_point: f32) -> Galley {
-        let Some(line) = self
-            .inner
-            .lines
-            .iter()
-            .find(|line| line.range.start <= range.start && range.end <= line.range.end)
-        else {
-            return self.clone();
-        };
-        let (left, right) = (line.x(range.start), line.x(range.end));
-        let shift = vec2(
-            (left * pixels_per_point).round(),
-            (line.top * pixels_per_point).round(),
-        );
-        let (from, to) = (left * pixels_per_point, right * pixels_per_point);
-        let (top, bottom) = (
-            line.top * pixels_per_point,
-            (line.top + self.inner.line_height) * pixels_per_point,
-        );
-        let glyphs = &self.inner.glyphs;
-        let key = |glyph: &Glyph| {
-            let [min_x, min_y, max_x, max_y] = glyph.bounds();
-            let (x, y) = ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0);
-            match () {
-                _ if y < top => 0,
-                _ if y >= bottom => 4,
-                _ if x < from => 1,
-                _ if x < to => 2,
-                _ => 3,
-            }
-        };
-        let first = glyphs.partition_point(|glyph| key(glyph) < 2);
-        let last = glyphs.partition_point(|glyph| key(glyph) < 3);
-        let glyphs = glyphs[first..last.max(first)]
-            .iter()
-            .map(|glyph| Glyph {
-                origin: glyph.origin - shift,
-                ..glyph.clone()
-            })
-            .collect();
-        let dx = shift.x / pixels_per_point;
-        let start = line.cursors.partition_point(|(at, _)| *at < range.start);
-        let end = line.cursors.partition_point(|(at, _)| *at <= range.end);
-        let cursors = line.cursors[start..end.max(start)]
-            .iter()
-            .map(|(at, x)| (at - range.start, x - dx))
-            .collect();
-        let text = self.inner.text.get(range.clone()).unwrap_or_default();
-        Galley::split(
-            text,
-            self.inner.font,
-            vec2(right - dx, self.inner.line_height),
-            self.inner.line_height,
-            self.inner.baseline,
-            glyphs,
-            vec![GalleyLine {
-                top: 0.0,
-                range: 0..text.len(),
-                cursors,
-            }],
-            Wraps::ANY,
-            self.inner.pixels_per_point,
-        )
-    }
-
     pub fn wraps(&self) -> Wraps {
         self.inner.wraps
     }
@@ -753,10 +692,6 @@ impl Shaper for LineShaper<'_> {
         self.fonts
             .layout(text, font, self.layout, self.pixels_per_point)
     }
-
-    fn slice(&mut self, galley: &Galley, range: Range<usize>, _font: FontId) -> Galley {
-        galley.slice(range, self.pixels_per_point)
-    }
 }
 
 impl Fonts {
@@ -871,7 +806,6 @@ impl Fonts {
             style,
             hang: 0,
             anywhere: false,
-            least: false,
         };
         let mut shaper = LineShaper {
             fonts: self,

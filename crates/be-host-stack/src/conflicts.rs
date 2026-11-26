@@ -1,13 +1,15 @@
 use be_block_commit::CommitId;
 use uuid::Uuid;
 
+use crate::seen::Edit;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Side {
     Ours,
     Theirs,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct Comparison {
     pub block: Uuid,
     pub ours: Option<Result<Uuid, String>>,
@@ -23,7 +25,7 @@ pub struct Conflicted {
 }
 
 pub fn conflicted(block: Uuid) -> Option<Conflicted> {
-    super::with_shared(|shared| {
+    super::with_seen(|shared| {
         let conflicts = shared.conflicts.get(&block)?;
         let last = conflicts.last()?;
         Some(Conflicted {
@@ -44,34 +46,19 @@ pub fn is_side(shared: &super::Shared, block: Uuid, commit: CommitId) -> bool {
 }
 
 pub fn dismiss(block: Uuid) {
-    stop_comparing();
-    super::with_shared_mut(|shared| {
-        if shared.conflicts.remove(&block).is_some() {
-            crate::changes::stale();
-            shared.touch(block);
-        }
-    });
-    be_host_base::host::wake();
+    super::edit(vec![Edit::Dismiss(block)]);
+    crate::changes::wake();
 }
 
 pub fn comparing() -> Option<Comparison> {
-    super::with_shared(|shared| shared.comparison.clone()).flatten()
+    super::with_seen(|shared| shared.comparison.clone()).flatten()
 }
 
 pub fn compare(block: Uuid) {
     let Some(conflicted) = conflicted(block) else {
         return;
     };
-    stop_comparing();
-    super::with_shared_mut(|shared| {
-        shared.comparison = Some(Comparison {
-            block,
-            ours: None,
-            theirs: None,
-            error: None,
-        });
-        crate::changes::stale();
-    });
+    super::edit(vec![Edit::Compare(block)]);
     for (side, commit) in [
         (Side::Ours, conflicted.ours),
         (Side::Theirs, conflicted.theirs),
@@ -82,7 +69,7 @@ pub fn compare(block: Uuid) {
             move |reply| previewed(block, side, reply),
         );
     }
-    be_host_base::host::wake();
+    crate::changes::wake();
 }
 
 fn previewed(block: Uuid, side: Side, reply: super::revisions::Answered) {
@@ -90,44 +77,17 @@ fn previewed(block: Uuid, side: Side, reply: super::revisions::Answered) {
         super::revisions::Answered::Previewed(previewed) => previewed,
         _ => Err("This version could not be shown.".to_owned()),
     };
-    let kept = super::with_shared_mut(|shared| {
-        let comparison = shared
-            .comparison
-            .as_mut()
-            .filter(|comparison| comparison.block == block)?;
-        let slot = match side {
-            Side::Ours => &mut comparison.ours,
-            Side::Theirs => &mut comparison.theirs,
-        };
-        *slot = Some(shown.clone());
-        crate::changes::stale();
-        Some(())
-    })
-    .flatten()
-    .is_some();
-    if !kept && let Ok(preview) = shown {
-        super::revisions::release(preview);
-    }
-    be_host_base::host::wake();
+    super::edit(vec![Edit::Compared {
+        block,
+        theirs: side == Side::Theirs,
+        shown,
+    }]);
+    crate::changes::wake();
 }
 
 pub fn stop_comparing() {
-    let Some(comparison) = super::with_shared_mut(|shared| {
-        let taken = shared.comparison.take();
-        if taken.is_some() {
-            crate::changes::stale();
-        }
-        taken
-    })
-    .flatten() else {
-        return;
-    };
-    for preview in [comparison.ours, comparison.theirs]
-        .into_iter()
-        .flatten()
-        .flatten()
-    {
-        super::revisions::release(preview);
+    if comparing().is_some() {
+        super::edit(vec![Edit::StopComparing]);
     }
 }
 
@@ -145,17 +105,8 @@ pub fn keep(block: Uuid, side: Side) {
         move |reply| match reply {
             super::revisions::Answered::Restored(Ok(())) => dismiss(block),
             super::revisions::Answered::Restored(Err(error)) => {
-                super::with_shared_mut(|shared| {
-                    if let Some(comparison) = shared
-                        .comparison
-                        .as_mut()
-                        .filter(|comparison| comparison.block == block)
-                    {
-                        comparison.error = Some(error);
-                        crate::changes::stale();
-                    }
-                });
-                be_host_base::host::wake();
+                super::edit(vec![Edit::KeepFailed { block, error }]);
+                crate::changes::wake();
             }
             _ => {}
         },

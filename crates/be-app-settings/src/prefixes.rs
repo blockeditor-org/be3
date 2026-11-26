@@ -32,44 +32,29 @@ impl be_sdk_beui::BeuiRoot for PrefixesRoot {
 fn PrefixesView(editor: Editor) -> NodeId {
     let registry = editor.block_content::<PrefixRegistryContent>();
     let listed = registry.project(|registry| registry.root().prefixes());
-    let prefixes = create_memo(move || {
-        listed
-            .get()
-            .into_iter()
-            .map(|(prefix, _)| prefix)
-            .collect::<Vec<_>>()
-    });
-    let empty = create_memo(move || prefixes.with(Vec::is_empty));
     view! {
         <SettingsPage>
             <SettingsSection
                 title="Database prefixes"
                 description="The prefix in front of each row id, and the databases here that use it. A row id resolves through this list; a prefix two databases share names neither."
             >
-                <Show condition={empty}>
-                    <SettingsRow label="No database here has a prefix yet." compact=true />
-                </Show>
-                <ForEach keys={prefixes}>|prefix: String| {
-                    let databases = create_memo({
-                        let prefix = prefix.clone();
-                        move || {
-                            listed.with(|listed| {
-                                listed
-                                    .iter()
-                                    .find(|(held, _)| *held == prefix)
-                                    .map(|(_, databases)| databases.clone())
-                                    .unwrap_or_default()
-                            })
-                        }
-                    });
-                    let note = create_memo(move || match databases.with(Vec::len) {
+                <ForEach
+                    value={listed}
+                    key={|(prefix, _): &(String, Vec<Uuid>)| prefix.clone()}
+                    fallback={|| view! {
+                        <SettingsRow label="No database here has a prefix yet." compact=true />
+                    }}
+                >|entry: ReadSignal<(String, Vec<Uuid>)>| {
+                    let prefix = entry.with_untracked(|(prefix, _)| prefix.clone());
+                    let databases = create_memo(move || entry.with(|(_, databases)| databases.clone()));
+                    let note = move || match databases.with(Vec::len) {
                         1 => String::new(),
                         count => format!("{count} databases share it, so its row ids name none of them."),
-                    });
+                    };
                     view! {
                         <SettingsRow label={prefix.clone()} description={note}>
                             <List spacing=Space::Xs2>
-                                <ForEach keys={databases}>|database: Uuid|
+                                <ForEach value={databases}>|database: Uuid|
                                     <DatabaseName editor={editor} database={database} />
                                 </ForEach>
                             </List>

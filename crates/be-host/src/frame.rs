@@ -213,6 +213,8 @@ pub(crate) fn begin(context: &beui::native::Context) {
         wall: Some(beui::reactive::wall_clock()),
         seen: context.seen(),
         clock_stopped: context.clock_stopped(),
+        presents_late: context.presents_late(),
+        held: context.held(),
         ..Frame::default()
     };
     frame.preferences = context.preferences();
@@ -226,7 +228,7 @@ pub(crate) fn begin(context: &beui::native::Context) {
     frame.screen_scale = context.screen_scale();
     frame.pixels_per_point = context.pixels_per_point() * frame.screen_scale;
     frame.opens_windows = context.opens_windows();
-    host::start(frame);
+    be_host_runtime::begin_host_frame(frame);
 }
 
 pub(crate) fn end(context: &beui::native::Context) {

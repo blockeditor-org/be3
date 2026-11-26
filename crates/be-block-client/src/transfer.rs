@@ -11,17 +11,22 @@ const MAGIC: &[u8] = b"be3 block file\n";
 const VERSION: u32 = 1;
 const TOP: u32 = u32::MAX;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Saved {
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub struct SavedBlock {
     pub id: Uuid,
     pub block_type: Uuid,
     pub parent: Option<usize>,
     pub metadata: BlockMetadata,
     pub references: Vec<Uuid>,
     pub content: Option<Vec<u8>>,
+    /// The block's signed log, opened, each entry as its author signed it in the block it was
+    /// written in (`Peer::export_log`, `Peer::verify_exported`), a redacted one without what it
+    /// said; empty for a block with none. History an import brought, written in other blocks,
+    /// leads it, and the entries written in `id` follow.
+    pub log: Vec<crate::ExportedEntry>,
 }
 
-pub fn encode(blocks: &[Saved]) -> Vec<u8> {
+pub fn encode(blocks: &[SavedBlock]) -> Vec<u8> {
     let mut out = MAGIC.to_vec();
     out.extend(VERSION.to_le_bytes());
     out.extend((blocks.len() as u32).to_le_bytes());
@@ -49,11 +54,30 @@ pub fn encode(blocks: &[Saved]) -> Vec<u8> {
             }
             None => out.push(0),
         }
+        out.extend((block.log.len() as u32).to_le_bytes());
+        for entry in &block.log {
+            out.extend(entry.block.as_bytes());
+            out.extend(entry.seq.to_le_bytes());
+            out.extend(entry.id.as_bytes());
+            out.extend(entry.author.as_bytes());
+            out.extend(entry.arrival.to_le_bytes());
+            match &entry.said {
+                Some(said) => {
+                    out.push(1);
+                    out.extend(said.salt);
+                    out.extend((said.bytes.len() as u64).to_le_bytes());
+                    out.extend(&said.bytes);
+                }
+                None => out.push(0),
+            }
+            out.extend((entry.signature.len() as u32).to_le_bytes());
+            out.extend(&entry.signature);
+        }
     }
     out
 }
 
-pub fn decode(bytes: &[u8]) -> Result<Vec<Saved>, String> {
+pub fn decode(bytes: &[u8]) -> Result<Vec<SavedBlock>, String> {
     let mut reader = Reader { bytes, at: 0 };
     if reader.take(MAGIC.len())? != MAGIC {
         return Err("this is not a block file".to_owned());
@@ -89,13 +113,57 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Saved>, String> {
                 Some(reader.take(length)?.to_vec())
             }
         };
-        blocks.push(Saved {
+        let mut log = Vec::new();
+        let mut own = false;
+        for _ in 0..reader.u32()? {
+            let original = reader.uuid()?;
+            // A block's log is its history, written in other blocks, then what was written in
+            // it: an entry of another block's after its own would be history it never had.
+            own |= original == id;
+            if own && original != id {
+                return Err(
+                    "a log entry in the file written in another block follows its own".to_owned(),
+                );
+            }
+            let seq = reader.u64()?;
+            let id = reader.uuid()?;
+            let author = reader.uuid()?;
+            let arrival = reader.u64()? as i64;
+            let said = match reader.take(1)?[0] {
+                0 => None,
+                _ => {
+                    let salt = reader
+                        .take(crate::LOG_SALT_BYTES)?
+                        .try_into()
+                        .expect("the salt is taken whole");
+                    let length = usize::try_from(reader.u64()?)
+                        .map_err(|_| "an entry in the file is too large".to_owned())?;
+                    Some(crate::Said {
+                        salt,
+                        bytes: reader.take(length)?.to_vec(),
+                    })
+                }
+            };
+            let length = reader.u32()? as usize;
+            let signature = reader.take(length)?.to_vec();
+            log.push(crate::ExportedEntry {
+                block: original,
+                seq,
+                id,
+                author,
+                arrival,
+                said,
+                signature,
+            });
+        }
+        blocks.push(SavedBlock {
             id,
             block_type,
             parent,
             metadata,
             references,
             content,
+            log,
         });
     }
     let mut seen = std::collections::HashSet::new();
@@ -243,7 +311,7 @@ pub fn file_name(name: &str) -> String {
     }
 }
 
-pub fn renumber(blocks: Vec<Saved>) -> Vec<Saved> {
+pub fn renumber(blocks: Vec<SavedBlock>) -> Vec<SavedBlock> {
     let ids: HashMap<Uuid, Uuid> = blocks
         .iter()
         .map(|block| (block.id, Uuid::now_v7()))
@@ -261,7 +329,7 @@ pub fn renumber(blocks: Vec<Saved>) -> Vec<Saved> {
             {
                 *value = swap.apply(value);
             }
-            Saved {
+            SavedBlock {
                 id: ids[&block.id],
                 block_type: block.block_type,
                 parent: block.parent,
@@ -272,6 +340,9 @@ pub fn renumber(blocks: Vec<Saved>) -> Vec<Saved> {
                     .map(|reference| ids.get(reference).copied().unwrap_or(*reference))
                     .collect(),
                 content: block.content.map(|bytes| swap.apply(&bytes)),
+                // An import keeps the log as history from the block it was written in, which each
+                // entry names (`ExportedEntry::block`).
+                log: block.log,
             }
         })
         .collect()

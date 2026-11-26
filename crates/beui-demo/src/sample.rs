@@ -31,7 +31,7 @@ pub(crate) fn Sample(title: &'static str, code: Vec<&'static str>, children: Chi
                 />
             </List>
             {children}
-            <Show condition={open}>
+            <Show value={open}>
                 <CodeBlock source={source.clone()} />
             </Show>
         </List>
@@ -55,7 +55,7 @@ fn CodeBlock(source: String) -> NodeId {
         >
             <SelectableText @test_id="demo.code" child_grow=1.0>
                 <Text size=TextSize::Sm family=Family::Mono>
-                    <ForEach keys={tokens}>|(start, end, color): (usize, usize, Color)| {
+                    <ForEach value={tokens}>|(start, end, color): (usize, usize, Color)| {
                         let piece = source[start..end].to_owned(); view! {
                             <Span color={TextColor::Custom(color)}>{piece}</Span>
                         }

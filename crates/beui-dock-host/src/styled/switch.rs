@@ -1,5 +1,4 @@
 use beui_components_styled::frame::{Border, ColorRole, Frame, Radius};
-use beui_macros::{component, view};
 
 use crate::unstyled::{DockSwitchHandle, DockSwitchRowHandle};
 use beui_components_styled::List;
@@ -27,7 +26,7 @@ pub(crate) fn DockSwitchPanel(handle: DockSwitchHandle) -> NodeId {
             padding=PANEL_PADDING
         >
             <List spacing=ROW_SPACING>
-                <ForEach keys={tabs}>|tab: TabId|
+                <ForEach value={tabs}>|tab: TabId|
                     <DockSwitchRow handle={row.call(tab)} />
                 </ForEach>
             </List>

@@ -60,7 +60,7 @@ async fn references_declared_by_content_reach_the_graph() {
         1
     );
 
-    let commit = author.load_commit(head).await.unwrap();
+    let commit = author.load_reached(head).await.unwrap();
     assert_eq!(
         commit.references,
         vec![second],

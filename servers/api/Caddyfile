@@ -13,6 +13,11 @@
 	}
 	reverse_proxy 127.0.0.1:9090 {
 		header_up -Be3-Gateway-Authorization
+		# Under be-server's IDLE_TIMEOUT (50 s), so Caddy never sends a request on a pooled
+		# connection the server is closing.
+		transport http {
+			keepalive 40s
+		}
 	}
 }
 
@@ -21,7 +26,11 @@
 	# query; be-server answers their CORS itself.
 	@storage path /api/be/storage/*
 	handle @storage {
-		reverse_proxy 127.0.0.1:9090
+		reverse_proxy 127.0.0.1:9090 {
+			transport http {
+				keepalive 40s
+			}
+		}
 	}
 
 	# The web build's preflights carry no cookie.

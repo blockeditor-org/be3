@@ -56,6 +56,17 @@ impl Terminal {
             handle,
             reply: None,
         };
+        // The library also caps scrollback at 10,000 bytes by default, which
+        // rounds up to about a thousand short rows: lift it so that
+        // max_scrollback, in rows, is the limit.
+        let unlimited = usize::MAX;
+        check(unsafe {
+            sys::ghostty_terminal_set(
+                terminal.handle,
+                sys::TERMINAL_OPT_SCROLLBACK_MAX_BYTES,
+                ptr::from_ref(&unlimited).cast(),
+            )
+        })?;
         check(unsafe {
             sys::ghostty_terminal_set(
                 terminal.handle,
@@ -113,29 +124,29 @@ impl Terminal {
         unsafe { sys::ghostty_terminal_reset(self.handle) }
     }
 
-    pub fn scroll_by(&mut self, rows: isize) {
+    pub fn scroll_by(&mut self, rows: isize) -> Result<(), Error> {
         self.scroll(sys::ScrollViewport {
             tag: sys::SCROLL_VIEWPORT_DELTA,
             value: sys::ScrollViewportValue { delta: rows },
-        });
+        })
     }
 
-    pub fn scroll_to_top(&mut self) {
+    pub fn scroll_to_top(&mut self) -> Result<(), Error> {
         self.scroll(sys::ScrollViewport {
             tag: sys::SCROLL_VIEWPORT_TOP,
             value: sys::ScrollViewportValue { padding: [0, 0] },
-        });
+        })
     }
 
-    pub fn scroll_to_bottom(&mut self) {
+    pub fn scroll_to_bottom(&mut self) -> Result<(), Error> {
         self.scroll(sys::ScrollViewport {
             tag: sys::SCROLL_VIEWPORT_BOTTOM,
             value: sys::ScrollViewportValue { padding: [0, 0] },
-        });
+        })
     }
 
-    fn scroll(&mut self, behavior: sys::ScrollViewport) {
-        unsafe { sys::ghostty_terminal_scroll_viewport(self.handle, behavior) }
+    fn scroll(&mut self, behavior: sys::ScrollViewport) -> Result<(), Error> {
+        check(unsafe { sys::ghostty_terminal_scroll_viewport(self.handle, behavior) })
     }
 
     pub(crate) fn handle(&self) -> sys::Terminal {

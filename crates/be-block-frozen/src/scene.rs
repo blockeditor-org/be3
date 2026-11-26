@@ -5,7 +5,7 @@
 //! a pending invitation, and the organization's settings shared with the server, holding policies
 //! it enforces: no sharing outside and a storage quota in bytes), the personal organization (a
 //! folder shared with a contact made by link, who added a note to it that is charged to the
-//! folder's owner, a pending link carrying a grant, and that contact's change of recovery phrase), an object the owner uploaded that no block holds yet, and two
+//! folder's owner, a pending contact link, and that contact's change of recovery phrase), an object the owner uploaded that no block holds yet, and two
 //! invite codes that each make one account, one already used.
 //!
 //! Once a snapshot is taken, these values are what old data looks like: changing one stops the
@@ -24,19 +24,15 @@ pub const FRIEND_NOTE: &str = "The train leaves at nine.\n";
 pub const PENDING_UPLOAD: &[u8] = b"an upload no block holds yet";
 pub const REGISTERED_EMAIL: &str = "registered@example.com";
 pub const REGISTERED_NAME: &str = "Registered";
-pub const REGISTERED_PASSWORD: &str = "registered with an invite code";
 
 pub const OWNER_EMAIL: &str = "owner@example.com";
 pub const OWNER_NAME: &str = "Owner";
-pub const OWNER_PASSWORD: &str = "correct horse battery staple";
 
 pub const EDITOR_EMAIL: &str = "editor@example.com";
 pub const EDITOR_NAME: &str = "Editor";
-pub const EDITOR_PASSWORD: &str = "tr0ub4dor and three";
 
 pub const FRIEND_EMAIL: &str = "friend@example.com";
 pub const FRIEND_NAME: &str = "Friend";
-pub const FRIEND_PASSWORD: &str = "a friend's password";
 
 pub const INVITED_EMAIL: &str = "invited@example.com";
 

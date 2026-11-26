@@ -1,5 +1,5 @@
-use be_sdk_beui::be_block::InputSettings;
-use be_sdk_beui::be_block::input_settings::{
+use be_block_input::InputSettings;
+use be_block_input::input_settings::{
     InputDevice, MAX_POINTER_SPEED, MAX_REPEAT_DELAY, MAX_REPEAT_RATE, MIN_POINTER_SPEED,
     MIN_REPEAT_DELAY, MIN_REPEAT_RATE, PointerField, PointerSetting, PointerSettings, PointerSpeed,
 };
@@ -13,6 +13,7 @@ use be_sdk_beui::{
 };
 
 use super::remapper::RemapperSetting;
+use crate::custom::unlisted;
 use beui::Extent;
 
 const VALUE_WIDTH: f32 = 64.0;
@@ -33,9 +34,7 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
     let rate_setting = InputSettings::repeat_rate_setting();
     let paste_setting = InputSettings::middle_click_paste_setting();
     let delay_value = create_memo(move || effective.get().repeat_delay() as f32);
-    let delay_shown = create_memo(move || format!("{} ms", delay_value.get()));
     let rate_value = create_memo(move || effective.get().repeat_rate() as f32);
-    let rate_shown = create_memo(move || format!("{} / s", rate_value.get()));
     let paste_on = create_memo(move || effective.get().middle_click_paste());
     let delay_row = settings.row(&delay_setting);
     let rate_row = settings.row(&rate_setting);
@@ -47,23 +46,24 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
     let reach = editor.watch::<InputReachWatch>();
     let keyboard = create_memo(move || reach.get().keyboard);
     let pasting = create_memo(move || reach.get().middle_click_paste);
-    let elsewhere = create_memo(move || !keyboard.get() && !pasting.get() && !pointers.get());
-    let keyboard_reach = create_memo(move || match pointers.get() {
-        true => String::new(),
-        false => "For the programs this desktop runs.".to_owned(),
-    });
     let page = NodeRef::new();
     view! {
         <SettingsPage @node_ref=&page>
-            <Show condition={elsewhere}>
+            <Show value={move || !keyboard.get() && !pasting.get() && !pointers.get()}>
                 <SettingsSection title="Input">
                     <SettingsRow
                         label="These settings take effect in a desktop session on Linux, and this session is not one."
                     />
                 </SettingsSection>
             </Show>
-            <Show condition={keyboard}>
-                <SettingsSection title="Keyboard" description={keyboard_reach}>
+            <Show value={keyboard}>
+                <SettingsSection
+                    title="Keyboard"
+                    description={move || match pointers.get() {
+                        true => String::new(),
+                        false => "For the programs this desktop runs.".to_owned(),
+                    }}
+                >
                     <TextSetting
                         label="Layout"
                         description="XKB names, like us, de or us,de."
@@ -91,7 +91,7 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
                         description="How long a key is held before it repeats."
                         row={delay_row}
                         value={delay_value}
-                        shown={delay_shown}
+                        shown={delay_text as fn(f32) -> String}
                         min={MIN_REPEAT_DELAY as f32}
                         max={MAX_REPEAT_DELAY as f32}
                         read_only={read_only}
@@ -105,7 +105,7 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
                         description="How many times a second a held key repeats."
                         row={rate_row}
                         value={rate_value}
-                        shown={rate_shown}
+                        shown={rate_text as fn(f32) -> String}
                         min={MIN_REPEAT_RATE as f32}
                         max={MAX_REPEAT_RATE as f32}
                         read_only={read_only}
@@ -116,7 +116,7 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
                     />
                 </SettingsSection>
             </Show>
-            <Show condition={pointers}>
+            <Show value={pointers}>
                 <Pointers
                     settings={settings}
                     devices={devices}
@@ -124,14 +124,13 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
                     read_only={read_only}
                 />
             </Show>
-            <Show condition={pasting}>
+            <Show value={pasting}>
                 <SettingsSection title="Programs">
                     <SwitchSetting
                         label="Middle-click paste"
                         description="Lets programs paste the text last selected in them with the middle button."
                         row={paste_row}
                         on={paste_on}
-                        mixed={create_memo(|| false)}
                         read_only={read_only}
                         id={"middle-click-paste".to_owned()}
                         separated=false
@@ -139,7 +138,7 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
                     />
                 </SettingsSection>
             </Show>
-            <Show condition={pointers}>
+            <Show value={pointers}>
                 <RemapperSetting editor={editor} settings={settings} read_only={read_only} />
             </Show>
             <ChangesToast changes={settings.changes()} anchor={page} />
@@ -221,7 +220,6 @@ fn Pointers(
     let keys = create_memo(move || {
         devices.with(|devices| devices.iter().map(device_key).collect::<Vec<DeviceKey>>())
     });
-    let none = create_memo(move || devices.with(Vec::is_empty));
     let chosen = create_signal(None::<DeviceKey>);
     let scope = create_memo(move || {
         chosen
@@ -229,40 +227,34 @@ fn Pointers(
             .filter(|key| keys.with(|keys| keys.contains(key)))
     });
     let scopes = create_memo(move || vec![scope.get()]);
-    let selected = create_memo(move || {
-        let index = scope
-            .get()
-            .and_then(|key| keys.with(|keys| keys.iter().position(|known| *known == key)));
-        Some(index.map_or(0, |index| index + 1))
-    });
-    let description = create_memo(move || match none.get() {
+    let selected = create_memo(move || Some(scope.get()));
+    let description = move || match devices.with(Vec::is_empty) {
         true => "No pointer is connected to this session.".to_owned(),
         false => String::new(),
-    });
+    };
     view! {
         <SettingsSection title="Pointers" description={description}>
             <SettingsRow label="Change" description="Every pointer at once, or one on its own.">
                 <ListItem grow=1.0>
                     <Select
                         options={view! {
-                            <ChoiceOption label="All pointers" />
-                            <ForEach keys={keys}>|key: DeviceKey|
-                                <ChoiceOption label={key.0} />
+                            <ChoiceOption value=None label="All pointers" />
+                            <ForEach value={keys}>|key: DeviceKey|
+                                <ChoiceOption value={Some(key.clone())} label={key.0} />
                             </ForEach>
                         }}
                         width={Extent::fraction(1.0)}
-                        selected={Binding::new(selected, move |index: Option<usize>| {
-                            let key = index
-                                .and_then(|index| index.checked_sub(1))
-                                .and_then(|index| keys.with_untracked(|keys| keys.get(index).cloned()));
-                            chosen.set(key);
+                        selected={Binding::new(selected, move |picked: Option<Option<DeviceKey>>| {
+                            if let Some(key) = picked {
+                                chosen.set(key);
+                            }
                         })}
                         label="Pointer"
                         @test_id={"input.pointer"}
                     />
                 </ListItem>
             </SettingsRow>
-            <ForEach keys={scopes}>|scope: Option<DeviceKey>|
+            <ForEach value={scopes}>|scope: Option<DeviceKey>|
                 <PointerRows
                     settings={settings}
                     devices={devices}
@@ -339,11 +331,7 @@ fn PointerRows(
         }
     });
     let speed_value = create_memo(move || speed.get().value);
-    let speed_shown = create_memo(move || match speed.get() {
-        FieldState { mixed: true, .. } => "Mixed".to_owned(),
-        state => format!("{:+.2}", state.value),
-    });
-    let has_speed = create_memo(move || speed.get().supported);
+    let speed_mixed = create_memo(move || speed.get().mixed);
     let (tap_on, tap_mixed, has_tap) = switch_state(tap);
     let (natural_on, natural_mixed, has_natural) = switch_state(natural);
     let (speed_row, tap_row, natural_row) = (
@@ -358,7 +346,7 @@ fn PointerRows(
     );
     view! {
         <List spacing=Space::None>
-            <ForEach keys={pointed}>|key: DeviceKey|
+            <ForEach value={pointed}>|key: DeviceKey|
                 <DisplayChoice
                     settings={settings}
                     devices={devices}
@@ -367,13 +355,14 @@ fn PointerRows(
                     read_only={read_only}
                 />
             </ForEach>
-            <Show condition={has_speed}>
+            <Show value={move || speed.with(|speed| speed.supported)}>
                 <SliderSetting
                     label="Speed"
                     description="How far the pointer moves for each movement of the device."
                     row={speed_row}
                     value={speed_value}
-                    shown={speed_shown}
+                    shown={speed_text as fn(f32) -> String}
+                    mixed={speed_mixed}
                     min=MIN_POINTER_SPEED
                     max=MAX_POINTER_SPEED
                     read_only={read_only}
@@ -383,7 +372,7 @@ fn PointerRows(
                     }}
                 />
             </Show>
-            <Show condition={has_tap}>
+            <Show value={has_tap}>
                 <SwitchSetting
                     label="Tap to click"
                     description="A tap on a touchpad clicks."
@@ -397,7 +386,7 @@ fn PointerRows(
                     }}
                 />
             </Show>
-            <Show condition={has_natural}>
+            <Show value={has_natural}>
                 <SwitchSetting
                     label="Natural scrolling"
                     description="Content moves the way your fingers do."
@@ -444,7 +433,7 @@ fn DisplayChoice(
                 .map(|(_, name)| name.clone())
         })
     };
-    let automatic = create_memo(move || {
+    let automatic = move || {
         let lands = devices.with(|devices| {
             devices
                 .iter()
@@ -456,13 +445,12 @@ fn DisplayChoice(
             .and_then(|id| name_of(&id))
             .unwrap_or_else(|| "every display".to_owned());
         format!("Automatic ({place})")
-    });
+    };
     let selected = create_memo(move || {
-        let chosen = effective.with(|effective| effective.display(&device).map(str::to_owned));
-        let index = chosen
-            .and_then(|id| shown.with(|shown| shown.iter().position(|(known, _)| *known == id)));
-        Some(index.map_or(0, |index| index + 1))
+        Some(effective.with(|effective| effective.display(&device).map(str::to_owned)))
     });
+    let stored = create_memo(move || selected.get().flatten());
+    let custom = unlisted(stored, move |id| name_of(id).is_some());
     view! {
         <LayeredSettingsRow
             setting={row}
@@ -476,19 +464,18 @@ fn DisplayChoice(
                 <Select
                     width={Extent::fraction(1.0)}
                     options={view! {
-                        <ChoiceOption label={automatic} />
-                        <ForEach keys={shown}>|display: (String, String)|
-                            <ChoiceOption label={display.1} />
+                        <ChoiceOption value=None label={automatic} />
+                        <ForEach value={shown}>|display: (String, String)|
+                            <ChoiceOption value={Some(display.0)} label={display.1} />
+                        </ForEach>
+                        <ForEach value={custom}>|id: String|
+                            <ChoiceOption value={Some(id.clone())} label="Disconnected display" />
                         </ForEach>
                     }}
-                    selected={Binding::new(selected, move |index: Option<usize>| {
-                        let Some(index) = index else {
-                            return;
-                        };
-                        let chosen = index
-                            .checked_sub(1)
-                            .and_then(|index| shown.with_untracked(|shown| shown.get(index).map(|(id, _)| id.clone())));
-                        set.call(chosen);
+                    selected={Binding::new(selected, move |chosen: Option<Option<String>>| {
+                        if let Some(chosen) = chosen {
+                            set.call(chosen);
+                        }
                     })}
                     label="Display"
                     disabled={read_only}
@@ -557,9 +544,7 @@ fn TextSetting(
                         }
                     })}
                     label={label}
-                    placeholder={create_memo(move || {
-                        inherited.get().unwrap_or_else(|| "Default".to_owned())
-                    })}
+                    placeholder={move || inherited.get().unwrap_or_else(|| "Default".to_owned())}
                     disabled={read_only}
                     @test_id={format!("input.{id}")}
                 />
@@ -574,7 +559,11 @@ fn SliderSetting(
     description: &'static str,
     row: SettingHandle,
     value: Memo<f32>,
-    shown: Memo<String>,
+    /// How the readout beside the slider writes a value.
+    shown: fn(f32) -> String,
+    /// The value stands for several that differ, so the readout says so until it is dragged.
+    #[prop(default = false)]
+    mixed: Prop<bool>,
     min: f32,
     max: f32,
     read_only: Memo<bool>,
@@ -582,6 +571,19 @@ fn SliderSetting(
     #[prop(default = true)] separated: bool,
     on_change: Callback<Option<f32>>,
 ) -> NodeId {
+    // A drag shows on the slider and sets the setting once, when it is kept.
+    let held = HeldValue::new(Binding::new(value, move |value: f32| {
+        on_change.call(Some(value))
+    }));
+    let readout_id = format!("input.{id}.value");
+    // The readout follows the drag, as the slider does.
+    let readout = create_memo(move || {
+        let held = held.value.get();
+        match mixed.get() && held == value.get() {
+            true => "Mixed".to_owned(),
+            false => shown(held),
+        }
+    });
     view! {
         <LayeredSettingsRow
             setting={row}
@@ -593,7 +595,8 @@ fn SliderSetting(
         >
             <ListItem grow=1.0>
                 <Slider
-                    value={Binding::new(value, move |value: f32| on_change.call(Some(value)))}
+                    value={held.value}
+                    on_drag_change={held.on_drag}
                     min={min}
                     max={max}
                     label={label}
@@ -602,7 +605,9 @@ fn SliderSetting(
                 />
             </ListItem>
             <ListItem length=VALUE_WIDTH>
-                <Text color=TextColor::Muted align=TextAlign::End>{shown}</Text>
+                <Text color=TextColor::Muted align=TextAlign::End @test_id={readout_id}>
+                    {readout}
+                </Text>
             </ListItem>
         </LayeredSettingsRow>
     }
@@ -614,7 +619,7 @@ fn SwitchSetting(
     description: &'static str,
     row: SettingHandle,
     on: Memo<bool>,
-    mixed: Memo<bool>,
+    #[prop(default = false)] mixed: Prop<bool>,
     read_only: Memo<bool>,
     id: String,
     #[prop(default = true)] separated: bool,
@@ -639,4 +644,16 @@ fn SwitchSetting(
             />
         </LayeredSettingsRow>
     }
+}
+
+fn delay_text(delay: f32) -> String {
+    format!("{} ms", delay.round())
+}
+
+fn rate_text(rate: f32) -> String {
+    format!("{} / s", rate.round())
+}
+
+fn speed_text(speed: f32) -> String {
+    format!("{speed:+.2}")
 }

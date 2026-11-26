@@ -3,12 +3,10 @@ use std::{
     io::Read,
     path::{Path, PathBuf},
     process::{Command, ExitCode},
-    time::Duration,
 };
 
-use sha2::{Digest, Sha256};
-
-use crate::hex;
+use be_lib_sha256::sha256;
+use be_tool_storage::{Body, Put, Storage};
 
 const USAGE: &str = "\
 usage: ./scripts/deploy [--dry-run] [--allow-dirty] [--skip-server] [--skip-be] [--skip-web]
@@ -18,14 +16,17 @@ usage: ./scripts/deploy [--dry-run] [--allow-dirty] [--skip-server] [--skip-be] 
 Builds be-server, the web bundle, be and the app for every platform in
 release, uploads each be and each of the app's downloads to the mirror, swaps
 the server on the VPS and publishes the web bundle through Bunny, points the mirror's download page at
-the new build, and pins the uploaded be in scripts/internal/pins.
+the new build, and points live/be-release on the mirror at the uploaded be,
+which ./scripts/be downloads. index.html and live/ are the mirror's only
+mutable files. --skip-be needs --skip-server, since the server refuses a be
+from another build.
 
 The downloads are the app with its apps for Linux, macOS and Windows on
 x86_64 and arm64 and the web bundle, each zipped, and the APK, signed with the
 release keystore under the id and label --android-id and --android-label give
 (com.be3.host and be-host), so it installs beside CI's com.be3.host.ci. They go
 to data/BUILD/app/ beside a page linking them, and once the server runs the build,
-web/downloads.html is that unlinked page. It is not
+live/downloads.html is that unlinked page. It is not
 read back from the mirror, whose CDN may hold the last one until it is purged.
 
   --dry-run      print what it would do, uploading and changing nothing
@@ -50,6 +51,10 @@ Environment:
   BE3_DEPLOY_DIR      the directory there that holds be-server (/srv/be-server)
   BE3_DEPLOY_UNITS    the units stopped around the swap (be-server)
   Web files are uploaded under data/BUILD/web/; /index.html selects the live build.";
+
+/// The mirror's mutable file naming the build whose `be` `./scripts/be` downloads
+/// (crates/be-tool-bootstrap/src/be.rs reads it), the build the server runs.
+const BE_RELEASE: &str = "live/be-release";
 
 struct Options {
     apk_metadata: PathBuf,
@@ -131,6 +136,12 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String>
     if options.repository.as_os_str().is_empty() || options.server.as_os_str().is_empty() {
         return Err(format!("run this through ./scripts/deploy\n\n{USAGE}"));
     }
+    if options.skip_be && !options.skip_server {
+        return Err(format!(
+            "--skip-be needs --skip-server: the server refuses a be from another build, so swapping \
+             it without uploading this build's be would leave {BE_RELEASE} naming a be it refuses"
+        ));
+    }
     Ok(options)
 }
 
@@ -184,7 +195,14 @@ fn run(options: &mut Options) -> Result<(), String> {
         "https://la.storage.bunnycdn.com/be-app",
     );
     let mirror = setting("BE3_DEPLOY_MIRROR", "https://be3.pfg.pw");
-    let terminal_hosts = terminal_hosts(&options.be, &build, &mirror)?;
+    let web = options.web.clone().filter(|_| !options.skip_web);
+    let release = Release {
+        terminal_hosts: terminal_hosts(&options.be, &build, &mirror)?,
+        apps: web
+            .as_deref()
+            .map(|web| release_apps(web, &build, &mirror))
+            .transpose()?,
+    };
     if !options.skip_downloads && !options.dry_run {
         for (platform, file) in &mut options.downloads {
             if platform == "android" {
@@ -199,7 +217,7 @@ fn run(options: &mut Options) -> Result<(), String> {
                 })?;
                 std::fs::create_dir_all(options.repository.join("target/deploy"))
                     .map_err(|error| format!("cannot make target/deploy: {error}"))?;
-                std::fs::write(&metadata, with_terminal_hosts(&read, &terminal_hosts)?)
+                std::fs::write(&metadata, with_release(&read, &release)?)
                     .map_err(|error| format!("cannot write {}: {error}", metadata.display()))?;
                 crate::apk_sign::finalize(file, &output, &key, &metadata)?;
                 *file = output;
@@ -221,9 +239,11 @@ fn run(options: &mut Options) -> Result<(), String> {
     } else {
         String::new()
     };
-    let web = options.web.as_ref().filter(|_| !options.skip_web);
+    let web = web.as_ref();
     let publishes_pages = !options.skip_server
-        && (web.is_some() || (!options.skip_downloads && !options.downloads.is_empty()));
+        && (web.is_some()
+            || !options.skip_be
+            || (!options.skip_downloads && !options.downloads.is_empty()));
     let api_key = if publishes_pages && !options.dry_run {
         secret(
             "BUNNY_API_KEY",
@@ -241,41 +261,40 @@ fn run(options: &mut Options) -> Result<(), String> {
         }
     }
     let web_entry = web.map(|_| web_entry_point(&build));
-    let service_worker = web
-        .map(|web| {
-            let path = web.join("sw.js");
-            std::fs::read(&path).map_err(|error| format!("cannot read {}: {error}", path.display()))
-        })
-        .transpose()?;
-    let agents = Agents::new();
+    let client = Storage::new(Some(key));
     let store = Store {
         options,
-        agents: &agents,
-        storage: &storage,
+        client: &client,
+        zone: &storage,
         mirror: &mirror,
-        key: &key,
     };
 
-    let mut pins = Vec::new();
     if !options.skip_be {
         for (triple, bundle) in &options.be {
             let directory = format!("data/{build}/be-{triple}");
-            for name in ["be", "build-info.json"] {
+            for name in ["be", be_lib_build_id::FILE] {
                 let bytes = std::fs::read(bundle.join(name)).map_err(|error| {
                     format!("cannot read {}: {error}", bundle.join(name).display())
                 })?;
-                let sha256 = store.put(
+                // `be` greets the server with its build and finds its apps through this.
+                let bytes = if name == be_lib_build_id::FILE {
+                    with_release(
+                        &bytes,
+                        &Release {
+                            terminal_hosts: Vec::new(),
+                            apps: release.apps.clone(),
+                        },
+                    )?
+                } else {
+                    bytes
+                };
+                store.put(
                     &bundle.join(name).display().to_string(),
                     &format!("{directory}/{name}"),
                     &bytes,
                     "application/octet-stream",
                     true,
                 )?;
-                let tool = if name == "be" { "be" } else { "be_metadata" };
-                pins.push((
-                    format!("{tool}_sha256_{}", triple.replace('-', "_")),
-                    sha256,
-                ));
             }
         }
     }
@@ -296,7 +315,7 @@ fn run(options: &mut Options) -> Result<(), String> {
                 .map_err(|error| format!("cannot read {}: {error}", file.display()))?;
             let bytes = match platform.as_str() {
                 "android" => bytes,
-                _ => archive_with_terminal_hosts(&bytes, &terminal_hosts)?,
+                _ => archive_with_release(&bytes, &release)?,
             };
             let sha256 = store.put(
                 &file.display().to_string(),
@@ -405,47 +424,45 @@ fn run(options: &mut Options) -> Result<(), String> {
             "text/html; charset=utf-8",
             false,
         )?;
-        purge_pages(options, &agents, &api_key, &mirror, &["index.html", ""])?;
-    }
-    if let Some(worker) = service_worker.filter(|_| !options.skip_server) {
-        store.put(
-            "the web app's service worker",
-            "sw.js",
-            &worker,
-            "text/javascript; charset=utf-8",
-            false,
-        )?;
-        purge_pages(options, &agents, &api_key, &mirror, &["sw.js"])?;
+        purge_pages(options, &client, &api_key, &mirror, &["index.html", ""])?;
     }
 
     if page.is_some() && options.skip_server {
         println!(
-            "the server still runs its last build, so {mirror}/web/downloads.html still offers that one's \
+            "the server still runs its last build, so {mirror}/live/downloads.html still offers that one's \
              downloads; this build's are at {mirror}/data/{build}/app/"
         );
     } else if let Some(page) = page {
         store.put(
             "the latest download page",
-            "web/downloads.html",
+            "live/downloads.html",
             page.as_bytes(),
             "text/html; charset=utf-8",
             false,
         )?;
-        purge_pages(options, &agents, &api_key, &mirror, &["web/downloads.html"])?;
-        println!("the downloads for build {build} are at {mirror}/web/downloads.html");
+        purge_pages(
+            options,
+            &client,
+            &api_key,
+            &mirror,
+            &["live/downloads.html"],
+        )?;
+        println!("the downloads for build {build} are at {mirror}/live/downloads.html");
     }
 
-    if !pins.is_empty() {
-        let common = options.repository.join("scripts/internal/pins");
-        if options.dry_run {
-            println!("pin be {build} from {mirror} in {}", common.display());
-        } else {
-            pin(&common, &build, &pins, &mirror)?;
-            println!(
-                "pinned be {build} in {}; commit it so ./scripts/be runs this build",
-                common.display()
-            );
-        }
+    if let Some(release) = be_release(options, &build) {
+        store.put(
+            "the release ./scripts/be downloads",
+            BE_RELEASE,
+            release.as_bytes(),
+            "text/plain; charset=utf-8",
+            false,
+        )?;
+        purge_pages(options, &client, &api_key, &mirror, &[BE_RELEASE])?;
+    } else if !options.skip_be {
+        println!(
+            "the server still runs its last build, so {mirror}/{BE_RELEASE} still names that one's be"
+        );
     }
     Ok(())
 }
@@ -472,37 +489,81 @@ fn terminal_hosts(
             Ok(be_lib_build_id::TerminalHostBinary {
                 arch: arch.to_owned(),
                 url: format!("{mirror}/data/{build}/be-{triple}/be"),
-                sha256: hex(&Sha256::digest(&bytes)),
+                sha256: sha256(&bytes),
             })
         })
         .collect()
 }
 
-/// A bundle's `build-info.json` naming where this build's `be` is, keeping every other field.
-fn with_terminal_hosts(
-    json: &[u8],
-    terminal_hosts: &[be_lib_build_id::TerminalHostBinary],
-) -> Result<Vec<u8>, String> {
+/// Where this build's `be` and apps are on the mirror, which `./scripts/deploy` writes into
+/// every `build-info.json` it ships: a deployed executable trusts what its own download names.
+struct Release {
+    terminal_hosts: Vec<be_lib_build_id::TerminalHostBinary>,
+    apps: Option<be_lib_build_id::ReleaseApps>,
+}
+
+/// Where the web bundle `web` will be on the mirror, the apps `be` downloads a host app from,
+/// and the SHA-256 of its `app-hashes.json`, which lists every app file's
+/// (guides/apps/runtime.md, "Headless"). Every file the list names must be in the bundle with
+/// that hash, or a deployed `be` would refuse it.
+fn release_apps(
+    web: &Path,
+    build: &str,
+    mirror: &str,
+) -> Result<be_lib_build_id::ReleaseApps, String> {
+    let path = web.join("app-hashes.json");
+    let listed =
+        std::fs::read(&path).map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+    let hashes: std::collections::BTreeMap<String, String> = serde_json::from_slice(&listed)
+        .map_err(|error| format!("{} does not read: {error}", path.display()))?;
+    for (file, expected) in &hashes {
+        let bytes = std::fs::read(web.join(file)).map_err(|error| {
+            format!(
+                "{} lists {file}, which the web bundle lacks: {error}",
+                path.display()
+            )
+        })?;
+        let found = sha256(&bytes);
+        if found != *expected {
+            return Err(format!(
+                "{} lists {expected} for {file}, but the web bundle's has {found}",
+                path.display()
+            ));
+        }
+    }
+    Ok(be_lib_build_id::ReleaseApps {
+        url: format!("{mirror}/data/{build}/web"),
+        sha256: sha256(&listed),
+    })
+}
+
+/// A `build-info.json` naming where this build's `be` and apps are, keeping every other field.
+fn with_release(json: &[u8], release: &Release) -> Result<Vec<u8>, String> {
     let mut metadata: serde_json::Value =
         serde_json::from_slice(json).map_err(|error| format!("invalid build metadata: {error}"))?;
     let object = metadata
         .as_object_mut()
         .ok_or("the build metadata is not a JSON object")?;
-    object.insert(
-        "terminal_hosts".to_owned(),
-        serde_json::to_value(terminal_hosts).map_err(|error| error.to_string())?,
-    );
+    if !release.terminal_hosts.is_empty() {
+        object.insert(
+            "terminal_hosts".to_owned(),
+            serde_json::to_value(&release.terminal_hosts).map_err(|error| error.to_string())?,
+        );
+    }
+    if let Some(apps) = &release.apps {
+        object.insert(
+            "apps".to_owned(),
+            serde_json::to_value(apps).map_err(|error| error.to_string())?,
+        );
+    }
     let mut written = serde_json::to_vec(&metadata).map_err(|error| error.to_string())?;
     written.push(b'\n');
     Ok(written)
 }
 
-/// A download's zip with every `build-info.json` in it naming where this build's `be` is;
-/// every other entry is copied as it is.
-fn archive_with_terminal_hosts(
-    archive: &[u8],
-    terminal_hosts: &[be_lib_build_id::TerminalHostBinary],
-) -> Result<Vec<u8>, String> {
+/// A download's zip with every `build-info.json` in it naming where this build's `be` and apps
+/// are; every other entry is copied as it is.
+fn archive_with_release(archive: &[u8], release: &Release) -> Result<Vec<u8>, String> {
     use std::io::{Cursor, Write};
     use zip::{ZipArchive, ZipWriter, write::SimpleFileOptions};
 
@@ -539,7 +600,7 @@ fn archive_with_terminal_hosts(
             )
             .map_err(|error| format!("{name}: {error}"))?;
         written
-            .write_all(&with_terminal_hosts(&json, terminal_hosts)?)
+            .write_all(&with_release(&json, release)?)
             .map_err(|error| format!("{name}: {error}"))?;
     }
     Ok(written
@@ -550,10 +611,10 @@ fn archive_with_terminal_hosts(
 
 struct Store<'a> {
     options: &'a Options,
-    agents: &'a Agents,
-    storage: &'a str,
+    client: &'a Storage,
+    /// The storage zone's URL, which paths are under.
+    zone: &'a str,
     mirror: &'a str,
-    key: &'a str,
 }
 
 impl Store<'_> {
@@ -565,8 +626,8 @@ impl Store<'_> {
         content_type: &str,
         read_back: bool,
     ) -> Result<String, String> {
-        let sha256 = hex(&Sha256::digest(bytes));
-        let target = format!("{}/{path}", self.storage);
+        let sha256 = sha256(bytes);
+        let target = format!("{}/{path}", self.zone);
         println!(
             "upload {what} ({} bytes, sha256 {sha256}) to {target}",
             bytes.len()
@@ -574,43 +635,21 @@ impl Store<'_> {
         if self.options.dry_run {
             return Ok(sha256);
         }
-        if read_back {
-            match stored_sha256(self.agents.to(&target), &target, self.key)? {
-                Some(existing) if existing != sha256 => {
-                    return Err(format!(
-                        "refusing to overwrite immutable artifact {target} with different bytes; build a new release"
-                    ));
-                }
-                Some(_) => println!("  identical immutable artifact already exists"),
-                None => upload(
-                    self.agents.to(&target),
-                    &target,
-                    self.key,
-                    bytes,
-                    &sha256,
-                    content_type,
-                )?,
-            }
-        } else {
-            upload(
-                self.agents.to(&target),
-                &target,
-                self.key,
-                bytes,
-                &sha256,
-                content_type,
-            )?;
-        }
         if !read_back {
+            self.client
+                .put(&target, Body::Bytes(bytes), &sha256, content_type)?;
             return Ok(sha256);
         }
+        let put = self
+            .client
+            .put_if_absent(&target, Body::Bytes(bytes), &sha256, content_type)
+            .map_err(|error| format!("{error}; build a new release"))?;
+        if put == Put::Present {
+            println!("  identical immutable artifact already exists");
+        }
         let source = format!("{}/{path}", self.mirror);
-        let read = download(
-            self.agents.to(&source),
-            &source,
-            path.starts_with("data/") && path.ends_with("/web/index.html"),
-        )?;
-        if hex(&Sha256::digest(&read)) != sha256 {
+        let read = download(self.client, &source, required_headers(path))?;
+        if be_lib_sha256::sha256(&read) != sha256 {
             return Err(format!(
                 "{source} is not what was uploaded to {target}; check \
                  BE3_DEPLOY_STORAGE and BE3_DEPLOY_MIRROR name the same place"
@@ -733,10 +772,10 @@ fn download_page(build: &str, downloads: &[Download], prefix: &str) -> String {
     })
 }
 
-fn purge(agents: &Agents, api_key: &str, url: &str) -> Result<(), String> {
+fn purge(client: &Storage, api_key: &str, url: &str) -> Result<(), String> {
     let api = "https://api.bunny.net/purge";
-    agents
-        .to(api)
+    client
+        .agent(api)
         .post(api)
         .query("url", url)
         .set("AccessKey", api_key)
@@ -744,28 +783,6 @@ fn purge(agents: &Agents, api_key: &str, url: &str) -> Result<(), String> {
         .map_err(|error| format!("purging {url} from the CDN failed: {error}"))?;
     println!("purged {url}");
     Ok(())
-}
-
-struct Agents {
-    proxied: ureq::Agent,
-    direct: ureq::Agent,
-}
-
-impl Agents {
-    fn new() -> Self {
-        let builder = || ureq::AgentBuilder::new().timeout(Duration::from_secs(600));
-        Self {
-            proxied: builder().try_proxy_from_env(true).build(),
-            direct: builder().build(),
-        }
-    }
-
-    fn to(&self, url: &str) -> &ureq::Agent {
-        match url.starts_with("https://") {
-            true => &self.proxied,
-            false => &self.direct,
-        }
-    }
 }
 
 fn web_entry_point(build: &str) -> String {
@@ -828,7 +845,7 @@ fn web_content_type(path: &Path) -> &'static str {
 
 fn purge_pages(
     options: &Options,
-    agents: &Agents,
+    client: &Storage,
     key: &str,
     mirror: &str,
     paths: &[&str],
@@ -838,7 +855,7 @@ fn purge_pages(
         if options.dry_run {
             println!("purge {url}");
         } else {
-            purge(agents, key.trim(), &url)?;
+            purge(client, key.trim(), &url)?;
         }
     }
     Ok(())
@@ -873,60 +890,42 @@ fn read_build(path: &Path) -> Result<String, String> {
     Ok(metadata.id)
 }
 
-fn stored_sha256(agent: &ureq::Agent, url: &str, key: &str) -> Result<Option<String>, String> {
-    let response = match agent.get(url).set("AccessKey", key).call() {
-        Ok(response) => response,
-        Err(ureq::Error::Status(404, _)) => return Ok(None),
-        Err(error) => return Err(format!("checking immutable artifact {url} failed: {error}")),
-    };
-    let mut reader = response.into_reader();
-    let mut hash = Sha256::new();
-    let mut buffer = [0u8; 65536];
-    loop {
-        let read = reader
-            .read(&mut buffer)
-            .map_err(|error| format!("reading immutable artifact {url} failed: {error}"))?;
-        if read == 0 {
-            break;
-        }
-        hash.update(&buffer[..read]);
+/// What `live/be-release` becomes, or `None` when this deployment leaves it alone: it names the
+/// build the server runs, so it moves only with a server swap, which always uploads `be` (`parse`
+/// refuses `--skip-be` without `--skip-server`).
+fn be_release(options: &Options, build: &str) -> Option<String> {
+    (!options.skip_server && !options.skip_be).then(|| format!("{build}\n"))
+}
+
+/// The headers the pull zone must send with a file for the web build to work: the bundle's page
+/// is cross-origin isolated, and its service worker, which the entry point at `/` registers from
+/// the bundle, may answer for the whole origin (guides/hosting.md, The CDN).
+fn required_headers(path: &str) -> &'static [(&'static str, &'static str)] {
+    if !path.starts_with("data/") {
+        &[]
+    } else if path.ends_with("/web/index.html") {
+        &[
+            ("Cross-Origin-Opener-Policy", "same-origin"),
+            ("Cross-Origin-Embedder-Policy", "require-corp"),
+        ]
+    } else if path.ends_with("/web/sw.js") {
+        &[("Service-Worker-Allowed", "/")]
+    } else {
+        &[]
     }
-    Ok(Some(hex(&hash.finalize())))
 }
 
-fn upload(
-    agent: &ureq::Agent,
-    url: &str,
-    key: &str,
-    bytes: &[u8],
-    sha256: &str,
-    content_type: &str,
-) -> Result<(), String> {
-    agent
-        .put(url)
-        .set("AccessKey", key)
-        .set("Checksum", &sha256.to_ascii_uppercase())
-        .set("Content-Type", content_type)
-        .send_bytes(bytes)
-        .map_err(|error| format!("uploading to {url} failed: {error}"))?;
-    Ok(())
-}
-
-fn download(agent: &ureq::Agent, url: &str, web_entry: bool) -> Result<Vec<u8>, String> {
-    let response = agent
+fn download(client: &Storage, url: &str, required: &[(&str, &str)]) -> Result<Vec<u8>, String> {
+    let response = client
+        .agent(url)
         .get(url)
         .call()
         .map_err(|error| format!("reading {url} back failed: {error}"))?;
-    if web_entry {
-        for (name, expected) in [
-            ("Cross-Origin-Opener-Policy", "same-origin"),
-            ("Cross-Origin-Embedder-Policy", "require-corp"),
-        ] {
-            if response.header(name) != Some(expected) {
-                return Err(format!(
-                    "{url} needs {name}: {expected}; configure the Bunny pull-zone response headers before deployment"
-                ));
-            }
+    for (name, expected) in required {
+        if response.header(name) != Some(*expected) {
+            return Err(format!(
+                "{url} needs {name}: {expected}; configure the Bunny pull-zone response headers before deployment"
+            ));
         }
     }
     let mut bytes = Vec::new();
@@ -953,32 +952,6 @@ fn shell(options: &Options, program: &str, arguments: &[&str]) -> Result<(), Str
             arguments.join(" ")
         )),
     }
-}
-
-fn pin(common: &Path, build: &str, pins: &[(String, String)], mirror: &str) -> Result<(), String> {
-    let text = std::fs::read_to_string(common)
-        .map_err(|error| format!("cannot read {}: {error}", common.display()))?;
-    let mut lines: Vec<String> = text.lines().map(str::to_owned).collect();
-    let mut set = |name: &str, value: &str| -> Result<(), String> {
-        let line = lines
-            .iter_mut()
-            .find(|line| line.starts_with(&format!("{name}=")))
-            .ok_or_else(|| format!("{} has no {name}= line", common.display()))?;
-        *line = format!("{name}='{value}'");
-        Ok(())
-    };
-    set("be_release", build)?;
-    set("be_metadata_file", "build-info.json")?;
-    set("be_mirror", &format!("{mirror}/data"))?;
-    for (name, sha256) in pins {
-        set(name, sha256)?;
-    }
-    let mut written = lines.join("\n");
-    if text.ends_with('\n') {
-        written.push('\n');
-    }
-    std::fs::write(common, written)
-        .map_err(|error| format!("cannot write {}: {error}", common.display()))
 }
 
 #[cfg(test)]

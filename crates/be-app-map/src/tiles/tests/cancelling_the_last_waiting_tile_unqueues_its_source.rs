@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn cancelling_the_last_waiting_tile_unqueues_its_source() {
-    let mut worker = TileWorker::spawn(Waker::default());
+    let mut worker = read_worker();
     let tile = TileId {
         zoom: 3,
         x: 2,

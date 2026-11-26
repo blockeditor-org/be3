@@ -3,11 +3,11 @@ use std::cell::Cell;
 use std::rc::Rc;
 use std::time::Duration;
 
-use be_sdk_beui::beui::dock::{DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize};
+use be_sdk_beui::beui::dock::{DockPane, DockSplit, DockTab, Docking};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign};
-use be_sdk_beui::{AudioStatus, Editor, FileChooser, SIDE_PANEL_WIDTH};
+use be_sdk_beui::{AudioStatus, ContentFileReplace, Editor};
 
 use super::{decode, filter, format_micros};
 use be_type_audio::AudioContent;
@@ -16,9 +16,6 @@ use beui::Align;
 const PADDING: Space = Space::Lg;
 const SPACING: Space = Space::Md;
 const SECOND_MICROS: u64 = 1_000_000;
-const STAGE: &str = "stage";
-const PANEL: &str = "panel";
-const PANEL_WIDTH: f32 = SIDE_PANEL_WIDTH;
 
 fn played_to(status: &AudioStatus, since: Duration) -> u64 {
     let since = match status.playing {
@@ -33,25 +30,27 @@ fn played_to(status: &AudioStatus, since: Duration) -> u64 {
 
 #[component]
 pub fn AudioView(editor: Editor) -> NodeId {
-    let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
-    let layout = DockingLayout::<&'static str>::new();
     view! {
-        <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="audio" size={SplitSize::Second(PANEL_WIDTH)}>
-                <DockPane id="stage" locked=true bare=true>
-                    <DockTab id=STAGE title="Track">
+        <Docking>
+            <DockSplit>
+                <DockPane stage=true>
+                    <DockTab>
                         <Track @node_ref={&content} editor={editor} />
                     </DockTab>
                 </DockPane>
-                <Show condition={chrome}>
-                    <DockPane id="panel" locked=true>
-                        <DockTab id=PANEL title="Audio">
-                            <AudioPanel editor={editor} />
-                        </DockTab>
-                    </DockPane>
-                </Show>
+                <DockPane chrome=true>
+                    <DockTab title="Audio">
+                        <ContentFileReplace
+                            editor
+                            label="Replace audio…"
+                            id_prefix="audio"
+                            filter={filter()}
+                            import={decode}
+                        />
+                    </DockTab>
+                </DockPane>
             </DockSplit>
         </Docking>
     }
@@ -64,14 +63,6 @@ fn Track(editor: Editor) -> NodeId {
     let status = editor.audio();
 
     let playing = create_memo(move || status.with(|status| status.playing));
-    let glyph = create_memo(move || match playing.get() {
-        true => ICON_PAUSE,
-        false => ICON_PLAY,
-    });
-    let action = create_memo(move || match playing.get() {
-        true => "Pause".to_owned(),
-        false => "Play".to_owned(),
-    });
     let received = create_memo(move || status.with(|_| now()));
     let clock = create_signal(now());
     let position = create_memo(move || {
@@ -154,8 +145,8 @@ fn Track(editor: Editor) -> NodeId {
                 <ListItem align=Align::Center>
                     <Button
                         icon_only=true
-                        glyph={glyph}
-                        label={action}
+                        glyph={move || if playing.get() { ICON_PAUSE } else { ICON_PLAY }}
+                        label={move || if playing.get() { "Pause" } else { "Play" }.to_owned()}
                         @test_id={"audio.play"}
                         on_click={toggle}
                     />
@@ -163,51 +154,12 @@ fn Track(editor: Editor) -> NodeId {
                 <Text style=TextStyle::CAPTION align=TextAlign::Center @test_id={"audio.position"}>
                     {elapsed}
                 </Text>
-                <Show condition={failed}>
+                <Show value={failed}>
                     <Text style=TextStyle::CAPTION align=TextAlign::Center color=TextColor::Danger>
                         {reason}
                     </Text>
                 </Show>
             </List>
-        </Frame>
-    }
-}
-
-#[component]
-fn AudioPanel(editor: Editor) -> NodeId {
-    let chooser = FileChooser::new(filter(), decode);
-    let block = editor.block_id();
-    chooser.on_chosen(move |chooser| {
-        if let Some(replacement) = chooser.take() {
-            editor.replace_content(block, &replacement);
-        }
-    });
-
-    let read_only = editor.read_only();
-    let busy = chooser.busy();
-    let blocked = create_memo(move || busy.get() || read_only.get());
-    let error = chooser.error();
-    let failed = create_memo(move || error.get().is_some());
-    let reason = create_memo(move || error.get().unwrap_or_default());
-    let replace = move || chooser.open();
-    view! {
-        <Frame fill=ColorRole::Surface>
-            <Scroll @test_id={"audio.panel"}>
-                <Frame padding=PADDING>
-                    <List spacing=SPACING>
-                        <Button
-                            label="Replace audio..."
-                            variant=ButtonVariant::Secondary
-                            disabled={blocked}
-                            @test_id={"audio.replace"}
-                            on_click={replace}
-                        />
-                        <Show condition={failed}>
-                            <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
-                        </Show>
-                    </List>
-                </Frame>
-            </Scroll>
         </Frame>
     }
 }

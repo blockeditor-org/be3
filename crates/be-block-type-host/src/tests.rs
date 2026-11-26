@@ -5,37 +5,86 @@ use be_block_commit::CommitId;
 use be_block_content::BlockContent;
 use be_block_graph::BlockParent;
 use be_block_store::{Manifest, MemoryStore};
-use be_sdk_type_api::{Description, EditorId, Status};
+use be_sdk_type_api::{Description, EditorId};
+use be_sdk_type_testing::ledger::Ledger;
 use be_sdk_type_testing::probe::{self, Probe};
 use be_sdk_type_testing::sections::{self, Sections};
-use be_wasm_threads::Mutex;
+use be_sdk_type_testing::tally::{Tally, TallyOp};
+use std::sync::Mutex;
 use uuid::Uuid;
 
-use crate::{Conflict, Host, Replicas, in_process, started};
+use crate::{Host, Replicas, in_process, started};
 
+mod a_block_closed_while_its_rejoin_is_held_and_opened_online_again_holds_its_journaled_edits;
+mod a_block_closed_while_its_rejoin_is_held_lets_go_of_the_join_and_closes;
+mod a_block_reopened_while_its_rejoin_is_held_opens_again_holding_its_journaled_edits;
 mod a_block_sent_while_its_replica_owes_a_seal_is_asked_for_it_once;
 mod a_block_whose_creation_waits_joins_once_it_is_sent_not_on_reconnecting;
-mod a_journal_is_opened_on_the_commit_a_seal_was_made_on_only_for_this_devices_noted_seal;
+mod a_block_whose_kept_edits_stop_opening_as_its_replica_starts_opens_again_unlocked;
+mod a_closing_block_is_not_joined_again_and_closes;
+mod a_followers_offline_edit_merges_against_the_holders_seal_the_server_pruned;
+mod a_head_gone_everywhere_opens_once_more_then_is_unreadable;
+mod a_held_rejoin_takes_its_own_next_entry_and_lets_go_once_sealed;
+mod a_held_rejoin_takes_no_entry_another_order_numbered_next;
+mod a_host_crash_with_a_held_drag_saves_nothing;
+mod a_journal_is_opened_on_the_commit_a_seal_was_made_on_only_when_it_reaches_the_seal;
 mod a_key_searched_for_in_vain_is_searched_for_again_after_reconnecting;
 mod a_merge_over_parts_reads_only_the_parts_each_side_changed;
+mod a_module_restart_mid_drag_keeps_the_drag;
+mod a_module_that_keeps_stopping_stops_for_good_and_says_so;
 mod a_modules_answer_is_seen_after_the_host_task_spent_its_budget;
+mod a_part_a_merge_reuses_is_let_go_of_by_its_replicas_reach;
+mod a_part_a_module_publishes_is_let_go_of_by_its_reach_and_kept_by_the_commit;
+mod a_part_a_module_writes_in_pieces_is_held_and_read_back_whole;
+mod a_part_read_for_an_editor_keeps_the_replicas_unsettled_until_answered;
+mod a_part_writer_dropped_unfinished_ends_its_task_and_holds_nothing;
+mod a_part_writer_open_when_its_module_restarts_ends_its_task_and_holds_nothing;
+mod a_part_writer_written_too_far_ahead_of_sealing_is_let_go_of;
+mod a_rejoin_whose_unsealed_edits_no_seal_can_take_waits_without_asking_again;
 mod a_relayed_message_sealed_with_a_key_another_search_awaits_waits_for_it;
 mod a_reopened_replica_holds_an_editors_operations_less_those_replayed;
-mod a_replica_opened_again_takes_the_servers_journal_on_its_head_and_this_device_follows_it;
+mod a_replay_on_a_device_that_holds_none_of_its_parts_fetches_only_its_own_blocks;
+mod a_replay_reads_only_parts_of_the_block_whose_journal_it_was_handed;
+mod a_replica_joining_its_session_trades_log_heads_with_the_participants;
+mod a_replica_opened_again_after_a_restart_is_told_it_and_its_edit_lands_once;
+mod a_replica_opened_again_takes_the_servers_journal_and_this_device_keeps_it;
+mod a_replica_reaches_no_part_of_a_block_it_was_not_handed;
 mod a_replica_that_ended_uncounts_only_the_operations_it_never_took;
+mod a_server_journal_off_the_heads_seals_is_found_without_reading_the_history;
 mod a_stateless_request_reads_only_parts_of_the_commits_it_was_handed;
 mod a_stream_of_relays_under_keys_that_cannot_be_got_costs_one_search_per_key;
+mod a_text_edit_waiting_behind_one_in_flight_over_a_restart_lands_after_a_crash;
 mod an_edit_and_a_definition_kept_beside_another_devices_head_both_reach_the_server;
+mod an_edit_carried_over_a_restart_keeps_the_identity_it_goes_again_under_across_a_crash;
 mod an_edit_from_an_editor_that_left_before_its_block_joined_is_kept;
-mod an_edit_held_while_a_seal_was_out_is_given_once_to_a_restarted_replica;
+mod an_edit_made_offline_after_joining_a_session_another_device_numbered_is_taken;
 mod an_edit_made_on_the_content_from_before_a_replica_joins_lands_after;
+mod an_edit_made_while_a_restarted_replica_rejoins_is_given_it_once;
+mod an_edit_made_while_a_restarted_replica_rejoins_reaches_it_once_the_device_goes_offline;
+mod an_edit_made_while_a_restarted_replica_rejoins_waits_on_through_a_second_restart;
+mod an_edit_numbered_offline_after_a_seal_survives_joining;
+mod an_edit_numbered_offline_before_a_restart_survives_the_first_join_online;
+mod an_edit_ordered_after_a_seal_is_given_once_to_a_restarted_replica;
 mod an_edit_sealed_beside_a_commit_waiting_in_the_outbox_is_merged_with_it;
 mod an_edit_sent_after_its_replica_made_a_clean_status_is_given_again_on_joining;
+mod an_edit_submitted_before_its_edits_were_kept_by_an_idle_pass_is_known_after_a_crash;
+mod an_edit_typed_while_a_reload_of_the_replicas_own_is_on_its_way_reaches_the_server_once;
+mod an_editor_attached_when_its_replica_reopens_is_sent_the_content_again;
+mod an_editor_of_a_replica_that_cannot_open_again_is_told_it_failed_and_the_block_released;
+mod an_editor_reads_no_part_of_another_block_its_replica_was_not_handed;
 mod an_editor_reattached_across_joining_is_sent_a_snapshot_holding_what_was_given_again;
+mod an_entry_sealed_with_a_key_not_yet_here_reaches_the_replica_once_it_arrives;
+mod an_export_of_a_block_whose_parents_lead_back_to_it_is_refused;
+mod edits_typed_offline_into_a_session_of_another_build_are_sealed_before_the_replica_diverges;
+mod edits_typed_offline_while_a_reload_of_the_replicas_own_is_on_its_way_reach_the_server;
+mod edits_typed_offline_whose_seal_before_joining_fails_reach_the_server;
 mod news_of_a_block_whose_head_stayed_moves_no_replica;
+mod only_the_types_own_app_writes_in_its_blocks_log;
 mod search_text_of_a_type_that_loads_whole_is_narrowed_to_the_keys_asked_for;
 mod search_text_reads_only_the_parts_asked_for_and_not_yet_indexed;
 mod two_hosts_in_one_process_each_send_a_type_to_their_own_module;
+mod what_a_module_appends_reaches_the_server_signed_by_the_host_as_its_apps;
+mod what_a_module_says_during_a_wait_on_it_is_taken_without_another_wake;
 mod what_a_replica_opened_offline_replayed_from_its_journal_survives_a_restart_of_its_module;
 mod what_a_replica_opened_offline_replayed_from_its_journal_survives_rejoining;
 mod what_a_wait_on_a_module_handles_is_taken_as_a_change;
@@ -49,6 +98,12 @@ struct Quiet {
     frames: Vec<(EditorId, Vec<u8>)>,
     /// What was recorded as failing.
     errors: Vec<String>,
+    /// The blocks whose replicas were let go, in order.
+    released: Vec<Uuid>,
+    /// How many times the replicas were counted.
+    counted: usize,
+    /// The blocks found locked, until keys arrive.
+    locked: std::collections::HashSet<Uuid>,
 }
 
 impl Host for Quiet {
@@ -73,20 +128,12 @@ impl Host for Quiet {
         eprintln!("{message}");
     }
 
-    fn set_locked(_: &Arc<Mutex<Self>>, _: Uuid, _: bool) {}
-
-    fn owned(_: &Arc<Mutex<Self>>, _: Uuid) -> bool {
-        false
-    }
-
-    fn reshaped(_: &Arc<Mutex<Self>>, _: Uuid, _: &str) -> bool {
-        false
-    }
-
-    fn reset_notice() {}
-
-    fn known_head(_: &Arc<Mutex<Self>>, _: Uuid) -> Option<CommitId> {
-        None
+    fn set_locked(shared: &Arc<Mutex<Self>>, block: Uuid, locked: bool) {
+        let mut held = shared.lock().unwrap();
+        match locked {
+            true => held.locked.insert(block),
+            false => held.locked.remove(&block),
+        };
     }
 
     fn to_editor(shared: &Arc<Mutex<Self>>, _: Uuid, editor: EditorId, frame: Vec<u8>) -> bool {
@@ -96,19 +143,18 @@ impl Host for Quiet {
         false
     }
 
-    fn content(_: &Arc<Mutex<Self>>, _: Uuid, _: Uuid, _: Vec<u8>) {}
+    fn released(shared: &Arc<Mutex<Self>>, block: Uuid) {
+        shared.lock().unwrap().released.push(block);
+    }
 
-    fn released(_: &Arc<Mutex<Self>>, _: Uuid) {}
-
-    fn status(_: &Arc<Mutex<Self>>, _: Uuid, _: &Status) {}
-
-    fn described(_: &Arc<Mutex<Self>>, _: Uuid, _: Vec<Uuid>, _: Description) {}
-
-    fn conflict(_: &Arc<Mutex<Self>>, _: Uuid, _: Conflict) {}
-
-    fn counted(_: &Arc<Mutex<Self>>, _: usize, _: Vec<crate::Owing>, _: Vec<crate::Owing>) {}
-
-    fn leaving(_: &Arc<Mutex<Self>>, _: bool) {}
+    fn counted(
+        shared: &Arc<Mutex<Self>>,
+        _: Vec<crate::Owing>,
+        _: Vec<crate::Owing>,
+        _: Vec<crate::Owing>,
+    ) {
+        shared.lock().unwrap().counted += 1;
+    }
 }
 
 /// Runs `test` with a server, a peer signed in to it and a host holding the `Sections`,
@@ -170,6 +216,7 @@ fn with_devices<F: Future<Output = ()>>(
     tokio::task::LocalSet::new().block_on(&runtime, async {
         be_lib_build_id::install("test");
         let server = be_server::Running::start(be_server::ServerConfig::OPEN).await;
+        SERVER_OBJECTS.set(Some(server.directory.join("objects")));
         let email = format!("{}@example.com", Uuid::new_v4().simple());
         let phrase = be_block_keys::RecoveryPhrase::generate();
         let token = server.register(&email, "Owner").await;
@@ -181,13 +228,19 @@ fn with_devices<F: Future<Output = ()>>(
                 Credentials::Token(token.clone()),
             )
             .organization(organization);
+            let store = MemoryStore::new();
+            // The first device's, which `lose_everywhere` reaches.
+            if organization.is_none() {
+                DEVICE_STORE.set(Some(store.clone()));
+            }
             async move {
-                Peer::connect(config, MemoryStore::new())
+                Peer::connect(config, store)
                     .await
                     .expect("the peer signs in")
             }
         };
         let peer = device(None).await;
+        listen(&peer);
         let another = match another {
             true => Some(device(Some(peer.organization())).await),
             false => None,
@@ -204,26 +257,136 @@ fn with_devices<F: Future<Output = ()>>(
     });
 }
 
-/// Gives `mirror` what the replica sent `editor` since the frames were last taken, as the
-/// editor would take it.
+thread_local! {
+    /// Where the test's server keeps its objects, and the first device's store.
+    static SERVER_OBJECTS: std::cell::Cell<Option<std::path::PathBuf>> = const { std::cell::Cell::new(None) };
+    static DEVICE_STORE: std::cell::Cell<Option<MemoryStore>> = const { std::cell::Cell::new(None) };
+}
+
+/// Loses the object `hash` everywhere, from the first device's store and the server's, as one
+/// gone for good would be: the server still names the commits that hold it.
+fn lose_everywhere(hash: be_block_store::Hash) {
+    use be_block_store::ObjectStore;
+    let store = DEVICE_STORE.take().expect("a device signed in");
+    store.remove(hash).expect("the device lets the object go");
+    DEVICE_STORE.set(Some(store));
+    let objects = SERVER_OBJECTS.take().expect("the server started");
+    be_block_store::FileStore::open(&objects)
+        .expect("the server's objects open")
+        .remove(hash)
+        .expect("the server lets the object go");
+    SERVER_OBJECTS.set(Some(objects));
+}
+
+thread_local! {
+    /// What the connection the test listens to says: the order's entries and leases, which the
+    /// worker's loop hands the replicas in be-host-stack.
+    static EVENTS: std::cell::RefCell<Option<(
+        Arc<be_block_client::Connection>,
+        tokio::sync::broadcast::Receiver<be_block_client::Event>,
+    )>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Listens to `peer`'s connection, a new one after it reconnects.
+fn listen(peer: &Peer<MemoryStore>) {
+    let connection = peer.connection();
+    EVENTS.with(|events| {
+        let mut events = events.borrow_mut();
+        if events
+            .as_ref()
+            .is_none_or(|(listened, _)| !Arc::ptr_eq(listened, &connection))
+        {
+            let receiver = connection.subscribe();
+            *events = Some((connection, receiver));
+        }
+    });
+}
+
+/// Hands the replicas what the connection said since this was last asked.
+fn hear(peer: &Arc<Peer<MemoryStore>>, shared: &Arc<Mutex<Quiet>>, replicas: &mut Replicas<Quiet>) {
+    listen(peer);
+    let heard: Vec<be_block_client::Event> = EVENTS.with(|events| {
+        let mut events = events.borrow_mut();
+        let Some((_, receiver)) = events.as_mut() else {
+            return Vec::new();
+        };
+        std::iter::from_fn(|| receiver.try_recv().ok()).collect()
+    });
+    for event in heard {
+        replicas.heard((peer, shared), &event);
+    }
+}
+
+/// Waits for a module or the connection to say something, and hands the replicas all of it.
+async fn step(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+) {
+    hear(peer, shared, replicas);
+    let listened = EVENTS.with(|events| events.borrow_mut().take());
+    // A module's timer (a seal due once its edits go quiet) is fired as the worker's loop would.
+    let wake_at = replicas.modules.wake_at();
+    let clock = replicas.modules.clock().clone();
+    let timer = async move {
+        match wake_at {
+            Some(at) => clock.sleep_until(at).await,
+            None => std::future::pending().await,
+        }
+    };
+    let listened = match listened {
+        Some((connection, mut receiver)) => {
+            let heard = tokio::select! {
+                () = replicas.woken() => None,
+                () = timer => None,
+                heard = receiver.recv() => heard.ok(),
+            };
+            EVENTS.with(|events| *events.borrow_mut() = Some((connection, receiver)));
+            heard
+        }
+        None => {
+            tokio::select! {
+                () = replicas.woken() => {}
+                () = timer => {}
+            }
+            None
+        }
+    };
+    replicas.modules.tick_due();
+    if let Some(event) = listened {
+        replicas.heard((peer, shared), &event);
+    }
+    hear(peer, shared, replicas);
+    replicas.pump((peer, shared)).await;
+}
+
+/// Gives `mirror` what the replica sent `editor` of `block` since its frames were last taken,
+/// as the editor would take it, and relays what it answers. Frames for other editors stay for
+/// them.
 fn receive_frames<C: be_block_content::LiveEdit + Clone + Default>(
     shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+    block: Uuid,
     editor: EditorId,
     mirror: &mut be_sdk_type_guest::editor::EditorMirror<C>,
 ) {
-    let frames: Vec<Vec<u8>> = std::mem::take(&mut shared.lock().unwrap().frames)
-        .into_iter()
-        .filter(|(to, _)| *to == editor)
-        .map(|(_, frame)| frame)
-        .collect();
+    let frames: Vec<Vec<u8>> = {
+        let mut held = shared.lock().unwrap();
+        let (mine, others) = std::mem::take(&mut held.frames)
+            .into_iter()
+            .partition(|(to, _)| *to == editor);
+        held.frames = others;
+        mine.into_iter().map(|(_, frame)| frame).collect()
+    };
     for frame in frames {
         let message = frame
             .split_first_chunk::<4>()
             .filter(|(length, payload)| u32::from_be_bytes(**length) as usize == payload.len())
             .and_then(|(_, payload)| be_sdk_type_guest::editor::ToEditor::decode(payload))
             .or_else(|| be_sdk_type_guest::editor::ToEditor::decode(&frame));
-        if let Some(message) = message {
-            mirror.receive(message);
+        // What the mirror answers goes back to the replica, as an editor sends it.
+        if let Some(answer) = message.and_then(|message| mirror.receive(message)) {
+            replicas.relay_from_editor(block, editor, answer.encode(), std::time::Instant::now());
         }
     }
 }
@@ -245,11 +408,11 @@ async fn attach_mirror<C: be_block_content::LiveEdit + Clone + Default>(
         std::time::Instant::now(),
     );
     replicas.pump((peer, shared)).await;
-    receive_frames(shared, editor, &mut mirror);
+    receive_frames(shared, replicas, block, editor, &mut mirror);
     while mirror.content().is_none() {
         replicas.woken().await;
         replicas.pump((peer, shared)).await;
-        receive_frames(shared, editor, &mut mirror);
+        receive_frames(shared, replicas, block, editor, &mut mirror);
     }
     mirror
 }
@@ -266,16 +429,162 @@ fn type_at_start(
     let shown = mirror.content().expect("the editor was shown the text");
     let typed = be_type_text::TextBlock::insert(shown, 3, 0, text.as_bytes())
         .expect("there is somewhere to type");
-    let message = mirror.operate(typed).expect("the editor has content");
+    let message = mirror.operate(None, typed).expect("the editor has content");
     replicas.relay_from_editor(block, editor, message.encode(), std::time::Instant::now());
 }
 
-/// The modules of the `Sections`, `Probe` and text types, on `clock`.
+/// A module serving the counter type that, told to (`tell`), makes a part writer under a
+/// replica, writes to it without waiting and holds it, then drops it unfinished: for tests of
+/// how the host ends a writer's task.
+struct Writing {
+    serving: be_sdk_type_guest::Serving,
+    writer: Option<be_sdk_type_api::guest::host::PartWriter>,
+}
+
+/// What `write_under` has a `Writing` module write.
+const WRITTEN: [u8; 1000] = [7; 1000];
+
+enum Writer {
+    /// Make one under the replica of this op and write writes of these many bytes to it, each
+    /// answer kept in `WROTE`.
+    Open(be_sdk_type_api::ops::OpId, Vec<usize>),
+    /// Drop it, then finish a writer made under the replica of this op with nothing written,
+    /// keeping what that answered in `UNWRITTEN`: as the host takes calls in order, its answer
+    /// comes after the host heard the drop.
+    Drop(be_sdk_type_api::ops::OpId),
+}
+
+thread_local! {
+    static TOLD: std::cell::RefCell<Option<Writer>> = const { std::cell::RefCell::new(None) };
+    static WAKER: std::cell::RefCell<Option<be_sdk_type_guest::abi::Waker>> =
+        const { std::cell::RefCell::new(None) };
+    static UNWRITTEN: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+    static WROTE: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+impl be_sdk_type_guest::abi::Guest for Writing {
+    fn start(waker: be_sdk_type_guest::abi::Waker, _: &mut Vec<Vec<u8>>) -> Result<Self, String> {
+        WAKER.set(Some(waker));
+        Ok(Self {
+            serving: be_sdk_type_guest::Serving::new(be_type_example_counter::block_types()),
+            writer: None,
+        })
+    }
+
+    fn step(
+        &mut self,
+        inbound: Vec<Vec<u8>>,
+        _: bool,
+        outbound: &mut Vec<Vec<u8>>,
+    ) -> Result<be_sdk_type_guest::abi::Flow, String> {
+        use be_sdk_type_api::guest::host::PartWriter;
+        use be_sdk_type_api::ops::guest as ops;
+        self.serving.step(inbound, outbound);
+        let Some(told) = TOLD.take() else {
+            return Ok(be_sdk_type_guest::abi::Flow::Running);
+        };
+        let writer = &mut self.writer;
+        self.serving.enter(|| match told {
+            Writer::Open(replica, writes) => {
+                let made = ops::with_parent(replica, PartWriter::new);
+                for length in writes {
+                    let wrote = made.write(vec![7; length]);
+                    ops::spawn(async move {
+                        let answer = wrote.await;
+                        WROTE.with_borrow_mut(|wrote| wrote.push(format!("{answer:?}")));
+                    });
+                }
+                *writer = Some(made);
+            }
+            Writer::Drop(replica) => {
+                drop(writer.take());
+                let empty = ops::with_parent(replica, PartWriter::new);
+                let finished = empty.finish();
+                ops::spawn(async move {
+                    let answer = finished.await;
+                    drop(empty);
+                    UNWRITTEN.set(Some(format!("{answer:?}")));
+                });
+            }
+        });
+        self.serving.step(Vec::new(), outbound);
+        Ok(be_sdk_type_guest::abi::Flow::Running)
+    }
+}
+
+/// Replicas whose only module is a `Writing` one.
+async fn writing_replicas() -> Replicas<Quiet> {
+    Replicas::new(
+        started(
+            vec![in_process::<Writing>("test.writing")],
+            be_block_client::Clock::real(),
+        )
+        .await,
+    )
+}
+
+/// Tells the `Writing` module to make a writer under the replica of `block` and waits until
+/// the host serves it.
+async fn write_under(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+    block: Uuid,
+) {
+    let replica = replicas.replica_op(block).expect("the block is open");
+    tell(Writer::Open(replica, vec![WRITTEN.len()]));
+    while replicas.writing() == 0 {
+        step(peer, shared, replicas).await;
+    }
+}
+
+/// Tells the `Writing` module `told` and wakes it.
+fn tell(told: Writer) {
+    TOLD.set(Some(told));
+    WAKER.with_borrow(|waker| waker.as_ref().expect("the module started").wake());
+}
+
+/// Asserts that the part `WRITTEN` makes under `block`'s key was never held for it, so another
+/// device cannot read it.
+async fn assert_unheld(peer: &Peer<MemoryStore>, another: &Peer<MemoryStore>, block: Uuid) {
+    let mut writer = peer.part_writer(block).await.expect("a writer");
+    writer.write(&WRITTEN).expect("written");
+    let part = writer
+        .finish()
+        .expect("sealed")
+        .part()
+        .expect("a byte was written");
+    assert!(
+        another.read_part(part, 0, part.length()).await.is_err(),
+        "the writer's part was never held for the block"
+    );
+}
+
+/// `bytes` written as one part of `block` (`Peer::part_writer`) and held for it
+/// (`Peer::hold_part`), as a type module's `part-writer` puts a part.
+async fn put_part<S: be_block_store::ObjectStore>(
+    peer: &Peer<S>,
+    block: Uuid,
+    bytes: &[u8],
+) -> Result<be_block_store::PartRef, ClientError> {
+    let mut writer = peer.part_writer(block).await?;
+    writer.write(bytes)?;
+    let written = writer.finish()?;
+    let part = written
+        .part()
+        .ok_or_else(|| ClientError::Encoding("a part needs at least one byte".to_owned()))?;
+    peer.hold_part(block, part).await?;
+    Ok(part)
+}
+
+/// The modules of the test types and the text and counter types, on `clock`.
 async fn test_modules(clock: be_block_client::Clock) -> crate::Modules {
     started(
         vec![
             in_process::<sections::BlockTypes>("test.sections"),
             in_process::<probe::BlockTypes>("test.probe"),
+            in_process::<be_sdk_type_testing::tally::BlockTypes>("test.tally"),
+            in_process::<be_sdk_type_testing::ledger::BlockTypes>("test.ledger"),
             in_process::<be_type_text::BlockTypes>("be3.text"),
             in_process::<be_type_example_counter::BlockTypes>("be3.counter"),
         ],
@@ -315,6 +624,44 @@ async fn section_parts(
     (0..sections::SECTIONS)
         .map(|index| content.saved(index).expect("every section is a part"))
         .collect()
+}
+
+/// A journal on `head`, by the build `tag` names, whose base state goes by `part`, with one
+/// entry past it, so a reader outside the session replays it.
+fn journal_by(
+    tag: be_sdk_type_api::SessionTag,
+    head: Option<be_block_commit::CommitId>,
+    part: be_block_store::PartRef,
+) -> be_block_protocol::Journal {
+    let kept = be_sdk_type_guest::wire::Submitted {
+        through: 0,
+        entry: be_sdk_type_guest::wire::Entry::Keep {
+            commit: be_block_commit::CommitId::from_hash(be_block_store::Hash::of(b"kept")),
+        },
+    };
+    be_block_protocol::Journal {
+        tag: be_block_store::Hash::from_bytes(tag.0),
+        base: be_block_protocol::JournalBase {
+            commit: head,
+            sequence: 0,
+            state: be_sdk_type_guest::wire::BaseState {
+                part: Some(part),
+                ..be_sdk_type_guest::wire::BaseState::default()
+            }
+            .encode(),
+            parts: Vec::new(),
+        },
+        entries: vec![be_block_protocol::JournalEntry {
+            sequence: 1,
+            origin: 1,
+            counter: 1,
+            base: 0,
+            floor: 0,
+            received: None,
+            payload: kept.encode(),
+        }],
+        lost: false,
+    }
 }
 
 async fn block(peer: &Peer<MemoryStore>) -> Uuid {
@@ -372,12 +719,12 @@ async fn on_the_server(
         .expect("the head is read")
         .expect("the block has a head");
     let name = peer
-        .metadata_of(head)
+        .metadata_of(block, head)
         .await
         .expect("the metadata is read")
         .get(&be_block_content::NAME);
     let manifest = peer
-        .load_commit(head)
+        .load_reached(head)
         .await
         .expect("the head is read")
         .manifest;
@@ -391,4 +738,573 @@ async fn on_the_server(
         .map(|index| content.section(*index).map(<[u8]>::to_vec))
         .collect();
     (name, sections)
+}
+
+// Of a `Tally` whose order restarts with an edit on its way.
+
+/// Waits on the modules and what they answer, without hearing the connection: what the server
+/// ordered meanwhile reaches the replicas only at the next `step`.
+async fn pump_until(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+    what: &str,
+    done: impl Fn(&Replicas<Quiet>) -> bool,
+) {
+    let waited = tokio::time::timeout(std::time::Duration::from_secs(30), async {
+        replicas.pump((peer, shared)).await;
+        while !done(replicas) {
+            replicas.woken().await;
+            replicas.pump((peer, shared)).await;
+        }
+    })
+    .await;
+    assert!(waited.is_ok(), "never {what}");
+}
+
+async fn step_until_replicas(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+    what: &str,
+    done: impl Fn(&Replicas<Quiet>, &Arc<Mutex<Quiet>>) -> bool,
+) {
+    let waited = tokio::time::timeout(std::time::Duration::from_secs(30), async {
+        while !done(replicas, shared) {
+            step(peer, shared, replicas).await;
+        }
+    })
+    .await;
+    assert!(waited.is_ok(), "never {what}");
+}
+
+/// How many entries the server's order holds of `block`, as this device heard them.
+fn heard_entries_of(peer: &Peer<MemoryStore>, block: Uuid) -> usize {
+    peer.local_journal(block)
+        .ok()
+        .flatten()
+        .map_or(0, |journal| journal.entries.len())
+}
+
+/// The last local edit the submissions `block`'s replica keeps hold.
+fn last_kept(replicas: &Replicas<Quiet>, block: Uuid) -> u64 {
+    replicas
+        .submissions_of(block)
+        .and_then(|(_, _, kept)| kept.into_iter().max())
+        .unwrap_or_default()
+}
+
+fn operate(
+    replicas: &mut Replicas<Quiet>,
+    block: Uuid,
+    editor: EditorId,
+    mirror: &mut be_sdk_type_guest::editor::EditorMirror<Tally>,
+    operation: TallyOp,
+) {
+    let message = mirror
+        .operate(None, operation)
+        .expect("the editor has content");
+    replicas.relay_from_editor(block, editor, message.encode(), std::time::Instant::now());
+}
+
+/// The session state past which a test's block restarts its order
+/// (`Replicas::restart_limits`), in place of `RESTART_STATE_BYTES`, so the state a restart
+/// takes is a few kilobytes.
+const RESTART_LIMIT: u64 = 4096;
+
+/// Opens a new `Tally` and restarts its order (a seal of a session state past
+/// `RESTART_LIMIT`) while an edit adding 10 is on its way: the server numbers the edit
+/// after the restart, every replica passes it over, and its replica submits it again carried
+/// over. Returns once the host heard the restart, before it heard the carried edit ordered, with
+/// the block and the number of the local edit it holds. Only what is written ahead of a
+/// submission is kept (`hold_kept_edits`).
+async fn carry_an_edit_over_a_restart(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+) -> (Uuid, u64) {
+    let block = peer
+        .create::<Tally>(BlockParent::Root)
+        .await
+        .expect("the tally is made");
+    peer.save(block, &Tally::default(), None)
+        .await
+        .expect("the empty tally is published");
+    replicas.restart_limits.lower(block, RESTART_LIMIT);
+    replicas
+        .open((peer, shared), block, Tally::CONTENT_TYPE, true)
+        .await
+        .expect("the block opens");
+    while replicas.joining() {
+        replicas.woken().await;
+        replicas.pump((peer, shared)).await;
+    }
+    let editor = 7;
+    let mut mirror = attach_mirror::<Tally>(peer, shared, replicas, block, editor).await;
+    // Only what is written ahead of a submission is kept: no idle pass writes over it.
+    replicas.hold_kept_edits = true;
+
+    let grow = RESTART_LIMIT as usize + 1;
+    operate(replicas, block, editor, &mut mirror, TallyOp::Grow(grow));
+    replicas.pump((peer, shared)).await;
+    step_until_replicas(
+        peer,
+        shared,
+        replicas,
+        "had the growth ordered",
+        |replicas, _| {
+            heard_entries_of(peer, block) >= 1
+                && replicas
+                    .submissions_of(block)
+                    .is_some_and(|(submitting, ..)| submitting == 0)
+        },
+    )
+    .await;
+    receive_frames(shared, replicas, block, editor, &mut mirror);
+
+    // The seal restarts the order; the edit goes before the replica hears the restart.
+    replicas.seal((peer, shared), block, false).await;
+    pump_until(
+        peer,
+        shared,
+        replicas,
+        "submitted the restart",
+        |replicas| {
+            replicas
+                .submissions_of(block)
+                .is_some_and(|(submitting, ..)| submitting == 1)
+        },
+    )
+    .await;
+    let grown = last_kept(replicas, block);
+    operate(replicas, block, editor, &mut mirror, TallyOp::Add(10));
+    pump_until(peer, shared, replicas, "submitted the edit", |replicas| {
+        last_kept(replicas, block) > grown
+    })
+    .await;
+    let added = last_kept(replicas, block);
+    step_until_replicas(
+        peer,
+        shared,
+        replicas,
+        "heard the restart",
+        |replicas, _| {
+            replicas
+                .submissions_of(block)
+                .is_some_and(|(_, restarts, _)| restarts >= 1)
+        },
+    )
+    .await;
+    let (_, _, kept) = replicas.submissions_of(block).expect("the block is open");
+    assert_eq!(
+        kept,
+        [added],
+        "the edit's submission carried over the restart is kept, and none from before it"
+    );
+
+    (block, added)
+}
+
+/// A text block typed in offline, "socks", whose replica, connected again, holds its rejoin for
+/// the journaled edit no seal holds, as one whose seal backs off would
+/// (`Replicas::rejoined_after_a_seal`): its closing seal takes it.
+async fn text_whose_rejoin_is_held(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+) -> Uuid {
+    use be_block_content::LiveEdit;
+    use be_sdk_type_guest::editor::FromEditor;
+    use be_type_text::{TextBlock, TextContent};
+
+    let block = peer
+        .create::<TextContent>(BlockParent::Root)
+        .await
+        .expect("the text is made");
+    peer.save(block, &TextBlock::of(""), None)
+        .await
+        .expect("the empty text is published");
+    let (connection, token) = (peer.connection(), peer.token());
+    peer.detach();
+
+    replicas
+        .open((peer, shared), block, TextContent::CONTENT_TYPE, true)
+        .await
+        .expect("the block opens");
+    replicas.pump((peer, shared)).await;
+    let editor = 7;
+    replicas.attach(block, editor, true);
+    replicas.pump((peer, shared)).await;
+    let content = TextContent::decode(
+        &replicas
+            .content((peer, shared), block)
+            .await
+            .expect("the text is open"),
+    )
+    .expect("the text decodes");
+    let typed = TextBlock::insert(&content, 1, 0, b"socks").expect("there is somewhere to type");
+    replicas.relay_from_editor(
+        block,
+        editor,
+        FromEditor::Operate {
+            gesture: None,
+            operation: TextContent::encode_operation(&typed),
+        }
+        .encode(),
+        std::time::Instant::now(),
+    );
+    replicas.pump((peer, shared)).await;
+    replicas.modules.tick_due();
+    replicas.pump((peer, shared)).await;
+    let status = replicas.status(block).expect("the replica reported");
+    assert!(
+        status.journaled_taken > status.sealed_taken,
+        "the edit is journaled, and no seal holds it"
+    );
+
+    peer.attach(connection, token)
+        .await
+        .expect("the device is connected again");
+    replicas.rejoined_after_a_seal(block, status.journaled_taken, status.sealed_taken, false);
+    replicas.pump((peer, shared)).await;
+    assert!(replicas.joining(), "the rejoin is held");
+    block
+}
+
+/// What the open text holds now, as its replica shows it.
+async fn text_of(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+    block: Uuid,
+) -> String {
+    use be_block_content::BlockContent;
+    use be_type_text::{TextBlock, TextContent};
+
+    let bytes = replicas
+        .content((peer, shared), block)
+        .await
+        .expect("the text is open");
+    TextBlock::text(&TextContent::decode(&bytes).expect("the text decodes"))
+}
+
+/// Pumps until a replica opened since `openings` were noted has joined.
+async fn opened_again(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+    block: Uuid,
+    openings: usize,
+) {
+    while replicas.openings.len() == openings
+        || replicas.joining()
+        || replicas.status(block).is_none()
+    {
+        replicas.woken().await;
+        replicas.pump((peer, shared)).await;
+    }
+    replicas.pump((peer, shared)).await;
+}
+
+/// A text block published as `base`, opened offline (`peer` detached) on a manual clock, so no
+/// seal comes due, and typed in three times ("a", "b", "c", each at the start) by editor 7: its
+/// replica journals the three edits in its made-up session, and no seal holds them. Returns the
+/// block, its published head, what reconnects `peer` (`Peer::attach`) and the editor's mirror.
+async fn text_typed_offline(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+    base: &str,
+) -> (
+    Uuid,
+    CommitId,
+    Arc<be_block_client::Connection>,
+    String,
+    be_sdk_type_guest::editor::EditorMirror<be_type_text::TextContent>,
+) {
+    use be_type_text::{TextBlock, TextContent};
+
+    let block = peer
+        .create::<TextContent>(BlockParent::Root)
+        .await
+        .expect("the text is made");
+    let published = base;
+    let base = match peer.save(block, &TextBlock::of(published), None).await {
+        Ok(be_block_client::Saved::Published(head)) => head,
+        saved => panic!("the text publishes: {saved:?}"),
+    };
+    let (connection, token) = (peer.connection(), peer.token());
+    peer.detach();
+    replicas
+        .open((peer, shared), block, TextContent::CONTENT_TYPE, true)
+        .await
+        .expect("the block opens");
+    replicas.pump((peer, shared)).await;
+    let editor = 7;
+    let mut mirror = attach_mirror::<TextContent>(peer, shared, replicas, block, editor).await;
+    for word in ["a", "b", "c"] {
+        type_at_start(replicas, block, editor, &mut mirror, word);
+        replicas.pump((peer, shared)).await;
+        replicas.modules.tick_due();
+        replicas.pump((peer, shared)).await;
+        receive_frames(shared, replicas, block, editor, &mut mirror);
+    }
+    assert_eq!(
+        text_of(peer, shared, replicas, block).await,
+        format!("cba{published}")
+    );
+    let status = replicas.status(block).expect("the replica reported");
+    assert!(
+        status.journaled_taken > status.sealed_taken,
+        "the edits are journaled, and no seal holds them"
+    );
+    (block, base, connection, token, mirror)
+}
+
+/// Drains the outbox until it is empty, merging what the drain finds diverged, as the worker's
+/// loop does.
+async fn drain_all(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+    block: Uuid,
+) {
+    for _ in 0..4 {
+        if peer.pending_commits(block).is_empty() {
+            break;
+        }
+        let drained = peer.drain(|_| false).await.expect("the outbox drains");
+        for outcome in drained {
+            if let be_block_client::Drained::Diverged { remote, .. } = outcome {
+                replicas
+                    .merge_diverged((peer, shared), block, remote)
+                    .await
+                    .expect("the block merges");
+            }
+        }
+    }
+    assert!(
+        peer.pending_commits(block).is_empty(),
+        "everything this device kept is sent"
+    );
+}
+
+/// The text of the server's head of `block`.
+async fn text_on_the_server(peer: &Peer<MemoryStore>, block: Uuid) -> String {
+    use be_type_text::{TextBlock, TextContent};
+
+    let head = peer
+        .remote_head(block)
+        .await
+        .expect("the head is read")
+        .expect("the block has a head");
+    let manifest = peer
+        .load_reached(head)
+        .await
+        .expect("the head is read")
+        .manifest;
+    let stored = peer
+        .load_manifest(&manifest)
+        .await
+        .expect("the head's content is read");
+    TextBlock::text(&TextContent::from_stored(&stored).expect("the text decodes"))
+}
+
+/// A tally open online whose editor added 2 and then 3, and the server numbered both:
+/// what the connection said since the first was heard, kept from the replica, which has yet to
+/// hear its own second entry. Then a reconnect's rejoin, held until the replica reports a head
+/// other than the one it is on (`Replicas::hold_until_reported`), as one whose seal has yet to
+/// be reported holds it, and the answer is in.
+async fn rejoin_held_before_its_own_entry(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+) -> (Uuid, Vec<be_block_client::Event>) {
+    let block = peer
+        .create::<Tally>(BlockParent::Root)
+        .await
+        .expect("the tally is made");
+    peer.save(block, &Tally::default(), None)
+        .await
+        .expect("the empty tally is published");
+    replicas.restart_limits.lower(block, RESTART_LIMIT);
+    replicas
+        .open((peer, shared), block, Tally::CONTENT_TYPE, true)
+        .await
+        .expect("the block opens");
+    step_until_replicas(peer, shared, replicas, "opened the tally", |replicas, _| {
+        replicas.status(block).is_some() && !replicas.joining()
+    })
+    .await;
+    let editor = 7;
+    let mut mirror = attach_mirror::<Tally>(peer, shared, replicas, block, editor).await;
+    // The first is heard as the order numbers it, so the replica knows where the order is.
+    operate(replicas, block, editor, &mut mirror, TallyOp::Add(2));
+    step_until_replicas(
+        peer,
+        shared,
+        replicas,
+        "heard the first edit",
+        |replicas, _| replicas.heard_through_of(block).is_some(),
+    )
+    .await;
+    receive_frames(shared, replicas, block, editor, &mut mirror);
+    operate(replicas, block, editor, &mut mirror, TallyOp::Add(3));
+    replicas.pump((peer, shared)).await;
+
+    // What the server says of the edit is kept, not heard, until its entry was said.
+    let mut said = Vec::new();
+    let (connection, mut receiver) = EVENTS
+        .with(|events| events.borrow_mut().take())
+        .expect("the test listens to the connection");
+    let numbered = tokio::time::timeout(std::time::Duration::from_secs(30), async {
+        loop {
+            tokio::select! {
+                () = replicas.woken() => {
+                    replicas.pump((peer, shared)).await;
+                }
+                event = receiver.recv() => {
+                    let event = event.expect("the connection stays open");
+                    let own = matches!(
+                        &event,
+                        be_block_client::Event::Sequenced { block: of, .. } if *of == block
+                    );
+                    said.push(event);
+                    if own {
+                        return;
+                    }
+                }
+            }
+        }
+    })
+    .await;
+    EVENTS.with(|events| *events.borrow_mut() = Some((connection, receiver)));
+    assert!(numbered.is_ok(), "the server never numbered the edit");
+
+    replicas.hold_until_reported(block);
+    replicas.reconnect((peer, shared));
+    replicas.rejoin_answered().await;
+    replicas.pump((peer, shared)).await;
+    assert!(replicas.joining(), "the rejoin's answer is held");
+    (block, said)
+}
+
+/// Adds `by` to the open counter `block` as `editor`.
+fn add_to_counter(replicas: &mut Replicas<Quiet>, block: Uuid, editor: EditorId, by: i64) {
+    use be_block_content::LiveEdit;
+    use be_sdk_type_guest::editor::FromEditor;
+    use be_type_example_counter::{Counter, CounterContent};
+    replicas.relay_from_editor(
+        block,
+        editor,
+        FromEditor::Operate {
+            gesture: None,
+            operation: CounterContent::encode_operation(&Counter::add(by)),
+        }
+        .encode(),
+        std::time::Instant::now(),
+    );
+}
+
+/// What the open counter `block` shows: its module answers it after everything sent it before.
+async fn counted(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+    block: Uuid,
+) -> i64 {
+    use be_type_example_counter::CounterContent;
+    let bytes = replicas
+        .content((peer, shared), block)
+        .await
+        .expect("the counter is open");
+    CounterContent::decode(&bytes)
+        .expect("the counter decodes")
+        .root()
+        .value()
+}
+
+/// A counter its editor 7 added 1 to, which a seal keeps, and then 2, which the order holds past
+/// that seal: the block.
+async fn counter_with_an_edit_past_its_seal(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+) -> Uuid {
+    use be_type_example_counter::CounterContent;
+    let block = peer
+        .create::<CounterContent>(BlockParent::Root)
+        .await
+        .expect("the counter is made");
+    replicas
+        .open((peer, shared), block, CounterContent::CONTENT_TYPE, true)
+        .await
+        .expect("the block opens");
+    replicas.pump((peer, shared)).await;
+    replicas.attach(block, 7, true);
+    add_to_counter(replicas, block, 7, 1);
+    step_until_replicas(
+        peer,
+        shared,
+        replicas,
+        "journaled the first edit",
+        |replicas, _| {
+            replicas
+                .status(block)
+                .is_some_and(|status| status.taken >= 1 && status.journaled)
+        },
+    )
+    .await;
+    let before = replicas.status(block).and_then(|status| status.head);
+    replicas.seal_later(block, true);
+    step_until_replicas(
+        peer,
+        shared,
+        replicas,
+        "sealed the first edit",
+        |replicas, _| {
+            replicas
+                .status(block)
+                .is_some_and(|status| status.head != before)
+        },
+    )
+    .await;
+    add_to_counter(replicas, block, 7, 2);
+    step_until_replicas(
+        peer,
+        shared,
+        replicas,
+        "journaled the second edit",
+        |replicas, _| {
+            replicas
+                .status(block)
+                .is_some_and(|status| status.taken >= 2 && status.journaled)
+        },
+    )
+    .await;
+    block
+}
+
+/// Restarts the counter's module while every join's answer is held, and adds 4 to `block` once
+/// the replica opened again waits for its rejoin's.
+async fn add_while_a_restarted_replica_rejoins(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+    block: Uuid,
+) {
+    use be_type_example_counter::CounterContent;
+    replicas.hold_rejoins(true);
+    replicas.modules.restart_type(CounterContent::CONTENT_TYPE);
+    replicas.pump((peer, shared)).await;
+    assert!(replicas.joining(), "the replica opened again rejoins");
+    add_to_counter(replicas, block, 7, 4);
+    step_until_replicas(
+        peer,
+        shared,
+        replicas,
+        "held the rejoin's answer",
+        |replicas, _| replicas.rejoin_parked(block),
+    )
+    .await;
 }

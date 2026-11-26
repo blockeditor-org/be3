@@ -12,11 +12,11 @@ fn tabs_have_one_tab_stop_and_wrap_with_arrow_keys() {
             view! {
                 <Tabs
                     options={view! {
-                        <unstyled::ChoiceOption label="One" />
-                        <unstyled::ChoiceOption label="Two" />
-                        <unstyled::ChoiceOption label="Three" />
+                        <unstyled::ChoiceOption value="One" label="One" />
+                        <unstyled::ChoiceOption value="Two" label="Two" />
+                        <unstyled::ChoiceOption value="Three" label="Three" />
                     }}
-                    selected=1
+                    selected="Two"
                 />
             },
             view! {
@@ -32,46 +32,41 @@ fn tabs_have_one_tab_stop_and_wrap_with_arrow_keys() {
     assert_eq!(
         harness
             .document()
-            .api::<styled::ChoiceApi>(tabs)
-            .selected()
-            .unwrap_or(0),
-        2
+            .api::<styled::ChoiceApi<&str>>(tabs)
+            .selected(),
+        Some("Three")
     );
     harness.key(Key::ArrowRight, Modifiers::NONE);
     assert_eq!(
         harness
             .document()
-            .api::<styled::ChoiceApi>(tabs)
-            .selected()
-            .unwrap_or(0),
-        0
+            .api::<styled::ChoiceApi<&str>>(tabs)
+            .selected(),
+        Some("One")
     );
     harness.key(Key::End, Modifiers::NONE);
     assert_eq!(
         harness
             .document()
-            .api::<styled::ChoiceApi>(tabs)
-            .selected()
-            .unwrap_or(0),
-        2
+            .api::<styled::ChoiceApi<&str>>(tabs)
+            .selected(),
+        Some("Three")
     );
     harness.key(Key::ArrowDown, Modifiers::NONE);
     assert_eq!(
         harness
             .document()
-            .api::<styled::ChoiceApi>(tabs)
-            .selected()
-            .unwrap_or(0),
-        2
+            .api::<styled::ChoiceApi<&str>>(tabs)
+            .selected(),
+        Some("Three")
     );
     harness.key(Key::Home, Modifiers::NONE);
     assert_eq!(
         harness
             .document()
-            .api::<styled::ChoiceApi>(tabs)
-            .selected()
-            .unwrap_or(0),
-        0
+            .api::<styled::ChoiceApi<&str>>(tabs)
+            .selected(),
+        Some("One")
     );
     harness.key(Key::Tab, Modifiers::NONE);
     assert!(after_focus.get());
@@ -80,9 +75,8 @@ fn tabs_have_one_tab_stop_and_wrap_with_arrow_keys() {
     assert_eq!(
         harness
             .document()
-            .api::<styled::ChoiceApi>(tabs)
-            .selected()
-            .unwrap_or(0),
-        2
+            .api::<styled::ChoiceApi<&str>>(tabs)
+            .selected(),
+        Some("Three")
     );
 }

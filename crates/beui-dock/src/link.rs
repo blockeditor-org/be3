@@ -3,8 +3,8 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use beui_dock_state::{
-    DockBarPlacement, DockMapping, DockMode, DockSpec, DockSpecNode, DockState, TabId, joined_host,
-    joined_key, joined_prefix,
+    DockBarPane, DockBarPlacement, DockMapping, DockMode, DockSpec, DockSpecNode, DockState, TabId,
+    joined_host, joined_key, joined_prefix,
 };
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
@@ -70,6 +70,8 @@ pub struct DockDeclaredTab {
     pub picture: Option<Image>,
     pub closable: bool,
     pub back_closes: bool,
+    /// An unread count shown beside the title as a badge; zero shows none.
+    pub unread: u32,
     pub group: Option<String>,
 }
 
@@ -310,7 +312,7 @@ impl Foreign {
 }
 
 pub(crate) struct Registry {
-    pub(crate) version: Signal<u64>,
+    pub(crate) changed: Trigger,
     pub(crate) joins: RefCell<HashMap<TabId, Rc<Joined>>>,
     pub(crate) foreign: RefCell<Foreign>,
     pub(crate) state: Signal<DockState>,
@@ -320,9 +322,7 @@ pub(crate) struct Registry {
 
 impl Registry {
     pub(crate) fn bump(&self) {
-        if self.version.is_alive() {
-            self.version.update(|version| *version += 1);
-        }
+        self.changed.notify();
     }
 
     pub(crate) fn joined(&self, host: TabId) -> Option<Rc<Joined>> {
@@ -343,6 +343,77 @@ impl Registry {
         }
     }
 
+    /// The tab of this dock a bar's pane names, once every dock it is named through has joined
+    /// and its tab has an id here: every dock joins the one that places its tab bodies, the
+    /// outermost, so each step is a tab of the dock the one before hosts (`Foreign::outer`).
+    pub(crate) fn resolve(&self, pane: &DockBarPane) -> Option<TabId> {
+        let (reached, rest) = self.reach(pane);
+        rest.is_empty().then_some(reached)
+    }
+
+    /// As far as `pane` resolves here: the tab reached, and the steps left beyond it.
+    fn reach(&self, pane: &DockBarPane) -> (TabId, Vec<TabId>) {
+        let foreign = self.foreign.borrow();
+        let mut steps = pane.via.iter().copied().chain(std::iter::once(pane.tab));
+        let mut reached = steps.next().expect("a pane names at least its tab");
+        let mut rest: Vec<TabId> = steps.collect();
+        while let Some(next) = rest.first().copied() {
+            let Some(outer) = foreign.outer(reached, next) else {
+                break;
+            };
+            reached = outer;
+            rest.remove(0);
+        }
+        (reached, rest)
+    }
+
+    /// `pane` named as far as it resolves here.
+    fn reached(&self, pane: &DockBarPane) -> DockBarPane {
+        let (reached, mut rest) = self.reach(pane);
+        match rest.pop() {
+            Some(tab) => {
+                rest.insert(0, reached);
+                DockBarPane { via: rest, tab }
+            }
+            None => DockBarPane::own(reached),
+        }
+    }
+
+    /// How `pane` is named from this dock's own tabs: a tab a joined dock holds, through the
+    /// tabs hosting it, down to its own id in the dock that declared it.
+    pub(crate) fn path_of(&self, pane: &DockBarPane) -> DockBarPane {
+        let foreign = self.foreign.borrow();
+        let mut path = pane.clone();
+        loop {
+            let first = path.via.first().copied().unwrap_or(path.tab);
+            let Some((host, inner)) = foreign.inner(first) else {
+                return path;
+            };
+            match path.via.first_mut() {
+                Some(step) => *step = inner,
+                None => path.tab = inner,
+            }
+            path.via.insert(0, host);
+        }
+    }
+
+    /// `state` with the bar panes it names through docks joined since resolved to tabs it holds,
+    /// if any were.
+    pub(crate) fn resolve_bar_panes(&self, state: &DockState) -> Option<DockState> {
+        let mut next: Option<DockState> = None;
+        for bar in state.bars() {
+            let Some(pane) = state.bar_pane_tab(bar).filter(|pane| !pane.via.is_empty()) else {
+                continue;
+            };
+            if let Some(tab) = self.resolve(pane).filter(|tab| state.contains(*tab)) {
+                let next = next.get_or_insert_with(|| state.clone());
+                next.set_bar_pane_tab(bar, Some(DockBarPane::own(tab)));
+                next.place_by_slot(bar);
+            }
+        }
+        next
+    }
+
     pub(crate) fn graft(&self, state: &mut DockState, host: TabId, from: &DockState) -> bool {
         let Some(group) = state.find_group(&joined_key(host)) else {
             return false;
@@ -356,6 +427,11 @@ impl Registry {
                 tab: &|inner| foreign.outer(host, inner),
                 key: &|key| Some(format!("{prefix}{key}")),
                 group: &|_| None,
+                pane: Some(&|pane| {
+                    let mut via = vec![host];
+                    via.extend_from_slice(&pane.via);
+                    Some(self.reached(&DockBarPane { via, tab: pane.tab }))
+                }),
             },
         );
         true
@@ -400,6 +476,14 @@ impl Registry {
                     tab: &inner,
                     key: &|key| key.strip_prefix(prefix.as_str()).map(str::to_owned),
                     group: &|key| joined_host(key).and_then(inner),
+                    pane: Some(&|pane| {
+                        let path = self.path_of(pane);
+                        let (first, via) = path.via.split_first()?;
+                        (*first == host).then(|| DockBarPane {
+                            via: via.to_vec(),
+                            tab: path.tab,
+                        })
+                    }),
                 },
             );
             subtree.set_outside(state.outside_of(group, &inner));
@@ -463,7 +547,24 @@ impl DockJoin {
             registry,
             claimed: Rc::clone(&self.claimed),
             joined: Rc::new(Joined::default()),
+            hidden: Cell::new(false),
         });
+        // Inside a subtree kept while hidden (a `Kept`), the join lets the tab go
+        // while hidden, so what shows there instead (a revision's preview) has it, and takes it
+        // back, with the same declaration, once shown and the tab is free again.
+        if let Some(shown) = kept_shown() {
+            let following = Rc::clone(&link);
+            let changed = following.registry.changed;
+            create_effect_on(
+                move || {
+                    if changed.is_alive() {
+                        changed.track();
+                    }
+                    shown.get()
+                },
+                move |&shown, _| following.follow_shown(shown),
+            );
+        }
         let held = Rc::clone(&link);
         on_cleanup(move || held.release());
         Some(link)
@@ -479,9 +580,38 @@ struct JoinedLink {
     registry: Rc<Registry>,
     claimed: Rc<Cell<bool>>,
     joined: Rc<Joined>,
+    /// Out of the tab while the kept branch it was claimed in is hidden.
+    hidden: Cell<bool>,
 }
 
 impl JoinedLink {
+    fn follow_shown(&self, shown: bool) {
+        match (shown, self.hidden.get()) {
+            (false, false) => {
+                self.hidden.set(true);
+                self.withdraw();
+                self.claimed.set(false);
+            }
+            (true, true) if !self.claimed.get() => {
+                self.claimed.set(true);
+                self.hidden.set(false);
+                if self.joined.declaration.borrow().is_some() {
+                    self.join();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn join(&self) {
+        self.registry
+            .joins
+            .borrow_mut()
+            .entry(self.host)
+            .or_insert_with(|| Rc::clone(&self.joined));
+        self.registry.bump();
+    }
+
     fn outer(&self, inner: TabId) -> Option<TabId> {
         self.registry.foreign.borrow().outer(self.host, inner)
     }
@@ -525,30 +655,29 @@ impl JoinedLink {
         *self.joined.declaration.borrow_mut() = None;
         *self.joined.events.borrow_mut() = None;
         *self.joined.bodies.borrow_mut() = None;
-        self.claimed.set(false);
+        if !self.hidden.replace(true) {
+            self.claimed.set(false);
+        }
     }
 }
 
 impl DockHostLink for JoinedLink {
     fn declare(&self, declaration: DockDeclaration) {
         *self.joined.declaration.borrow_mut() = Some(declaration);
-        self.registry
-            .joins
-            .borrow_mut()
-            .entry(self.host)
-            .or_insert_with(|| Rc::clone(&self.joined));
-        self.registry.bump();
+        if !self.hidden.get() {
+            self.join();
+        }
     }
 
     fn hosted(&self) -> Memo<Option<DockHosted>> {
         let registry = Rc::clone(&self.registry);
         let host = self.host;
-        let version = registry.version;
+        let changed = registry.changed;
         create_memo(move || {
-            if !version.is_alive() || !registry.state.is_alive() || !registry.above.is_alive() {
+            if !changed.is_alive() || !registry.state.is_alive() || !registry.above.is_alive() {
                 return None;
             }
-            version.get();
+            changed.track();
             registry.hosted(host)
         })
     }

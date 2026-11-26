@@ -16,7 +16,7 @@ fn tab_skips_virtual_rows_without_a_control() {
                     <Offset @node_ref=&scroll>
                         <VirtualList
                             @node_ref=&list
-                            keys={indices(ROWS)}
+                            value={indices(ROWS)}
                             item_size=VIRTUAL_ITEM_HEIGHT
                         >|key: ReadSignal<usize>|
                             <List spacing=0.0>

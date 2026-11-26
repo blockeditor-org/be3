@@ -32,7 +32,7 @@ fn paint(context: &beui::native::Context, square: bool) -> beui::native::WindowO
 #[test]
 fn a_turned_screen_draws_its_picture_turned_onto_the_panel() {
     let (device, queue) = vulkan_device();
-    let gpu = Gpu::new(device.clone(), queue.clone(), FORMAT);
+    let gpu = Gpu::new(device.clone(), queue.clone(), FORMAT, &Default::default());
     let context = beui_host::native::context();
     let mut screen = Screen::new(&gpu, (WIDTH, HEIGHT), Rotation::Clockwise90);
     assert_eq!(

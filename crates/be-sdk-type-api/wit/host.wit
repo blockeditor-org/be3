@@ -6,10 +6,11 @@ package be3:block-type@0.1.0;
 /// request has that request as its parent (only `read-part`).
 interface host {
     use types.{
-        announced, announcement, byte-range, commit-id, description, journal-base, journal-entry,
-        loaded, merging,
-        part-ref, recipients, relay-kind, resume, status, written,
+        along, announcement, byte-range, commit-id, description, journal-base, kept-submission,
+        load-error, loaded, log-page, merging,
+        submission, part-ref, recipients, resume, status, written,
     };
+    use be3:shared/ids@0.1.0.{uuid};
 
     /// The frame clock in milliseconds. The module starts it once; the host
     /// yields the time whenever it moved, ahead of any other frame. The module
@@ -23,43 +24,68 @@ interface host {
     /// The soonest clock time at which a timer of the module's own keeps a
     /// block in step with the server (a seal after a quiet spell, a journal
     /// append, a retry's backoff), none while no such work waits on time; said
-    /// again whenever it changes. A heartbeat or a read's retry is not such
-    /// work. A host that holds its clock still moves it here to let that work
-    /// happen.
+    /// again whenever it changes. A read's retry is not such work. A host that
+    /// holds its clock still moves it here to let that work happen.
     in-step-at: async func(at: option<u64>);
 
     /// A commit's stored form; with `first-part`, only the bytes of its root's
     /// first part (`be_block::Loads::FirstPart`).
-    load: async func(commit: commit-id, first-part: bool) -> result<loaded, string>;
+    load: async func(commit: commit-id, first-part: bool) -> result<loaded, load-error>;
 
     /// A range of the bytes of a saved part, which a replica that loaded only
     /// its first part reads on demand. Under a stateless request, only a part
     /// of the `loaded` content that request was handed; any other is refused.
     read-part: async func(part: part-ref, range: byte-range) -> result<list<u8>, string>;
 
-    /// Seals `bytes` under the block's current key as a part, uploads it and has
-    /// the server hold it for the block until a commit that uses it publishes
-    /// or the upload grace runs out; answers once the upload is done. An
-    /// operation then names the part by putting the answer in its own payload,
-    /// and so travels without the bytes: each replica that applies it keeps the
-    /// part as `written-part.reused`, using bytes it rebuilt itself (checked
-    /// against a hash of them the operation carries) or reading the part with
-    /// `read-part`. Fails offline, and for a block the server does not have yet.
-    put-part: async func(bytes: list<u8>) -> result<part-ref, string>;
+    /// One part of the block written a piece at a time: the host seals each
+    /// chunk under the block's current key as the bytes end it, so neither side
+    /// holds the whole part. Made under a replica. Dropped before `finish` is
+    /// called, the part is never put; once it is called, the part is put even
+    /// if the writer is dropped before `finish` answers (it then answers
+    /// canceled).
+    resource part-writer {
+        constructor();
+        /// Appends `bytes` to the part, answered once they are sealed. A write
+        /// that fails says so at `finish`. Await each write before the next:
+        /// the host holds at most 8 MiB of a writer's writes unsealed (a first
+        /// write of any size), and refuses a write past that and every call on
+        /// the writer after it.
+        write: async func(bytes: list<u8>);
+        /// Seals the rest, uploads the part and has the server hold it for the
+        /// block until a commit that uses it publishes or the upload grace runs
+        /// out; answers once the upload is done. An operation then names the
+        /// part by putting the answer in its own payload, and so travels
+        /// without the bytes: each replica that applies it keeps the part as
+        /// `written-part.reused`, using bytes it rebuilt itself (checked against
+        /// a hash of them the operation carries) or reading the part with
+        /// `read-part`. Fails when no byte was written, when a write failed,
+        /// offline, and for a block the server does not have yet.
+        finish: async func() -> result<part-ref, string>;
+    }
 
     /// A compare-and-swap on `expected`, whose commit is the first parent. An
     /// unchanged save answers `published` with the same head; one sealed on
     /// this device alone, offline or behind others in its outbox, answers
     /// `kept`, and the replica hears `drained` once it reaches the server.
-    /// `sealed-through`, for a seal of the session's owner, is the session's generation and the
-    /// last sequence number the content holds: kept with the commit, so what was journaled past
-    /// it while the commit was on its way replays on top of it when the journal is still on the
-    /// commit's parent.
+    /// `sealed-through`, for a seal of the lease holder, is the last sequence number of the
+    /// session's order the content holds: kept with the commit, so what the order numbered
+    /// past it while the commit was on its way replays on top of it when the journal is still
+    /// on the commit's parent.
+    /// `journal-state`, with it, is the session state as of that number: the server's
+    /// journal starts from the commit with it only if the publish wins the head, and every
+    /// replica hears `replica.sealed`. The host keeps this device's journal likewise.
+    /// `journal-parts` are the parts this replica put (`part-writer`) that the state names: the
+    /// server keeps them while the journal's base names them.
     publish: async func(
         expected: option<commit-id>,
         merging: option<merging>,
         content: written,
-        sealed-through: option<tuple<u64, u64>>,
+        sealed-through: option<u64>,
+        journal-state: option<list<u8>>,
+        journal-parts: list<part-ref>,
+        /// How many times the session had started over (`status.restarts`): a
+        /// seal's sequence counts in that run of the order alone.
+        restarts: u64,
     ) -> result<publish-outcome, string>;
 
     variant publish-outcome {
@@ -71,40 +97,90 @@ interface host {
     /// Writes a commit that moves no head.
     stash: async func(parent: option<commit-id>, content: written) -> result<commit-id, string>;
 
+    /// Appends `bytes` to the block's signed log (a type with `type-info.log`):
+    /// the host signs them as this app's, for the person, so a module can neither
+    /// skip signing nor sign as anyone else or for another app, seals them and
+    /// keeps them until the server takes them. Every replica of the block hears
+    /// the entry through `replica.logged` once it is in the log, this one too.
+    /// What goes `along` with it is kept with it and done once the server takes
+    /// it.
+    append: async func(bytes: list<u8>, along: along) -> result<appended, not-appended>;
+
+    /// Why an entry was not appended. `id` names one the server refused,
+    /// which the device keeps until let go (`log-page.refused`); none for
+    /// one the device never made (too large, or no key to seal it with).
+    record not-appended {
+        id: option<uuid>,
+        why: string,
+    }
+
+    /// Lets go of an entry the server refused (`log-page.refused`): sent
+    /// again as a new one, or given up.
+    let-go-refused: async func(id: uuid);
+
+    /// Where an entry went: its id, and its place and arrival once the server
+    /// took it, none while it waits on this device for the server.
+    record appended {
+        id: uuid,
+        place: option<log-place>,
+    }
+
+    record log-place {
+        seq: u64,
+        arrival: s64,
+    }
+
+    /// At most `limit` entries of the block's signed log from `from`, verified
+    /// against the head the device holds; reading follows the log, so what is
+    /// appended after reaches the replica through `replica.logged`.
+    read-log: async func(%from: u64, limit: u32) -> result<log-page, string>;
+
     /// The host fetches both histories and runs `be_session::resume`.
     resume-session: async func(local: option<commit-id>) -> result<resume, string>;
 
-    /// Sent once per generation when the owner is gone from the participants.
-    claim-lease: async func(generation: u64);
+    /// Claims the lease, as a terminal host does: the server writes the claim
+    /// into the session's order, and this replica holds the lease from it.
+    claim: async func();
 
-    /// The owner's heartbeat.
-    report-clean: async func(generation: u64, clean-at: option<commit-id>);
+    /// Hands the session's order a submission: the server numbers it, keeps it
+    /// in the block's journal and every replica hears it (`replica.sequenced`),
+    /// this one too. Offline the host numbers it in this device's own order
+    /// and the replica hears it the same way.
+    submit: async func(submission: submission) -> submitted;
 
-    /// The owner of `generation` appends what it sequenced to the block's
-    /// journal, on the device and on the server, and with `relay` the server
-    /// relays each entry to every other participant as `send` to peers would.
-    /// True once the server holds the entries; false when only the device
-    /// does (offline, or the server did not take them). `announcements` are
-    /// those of the edits made on this device among the entries: the host
-    /// keeps them beside the entries and sends them once the server holds
-    /// the entries, or a commit of this device that holds them (`rebase-journal`).
-    append: async func(
-        generation: u64,
-        entries: list<journal-entry>,
-        relay: bool,
-        announcements: list<announced>,
-    ) -> bool;
+    variant submitted {
+        /// The server numbered it.
+        held,
+        /// Numbered in this device's own order, offline: the server lacks it
+        /// until a commit that holds it reaches it.
+        kept,
+        /// It did not reach the order (the connection dropped, or the server
+        /// refused it for now): the replica hears nothing of it.
+        failed(string),
+        /// The server refused it because this account may not edit the block:
+        /// it never reaches the order, so the replica gives it up as one the
+        /// order passed over.
+        refused(string),
+    }
 
-    /// The owner of `generation` starts the journal from `base`: after each
-    /// commit, and before its first append when the journal it opened with
-    /// was not its base. `entries` are what it sequenced past the base
-    /// meanwhile, kept with the base in one write. The announcements kept
-    /// beside the entries `base` holds go with its commit when this device
-    /// sealed it, sent once the server holds it; the others are dropped.
-    rebase-journal: async func(generation: u64, base: journal-base, entries: list<journal-entry>);
+    /// The submissions of the local edits this replica carried over
+    /// `restarts` restarts of the order (`status.restarts`), made as it
+    /// carried them and submitted in turn: the host keeps them with those
+    /// submitted (`opening.kept-submissions`), not as sent, and drops those
+    /// kept under fewer restarts. Opened again after a stop, a replica sends
+    /// each carried edit as it holds it, since the edits given again as
+    /// typed were made on content the restart replaced.
+    keep-carried: async func(restarts: u64, submissions: list<kept-submission>);
+
+    /// The journal starts from `base` with no new commit: the last one out
+    /// restarting it, or a new build starting it over. `restarts` is the run
+    /// of the order it is in (`status.restarts`). The server takes it only
+    /// from the lease holder while `base.commit` is the head; this device's
+    /// journal takes it either way. `parts` are as `publish`'s `journal-parts`.
+    rebase-journal: async func(base: journal-base, restarts: u64, parts: list<part-ref>);
 
     /// Opaque bytes for a peer, every peer, an editor or the host.
-    send: async func(to: recipients, kind: relay-kind, bytes: list<u8>);
+    send: async func(to: recipients, bytes: list<u8>);
 
     report-status: async func(status: status);
 
@@ -116,8 +192,4 @@ interface host {
 
     error: async func(message: string);
 
-    /// Announcements of edits made on this device that the server already
-    /// holds (a follower's, once the owner accepted them): the host sends each
-    /// it has not sent before.
-    announce: async func(announcements: list<announcement>);
 }

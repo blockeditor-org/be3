@@ -49,6 +49,27 @@ impl Decode<Vec<u8>> for Bytes {
     }
 }
 
+/// A fixed-length id (a uuid, a hash) a world keeps as an array, on the wire as the WIT's
+/// `list<u8>` is: its bytes, length first.
+impl<const N: usize> Encode<[u8; N]> for Bytes {
+    fn serialize<S: Serializer>(value: &[u8; N], serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_bytes(value)
+    }
+}
+
+impl<const N: usize> Decode<[u8; N]> for Bytes {
+    fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<[u8; N], D::Error> {
+        let bytes = serde_bytes::ByteBuf::deserialize(deserializer)?;
+        <[u8; N]>::try_from(bytes.as_slice()).map_err(|_| {
+            serde::de::Error::invalid_length(bytes.len(), &format!("{N} bytes").as_str())
+        })
+    }
+}
+
+/// A result whose value is a fixed-length id held as an array (`Bytes`) and whose error is
+/// plain: what a call answering an id (a new block's) answers.
+pub type FallibleBytes = Fallible<Bytes, Plain>;
+
 impl<T, S: Encode<T>> Encode<Vec<T>> for List<S> {
     fn serialize<Z: Serializer>(value: &Vec<T>, serializer: Z) -> Result<Z::Ok, Z::Error> {
         serializer.collect_seq(value.iter().map(Encoded::<S, T>::new))
@@ -127,6 +148,8 @@ impl<K, V, KS: Encode<K>, VS: Encode<V>> Encode<BTreeMap<K, V>> for Map<KS, VS> 
 
 impl<K: Ord, V, KS: Decode<K>, VS: Decode<V>> Decode<BTreeMap<K, V>> for Map<KS, VS> {
     fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<BTreeMap<K, V>, D::Error> {
+        // A serde visitor local to this decode, whose phantom only carries its four type parameters.
+        #[allow(clippy::type_complexity)]
         struct Entries<K, V, KS, VS>(PhantomData<fn() -> (K, V, KS, VS)>);
 
         impl<'de, K: Ord, V, KS: Decode<K>, VS: Decode<V>> Visitor<'de> for Entries<K, V, KS, VS> {

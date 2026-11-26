@@ -113,7 +113,7 @@ fn paste_from(data: &web_sys::DataTransfer) {
     }
     let get = |kind: &str| data.get_data(kind).ok().filter(|text| !text.is_empty());
     let transferred = Transferred {
-        text: get("text"),
+        text: get("text").map(beui_types::clip::text_from_system),
         html: get("text/html"),
         files: data
             .files()
@@ -315,6 +315,18 @@ fn schedule_after(delay: Duration) {
     });
 }
 
+/// The surface's box changed: draws at the new size before the page paints.
+fn resized() {
+    let runner = RUNNER.with(|runner| runner.borrow().clone());
+    match runner {
+        Some(runner) => match runner.try_borrow_mut() {
+            Ok(mut runner) => runner.frame(),
+            Err(_) => schedule(),
+        },
+        None => schedule(),
+    }
+}
+
 fn run_frame() {
     INPUT.with(|input| input.scheduled.set(false));
     let runner = RUNNER.with(|runner| runner.borrow().clone());
@@ -379,6 +391,14 @@ impl PlatformServices for WebPlatform {
         HELD.with(|held| held.borrow_mut().copy(clip));
     }
 
+    fn share(&mut self, clip: Clip) {
+        beui_web_input::share::share(&clip);
+    }
+
+    fn has_share_sheet(&self) -> bool {
+        beui_web_input::share::has_share_sheet()
+    }
+
     fn paste(&mut self, wanted: &[String], answer: PasteAnswer) {
         let Some(window) = web_sys::window() else {
             return answer.send(None);
@@ -390,7 +410,8 @@ impl PlatformServices for WebPlatform {
                 .await
                 .ok()
                 .and_then(|text| text.as_string())
-                .filter(|text| !text.is_empty());
+                .filter(|text| !text.is_empty())
+                .map(beui_types::clip::text_from_system);
             let held = HELD.with(|held| {
                 let mut held = held.borrow_mut();
                 let ours = held.wrote(text.as_deref());
@@ -433,8 +454,8 @@ impl PlatformServices for WebPlatform {
         }
         if window.requests.cursor != shown.requests.cursor {
             let cursor = match window.requests.cursor {
-                CursorIcon::Touch => beui_core::touch_cursor::css(CursorIcon::Touch.name()),
-                cursor => cursor.name().to_owned(),
+                CursorIcon::Touch => beui_core::touch_cursor::css(CursorIcon::Touch.css()),
+                cursor => cursor.css().to_owned(),
             };
             let _ = self.surface.style().set_property("cursor", &cursor);
         }
@@ -1016,36 +1037,52 @@ fn listen(
             event.prevent_default();
         },
     )?;
-    on(surface_target, "dragover", |event: web_sys::DragEvent| {
-        event.prevent_default();
-        push(FileDrag::Hovered);
+    // Files dragged over the page: where they are is the pointer's, as no pointer moves come
+    // while the browser carries them.
+    on(surface_target, "dragover", {
+        let surface = surface.clone();
+        move |event: web_sys::DragEvent| {
+            event.prevent_default();
+            push_logical(Input::PointerMoved(position(&surface, &event)));
+            push(FileDrag::Hovered);
+        }
     })?;
     on(surface_target, "dragleave", |_event: web_sys::DragEvent| {
         push(FileDrag::Cancelled);
     })?;
-    on(surface_target, "drop", |event: web_sys::DragEvent| {
-        event.prevent_default();
-        let Some(files) = event.data_transfer().and_then(|transfer| transfer.files()) else {
-            push(FileDrag::Cancelled);
-            return;
-        };
-        if files.length() == 0 {
-            push(FileDrag::Cancelled);
-        }
-        for index in 0..files.length() {
-            let Some(file) = files.get(index) else {
-                continue;
+    on(surface_target, "drop", {
+        let surface = surface.clone();
+        move |event: web_sys::DragEvent| {
+            event.prevent_default();
+            push_logical(Input::PointerMoved(position(&surface, &event)));
+            let Some(files) = event.data_transfer().and_then(|transfer| transfer.files()) else {
+                push(FileDrag::Cancelled);
+                return;
             };
+            if files.length() == 0 {
+                push(FileDrag::Cancelled);
+                return;
+            }
+            let files: Vec<web_sys::File> = (0..files.length())
+                .filter_map(|index| files.get(index))
+                .collect();
+            // Read one after another and handed on together, so they land as one drop.
             wasm_bindgen_futures::spawn_local(async move {
-                let bytes = wasm_bindgen_futures::JsFuture::from(file.array_buffer())
-                    .await
-                    .ok()
-                    .map(|buffer| js_sys::Uint8Array::new(&buffer).to_vec());
-                push(FileDrag::Dropped(DroppedFile {
-                    name: file.name(),
-                    path: None,
-                    bytes: bytes.map(Arc::from),
-                }));
+                let mut dropped = Vec::new();
+                for file in files {
+                    let bytes = wasm_bindgen_futures::JsFuture::from(file.array_buffer())
+                        .await
+                        .ok()
+                        .map(|buffer| js_sys::Uint8Array::new(&buffer).to_vec());
+                    dropped.push(DroppedFile {
+                        name: file.name(),
+                        path: None,
+                        bytes: bytes.map(Arc::from),
+                    });
+                }
+                for file in dropped {
+                    push(FileDrag::Dropped(file));
+                }
             });
         }
     })?;
@@ -1209,8 +1246,11 @@ fn listen(
     on(window_target, "beforeunload", |event: web_sys::Event| {
         close_requested(&event);
     })?;
+    // A resize observer runs after the page's layout and before it paints, so the frame runs
+    // here rather than at the next animation frame: the canvas's box has already changed, and
+    // waiting would show a frame of its backing store cleared or scaled into the new box.
     let observer = web_sys::ResizeObserver::new(
-        Closure::<dyn FnMut()>::new(schedule)
+        Closure::<dyn FnMut()>::new(resized)
             .into_js_value()
             .unchecked_ref(),
     )

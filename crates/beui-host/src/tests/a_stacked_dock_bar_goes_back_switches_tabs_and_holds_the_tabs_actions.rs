@@ -36,7 +36,7 @@ fn a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions() {
     let closed = create_signal(Vec::new());
     let open = create_signal(Vec::<u64>::new());
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost>
                 <dock::Docking layout focus=FIRST>
@@ -44,7 +44,7 @@ fn a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions() {
                         <DockTab id=FIRST title="Tab 1">
                             <Frame @test_id="content.1" />
                         </DockTab>
-                        <ForEach keys={open}>|id: u64|
+                        <ForEach value={open}>|id: u64|
                             <DockTab
                                 id
                                 title={format!("Tab {id}")}

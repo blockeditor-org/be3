@@ -1,5 +1,6 @@
 mod pdf;
 
+pub use be_sdk_type_guest::BlobFile;
 pub use pdf::{PdfContent, PdfFile, PdfHeader};
 
 be_sdk_type_guest::be_block_types![PdfContent { file }];

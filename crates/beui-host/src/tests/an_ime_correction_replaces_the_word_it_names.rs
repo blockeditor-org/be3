@@ -22,6 +22,7 @@ fn an_ime_correction_replaces_the_word_it_names() {
                 padding=AREA_PADDING
                 state={state}
                 single_line=true
+                scroll={plain_scroll()}
             />
         }
     });

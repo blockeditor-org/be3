@@ -13,8 +13,8 @@ fn touch_dragging_a_scroll_moves_it_without_activating_a_row() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @node_ref=&scroll>
-                        <ForEach keys={indices(100)}>|index: usize|
+                    <Scroll @node_ref=&scroll style={plain_scroll()}>
+                        <ForEach value={indices(100)}>|index: usize|
                             <LabelledButton
                                 label={format!("Row {index}")}
                                 on_click={move || {

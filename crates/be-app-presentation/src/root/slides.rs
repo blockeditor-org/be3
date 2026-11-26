@@ -35,6 +35,11 @@ pub struct Slides {
     store: KeyedStore<Uuid, Slide>,
     selected: Signal<Option<Uuid>>,
     made_notes: StoredCell<Option<ChildTarget>>,
+    /// The notes block just made to type into, whose editor asks for the keyboard once it is
+    /// placed, until it has it or the slide shows other notes: with how many notes were made to
+    /// type into so far, the count its `ChildBlock` asks with (`keyboard`), which only grows.
+    typing_into: Signal<Option<(Uuid, u64)>>,
+    notes_made: StoredCell<u64>,
 }
 
 impl Slides {
@@ -47,12 +52,19 @@ impl Slides {
             store: KeyedStore::new(),
             selected,
             made_notes: StoredCell::new(None),
+            typing_into: create_signal(None),
+            notes_made: StoredCell::new(0),
         };
         let dependencies = editor
             .blocks()
             .watch(BlockQuery::References(editor.block_id()));
         create_binding(move || slides.refresh(&dependencies));
         slides
+    }
+
+    /// The notes block just made to type into, until its editor has the keyboard.
+    pub fn typing_into(&self) -> Signal<Option<(Uuid, u64)>> {
+        self.typing_into
     }
 
     pub fn keys(&self) -> ReadSignal<Vec<Uuid>> {
@@ -150,9 +162,6 @@ impl Slides {
             },
             anchor,
             move |picked| {
-                let Ok(picked) = picked else {
-                    return;
-                };
                 let slide = Uuid::new_v4();
                 if let Ok(edit) = block.read(|presentation| {
                     presentation
@@ -189,8 +198,15 @@ impl Slides {
         let deck = BlockParent::Block(self.editor.block_id());
         let asked = self.editor.host().copy_blocks(source, deck);
         self.editor.then(asked, move |copied| {
-            let (Ok(Some((copy, _))), true) = (copied, slides.selected.is_alive()) else {
-                return;
+            let copy = match copied {
+                Ok(Some((copy, _))) if slides.selected.is_alive() => copy,
+                Err(failure) => {
+                    return slides
+                        .editor
+                        .host()
+                        .report_failure(format!("The slide could not be duplicated. {failure}"));
+                }
+                Ok(_) => return,
             };
             let index = slides
                 .index_of_untracked(id)
@@ -219,8 +235,14 @@ impl Slides {
         let deck = BlockParent::Block(self.editor.block_id());
         let asked = self.editor.host().copy_blocks(notes, deck);
         self.editor.then(asked, move |copied| {
-            let (Ok(Some((copy, _))), true) = (copied, slides.selected.is_alive()) else {
-                return;
+            let copy = match copied {
+                Ok(Some((copy, _))) if slides.selected.is_alive() => copy,
+                Err(failure) => {
+                    return slides.editor.host().report_failure(format!(
+                        "The slide's notes could not be duplicated. {failure}"
+                    ));
+                }
+                Ok(_) => return,
             };
             if slides.slide_blocks(slide).is_some() {
                 slides.block.operate(Presentation::set_notes(
@@ -237,9 +259,8 @@ impl Slides {
             .with_untracked(|keys| keys.iter().position(|key| *key == id))
     }
 
-    /// Makes an empty text block inside the deck as the slide's notes and asks, in the same
-    /// frame, for the keyboard to go into its editor once it is placed, so what is typed while
-    /// it loads lands there.
+    /// Makes an empty text block inside the deck as the slide's notes, whose editor asks for the
+    /// keyboard as it is placed (`typing_into`).
     pub fn add_notes(&self, id: Uuid) {
         let notes = self.editor.blocks().create_with(
             TEXT_TYPE,
@@ -249,7 +270,9 @@ impl Slides {
         );
         self.made_notes
             .set(Some(ChildTarget::new(notes, TEXT_TYPE)));
-        self.editor.host().focus_block_child(notes);
+        let made = self.notes_made.get() + 1;
+        self.notes_made.set(made);
+        self.typing_into.set(Some((notes, made)));
         self.block.operate(Presentation::set_notes(
             ObjectId::from_uuid(id),
             Some(notes),

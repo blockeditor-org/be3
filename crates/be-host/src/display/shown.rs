@@ -42,9 +42,7 @@ pub(crate) fn apply() {
         return;
     };
     let shown = shown();
-    if shown.with_untracked(|held| *held != displays) {
-        shown.set(displays);
-    }
+    shown.set(displays);
 }
 
 pub(crate) fn owner(displays: &[Rect], rect: Rect) -> Option<usize> {

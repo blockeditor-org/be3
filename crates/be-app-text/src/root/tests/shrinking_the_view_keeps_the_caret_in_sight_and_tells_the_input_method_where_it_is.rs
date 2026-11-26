@@ -1,4 +1,5 @@
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use beui::{Pos2, Vec2};
 use uuid::Uuid;
 
@@ -16,7 +17,6 @@ fn shrinking_the_view_keeps_the_caret_in_sight_and_tells_the_input_method_where_
 
     let surface = editor.rect_of("text.surface");
     editor.tap(Pos2::new(surface.center().x, surface.max.y - 120.0));
-    editor.run();
     let caret = |editor: &BeuiTest<TextRoot>| {
         editor
             .window()

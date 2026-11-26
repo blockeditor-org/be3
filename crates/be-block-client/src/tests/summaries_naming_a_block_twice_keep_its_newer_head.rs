@@ -27,9 +27,9 @@ async fn summaries_naming_a_block_twice_keep_its_newer_head() {
         unreachable!()
     };
     let (two, newer) = (summaries[1].clone(), summaries[2].clone());
-    assert!(two.revision < newer.revision);
+    assert!(two.changed < newer.changed);
     let mut same = two.clone();
-    same.revision = newer.revision;
+    same.changed = newer.changed;
 
     // A device that knows the first head hears of the second and the third in one answer: each
     // is news to it, but the second is behind the third.
@@ -39,11 +39,11 @@ async fn summaries_naming_a_block_twice_keep_its_newer_head() {
             [newer.clone(), two.clone()],
         ),
         (
-            "one revision, the older head after",
+            "one sequence, the older head after",
             [newer.clone(), same.clone()],
         ),
         (
-            "one revision, the older head before",
+            "one sequence, the older head before",
             [same.clone(), newer.clone()],
         ),
     ] {

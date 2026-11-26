@@ -11,7 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 beui-paint-snapshot = { path = "../beui-paint-snapshot" }
-sha2 = "0.10"
+be-lib-sha256 = { path = "../be-lib-sha256" }
 
 [lints]
 workspace = true

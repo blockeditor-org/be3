@@ -8,7 +8,7 @@ use std::fmt::Write;
 use std::path::Path;
 use std::process::ExitCode;
 
-use sha2::{Digest, Sha256};
+use be_lib_sha256::sha256;
 
 pub fn run(arguments: &[String]) -> Result<ExitCode, String> {
     let (out, dist, pins, publish) = match arguments {
@@ -36,7 +36,7 @@ pub fn run(arguments: &[String]) -> Result<ExitCode, String> {
             }
             let contents = std::fs::read(&binary)
                 .map_err(|error| format!("cannot read {}: {error}", binary.display()))?;
-            let sha256 = hex(&Sha256::digest(&contents));
+            let sha256 = sha256(&contents);
             let pin = pin_name(&triple.file_name().unwrap_or_default().to_string_lossy());
             if pinned(&pins, &pin, &sha256) {
                 continue;
@@ -60,11 +60,4 @@ pub fn pin_name(triple: &str) -> String {
 pub fn pinned(pins: &str, pin: &str, sha256: &str) -> bool {
     let line = format!("{pin}='{sha256}'");
     pins.lines().any(|candidate| candidate == line)
-}
-
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().fold(String::new(), |mut text, byte| {
-        let _ = write!(text, "{byte:02x}");
-        text
-    })
 }

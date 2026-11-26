@@ -8,14 +8,20 @@ use std::{
 };
 
 use crate::{
-    Batch, Commit, DocId, Error, Id, Index, MemoryParts, PartKind, PartName, Parts, Put, Query,
-    Text, Written,
+    Batch, Commit, DocId, Error, Id, Index, MemoryParts, PartKind, PartName, Parts, PartsOut, Put,
+    Query, Text, Written,
 };
 
 mod a_commit_time_past_the_readers_bound_counts_as_the_oldest;
+mod a_compaction_leaves_the_segments_it_merged_for_the_next;
 mod a_full_put_replaces_a_partial_one_at_the_same_commit;
 mod a_long_run_of_batches_compacted_a_few_merges_at_a_time_stays_few_segments;
+mod a_merge_drops_a_document_the_table_moved_though_unmasked;
+mod a_merge_of_a_dictionary_out_of_order_is_corrupt;
+mod a_merge_of_documents_out_of_order_is_corrupt;
 mod a_merge_over_the_byte_cap_is_not_made;
+mod a_merge_reads_and_writes_its_segments_a_piece_at_a_time;
+mod a_phrase_matches_only_where_its_words_are_in_a_row;
 mod a_put_of_the_text_already_indexed_moves_only_its_commit;
 mod a_put_without_text_survives_a_merge_with_compaction_or_reindexing;
 mod a_query_reads_few_blocks_while_skipping_a_common_term;
@@ -74,6 +80,16 @@ impl Parts for Store {
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<u8>, Error>> + 'a>> {
         self.reads.borrow_mut().push(part.kind);
         self.parts.read(part, range)
+    }
+}
+
+impl PartsOut for Store {
+    fn write(&self, part: &PartName, bytes: &[u8]) -> Result<(), Error> {
+        self.parts.write(part, bytes)
+    }
+
+    fn finish(&self, part: &PartName) -> Result<(), Error> {
+        self.parts.finish(part)
     }
 }
 

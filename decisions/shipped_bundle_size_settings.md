@@ -1,14 +1,19 @@
-# The deployed bundle uses fat LTO, type modules at opt-level s, and keeps symbols and precompiled code
+# The deployed bundle keeps symbols (and once built type modules at opt-level s, with fat LTO and precompiled code)
 
-`./scripts/deploy` builds with fat LTO and one codegen unit (`buck/constraints:lto`, a ten-minute link),
-release builds use legacy symbol mangling and build first-party crates for
-wasm32-unknown-unknown (the type modules) at `opt-level=s` (buck/platforms/profile.bzl), linked modules use
+Release builds use legacy symbol mangling and build first-party crates for
+wasm32-unknown-unknown at `opt-level=s` (buck/platforms/profile.bzl), which is now only the
+browser's gpu shim, and for each pure guest's own top crate, while the crates it shares with the
+apps build at their 3 (Since, below). Linked modules use
 hashed export names (guides/app_libraries.md), and the bundle ships a `.cwasm` of every
 module with be-host's symbols and the modules' name sections kept.
 
+Dev builds use legacy mangling too, for a reason of their own: symbol names were the largest
+part of a native test binary, and the build server stores every test binary a change relinks
+(the sizes are in buck/platforms/profile.bzl, `SYMBOL_FLAGS`).
+
 ## Why
 
-Fat LTO is limited to the deploy because of its ten-minute link. The symbols and name sections are read by the panic guard's reports and a guest's
+The symbols and name sections are read by the panic guard's reports and a guest's
 backtrace. Shipping the `.cwasm` files keeps compiling off the first start. Type modules build
 at `s`: a quarter to a third smaller and quicker to compile, for a slower seal of a very large
 edit, measured in buck/platforms/profile.bzl.
@@ -26,3 +31,27 @@ edit, measured in buck/platforms/profile.bzl.
 - Shipping without `.cwasm`: it is 595 MB of the 896 MB bundle (October 2026), but shipping
   without it moves 95 seconds of compiling (four cores) to the first start, 42 of them the
   beui library's.
+
+## Since
+
+November 2026: every guest now runs on V8 and precompilation was removed (decisions/guests_run_on_v8.md),
+so the bundle ships no `.cwasm` and V8 compiles each module as it loads. Shipping precompiled code
+is superseded, with the rejection of shipping without it; the mangling, opt-level and
+symbol settings still stand.
+
+November 2026: the pure guests (type modules, games, the input remaps) are built for
+wasm32-wasip1 in the apps' plan (guides/app_libraries.md, Pure guests), so a crate they share
+with the apps compiles once, at the apps' release opt-level 3 (option a). Type modules no longer
+build at `s` and ship a third bigger again: the release checklist module 1,895,013 bytes to
+2,497,166, text's 1,957,971 to 2,566,523. `s` stays for the gpu shim, the one crate left on
+wasm32-unknown-unknown.
+
+November 2026: each pure guest's own top crate (its `be-type-*`, `tabletop-rules-*` or remap
+crate, `pure_guest_crate`'s `:wasm`) builds at `s` in a release build, while the crates it shares
+with the apps stay at 3 (option c; the `pure_guest` kind in buck/platforms/profile.bzl). It took
+about a twentieth off: the release checklist module 2,489,484 bytes to 2,351,015, text's
+2,558,927 to 2,415,342, since most of a type module is the block stack it shares. Rejected: (b),
+`s` for every guest, the apps' crates too, against the frame times above.
+
+November 2026: the deploy's fat LTO over one codegen unit was removed (decisions/no_lto.md), with
+the rejection of thin LTO here.

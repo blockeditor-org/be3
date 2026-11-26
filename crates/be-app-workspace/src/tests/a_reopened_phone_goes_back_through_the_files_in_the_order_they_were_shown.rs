@@ -12,7 +12,7 @@ fn a_reopened_phone_goes_back_through_the_files_in_the_order_they_were_shown() {
     show(&mut fixture, third, None);
     show(&mut fixture, first, None);
     let layout = profile(&fixture)
-        .state("layout")
+        .stored(SavedLayout::ID)
         .cloned()
         .expect("the layout is saved in the profile");
 

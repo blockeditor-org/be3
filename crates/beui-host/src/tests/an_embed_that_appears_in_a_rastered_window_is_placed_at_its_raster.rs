@@ -15,7 +15,7 @@ fn an_embed_that_appears_in_a_rastered_window_is_placed_at_its_raster() {
         view! {
             <Window id={window} size={vec2(150.0, 120.0)}>|_: WindowHandle|
                 <Layers>
-                    <Show condition={shown}>||
+                    <Show value={shown}>||
                         <Embed slot={slot} />
                     </Show>
                 </Layers>

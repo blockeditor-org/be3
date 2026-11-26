@@ -2,6 +2,7 @@ use be_sdk_beui::be_block_content::BlockContent;
 
 use be_sdk_beui::{BlockInfo, BlockParent};
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use be_type_logic_grid::{CompiledLogic, CompiledLogicDocument};
 use be_type_logic_grid::{CompiledLogicContent, LogicGridContent};
 use logicgame::execution::{Instruction, UnlinkedComponent};

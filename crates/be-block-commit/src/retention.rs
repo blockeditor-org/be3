@@ -1,11 +1,6 @@
 use std::collections::HashMap;
 
-use crate::commit::CommitId;
-
-pub const MINUTE: i64 = 60 * 1000;
-pub const HOUR: i64 = 60 * MINUTE;
-pub const DAY: i64 = 24 * HOUR;
-pub const WEEK: i64 = 7 * DAY;
+use crate::{DAY, HOUR, MINUTE, WEEK, commit::CommitId};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Bucket {
@@ -94,7 +89,7 @@ pub struct RetentionPlan {
 /// earlier one. The server runs it on each publish (guides/blocks/server.md).
 pub fn plan(summaries: &[CommitSummary], now: i64, policy: &RetentionPolicy) -> RetentionPlan {
     let mut ordered: Vec<_> = summaries.to_vec();
-    ordered.sort_by(|left, right| right.time.cmp(&left.time));
+    ordered.sort_by_key(|summary| std::cmp::Reverse(summary.time));
 
     let mut candidates: HashMap<(usize, i64), usize> = HashMap::new();
     let mut plan = RetentionPlan::default();

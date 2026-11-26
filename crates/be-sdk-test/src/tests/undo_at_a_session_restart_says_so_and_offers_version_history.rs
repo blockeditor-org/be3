@@ -22,15 +22,15 @@ fn undo_at_a_session_restart_says_so_and_offers_version_history() {
     );
 
     test.key(Key::Z, Modifiers::CTRL);
-    test.run();
     assert!(
         test.take_block_commands().is_empty(),
         "undo asked the host for a step past the restart"
     );
+    // The toast that says so slides in before it rests.
+    test.settle();
     test.snapshot("undo_at_a_session_restart_says_so_and_offers_version_history");
 
     test.click("toast.1.action.history");
-    test.run();
     assert_eq!(
         test.take_block_commands(),
         [(block, BlockCommand::History(Some(restarted)))]

@@ -11,39 +11,41 @@ pub(super) async fn join(
     role: OrganizationRole,
 ) {
     let response = owner
-        .call(|peer| {
-            client::contacts::create_link(
-                peer,
-                Uuid::from_u128(invitation),
-                Vec::new(),
-                Vec::new(),
-                be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
-                    organization,
-                    email: email.into(),
-                    role: role,
-                    escrow: Vec::new(),
-                }),
-            )
-        })
+        .invite_with(
+            Uuid::from_u128(invitation),
+            organization,
+            Vec::new(),
+            Vec::new(),
+        )
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let _ = member
-        .call(|peer| {
-            client::contacts::accept_link(
-                peer,
-                Uuid::from_u128(invitation),
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-            )
-        })
+        .accept(Uuid::from_u128(invitation), &Vec::new())
         .await;
+    // An invitation joins as an editor; an administrator is made one after.
+    if role == OrganizationRole::Administrator {
+        let members = owner
+            .call(|peer| {
+                peer.read::<Vec<be_block_protocol::Member>>(be_block_protocol::Query::Members)
+            })
+            .await
+            .expect("the members are listed");
+        let account = members
+            .iter()
+            .find(|row| row.email == email)
+            .expect("the member joined")
+            .account;
+        let response = owner.set_role(account, role).await;
+        assert!(matches!(response, Ok(())), "{response:?}");
+    }
     member.open(organization).await;
 }
 
 async fn access_list(client: &mut TestClient, block: Uuid) -> AccessList {
     let response = client
-        .call(|peer| client::blocks::list_access(peer, block))
+        .call(|peer| {
+            peer.read::<be_block_protocol::AccessList>(be_block_protocol::Query::Access(block))
+        })
         .await;
     let Ok(list) = response else {
         panic!("listing access failed: {response:?}");
@@ -54,8 +56,8 @@ async fn access_list(client: &mut TestClient, block: Uuid) -> AccessList {
 #[tokio::test]
 async fn the_access_list_leaves_administrators_to_the_organization_line() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let owner_id = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let owner_id = owner.id();
     let organization = owner.organization("Company").await;
     let mut boss = harness.member("boss@example.com").await;
     join(
@@ -67,8 +69,8 @@ async fn the_access_list_leaves_administrators_to_the_organization_line() {
         OrganizationRole::Administrator,
     )
     .await;
-    let mut guest = harness.client().await;
-    let guest_id = guest.register("guest@example.com").await;
+    let mut guest = harness.member("guest@example.com").await;
+    let guest_id = guest.id();
     join(
         &mut owner,
         &mut guest,

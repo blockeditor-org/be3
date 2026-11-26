@@ -8,9 +8,11 @@ game is written and built once for desktop, Android and the browser.
 
 - `tabletop-api`: the contract, compiled into every game: the types both sides
   exchange, the `GameHelper` a game is written against, the `game!` macro and
-  the build helper. It builds for wasm32-unknown-unknown.
-- `tabletop-host`: the other side, which embeds wasmi. Only be-host depends on
-  it; it re-exports the api types it passes across.
+  the build helper. It builds for wasm32-wasip1, a pure guest
+  (guides/app_libraries.md, Pure guests).
+- `tabletop-host`: the other side, which embeds wasmi. Only the Games app
+  (`be-app-deterministic-game`) and the rules crates' tests depend on it; it
+  re-exports the api types it passes across.
 - `tabletop-pieces`: shared rules for games of pieces on a board.
 - `tabletop-rules-<game>`: one game each, the only place its rules live.
 
@@ -18,7 +20,7 @@ game is written and built once for desktop, Android and the browser.
 
 - `crates/tabletop-rules-foo/Cargo.toml` and `BUCK`: copy tic-tac-toe's, and run
   `./scripts/buckify`. BUCK
-  builds the crate natively for tests and for wasm32 as `:module`, and points
+  builds the crate natively for tests and for wasm32-wasip1 as `:module`, and points
   the tests' `GAME_WASM` at that module.
 - `src/lib.rs`: the game, ending in `tabletop_api::game!("Foo", foo);` (the
   name the module gives itself, and the game function).
@@ -68,7 +70,11 @@ Moves carry gestures, `.click(spot)` or `.drag(from, to)`, and the editor
 highlights where each can start and land. The editor shows no list of moves
 and no status line, so a move without a gesture cannot be made (even joining
 or dealing is a click on the deck); only `.control(Control::Resign)` is shown
-as an icon. The editor draws the table on a pan-and-zoom canvas, so a game
+as an icon. A thing a `.drag` starts from is a focus stop while it can move,
+named for its sprite (a piece's kind and seat, a card's rank and suit) and its
+spot, so a game plays from the keyboard: Tab reaches it, Space or Enter lifts
+it and the arrows step it between its landings. The arrows and Home and End on
+the stage step the history instead. The editor draws the table on a pan-and-zoom canvas, so a game
 plays the same in a tab or inside an infinite canvas, and players can draw
 arrows and circles over it that never reach the game.
 

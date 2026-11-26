@@ -238,8 +238,11 @@ func relay(transport http.RoundTripper, scheme, upstream string, cache *casCache
 	}
 	defer func() { resp.Body.Close() }()
 
+	// The answer may say a blob the cache took the server to hold is missing.
+	watch := cache.watch(r.URL.Path, body)
 	copyHeaders(w.Header(), resp.Header)
 	if resp.Header.Get("Grpc-Status") != "" {
+		watch.ended(resp.Header)
 		w.WriteHeader(resp.StatusCode)
 		return
 	}
@@ -250,6 +253,7 @@ func relay(transport http.RoundTripper, scheme, upstream string, cache *casCache
 	for resumed := 0; ; {
 		message, readErr := readMessage(answer)
 		if message != nil {
+			watch.message(message)
 			if _, err := w.Write(message); err != nil {
 				return
 			}
@@ -276,12 +280,17 @@ func relay(transport http.RoundTripper, scheme, upstream string, cache *casCache
 			return
 		}
 		if status := resp.Header.Get("Grpc-Status"); status != "" {
-			w.Header().Set(http.TrailerPrefix+"Grpc-Status", status)
-			w.Header().Set(http.TrailerPrefix+"Grpc-Message", resp.Header.Get("Grpc-Message"))
+			watch.ended(resp.Header)
+			for _, key := range []string{"Grpc-Status", "Grpc-Message", "Grpc-Status-Details-Bin"} {
+				if value := resp.Header.Get(key); value != "" {
+					w.Header().Set(http.TrailerPrefix+key, value)
+				}
+			}
 			return
 		}
 		answer = bufio.NewReaderSize(resp.Body, 64*1024)
 	}
+	watch.ended(resp.Trailer)
 	for k, vs := range resp.Trailer {
 		for _, v := range vs {
 			w.Header().Add(http.TrailerPrefix+k, v)

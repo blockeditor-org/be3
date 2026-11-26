@@ -8,7 +8,7 @@ use be_type_text::{TextBlock, TextContent};
 fn a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else() {
     let harness = Harness::start();
     let sharer = Someone::register(
-        &harness.directory.join("server"),
+        harness.server.directory(),
         &harness.url,
         "sharer@example.com",
         "Sharer",
@@ -24,14 +24,14 @@ fn a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else() {
             &sharer.me().card(),
             &code,
             be_block_client::contacts::Expected::Contact,
+            &Default::default(),
         ))
         .expect("the sharer accepts the link");
     runtime
         .block_on(peer.refresh_contacts())
         .expect("the sharer lists its contacts");
     let public = peer
-        .keys()
-        .contact(harness.account)
+        .verified_identity(harness.account)
         .expect("the sharer verified this account through the link");
 
     let (shared, linked) = runtime.block_on(async {
@@ -81,7 +81,7 @@ fn a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else() {
                 && held
                     .graph
                     .get(shared)
-                    .is_some_and(|node| node.references.contains(&linked))
+                    .is_some_and(|node| node.refers_to(linked) == Some(true))
                 && held
                     .graph
                     .query(Query::Shared)
@@ -112,6 +112,7 @@ fn a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else() {
         false,
         crate::unfiled(),
         false,
+        None,
     ));
     assert!(info.no_access() && !info.locked);
     assert_eq!(info.reach(), be_sdk::be_sdk_ui::Reach::NoAccess);

@@ -4,7 +4,7 @@ use beui_core::context::{Context, WindowOutput};
 use beui_core::drawn_cursor;
 use beui_core::icons;
 use beui_core::painter::Painter;
-use beui_font_freetype::{FontLibrary, FontSources, FreetypeFonts};
+use beui_font_skrifa::{FontLibrary, FontSources, SkrifaFonts};
 use beui_types::Color32;
 use beui_types::CursorIcon;
 use beui_types::FontId;
@@ -59,7 +59,7 @@ impl Default for Sprite {
 impl Sprite {
     pub fn new() -> Self {
         Self {
-            context: Context::new(FreetypeFonts::new(FontLibrary::new(FontSources::bundled()))),
+            context: Context::new(SkrifaFonts::new(FontLibrary::new(FontSources::bundled()))),
             window: WindowId::next(),
             painted: None,
             output: None,

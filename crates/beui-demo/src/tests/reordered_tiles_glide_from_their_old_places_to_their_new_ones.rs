@@ -13,5 +13,6 @@ fn reordered_tiles_glide_from_their_old_places_to_their_new_ones() {
         test.record();
     }
     test.settle();
+    test.record();
     test.snapshot("reordered_tiles_glide_from_their_old_places_to_their_new_ones");
 }

@@ -12,7 +12,6 @@ fn a_block_without_a_key_shows_how_to_make_one() {
     assert!(!boat.test.has_fetches(), "nothing is asked without a key");
 
     boat.test.click("boat.sign-in.open");
-    boat.test.run();
     assert_eq!(
         boat.test.take_opened_urls(),
         ["https://boat.dev/dashboard?tab=api-keys"]

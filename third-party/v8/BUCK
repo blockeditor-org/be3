@@ -1,0 +1,70 @@
+load("@root//buck/platforms:cross.bzl", "cross_setting")
+load("@root//buck/tools:defs.bzl", "configured_once")
+
+# V8 as rusty_v8 builds it, which every wasm guest runs on (decisions/guests_run_on_v8.md):
+# the `v8` crate's static library, prebuilt per platform from the rusty_v8
+# release its version names and pinned here by hash and size, as cargo's build
+# script would download it. third-party/rust/overlays/v8/build.rs links the one
+# :library gives for the platform being built (third-party/rust/fixups.bzl).
+# Moving to another `v8` version moves every pin below with it.
+_VERSION = "152.2.0"
+
+_RELEASE = "https://github.com/denoland/rusty_v8/releases/download/v{}/".format(_VERSION)
+
+# platform: (Rust triple, sha256, size in bytes)
+_PREBUILT = {
+    "linux_arm64": ("aarch64-unknown-linux-gnu", "c40196bbf182532e583f65b7daf0196fdbb3354e6fac59b31d0539c20f931f3d", 38513465),
+    "linux_x86_64": ("x86_64-unknown-linux-gnu", "b6683e9afcb77fbd8cb2c3acf45d34d52029ab216b332522c95179c12f0fed3c", 39784686),
+    "macos_arm64": ("aarch64-apple-darwin", "a4a5484444ad4b5f10dc7bed141236dd9dbeabf2006d14520f19b935d4db4227", 40635999),
+    "macos_x86_64": ("x86_64-apple-darwin", "04cbc1c36c4cd5459c54049775d92889337c69d936fb0b011f9b26f1d454610d", 40481101),
+    "windows_arm64": ("aarch64-pc-windows-msvc", "cad105f510f59dd38a9cbcc8f6f78263d9bb8f009d0c111f972fbd529de92273", 38876586),
+    "windows_x86_64": ("x86_64-pc-windows-msvc", "0b17ca072bae37dd4ff00e6014d2b413becb031c9342ee11cb8226a5881f62b2", 39957087),
+}
+
+[
+    configured_once(
+        http_file,
+        name = platform,
+        sha256 = sha256,
+        size_bytes = size_bytes,
+        urls = [_RELEASE + ("rusty_v8_release_{}.lib.gz" if "windows" in triple else "librusty_v8_release_{}.a.gz").format(triple)],
+    )
+    for platform, (triple, sha256, size_bytes) in _PREBUILT.items()
+]
+
+# rusty_v8 publishes no Android build, nor bindings for it: these are ours,
+# built by scripts/internal/build-rusty-v8-android.sh for the same version and
+# hosted on lfs.pfg.pw. Moving to another `v8` version builds them again.
+_OURS = "https://lfs.pfg.pw/by-name/be3/v8/"
+
+configured_once(
+    http_file,
+    name = "android_arm64",
+    sha256 = "2466ff4ff9b39adf5ce1db1088511eda46c229ae6fd3a4a8bf5c7284316986b6",
+    size_bytes = 36359953,
+    urls = [_OURS + "librusty_v8_release_aarch64-linux-android.a.gz"],
+)
+
+configured_once(
+    http_file,
+    name = "android_arm64_binding",
+    sha256 = "3e4d5fecdbe0f98a6017e69d7ca82519a77fb032c5eb5e4cdbecdd3e2ec519d5",
+    size_bytes = 40045,
+    urls = [_OURS + "src_binding_release_aarch64-linux-android.rs"],
+    visibility = ["//third-party/rust:"],
+)
+
+# The library for the platform being built (DEFAULT is the host, linux_x86_64),
+# unpacked; the build script copies it to the name it links it by.
+genrule(
+    name = "library",
+    cmd = select(
+        {"DEFAULT": "gzip -dc $(location :linux_x86_64) > $OUT"} | {
+            cross_setting(platform): "gzip -dc $(location :{}) > $OUT".format(platform)
+            for platform in list(_PREBUILT) + ["android_arm64"]
+            if platform != "linux_x86_64"
+        },
+    ),
+    out = "library",
+    visibility = ["//third-party/rust:"],
+)

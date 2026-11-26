@@ -1,6 +1,7 @@
 mod audio;
 
 pub use audio::{AudioContent, AudioFile, AudioHeader};
+pub use be_sdk_type_guest::BlobFile;
 
 be_sdk_type_guest::be_block_types![AudioContent { file }];
 

@@ -1,6 +1,5 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use accesskit::{Node, Role};
-use beui_macros::{component, view};
 use beui_view::types::icons::Glyph;
 
 use crate::focus_ring::FocusRing;
@@ -60,8 +59,6 @@ fn ToggleButtonFace(handle: ToggleHandle) -> NodeId {
         tooltip,
         ..
     } = handle;
-    let has_glyph = create_memo(move || glyph.get().is_some());
-    let named = create_memo(move || !icon_only.get());
     let padding = create_memo(move || match icon_only.get() {
         true => Padding::all(Space::Md),
         false => Padding::symmetric(Space::Lg, Space::Md),
@@ -83,12 +80,12 @@ fn ToggleButtonFace(handle: ToggleHandle) -> NodeId {
             <FocusRing focused offset=Stroke::Focus>
                 <Frame fill={fill_color} border={border} radius=Radius::Md padding={padding}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
-                        <Show condition={has_glyph}>
+                        <Show value={move || glyph.with(Option::is_some)}>
                             <Text color={text_color} align=TextAlign::Center>
                                 <Icon glyph={glyph} />
                             </Text>
                         </Show>
-                        <Show condition={named}>
+                        <Show value={move || !icon_only.get()}>
                             <Text overflow=Overflow::Ellipsis color={text_color}>{label}</Text>
                         </Show>
                     </List>

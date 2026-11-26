@@ -17,6 +17,7 @@ write_package_value("be3.cargo", {
         "wasi-guest": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-input:be-block-input",
                 "//crates/be-lib-remap:be-lib-remap",
                 "//crates/be-sdk-beui:be-sdk-beui",
                 "//crates/be-sdk-database:be-sdk-database",

@@ -1,5 +1,5 @@
 use be_block_commit::MergeResult;
-use be_block_model::{Change, Document, Edit, Model, Step, Touched};
+use be_block_model::{Change, Document, Edit, Model, ObjectId, Step, Touched};
 use uuid::Uuid;
 
 use crate::{BlockContent, ChildChange, ContentError, LiveEdit, Merge, Undo};
@@ -32,8 +32,33 @@ pub trait Root: Model + Send + Sync + 'static {
         None
     }
 
+    /// `child_edit` for a document, made as `client`: what a type overrides when following a
+    /// child needs more than the root's values, such as editing a sequence (a block URL inside
+    /// text). A type whose references live in its content takes `Replace` here or in
+    /// `child_edit`, so unlinking a reference works whether an editor has the block open or not.
+    fn child_edit_in(document: &Document<Self>, change: ChildChange, client: u64) -> Option<Edit>
+    where
+        Self: Sized,
+    {
+        let _ = client;
+        document.root().child_edit(change)
+    }
+
     fn describe(&self, metadata: &mut crate::BlockMetadata) {
         let _ = metadata;
+    }
+
+    /// Merges two documents from their common base: the model's merge, and the number of
+    /// conflicts it left (`Document::merge`), unless the type knows better.
+    fn merge_in(
+        base: &Document<Self>,
+        ours: &Document<Self>,
+        theirs: &Document<Self>,
+    ) -> (Document<Self>, usize)
+    where
+        Self: Sized,
+    {
+        Document::merge(base, ours, theirs)
     }
 
     fn name_in(document: &Document<Self>) -> Option<String>
@@ -146,12 +171,59 @@ impl<R: Root> LiveEdit for Document<R> {
         Document::rebase(self, confirmed, operation, local, touched);
     }
 
-    fn child_operations(&self, change: ChildChange) -> Option<Vec<Self::Op>> {
-        self.root().child_edit(change).map(|edit| vec![edit])
+    fn child_operations(&self, change: ChildChange, client: u64) -> Option<Vec<Self::Op>> {
+        R::child_edit_in(self, change, client).map(|edit| vec![edit])
     }
 
     fn absorb_operation(operation: &mut Self::Op, next: Self::Op) -> Option<Self::Op> {
         for change in next.0 {
+            // Of two stamped puts to a key the higher stamp wins whatever else is merged, so the
+            // other is dropped: a burst of writes to one view state is one put. A later put is
+            // the higher unless an earlier was ranked above it (`Stamp::ranked`), when it is a
+            // no-op.
+            if let Change::Stamp {
+                object,
+                field,
+                key,
+                stamped,
+            } = &change
+            {
+                let same = |held: &Change| match held {
+                    Change::Stamp {
+                        object: held_object,
+                        field: held_field,
+                        key: held_key,
+                        stamped: held_stamped,
+                    } if held_object == object && held_field == field && held_key == key => {
+                        Some(held_stamped.stamp)
+                    }
+                    _ => None,
+                };
+                if operation
+                    .0
+                    .iter()
+                    .any(|held| same(held).is_some_and(|held| held > stamped.stamp))
+                {
+                    continue;
+                }
+                operation.0.retain(|held| same(held).is_none());
+            }
+            // A later set of a field leaves an earlier one in the edit nothing to do when
+            // nothing else in it reads or changes the field or its object as a whole (a
+            // conditional set or put, an add, a reshape, text, a removal that compares every
+            // field): a drag's frames are one write.
+            if let Change::Set { object, field, .. } = &change {
+                let alone = operation
+                    .0
+                    .iter()
+                    .all(|held| !reads_field(held, *object, *field));
+                if alone {
+                    operation.0.retain(|held| {
+                        !matches!(held, Change::Set { object: o, field: f, .. }
+                            if o == object && f == field)
+                    });
+                }
+            }
             let leftover = match (operation.0.last_mut(), change) {
                 (
                     Some(Change::Text { object, field, op }),
@@ -195,7 +267,7 @@ impl<R: Root> LiveEdit for Document<R> {
 
 impl<R: Root> Merge for Document<R> {
     fn merge3(base: &Self, ours: &Self, theirs: &Self) -> MergeResult<Self> {
-        match Document::merge(base, ours, theirs) {
+        match R::merge_in(base, ours, theirs) {
             (value, 0) => MergeResult::Clean(value),
             (value, conflicts) => MergeResult::Conflicted { value, conflicts },
         }
@@ -237,5 +309,72 @@ impl<R: Root> Undo for Document<R> {
 
     fn reapply(&self, step: &Self::Step) -> Vec<Self::Op> {
         vec![step.redo()]
+    }
+}
+
+/// Whether `change` reads or changes `field` of `object` other than by a plain set, or acts on
+/// `object` whole, so that an earlier set of the field still matters to it.
+fn reads_field(change: &Change, object: ObjectId, field: u16) -> bool {
+    match change {
+        Change::Set { .. } => false,
+        Change::Remove { object: o } | Change::RemoveIf { object: o, .. } => *o == object,
+        Change::SetIf {
+            object: o,
+            field: f,
+            ..
+        }
+        | Change::Add {
+            object: o,
+            field: f,
+            ..
+        }
+        | Change::Put {
+            object: o,
+            field: f,
+            ..
+        }
+        | Change::PutIf {
+            object: o,
+            field: f,
+            ..
+        }
+        | Change::Paint {
+            object: o,
+            field: f,
+            ..
+        }
+        | Change::Reshape {
+            object: o,
+            field: f,
+            ..
+        }
+        | Change::Stamp {
+            object: o,
+            field: f,
+            ..
+        }
+        | Change::Text {
+            object: o,
+            field: f,
+            ..
+        }
+        | Change::Mark {
+            object: o,
+            field: f,
+            ..
+        }
+        | Change::Unmark {
+            object: o,
+            field: f,
+            ..
+        }
+        | Change::Series {
+            object: o,
+            field: f,
+            ..
+        } => *o == object && *f == field,
+        Change::Insert { place, .. }
+        | Change::Move { place, .. }
+        | Change::MoveRange { place, .. } => place.object == object && place.field == field,
     }
 }

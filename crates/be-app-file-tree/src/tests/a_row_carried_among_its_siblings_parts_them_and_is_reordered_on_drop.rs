@@ -27,6 +27,7 @@ fn a_row_carried_among_its_siblings_parts_them_and_is_reordered_on_drop() {
     fixture.test.record();
     for _ in 0..6 {
         fixture.test.advance(std::time::Duration::from_millis(16));
+        fixture.test.run();
         fixture.test.record();
     }
     fixture.test.settle();

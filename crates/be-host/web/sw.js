@@ -7,9 +7,11 @@
 // loaded before. A kept answer carries its headers, so the page is still
 // cross-origin isolated when it comes from here.
 //
-// The page registers this at the root of its address (host.js), which is
-// where it has to be to answer for the page itself: the bundle's root here,
-// and /sw.js beside the entry point when deployed (crates/be-tool-local deploy).
+// The page registers this with the page's own directory as its scope
+// (host.js), which is what it has to cover to answer for the page itself: the
+// bundle's root here, and / when deployed, where this is the bundle's copy
+// under /data/BUILD/web/ and the CDN allows it the wider scope
+// (guides/hosting.md, The CDN).
 
 const CACHE = "be-host";
 

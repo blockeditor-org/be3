@@ -82,7 +82,9 @@ impl CanvasState {
         if press.pen.is_some() {
             self.note_pen();
         }
-        let world = self.world_at(press.pos);
+        let Some(world) = self.world_at(press.pos) else {
+            return;
+        };
         self.hover(Some(world));
         if let Some(child) = self.live_child_at(world) {
             if self.takes_frame(child) {
@@ -344,7 +346,9 @@ impl CanvasState {
         if self.previewing() {
             return;
         }
-        let world = self.world_at(press.pos);
+        let Some(world) = self.world_at(press.pos) else {
+            return;
+        };
         self.note_context_position(Some(world));
         let frame = selection_frame_of(self);
         let inside = frame.is_some_and(|frame| frame.contains(world));
@@ -361,7 +365,9 @@ impl CanvasState {
         if self.previewing() || !self.pointer_held() {
             return;
         }
-        let world = self.world_at(press.pos);
+        let Some(world) = self.world_at(press.pos) else {
+            return;
+        };
         self.hover(Some(world));
         let modifiers = press.modifiers;
         match self.gesture.get_untracked() {
@@ -377,7 +383,7 @@ impl CanvasState {
         }
         let scale = self.scale();
         let pen_step = 1.0 / scale;
-        let predicted = press.predicted.map(|at| self.world_at(at));
+        let predicted = press.predicted.and_then(|at| self.world_at(at));
         self.update_gesture(|gesture| match gesture {
             Gesture::Create {
                 tool,
@@ -433,7 +439,8 @@ impl CanvasState {
                     points.push(world);
                 }
             }
-            Gesture::Move { current, .. } => *current = world,
+            // The board carries a move (`lift_move`).
+            Gesture::Move { .. } => {}
             Gesture::Bend { current, grab, .. } => {
                 *current = CanvasPoint::new(world.x + grab.x, world.y + grab.y);
             }
@@ -500,8 +507,12 @@ impl CanvasState {
             self.hover(None);
         }
         self.hold_pointer(false);
-        let gesture = self.take_gesture();
         let retapped = self.take_retap();
+        // The board drops or puts down a move it carries.
+        if self.carries() {
+            return;
+        }
+        let gesture = self.take_gesture();
         if let (Some((id, at)), Some(Gesture::Move { start, current, .. })) = (retapped, &gesture)
             && start == current
         {
@@ -524,7 +535,9 @@ impl CanvasState {
             return false;
         }
         if press.key == Key::Escape {
-            if matches!(
+            if self.carries() {
+                self.board().cancel();
+            } else if matches!(
                 self.gesture.get_untracked(),
                 Some(Gesture::Erase { .. } | Gesture::Raster { .. })
             ) {
@@ -539,7 +552,8 @@ impl CanvasState {
             }
             return true;
         }
-        if self.focused_editor.get_untracked().is_some() {
+        // While the board carries the selection, its keys are the carry's and the rest wait.
+        if self.focused_editor.get_untracked().is_some() || self.carries() {
             return false;
         }
         let modifiers = press.modifiers;

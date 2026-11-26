@@ -56,7 +56,7 @@ fn ids(test: &mut BeuiTest<BarredRoot>) -> (u64, u64) {
             DockMessage::Declare(declare) => declare.declaration,
             _ => None,
         })
-        .last()
+        .next_back()
         .expect("the docked editor declares its dock");
     (declaration.tabs[0].tab.tab, declaration.bars[0].tab.tab)
 }
@@ -110,6 +110,7 @@ fn hosted(stage: u64, bar: u64, placement: DockBarPlacement) -> DockUpdate {
             fullscreen: None,
             mode: be_sdk_api::DockMode::Tiled,
             covers: Vec::new(),
+            restored: 0,
         }),
     })
 }
@@ -133,7 +134,7 @@ fn restored(test: &mut BeuiTest<BarredRoot>) -> DockLayout {
             },
             _ => None,
         })
-        .last()
+        .next_back()
         .expect("the editor restores the layout it kept")
 }
 
@@ -196,3 +197,5 @@ fn a_joined_docks_layout_is_kept_on_this_device_and_every_instance_follows_it() 
         "an open instance follows the layout another one kept"
     );
 }
+
+test_editor!(BarredRoot);

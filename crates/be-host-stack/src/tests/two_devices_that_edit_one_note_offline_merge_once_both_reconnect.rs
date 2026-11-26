@@ -8,7 +8,6 @@ fn two_devices_that_edit_one_note_offline_merge_once_both_reconnect() {
     // publish before the other device does and leave that device's drain `Diverged`.
     let mut harness = Harness::start().on_manual_clock();
     harness.connect();
-    let address = harness.address();
     let note = Uuid::new_v4();
     written(note, "one\ntwo\nthree\n");
     let other = Device::online(&harness);
@@ -27,7 +26,7 @@ fn two_devices_that_edit_one_note_offline_merge_once_both_reconnect() {
     flush();
     other.save_offline(note, "one\ntwo\nTHREE\n");
 
-    harness.start_server(&address);
+    harness.start_server();
     other.reconnect(&harness);
     retry_now();
     wait_until("merged what both devices wrote", |shared| {

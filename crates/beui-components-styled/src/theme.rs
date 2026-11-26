@@ -1,5 +1,3 @@
-use beui_macros::component;
-
 use beui_components_unstyled::SyntaxColors;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
@@ -398,11 +396,11 @@ impl Default for Theme {
 }
 
 #[component]
-pub fn ThemeProvider(theme: Prop<Theme>, #[prop(children)] content: Render) -> NodeId {
+pub fn ThemeProvider(theme: Prop<Theme>, #[prop(children)] content: Build<NodeId>) -> NodeId {
     let store = ThemeStore::new(ThemeTokens::literal(&theme.get_untracked()));
     create_effect(move || store.set(ThemeTokens::literal(&theme.get())));
     provide_context(store);
-    content.call(())
+    content.call()
 }
 
 pub fn control_border(theme: &ThemeStore) -> Memo<Option<Border>> {

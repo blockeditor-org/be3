@@ -3,12 +3,12 @@ use std::{env, error::Error, net::SocketAddr, path::PathBuf, process::ExitCode};
 use be_server::{ServerConfig, backup};
 use tokio::net::TcpListener;
 
-const USAGE: &str = "\
-Usage:
+const USAGE: &str = r#"Usage:
   be-server [--addr ADDR] [--data-dir DIR] [--allow-login] [--allow-registration]
             [--build-info-file FILE] [--auth-origin URL] [--account-quota BYTES]
             [--trusted-proxy ADDR]... [--object-cache BYTES] [--public-url URL]
             [--fcm-credentials FILE] [--push-host HOST]... [--allow-local-push-endpoints]
+            [--oidc-providers FILE]
   be-server backup-key > KEY-FILE
   be-server backup [--data-dir DIR] --to TARGET --key-file KEY-FILE
   be-server restore --from TARGET --key-file KEY-FILE --data-dir EMPTY-DIR [--snapshot NAME]
@@ -16,12 +16,13 @@ Usage:
   be-server invite-code create [--data-dir DIR] [--uses N] [--expires DAYS]
   be-server invite-code list [--data-dir DIR]
   be-server invite-code revoke [--data-dir DIR] ID
+  be-server login-link [--data-dir DIR] --auth-origin URL (--email EMAIL | --account ID)
 
   --addr ADDR               Address to listen on (default: 127.0.0.1:9090)
   --data-dir DIR            Where accounts and blocks are stored (default: be-server-data)
-  --allow-login             Accept sign-ins with a password; without it, only devices
-                            already signed in can connect, with the tokens they hold
-  --allow-registration      Let anyone with an invite code register a verified account
+  --allow-login             Accept sign-ins, by a code mailed to the account; without it,
+                            only devices already signed in can connect, with their tokens
+  --allow-registration      With --allow-login, let anyone with an invite code make an account
   --build-info-file FILE    JSON build metadata; clients must match its id. By
                             default the build-info.json file beside the executable, and with
                             neither it does not start
@@ -47,6 +48,8 @@ Usage:
                             Let Web Push endpoints be http:// and on loopback or private
                             addresses, for a test that serves one with --push-host; without,
                             an endpoint is https:// on a public address
+  --oidc-providers FILE     The OpenID Connect providers people may sign in with, as a JSON
+                            list (below); without, people sign in only by emailed code
 
 Objects are kept in DIR/objects, or, when BE_S3_ENDPOINT, BE_S3_REGION,
 BE_S3_BUCKET, BE_S3_ACCESS_KEY and BE_S3_SECRET_KEY are all set, in that bucket
@@ -68,7 +71,22 @@ makes and --expires how many days it works (by default neither is limited).
 `list` shows each code's id, uses and expiry, and `revoke ID` deletes one.
 These work on the data directory while the server runs.
 
-RUST_LOG sets what is logged (default: info).";
+`login-link` prints a link that signs in to the account with that email or id,
+once, within fifteen minutes, in place of a code from the log; using it signs
+out the account's other sessions. For an email with no account, using it makes
+the account, with no invite code: that is how a new server's first account is
+made. --auth-origin is the server's own. It too works while the server runs.
+
+The providers file lists each provider as {"id", "name", "issuer", "client_id",
+"client_secret", "authoritative_email"}. The id names it in its redirect URI,
+AUTH-ORIGIN/auth/oidc/ID/callback, which the provider must allow. The issuer is
+one tenant's own: multi-tenant issuers are not supported. Only a provider marked
+authoritative_email has its verified emails trusted. {"id": "google", "preset":
+"google", "client_id", "client_secret"} stands for Google, which is. Removing a
+provider leaves the accounts that sign in only with it with no way in but
+`login-link --account ID`; the server warns of them at start.
+
+RUST_LOG sets what is logged (default: info)."#;
 
 macro_rules! assets {
     ($($name:literal: $content_type:literal),* $(,)?) => {
@@ -122,6 +140,10 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
         Some("backup-key") => {
             println!("{}", backup::BackupKey::generate().to_hex());
             return Ok(());
+        }
+        Some("login-link") => {
+            arguments.next();
+            return login_link(arguments).map_err(|error| error.to_string().into());
         }
         Some("invite-code") => {
             arguments.next();
@@ -189,6 +211,12 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
                 let json = std::fs::read_to_string(&file)
                     .map_err(|error| format!("reading {file}: {error}"))?;
                 config.push.fcm = Some(be_server::push::FcmConfig::from_service_account(&json)?);
+            }
+            "--oidc-providers" => {
+                let file = arguments.next().ok_or("--oidc-providers needs a file")?;
+                let json = std::fs::read_to_string(&file)
+                    .map_err(|error| format!("reading {file}: {error}"))?;
+                config.providers = be_server::oidc::parse_providers(&json)?.into();
             }
             "--push-host" => {
                 let host = arguments.next().ok_or("--push-host needs a host name")?;
@@ -375,7 +403,8 @@ fn maintain(command: &str, options: Options) -> Result<(), Box<dyn Error + Send 
             tracing::info!(
                 snapshot = report.snapshot,
                 objects = report.objects,
-                "restored"
+                "restored the server as it was at the snapshot's time: check it is the newest \
+                 backup, since an older one would undo what changed after it"
             );
         }
         _ => {
@@ -398,6 +427,53 @@ fn maintain(command: &str, options: Options) -> Result<(), Box<dyn Error + Send 
             );
         }
     }
+    Ok(())
+}
+
+fn login_link(
+    mut arguments: impl Iterator<Item = String>,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    use be_server::store::login_links::{self, LinkFor};
+    let mut data_dir = PathBuf::from("be-server-data");
+    let mut origin = None;
+    let mut email = None;
+    let mut account = None;
+    while let Some(argument) = arguments.next() {
+        let mut value = || arguments.next().ok_or(format!("{argument} needs a value"));
+        match argument.as_str() {
+            "--data-dir" => data_dir = PathBuf::from(value()?),
+            "--auth-origin" => origin = Some(value()?),
+            "--email" => email = Some(value()?),
+            "--account" => account = Some(be_server::store::parse_uuid(&value()?)?),
+            other => return Err(format!("unknown argument {other}\n\n{USAGE}").into()),
+        }
+    }
+    let origin = origin.ok_or(format!(
+        "name the portal's origin with --auth-origin\n\n{USAGE}"
+    ))?;
+    be_server::mail::validate_origin(&origin)?;
+    let whom = match (&email, account) {
+        (Some(email), None) => LinkFor::Email(email),
+        (None, Some(account)) => LinkFor::Account(account),
+        _ => return Err(format!("name one of --email or --account\n\n{USAGE}").into()),
+    };
+    let link = login_links::create(&data_dir, whom)?;
+    println!("{origin}{}", login_links::path(&link.token));
+    let named = match account {
+        Some(account) => format!("account {account}"),
+        None => link.email.clone(),
+    };
+    let using = match (link.registers, link.vouches, link.email.as_str()) {
+        (true, _, _) => "; using it makes the account".to_owned(),
+        (false, true, _) => "; using it removes every other way into the account".to_owned(),
+        (false, false, "") => {
+            "; using it removes every way into the account, and its owner adds one again".to_owned()
+        }
+        (false, false, email) => format!(
+            "; using it removes every way into the account, its email {email} too, and its owner adds one again (use --email to keep an address you have checked)"
+        ),
+    };
+    eprintln!("a login link for {named} made, good once for fifteen minutes{using}");
     Ok(())
 }
 

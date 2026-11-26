@@ -1,5 +1,3 @@
-use beui_macros::{component, view};
-
 use crate::Chip;
 use crate::list::List;
 use crate::text::{Text, TextColor, TextSize};

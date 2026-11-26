@@ -1,5 +1,8 @@
 use super::*;
 
+/// The free funcs a local interface with tickets is given, which its WIT may not name.
+const RESERVED: [&str; 2] = ["settle", "waiting"];
+
 pub(crate) struct Local {
     pub(crate) guest: TokenStream,
     pub(crate) embed: TokenStream,
@@ -29,21 +32,36 @@ impl Flat {
     }
 }
 
+#[derive(Clone)]
 enum Param {
     Flat,
     Bytes,
     Text,
     Words(Flat, usize),
-    Handles { own: bool, resource: TypeId },
+    Handles {
+        own: bool,
+        resource: TypeId,
+    },
+    /// An option of bytes, text or words: a tag, then the pointer and length.
+    Optional(Box<Param>),
     Encoded,
 }
 
 enum Returns {
     Nothing,
     Scalar,
-    Niche { own: bool },
+    Niche {
+        own: bool,
+    },
     Bytes,
     Encoded,
+    /// A `result` with nothing on success: 0, or its error's encoded length plus one.
+    Fallible,
+    /// An async func's result, a `future` or a `stream`: a ticket the interface's poll settles.
+    Ticket {
+        item: Option<Type>,
+        stream: bool,
+    },
 }
 
 struct Call {
@@ -56,6 +74,7 @@ struct Call {
     constructor: bool,
     params: Vec<(Ident, Type)>,
     result: Option<Type>,
+    asynchronous: bool,
 }
 
 impl Generator {
@@ -298,7 +317,7 @@ impl Generator {
                 if let Some((own, resource)) = self.handle_of(inner) {
                     return Param::Handles { own, resource };
                 }
-                return match inner {
+                return match self.primitive(inner) {
                     Type::U8 => Param::Bytes,
                     Type::U32 => Param::Words(Flat::U32, 4),
                     Type::S32 => Param::Words(Flat::I32, 4),
@@ -310,10 +329,115 @@ impl Generator {
                 };
             }
         }
+        if let Type::Id(id) = ty
+            && let TypeDefKind::Option(inner) = &self.resolve.types[self.target(*id)].kind
+            && self.flat(ty).is_none()
+        {
+            return match self.param(inner) {
+                inner @ (Param::Bytes | Param::Text | Param::Words(..)) => {
+                    Param::Optional(Box::new(inner))
+                }
+                _ => Param::Encoded,
+            };
+        }
         match self.flat(ty) {
             Some(_) => Param::Flat,
             None => Param::Encoded,
         }
+    }
+
+    /// The type an alias (a `type x = u32`) names, followed to its end.
+    fn primitive(&self, ty: &Type) -> Type {
+        let mut ty = *ty;
+        while let Type::Id(id) = ty
+            && self.mapped(id).is_none()
+            && let TypeDefKind::Type(inner) = &self.resolve.types[id].kind
+        {
+            ty = *inner;
+        }
+        ty
+    }
+
+    /// The item an async func answers, or that a `future` or `stream` result carries.
+    fn ticket_of(&self, call: &Call) -> Option<Returns> {
+        if call.asynchronous {
+            return Some(Returns::Ticket {
+                item: call.result,
+                stream: false,
+            });
+        }
+        let Some(Type::Id(id)) = &call.result else {
+            return None;
+        };
+        match &self.resolve.types[self.target(*id)].kind {
+            TypeDefKind::Future(item) => Some(Returns::Ticket {
+                item: *item,
+                stream: false,
+            }),
+            TypeDefKind::Stream(item) => Some(Returns::Ticket {
+                item: *item,
+                stream: true,
+            }),
+            _ => None,
+        }
+    }
+
+    fn call_returns(&self, call: &Call) -> Returns {
+        self.ticket_of(call)
+            .unwrap_or_else(|| self.returns(call.result.as_ref()))
+    }
+
+    /// How each parameter of a call is passed: as `param` says, except that while the call
+    /// would take more than the 16 wasm arguments a call may, its widest flat parameters are
+    /// encoded instead (as the canonical ABI passes such a call's parameters in memory). A
+    /// handle, an optional handle and an option of a list or string are never encoded this way,
+    /// nor is anything already as narrow as an encoding's pointer and length.
+    fn kinds(&self, call: &Call, returns: &Returns) -> Vec<Param> {
+        let mut kinds: Vec<Param> = call.params.iter().map(|(_, ty)| self.param(ty)).collect();
+        let fixed = call.receiver as usize
+            + match returns {
+                Returns::Encoded | Returns::Bytes | Returns::Fallible => 2,
+                _ => 0,
+            };
+        loop {
+            let count = fixed
+                + call
+                    .params
+                    .iter()
+                    .zip(&kinds)
+                    .map(|((_, ty), kind)| self.abi(kind, ty).len())
+                    .sum::<usize>();
+            if count <= 16 {
+                return kinds;
+            }
+            let widest = call
+                .params
+                .iter()
+                .zip(&kinds)
+                .enumerate()
+                .filter(|(_, (_, kind))| matches!(kind, Param::Flat))
+                .filter(|(_, ((_, ty), _))| {
+                    self.handle_of(ty).is_none() && self.optional_handle(ty).is_none()
+                })
+                .max_by_key(|(_, ((_, ty), kind))| self.abi(kind, ty).len())
+                .map(|(index, _)| index);
+            match widest {
+                Some(index) if self.abi(&kinds[index], &call.params[index].1).len() > 2 => {
+                    kinds[index] = Param::Encoded;
+                }
+                _ => return kinds,
+            }
+        }
+    }
+
+    /// The error type of a `result`.
+    fn error_of(&self, ty: Option<&Type>) -> Result<Option<Type>, String> {
+        if let Some(Type::Id(id)) = ty
+            && let TypeDefKind::Result(result) = &self.resolve.types[self.target(*id)].kind
+        {
+            return Ok(result.err);
+        }
+        Err(format!("{ty:?} is not a result"))
     }
 
     fn returns(&self, ty: Option<&Type>) -> Returns {
@@ -325,6 +449,13 @@ impl Generator {
         }
         if let Param::Bytes = self.param(ty) {
             return Returns::Bytes;
+        }
+        if let Type::Id(id) = ty
+            && let TypeDefKind::Result(result) = &self.resolve.types[self.target(*id)].kind
+            && result.ok.is_none()
+            && result.err.is_some()
+        {
+            return Returns::Fallible;
         }
         match self.flat(ty) {
             Some(flat) if flat.len() == 1 => Returns::Scalar,
@@ -354,13 +485,14 @@ impl Generator {
         let TypeOwner::Interface(interface) = self.resolve.types[resource].owner else {
             return quote!(#name);
         };
-        let module = self.module_name(interface);
+        let module = self.module_path(interface);
         quote!(crate::#module::#name)
     }
 
-    fn abi(&self, ty: &Type) -> Vec<Flat> {
-        match self.param(ty) {
+    fn abi(&self, kind: &Param, ty: &Type) -> Vec<Flat> {
+        match kind {
             Param::Flat => self.flat(ty).unwrap_or_default(),
+            Param::Optional(_) => vec![Flat::U32, Flat::U32, Flat::U32],
             _ => vec![Flat::U32, Flat::U32],
         }
     }
@@ -368,15 +500,12 @@ impl Generator {
     fn calls(&self, interface: InterfaceId) -> Result<Vec<Call>, String> {
         let mut calls = Vec::new();
         for (key, function) in &self.resolve.interfaces[interface].functions {
-            if function.kind.is_async() {
-                return Err(format!(
-                    "{key}: a local interface is answered at once, so it has no async funcs"
-                ));
-            }
             let item = function.item_name();
             let (resource, receiver, constructor, host) = match function.kind {
-                FunctionKind::Freestanding => (None, false, false, item.to_owned()),
-                FunctionKind::Method(resource) => {
+                FunctionKind::Freestanding | FunctionKind::AsyncFreestanding => {
+                    (None, false, false, item.to_owned())
+                }
+                FunctionKind::Method(resource) | FunctionKind::AsyncMethod(resource) => {
                     let resource = self.target(resource);
                     let (_, name) = self.resource_names(resource);
                     (Some(resource), true, false, format!("{name}-{item}"))
@@ -398,12 +527,18 @@ impl Generator {
                 true => None,
                 false => function.result,
             };
-            if let Some(ty) = &result
-                && let Type::Id(id) = ty
-                && let TypeDefKind::Stream(_) | TypeDefKind::Future(_) =
-                    self.resolve.types[*id].kind
-            {
-                return Err(format!("{key}: a local func returns no stream or future"));
+            for param in &function.params {
+                if let Type::Id(id) = &param.ty
+                    && let TypeDefKind::Stream(_) | TypeDefKind::Future(_) =
+                        self.resolve.types[self.target(*id)].kind
+                {
+                    return Err(format!("{key}: a local func takes no stream or future"));
+                }
+            }
+            if RESERVED.contains(&item) && matches!(function.kind, FunctionKind::Freestanding) {
+                return Err(format!(
+                    "{key}: `{item}` is reserved for the poll a local interface with tickets is given"
+                ));
             }
             calls.push(Call {
                 key: key.clone(),
@@ -418,6 +553,7 @@ impl Generator {
                 constructor,
                 params,
                 result,
+                asynchronous: function.kind.is_async(),
             });
         }
         for (id, _) in self.resources(interface) {
@@ -432,6 +568,7 @@ impl Generator {
                 constructor: false,
                 params: Vec::new(),
                 result: None,
+                asynchronous: false,
             });
         }
         Ok(calls)
@@ -444,12 +581,16 @@ impl Generator {
             .ok_or("an interface of the world has no name")?;
         let module = self.module_name(interface);
         let calls = self.calls(interface)?;
-        let encoded_results = calls.iter().any(|call| {
-            matches!(
-                self.returns(call.result.as_ref()),
-                Returns::Encoded | Returns::Bytes
-            )
-        });
+        let tickets = calls
+            .iter()
+            .any(|call| matches!(self.call_returns(call), Returns::Ticket { .. }));
+        let encoded_results = tickets
+            || calls.iter().any(|call| {
+                matches!(
+                    self.call_returns(call),
+                    Returns::Encoded | Returns::Bytes | Returns::Fallible
+                )
+            });
         let mut externs = Vec::new();
         let mut stubs = Vec::new();
         let mut free = Vec::new();
@@ -463,18 +604,26 @@ impl Generator {
             for (_, ty) in &call.params {
                 self.ty(ty)?;
             }
-            if let Some(ty) = &call.result {
-                self.ty(ty)?;
+            let returns = self.call_returns(call);
+            match &returns {
+                Returns::Ticket { item, .. } => {
+                    self.optional(item.as_ref())?;
+                }
+                _ => {
+                    if let Some(ty) = &call.result {
+                        self.ty(ty)?;
+                    }
+                }
             }
-            let returns = self.returns(call.result.as_ref());
             let mut abi_types: Vec<Flat> = Vec::new();
             if call.receiver {
                 abi_types.push(Flat::U32);
             }
-            for (_, ty) in &call.params {
-                abi_types.extend(self.abi(ty));
+            let kinds = self.kinds(call, &returns);
+            for ((_, ty), kind) in call.params.iter().zip(&kinds) {
+                abi_types.extend(self.abi(kind, ty));
             }
-            if let Returns::Encoded | Returns::Bytes = returns {
+            if let Returns::Encoded | Returns::Bytes | Returns::Fallible = returns {
                 abi_types.extend([Flat::U32, Flat::U32]);
             }
             if abi_types.len() > 16 {
@@ -492,7 +641,11 @@ impl Generator {
                     .as_ref()
                     .and_then(|ty| self.flat(ty))
                     .and_then(|flat| flat.first().copied()),
-                (Returns::Niche { .. } | Returns::Encoded | Returns::Bytes, _) => Some(Flat::U32),
+                (
+                    Returns::Niche { .. } | Returns::Encoded | Returns::Bytes | Returns::Fallible,
+                    _,
+                ) => Some(Flat::U32),
+                (Returns::Ticket { .. }, _) => Some(Flat::U32),
             };
             let abi_names: Vec<Ident> = (0..abi_types.len())
                 .map(|index| format_ident!("a{index}"))
@@ -528,8 +681,8 @@ impl Generator {
             if call.receiver {
                 guest_args.push(quote!((self.0).0));
             }
-            for (name, ty) in &call.params {
-                match self.param(ty) {
+            for ((name, ty), kind) in call.params.iter().zip(&kinds) {
+                match kind.clone() {
                     Param::Flat => {
                         if let Some((own, resource)) = self.handle_of(ty) {
                             let owner = self.owner(resource);
@@ -594,6 +747,20 @@ impl Generator {
                         guest_args.push(quote!(#name.as_ptr() as u32));
                         guest_args.push(quote!(#name.len() as u32));
                     }
+                    Param::Optional(inner) => {
+                        let slice = match *inner {
+                            Param::Text => quote!(str),
+                            Param::Words(flat, _) => {
+                                let ty = flat.tokens();
+                                quote!([#ty])
+                            }
+                            _ => quote!([u8]),
+                        };
+                        guest_params.push(quote!(#name: ::core::option::Option<&#slice>));
+                        guest_args.push(quote!(#name.is_some() as u32));
+                        guest_args.push(quote!(#name.map_or(0, |#name| #name.as_ptr() as u32)));
+                        guest_args.push(quote!(#name.map_or(0, |#name| #name.len() as u32)));
+                    }
                     Param::Encoded => {
                         let rust = self.ty(ty)?;
                         let encoding = self.encoding(Some(ty));
@@ -619,7 +786,10 @@ impl Generator {
                         Some((true, resource)) => {
                             let owner = self.owner(resource);
                             let value = self.handle_value(resource);
-                            (quote!(-> #owner), quote!(#owner(#value(#invoke))))
+                            (
+                                quote!(-> #owner),
+                                quote!(#owner::from_handle(#value(#invoke))),
+                            )
                         }
                         _ => {
                             let rust = self.ty(&ty)?;
@@ -658,7 +828,7 @@ impl Generator {
                                 quote! {
                                     match #invoke {
                                         0 => ::core::option::Option::None,
-                                        handle => ::core::option::Option::Some(#owner(#value(handle))),
+                                        handle => ::core::option::Option::Some(#owner::from_handle(#value(handle))),
                                     }
                                 },
                             )
@@ -697,6 +867,40 @@ impl Generator {
                             returned::<#encoding, _>(#key, |pointer, capacity| unsafe { imports::#import(#(#args),*) })
                         },
                     )
+                }
+                (Returns::Fallible, _) => {
+                    let rust = self.ty(call.result.as_ref().unwrap_or(&Type::Bool))?;
+                    let error = self.error_of(call.result.as_ref())?;
+                    let encoding = self.encoding(error.as_ref());
+                    let mut args = guest_args.clone();
+                    args.push(quote!(pointer));
+                    args.push(quote!(capacity));
+                    (
+                        quote!(-> #rust),
+                        quote! {
+                            returned_error::<#encoding, _>(#key, |pointer, capacity| unsafe { imports::#import(#(#args),*) })
+                        },
+                    )
+                }
+                (Returns::Ticket { item, stream }, _) => {
+                    let rust = self.optional(item.as_ref())?;
+                    let encoding = self.encoding(item.as_ref());
+                    match stream {
+                        true => (
+                            quote!(-> ::be_wasm_ops::local::Items<#rust>),
+                            quote! {
+                                let ticket = #invoke;
+                                SETTLING.with(|settling| settling.items::<#rust, #encoding>(#key, ticket))
+                            },
+                        ),
+                        false => (
+                            quote!(-> ::be_wasm_ops::local::Ticket<#rust>),
+                            quote! {
+                                let ticket = #invoke;
+                                SETTLING.with(|settling| settling.ticket::<#rust, #encoding>(#key, ticket))
+                            },
+                        ),
+                    }
                 }
             };
             let guest_name = &call.guest;
@@ -748,14 +952,53 @@ impl Generator {
             if call.receiver {
                 bound.push(format_ident!("this"));
             }
-            for (name, ty) in &call.params {
+            for ((name, ty), kind) in call.params.iter().zip(&kinds) {
                 bound.push(name.clone());
-                match self.param(ty) {
+                match kind.clone() {
                     Param::Flat => {
                         let rust = self.ty(ty)?;
                         host_params.push(quote!(#name: #rust));
                         lifts.push(self.lift(ty, &mut values));
                         passed.push(quote!(#name));
+                    }
+                    Param::Optional(inner) => {
+                        let (Some(tag), Some(pointer), Some(length)) =
+                            (values.next(), values.next(), values.next())
+                        else {
+                            continue;
+                        };
+                        let read = quote!(caller.read(#pointer, #length)?);
+                        let (host_type, lift, pass) = match *inner {
+                            Param::Text => (
+                                quote!(::core::option::Option<&str>),
+                                quote! {
+                                    ::std::string::String::from_utf8(#read)
+                                        .map_err(|_| "a string is not utf-8".to_owned())?
+                                },
+                                quote!(#name.as_deref()),
+                            ),
+                            Param::Words(flat, size) => {
+                                let ty = flat.tokens();
+                                (
+                                    quote!(::core::option::Option<&[#ty]>),
+                                    words(pointer, length, size, quote!(#ty::from_le_bytes)),
+                                    quote!(#name.as_deref()),
+                                )
+                            }
+                            _ => (
+                                quote!(::core::option::Option<&[u8]>),
+                                read,
+                                quote!(#name.as_deref()),
+                            ),
+                        };
+                        host_params.push(quote!(#name: #host_type));
+                        lifts.push(quote! {
+                            match #tag {
+                                0 => ::core::option::Option::None,
+                                _ => ::core::option::Option::Some(#lift),
+                            }
+                        });
+                        passed.push(pass);
                     }
                     kind => {
                         let (Some(pointer), Some(length)) = (values.next(), values.next()) else {
@@ -879,14 +1122,68 @@ impl Generator {
                         }},
                     )
                 }
+                (Returns::Fallible, _) => {
+                    let rust = self.ty(call.result.as_ref().unwrap_or(&Type::Bool))?;
+                    let error = self.error_of(call.result.as_ref())?;
+                    let encoding = self.encoding(error.as_ref());
+                    let pointer = &abi_names[abi_names.len() - 2];
+                    let capacity = &abi_names[abi_names.len() - 1];
+                    (
+                        quote!(-> #rust),
+                        quote! {{
+                            match result {
+                                ::core::result::Result::Ok(()) => 0,
+                                ::core::result::Result::Err(error) => {
+                                    let bytes = ::be_wasm_ops::wire::encode::<#encoding, _>(&error);
+                                    let length = bytes.len() as u32;
+                                    if length <= #capacity {
+                                        if let ::core::result::Result::Err(message) = caller.write(#pointer, &bytes) {
+                                            caller.refuse(::std::format!("{}: {message}", #key));
+                                            return 0;
+                                        }
+                                    } else {
+                                        *caller.returned() = bytes;
+                                    }
+                                    length + 1
+                                }
+                            }
+                        }},
+                    )
+                }
+                (Returns::Ticket { .. }, _) => (
+                    TokenStream::new(),
+                    quote! {{
+                        let () = result;
+                        ticket
+                    }},
+                ),
             };
+            if let Returns::Ticket { item, stream } = &returns {
+                let rust = self.optional(item.as_ref())?;
+                let encoding = self.encoding(item.as_ref());
+                let settle = match stream {
+                    true => quote!(::be_wasm_ops::local::Sender<#rust, #encoding>),
+                    false => quote!(::be_wasm_ops::local::Promise<#rust, #encoding>),
+                };
+                let constructor = match stream {
+                    true => quote!(::be_wasm_ops::local::Sender::new(ticket)),
+                    false => quote!(::be_wasm_ops::local::Promise::new(ticket)),
+                };
+                host_params.push(quote!(settle: #settle));
+                passed.push(constructor);
+            }
             host_items.push(quote! {
                 fn #host_name(&mut self, #(#host_params),*) #host_return;
             });
             let glue_return = abi_return.clone().unwrap_or_default();
+            let ticket = match returns {
+                Returns::Ticket { .. } => quote!(let ticket = caller.ticket();),
+                _ => TokenStream::new(),
+            };
             glue.push(quote! {
                 #[inline]
                 pub fn #host_name<C: super::Caller>(caller: &mut C, #(#abi_params),*) #glue_return {
+                    #ticket
                     let lifted = (|| -> ::core::result::Result<_, ::std::string::String> {
                         ::core::result::Result::Ok((#(#lifts,)*))
                     })();
@@ -911,6 +1208,121 @@ impl Generator {
                 #dollar crate::embed::#module::glue::#host_name,
                 #id, #key, #export, (#(#entry_params),*) #abi_return;
             });
+        }
+        let mut settling = TokenStream::new();
+        let mut host_settle = TokenStream::new();
+        let mut caller_ticket = TokenStream::new();
+        if tickets {
+            externs.push(quote! {
+                #[link_name = "[poll]"]
+                pub fn settle(wait: u32, dropped: u32, dropped_length: u32, pointer: u32, capacity: u32) -> u32;
+            });
+            stubs.push(quote! {
+                pub unsafe fn settle(wait: u32, dropped: u32, dropped_length: u32, pointer: u32, capacity: u32) -> u32 {
+                    let _ = (wait, dropped, dropped_length, pointer, capacity);
+                    ::core::unreachable!("[poll] is only callable from wasm")
+                }
+            });
+            glue.push(quote! {
+                pub fn settle<C: super::Caller>(
+                    caller: &mut C,
+                    wait: u32,
+                    dropped: u32,
+                    dropped_length: u32,
+                    pointer: u32,
+                    capacity: u32,
+                ) -> u32 {
+                    let dropped: ::std::vec::Vec<u32> = match dropped_length {
+                        0 => ::std::vec::Vec::new(),
+                        length => {
+                            let decoded = caller.read(dropped, length).and_then(|bytes| {
+                                ::be_wasm_ops::wire::decode::<::be_wasm_ops::wire::Plain, ::std::vec::Vec<u32>>(&bytes)
+                                    .ok_or_else(|| "the dropped tickets do not decode".to_owned())
+                            });
+                            match decoded {
+                                ::core::result::Result::Ok(dropped) => dropped,
+                                ::core::result::Result::Err(message) => {
+                                    caller.refuse(::std::format!("[poll]: {message}"));
+                                    return 0;
+                                }
+                            }
+                        }
+                    };
+                    let ::core::option::Option::Some(settled) =
+                        caller.host("[poll]", |host| host.settle(wait != 0, &dropped))
+                    else {
+                        return 0;
+                    };
+                    let bytes = ::be_wasm_ops::wire::encode::<::be_wasm_ops::wire::Plain, _>(&settled);
+                    let length = bytes.len() as u32;
+                    if length <= capacity {
+                        if let ::core::result::Result::Err(message) = caller.write(pointer, &bytes) {
+                            caller.refuse(::std::format!("[poll]: {message}"));
+                            return 0;
+                        }
+                    } else {
+                        *caller.returned() = bytes;
+                    }
+                    length
+                }
+            });
+            let export = format!("{id}#[poll]");
+            entries.push(quote! {
+                #dollar crate::embed::#module::glue::settle,
+                #id, "[poll]", #export, (a0: u32, a1: u32, a2: u32, a3: u32, a4: u32) -> u32;
+            });
+            host_settle = quote! {
+                /// What settled since the last call: the values of async funcs and futures,
+                /// and the items and ends of streams. `dropped` are the tickets the guest gave
+                /// up since then: the host settles none of them again and lets go of what it
+                /// held for them, before it waits. With `wait`, where the host can block, it
+                /// blocks until at least one thing has settled, or nothing pending could settle
+                /// (no async func or future is unsettled; streams alone never hold it).
+                fn settle(&mut self, wait: bool, dropped: &[u32]) -> ::std::vec::Vec<::be_wasm_ops::local::Settled>;
+            };
+            caller_ticket = quote! {
+                /// A ticket no earlier call of the interface was answered with, never
+                /// `be_wasm_ops::local::REFUSED`.
+                fn ticket(&mut self) -> u32;
+            };
+            settling = quote! {
+                ::std::thread_local! {
+                    static SETTLING: ::be_wasm_ops::local::Settling =
+                        ::be_wasm_ops::local::Settling::default();
+                }
+
+                /// Takes what settled since the last call and wakes the futures and streams
+                /// waiting for it, first telling the host which tickets were dropped. With
+                /// `wait`, where the host can block, it blocks until at least one thing has
+                /// settled, or nothing pending could. A host with nothing to answer with (no
+                /// gpu) answers nothing.
+                pub fn settle(wait: bool) {
+                    let dropped = SETTLING.with(|settling| settling.take_dropped());
+                    let dropped = match dropped.is_empty() {
+                        true => ::std::vec::Vec::new(),
+                        false => ::be_wasm_ops::wire::encode::<::be_wasm_ops::wire::Plain, _>(&dropped),
+                    };
+                    let settled = returned_or::<::be_wasm_ops::wire::Plain, ::std::vec::Vec<::be_wasm_ops::local::Settled>>(
+                        "[poll]",
+                        ::std::vec::Vec::new(),
+                        |pointer, capacity| unsafe {
+                            imports::settle(
+                                wait as u32,
+                                dropped.as_ptr() as u32,
+                                dropped.len() as u32,
+                                pointer,
+                                capacity,
+                            )
+                        },
+                    );
+                    SETTLING.with(|settling| settling.settle(settled));
+                }
+
+                /// Whether any future or stream of the interface still waits for its poll.
+                pub fn waiting() -> bool {
+                    SETTLING.with(|settling| settling.waiting())
+                }
+            };
         }
         if encoded_results {
             externs.push(quote! {
@@ -944,9 +1356,30 @@ impl Generator {
                         const { ::core::cell::RefCell::new(::std::vec::Vec::new()) };
                 }
 
+                /// What a call answered encoded, or `empty` when it answered nothing (length 0,
+                    /// which no encoded list is): a host that could not answer it.
+                #[allow(dead_code)]
+                fn returned_or<E: ::be_wasm_ops::wire::Decode<T>, T>(
+                    name: &str,
+                    empty: T,
+                    call: impl FnOnce(u32, u32) -> u32,
+                ) -> T {
+                    let mut empty = ::core::option::Option::Some(empty);
+                    returned_with::<E, T>(name, call, &mut empty)
+                }
+
+                #[allow(dead_code)]
                 fn returned<E: ::be_wasm_ops::wire::Decode<T>, T>(
                     name: &str,
                     call: impl FnOnce(u32, u32) -> u32,
+                ) -> T {
+                    returned_with::<E, T>(name, call, &mut ::core::option::Option::None)
+                }
+
+                fn returned_with<E: ::be_wasm_ops::wire::Decode<T>, T>(
+                    name: &str,
+                    call: impl FnOnce(u32, u32) -> u32,
+                    empty: &mut ::core::option::Option<T>,
                 ) -> T {
                     RETURNED.with(|room| {
                         let mut room = room.borrow_mut();
@@ -954,6 +1387,11 @@ impl Generator {
                             room.resize(256, 0);
                         }
                         let length = call(room.as_mut_ptr() as u32, room.len() as u32) as usize;
+                        if length == 0
+                            && let ::core::option::Option::Some(empty) = empty.take()
+                        {
+                            return empty;
+                        }
                         if length > room.len() {
                             room.resize(length, 0);
                             unsafe { imports::returned(room.as_mut_ptr() as u32) };
@@ -965,6 +1403,30 @@ impl Generator {
                             }
                         }
                     })
+                }
+
+                /// A `result` with nothing on success: the call is given no room, so success
+                /// costs nothing more, and an error (its length plus one) is fetched through
+                /// `[returned]`.
+                #[allow(dead_code)]
+                fn returned_error<E: ::be_wasm_ops::wire::Decode<T>, T>(
+                    name: &str,
+                    call: impl FnOnce(u32, u32) -> u32,
+                ) -> ::core::result::Result<(), T> {
+                    let length = match call(0, 0) {
+                        0 => return ::core::result::Result::Ok(()),
+                        length => length as usize - 1,
+                    };
+                    let mut bytes = ::std::vec![0u8; length];
+                    if length > 0 {
+                        unsafe { imports::returned(bytes.as_mut_ptr() as u32) };
+                    }
+                    match ::be_wasm_ops::wire::decode::<E, T>(&bytes) {
+                        ::core::option::Option::Some(error) => ::core::result::Result::Err(error),
+                        ::core::option::Option::None => {
+                            ::core::panic!("{name} returned an error that does not decode")
+                        }
+                    }
                 }
 
                 #[allow(dead_code)]
@@ -1032,6 +1494,8 @@ impl Generator {
 
             #returned_helper
 
+            #settling
+
             #(#owners)*
 
             #(#free)*
@@ -1041,6 +1505,7 @@ impl Generator {
 
             pub trait Host {
                 #(#host_items)*
+                #host_settle
             }
 
             pub trait Caller {
@@ -1061,6 +1526,8 @@ impl Generator {
                 fn refuse(&mut self, message: ::std::string::String);
 
                 fn returned(&mut self) -> &mut ::std::vec::Vec<u8>;
+
+                #caller_ticket
             }
 
             pub mod glue {

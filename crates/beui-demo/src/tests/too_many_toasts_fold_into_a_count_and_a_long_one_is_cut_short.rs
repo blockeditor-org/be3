@@ -39,15 +39,17 @@ fn too_many_toasts_fold_into_a_count_and_a_long_one_is_cut_short() {
         }
     });
     let mut test = DocumentTest::new(document, size);
+    // The toasts slide in from the side before they rest.
+    test.settle();
     for id in 1..=3 {
         assert!(
-            !test.shows(&format!("toast.{id}")),
+            !test.shown(&format!("toast.{id}")),
             "toast {id} is folded away"
         );
     }
     for id in 4..=6 {
         assert!(
-            test.shows(&format!("toast.{id}")),
+            test.shown(&format!("toast.{id}")),
             "the newest toasts show: {id}"
         );
     }
@@ -68,14 +70,18 @@ fn too_many_toasts_fold_into_a_count_and_a_long_one_is_cut_short() {
     test.snapshot("toasts_folded_into_a_count");
 
     test.click("toast.6.dismiss");
+    // A dismissed toast slides off before it goes.
+    test.settle();
     assert!(
-        test.shows("toast.3"),
+        test.shown("toast.3"),
         "dismissing a toast brings the next one back"
     );
     test.click("toast.5.dismiss");
+    test.settle();
     test.click("toast.4.dismiss");
+    test.settle();
     assert!(
-        !test.shows("toasts.more"),
+        !test.shown("toasts.more"),
         "the count goes once every toast fits"
     );
 }

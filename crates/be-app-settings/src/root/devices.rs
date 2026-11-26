@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
 use std::rc::Rc;
 
+use be_block_input::{InputSettings, InputSettingsContent};
 use be_sdk_beui::be_block::display_settings::Rotation;
 use be_sdk_beui::be_block::{
-    DeviceClass, DisplaySettings, DisplaySettingsContent, InputSettings, InputSettingsContent,
-    SettingsContent, SettingsProfileContent,
+    DeviceClass, DisplaySettings, DisplaySettingsContent, SettingsContent, SettingsProfileContent,
 };
 use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::be_block_content::setting::Setting;
@@ -316,23 +316,23 @@ fn DevicesTable(editor: Editor, settings: ContentProjection<SettingsContent>) ->
                 .collect::<Vec<_>>()
         })
     });
-    let differs = create_memo(move || !keys.with(Vec::is_empty));
-    let same = create_memo(move || !differs.get());
     view! {
         <List spacing=Space::None>
-            <Show condition={same}>
+            <Show
+                value={move || keys.with(Vec::is_empty)}
+                fallback={move || view! {
+                    <Table label="Devices and profiles" heading="Setting" columns={columns}>
+                        <ForEach value={keys}>|key: String|
+                            <DevicesRow model={model} key={key} />
+                        </ForEach>
+                    </Table>
+                }}
+            >
                 <Frame padding=SAME_PADDING>
                     <Text style=TextStyle::CAPTION @test_id={"devices.same"}>
                         {NOTHING_DIFFERS}
                     </Text>
                 </Frame>
-            </Show>
-            <Show condition={differs}>
-                <Table label="Devices and profiles" heading="Setting" columns={columns}>
-                    <ForEach keys={keys}>|key: String|
-                        <DevicesRow model={model} key={key} />
-                    </ForEach>
-                </Table>
             </Show>
         </List>
     }
@@ -346,25 +346,30 @@ fn DevicesRow(model: Memo<Model>, key: String) -> NodeId {
             model.with(|model| model.rows.iter().find(|row| row.key == key).cloned())
         })
     };
-    let name = create_memo(move || {
-        row.with(|row| row.as_ref().map(|row| row.name.clone()))
-            .unwrap_or_default()
-    });
     let every = create_memo(move || {
         row.with(|row| row.as_ref().map(|row| row.every.clone()))
             .unwrap_or_default()
     });
     let profiles = create_memo(move || model.with(|model| model.profiles.clone()));
-    let every_color = create_memo(move || match every.with(|every| every == NOT_SET) {
-        true => TextColor::Muted,
-        false => TextColor::Default,
-    });
     let id = format!("devices.{key}");
     let (row_id, all_id) = (id.clone(), format!("{id}.all"));
     view! {
-        <TableRow label={name} @test_id={row_id}>
-            <TableCell text={every} color={every_color} @test_id={all_id} />
-            <ForEach keys={profiles}>|profile: Uuid| {
+        <TableRow
+            label={move || {
+                row.with(|row| row.as_ref().map(|row| row.name.clone()))
+                    .unwrap_or_default()
+            }}
+            @test_id={row_id}
+        >
+            <TableCell
+                text={every}
+                color={move || match every.with(|every| every == NOT_SET) {
+                    true => TextColor::Muted,
+                    false => TextColor::Default,
+                }}
+                @test_id={all_id}
+            />
+            <ForEach value={profiles}>|profile: Uuid| {
                 let cell = create_memo(move || {
                     row.with(|row| {
                         row.as_ref()
@@ -373,17 +378,14 @@ fn DevicesRow(model: Memo<Model>, key: String) -> NodeId {
                             .unwrap_or_default()
                     })
                 });
-                let text = create_memo(move || cell.with(|cell| cell.text.clone()));
-                let caption = create_memo(move || cell.with(|cell| cell.caption.clone()));
-                let color = create_memo(move || match cell.with(|cell| cell.kept) {
-                    true => TextColor::Default,
-                    false => TextColor::Muted,
-                });
                 view! {
                     <TableCell
-                        text={text}
-                        caption={caption}
-                        color={color}
+                        text={move || cell.with(|cell| cell.text.clone())}
+                        caption={move || cell.with(|cell| cell.caption.clone())}
+                        color={move || match cell.with(|cell| cell.kept) {
+                            true => TextColor::Default,
+                            false => TextColor::Muted,
+                        }}
                         @test_id={format!("{id}.{profile}")}
                     />
                 }

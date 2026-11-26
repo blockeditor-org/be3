@@ -35,7 +35,6 @@ fn a_program_group_comes_from_a_window_open_now() {
     editor.run();
 
     editor.click("input-remaps.add-program");
-    editor.run();
     assert!(
         matches!(
             editor.take_host_calls(be_sdk_test::requested::program)[..],
@@ -44,10 +43,8 @@ fn a_program_group_comes_from_a_window_open_now() {
         "the dialog asks the host for the installed programs"
     );
     editor.click("input-remaps.programs.open.0");
-    editor.run();
     editor.snapshot("the_program_dialog_lists_open_and_installed_programs");
     editor.click("input-remaps.programs.confirm");
-    editor.run();
 
     assert!(!editor.shown("input-remaps.programs"));
     let text = stored(&editor);
@@ -59,11 +56,8 @@ fn a_program_group_comes_from_a_window_open_now() {
     );
 
     editor.click("input-remaps.group.1.scope");
-    editor.run();
     editor.click("input-remaps.programs.installed.0");
-    editor.run();
     editor.click("input-remaps.programs.confirm");
-    editor.run();
     let text = stored(&editor);
     assert!(
         text.contains("name = \"GIMP\"\nrules = []\nwindow = { program_id = \"org.gimp.GIMP\" }"),

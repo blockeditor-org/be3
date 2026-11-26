@@ -37,9 +37,10 @@ fn clicking_the_clock_opens_the_desktops_calendar_and_clicking_away_closes_it() 
         .test
         .content::<EditorViewContent>(None)
         .root()
-        .state("desktop.calendar")
-        .map(|state| state.refs.clone());
-    assert_eq!(remembered, Some(vec![calendar]), "the desktop remembers it");
+        .view_state::<KeptCalendar>()
+        .and_then(Result::ok)
+        .and_then(|kept| kept.0.block());
+    assert_eq!(remembered, Some(calendar), "the desktop remembers it");
     fixture.test.settle();
     fixture.test.snapshot("the_clock_opens_a_calendar");
 

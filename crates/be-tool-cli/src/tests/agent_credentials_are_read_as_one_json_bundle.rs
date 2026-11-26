@@ -23,4 +23,9 @@ fn agent_credentials_are_read_as_one_json_bundle() {
     assert_eq!(settings.token, "agent-token");
     assert_eq!(settings.phrase, "agent phrase");
     assert_eq!(settings.authorization.as_deref(), Some("Bearer gateway"));
+    // A debug print, which may end up in a log, holds none of the secrets.
+    let printed = format!("{settings:?}");
+    for secret in ["agent-token", "agent phrase", "gateway"] {
+        assert!(!printed.contains(secret), "{secret} shows in {printed}");
+    }
 }

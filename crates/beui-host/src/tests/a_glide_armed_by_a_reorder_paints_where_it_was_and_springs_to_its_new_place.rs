@@ -5,13 +5,13 @@ use crate::reactive::*;
 fn a_glide_armed_by_a_reorder_paints_where_it_was_and_springs_to_its_new_place() {
     let _root = RootScope::new();
     let order = create_signal(vec![1_u64, 2, 3]);
-    let arm = create_signal(0_u64);
+    let arm = create_trigger();
     let mut harness = Harness::new(gliding_rows(order, arm));
     harness.settle();
     assert_eq!(top_of(&harness, "row.1"), 0.0);
 
     order.set(vec![2, 3, 1]);
-    arm.update(|arm| *arm += 1);
+    arm.notify();
     harness.frame(Vec::new());
     assert_eq!(
         top_of(&harness, "slot.1"),

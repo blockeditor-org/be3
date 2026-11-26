@@ -1,7 +1,7 @@
+use be_block_input::InputSettingsContent;
 use be_sdk_beui::be_block::settings::{Settings, SettingsProfile};
 use be_sdk_beui::be_block::{
-    DeviceClass, DisplaySettings, DisplaySettingsContent, InputSettingsContent,
-    SettingsProfileContent,
+    DeviceClass, DisplaySettings, DisplaySettingsContent, SettingsProfileContent,
 };
 use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::beui::{Key, Modifiers, Vec2};
@@ -10,6 +10,7 @@ use be_sdk_beui::{BlockInfo, BlockParent};
 use be_sdk_beui::be_block::SettingsContent;
 use be_sdk_beui::{EditorHost, OwnedEditor};
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use uuid::Uuid;
 
 use crate::root::SettingsRoot;
@@ -41,11 +42,14 @@ fn editor_for(account: Uuid) -> BeuiTest<SettingsRoot> {
     editor_as(account)
 }
 
-fn editor_as<R: be_sdk_beui::BeuiRoot>(account: Uuid) -> BeuiTest<R> {
+fn editor_as<R: be_sdk_beui::BeuiRoot + be_sdk_beui::AppEditor>(account: Uuid) -> BeuiTest<R> {
     editor_in(account, Uuid::nil())
 }
 
-fn editor_in<R: be_sdk_beui::BeuiRoot>(account: Uuid, organization: Uuid) -> BeuiTest<R> {
+fn editor_in<R: be_sdk_beui::BeuiRoot + be_sdk_beui::AppEditor>(
+    account: Uuid,
+    organization: Uuid,
+) -> BeuiTest<R> {
     let block = Uuid::from_u128(0x5e77_0001);
     let host = EditorHost::default();
     host.set_account_id(account);
@@ -161,14 +165,10 @@ impl SetUp {
             .position(|known| *known == class)
             .expect("every class is offered");
         self.editor.click("setup.kind");
-        self.editor.run();
         self.editor.key(Key::Home, Modifiers::NONE);
-        self.editor.run();
         for _ in 0..index {
             self.editor.key(Key::ArrowDown, Modifiers::NONE);
-            self.editor.run();
         }
         self.editor.key(Key::Enter, Modifiers::NONE);
-        self.editor.run();
     }
 }

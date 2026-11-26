@@ -17,17 +17,18 @@ const SETUP_WIDTH: Size = Size::Custom(440.0);
 pub(crate) fn TerminalBlock(editor: Editor) -> NodeId {
     let session = Session::new(editor);
     let setup = create_memo(move || session.host.with(Option::is_none) && session.empty());
-    let running = create_memo(move || !setup.get());
     view! {
         <List spacing=Space::None>
-            <Show condition={setup}>
+            <Show
+                value={setup}
+                fallback={move || view! {
+                    <ListItem grow=1.0>
+                        <Running session editor={editor} />
+                    </ListItem>
+                }}
+            >
                 <ListItem grow=1.0>
                     <Offline editor={editor} />
-                </ListItem>
-            </Show>
-            <Show condition={running}>
-                <ListItem grow=1.0>
-                    <Running session editor={editor} />
                 </ListItem>
             </Show>
         </List>
@@ -37,7 +38,6 @@ pub(crate) fn TerminalBlock(editor: Editor) -> NodeId {
 #[component]
 fn Running(session: Session, editor: Editor) -> NodeId {
     let connected = create_memo(move || session.host.with(Option::is_some));
-    let disconnected = create_memo(move || !connected.get());
     let place = create_memo(move || {
         session.host.with(|host| match host {
             Some((_, host)) if host.user.is_empty() => format!("On {}", host.machine),
@@ -70,19 +70,6 @@ fn Running(session: Session, editor: Editor) -> NodeId {
         }
     });
     let program = create_memo(move || alternate.get() && !peek.get());
-    let history = create_memo(move || match program.get() {
-        true => Lines::default(),
-        false => session.history.get(),
-    });
-    let rows = create_memo(move || match program.get() {
-        true => session.alternate.get(),
-        false => session.screen.get(),
-    });
-    let cursor = create_memo(move || {
-        let cursor = session.cursor.get();
-        (cursor.visible && !peek.get()).then_some(cursor)
-    });
-    let input = create_memo(move || editor.editable().get() && connected.get() && !peek.get());
     let content = NodeRef::new();
     editor.content(&content);
     view! {
@@ -96,31 +83,37 @@ fn Running(session: Session, editor: Editor) -> NodeId {
                     <Text style=TextStyle::CAPTION>
                         <Icon glyph={ICON_TERMINAL.to_owned()} />
                     </Text>
-                    <Show condition={connected}>
+                    <Show
+                        value={connected}
+                        fallback={move || view! {
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=Space::Md
+                            >
+                                <Text style=TextStyle::CAPTION color=TextColor::Warning>
+                                    <Icon glyph={ICON_UNPLUG.to_owned()} />
+                                </Text>
+                                <Text style=TextStyle::CAPTION @test_id={"terminal.offline"}>
+                                    "No machine is running this terminal"
+                                </Text>
+                                <Popover
+                                    label="How to start one"
+                                    glyph={ICON_INFO.to_owned()}
+                                    variant=ButtonVariant::Ghost
+                                    max_width=SETUP_WIDTH
+                                    @test_id={"terminal.setup"}
+                                >|_|
+                                    <SetupSteps editor={editor} />
+                                </Popover>
+                            </List>
+                        }}
+                    >
                         <Text style=TextStyle::CAPTION @test_id={"terminal.host"}>{place}</Text>
-                    </Show>
-                    <Show condition={disconnected}>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                            <Text style=TextStyle::CAPTION color=TextColor::Warning>
-                                <Icon glyph={ICON_UNPLUG.to_owned()} />
-                            </Text>
-                            <Text style=TextStyle::CAPTION @test_id={"terminal.offline"}>
-                                "No machine is running this terminal"
-                            </Text>
-                            <Popover
-                                label="How to start one"
-                                glyph={ICON_INFO.to_owned()}
-                                variant=ButtonVariant::Ghost
-                                max_width=SETUP_WIDTH
-                                @test_id={"terminal.setup"}
-                            >|_|
-                                <SetupSteps editor={editor} />
-                            </Popover>
-                        </List>
                     </Show>
                     <Text style=TextStyle::CAPTION @test_id={"terminal.status"}>{status}</Text>
                     <Spacer />
-                    <Show condition={alternate}>
+                    <Show value={alternate}>
                         <ToggleButton
                             label="Main screen"
                             glyph={ICON_SCROLL_TEXT.to_owned()}
@@ -133,11 +126,20 @@ fn Running(session: Session, editor: Editor) -> NodeId {
             <ListItem grow=1.0>
                 <Frame @node_ref={&content}>
                     <TerminalView
-                        history
-                        rows
-                        cursor
+                        history={move || match program.get() {
+                            true => Lines::default(),
+                            false => session.history.get(),
+                        }}
+                        rows={move || match program.get() {
+                            true => session.alternate.get(),
+                            false => session.screen.get(),
+                        }}
+                        cursor={move || {
+                            let cursor = session.cursor.get();
+                            (cursor.visible && !peek.get()).then_some(cursor)
+                        }}
                         colors={session.colors}
-                        input
+                        input={move || editor.editable().get() && connected.get() && !peek.get()}
                         wheel={program}
                         on_input={move |input: TerminalInput| session.input(input)}
                         on_wheel={move |wheel: TerminalWheel| session.wheel(wheel)}

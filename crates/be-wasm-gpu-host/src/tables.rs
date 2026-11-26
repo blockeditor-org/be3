@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+/// The maps and sets of this crate: foldhash rather than SipHash, since handles come from the
+/// app but are looked up on every per-draw call.
+pub(crate) type HashMap<K, V> = std::collections::HashMap<K, V, foldhash::fast::FixedState>;
+pub(crate) type HashSet<T> = std::collections::HashSet<T, foldhash::fast::FixedState>;
 
 type Handle = u32;
 
@@ -26,7 +29,7 @@ pub(crate) struct Table<T> {
 impl<T> Table<T> {
     pub(crate) fn new() -> Self {
         Self {
-            entries: HashMap::new(),
+            entries: HashMap::default(),
             counter: Counter::new(),
         }
     }
@@ -41,8 +44,18 @@ impl<T> Table<T> {
         self.counter.take()
     }
 
+    pub(crate) fn handles(&self) -> impl Iterator<Item = Handle> + use<T> {
+        let mut handles: Vec<Handle> = self.entries.keys().copied().collect();
+        handles.sort_unstable();
+        handles.into_iter()
+    }
+
     pub(crate) fn values(&self) -> impl Iterator<Item = &T> {
         self.entries.values()
+    }
+
+    pub(crate) fn values_mut(&mut self) -> impl Iterator<Item = &mut T> {
+        self.entries.values_mut()
     }
 
     pub(crate) fn get(&self, handle: Handle, kind: &str) -> Result<&T, String> {
@@ -65,5 +78,11 @@ impl<T> Table<T> {
 
     pub(crate) fn remove(&mut self, handle: Handle) {
         self.entries.remove(&handle);
+    }
+}
+
+impl<T> Default for Table<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }

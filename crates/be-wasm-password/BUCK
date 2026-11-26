@@ -1,0 +1,5 @@
+load("@root//buck/cargo:defs.bzl", "cargo_crate")
+
+# A password as typed, zeroed when dropped: what a root hands its host to check
+# (be3:root's host.unlock) and what the login session checks with PAM.
+cargo_crate()

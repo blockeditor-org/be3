@@ -30,7 +30,7 @@ fn changed_and_new_paintings_are_kept_with_why_and_every_one_is_used() {
     let used = |name: &str| std::fs::read_to_string(out.join("used").join(name)).unwrap();
     assert_eq!(
         used("same.browser.paint"),
-        super::super::sha256(&painting("<p>same</p>"))
+        be_lib_sha256::sha256(&painting("<p>same</p>"))
     );
-    assert_eq!(used("new.browser.paint"), super::super::sha256(b""));
+    assert_eq!(used("new.browser.paint"), be_lib_sha256::sha256(b""));
 }

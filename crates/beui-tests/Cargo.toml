@@ -14,9 +14,11 @@ path = "src/main.rs"
 
 [dependencies]
 beui = { path = "../beui" }
+beui-text-editor-core = { path = "../beui-text-editor-core" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 beui-host = { path = "../beui-host" }
+beui-host-window = { path = "../beui-host-window" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 beui-html = { path = "../beui-html" }
@@ -25,6 +27,7 @@ wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = [
     "Document",
+    "DomRect",
     "Element",
     "Event",
     "EventTarget",

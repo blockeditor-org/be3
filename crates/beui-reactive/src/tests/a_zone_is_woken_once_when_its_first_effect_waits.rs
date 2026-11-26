@@ -15,7 +15,7 @@ fn a_zone_is_woken_once_when_its_first_effect_waits() {
         scope.run(move || {
             create_effect(move || seen.set(count.get()));
             create_effect(move || {
-                other.get();
+                other.track();
             });
         });
     }

@@ -26,7 +26,7 @@ fn a_modal_sheet_opened_again_rests_where_it_did_the_first_time() {
     let top = |harness: &Harness| {
         harness
             .document()
-            .node_rect(content.get())
+            .node_rect(content.try_get()?)
             .map(|rect| rect.top())
     };
     open.set(true);

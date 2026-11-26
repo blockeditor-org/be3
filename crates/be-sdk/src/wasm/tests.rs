@@ -10,17 +10,23 @@ mod a_compute_pipeline_made_without_a_layout_writes_through_the_layout_its_shade
 mod a_compute_pipeline_writes_the_values_given_to_its_overridable_constants;
 mod a_destroyed_buffer_can_no_longer_be_mapped;
 mod a_destroyed_device_is_reported_lost_and_drops_what_it_is_asked;
+mod a_fit_view_that_measures_new_content_asks_the_host_for_its_frame;
 mod a_map_still_pending_when_its_buffer_is_unmapped_fails;
+mod a_pipeline_made_asynchronously_is_ready_or_says_why_not;
 mod a_pipeline_made_without_a_layout_draws_with_the_layout_its_shaders_imply;
+mod a_pipeline_with_an_empty_vertex_slot_draws_with_the_slot_unset;
 mod a_rejected_shader_is_caught_by_an_error_scope;
 mod a_render_bundle_replays_its_draws_in_a_pass;
 mod a_render_bundle_that_draws_without_a_pipeline_is_refused;
 mod a_render_pipeline_draws_with_the_values_given_to_its_overridable_constants;
 mod a_shader_module_says_where_its_wgsl_went_wrong;
+mod a_surface_that_leaves_the_layout_is_let_go_at_the_host;
 mod a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu;
 mod a_texture_view_has_only_the_usages_it_asks_for;
 mod a_texture_whose_format_needs_an_unrequested_feature_is_refused;
 mod a_timestamp_query_set_needs_its_feature_requested;
+mod a_vertex_buffer_set_past_the_last_slot_is_refused;
+mod a_view_that_fits_itself_anew_is_presented_only_at_its_new_size;
 mod a_view_without_an_anchor_space_anchors_no_views;
 mod a_window_is_committed_with_its_own_screen_in_the_frame_that_opens_it;
 mod an_anchored_view_is_a_screen_committed_in_the_frame_that_opens_it;
@@ -70,6 +76,7 @@ struct Shared {
     open: RefCell<Vec<Anchored>>,
     child_in: RefCell<Option<ViewId>>,
     window: RefCell<Option<be_sdk_api::WindowOpen>>,
+    fitted: RefCell<Option<Vec2>>,
 }
 
 struct Layered {
@@ -114,7 +121,7 @@ impl ViewHandler for AnchoringViews {
                     .seen
                     .borrow_mut()
                     .spaces
-                    .push(region.anchor_space.clone());
+                    .push(region.anchor_space);
                 if let Some(layer) = *self.shared.child_in.borrow() {
                     self.host.in_view(View::anchored(layer), || {
                         let rect = Rect::from_min_size(pos2(230.0, 140.0), vec2(30.0, 20.0));
@@ -137,12 +144,14 @@ impl ViewHandler for AnchoringViews {
                             false,
                             None,
                             false,
+                            0,
                         )
                     });
                 }
                 Frame {
                     changed: true,
                     painted: vec![region.rect],
+                    fitted: *self.shared.fitted.borrow(),
                     anchored: self.shared.open.borrow().clone(),
                     asks: self
                         .shared
@@ -217,6 +226,33 @@ fn layer(id: u64, parent: u64, rect: Rect) -> Anchored {
     }
 }
 
+fn accepted(spec: SurfaceSpec) -> Delivery {
+    Delivery::Accepted(HelloAccepted {
+        host_name: "test host".into(),
+        surface: Some(spec),
+        preferences: be_sdk_api::Preferences::default(),
+    })
+}
+
+fn opening() -> Delivery {
+    Delivery::Open(Opening {
+        instance: INSTANCE,
+        editor: [6; 16],
+        account_id: [3; 16],
+        organization_id: [4; 16],
+        client_id: [5; 16],
+        offers_share: true,
+        kind: OpeningKind::Block(OpenBlock {
+            block_id: [1; 16],
+            block_type: [2; 16],
+            view_block: None,
+            editable: true,
+            page_origin: String::new(),
+            host_palette: false,
+        }),
+    })
+}
+
 struct Rig {
     screens: Screens,
     surfaces: Surfaces,
@@ -231,11 +267,7 @@ impl Rig {
             render: true,
         };
         let mut screens = Screens::new(Vec::new(), crate::Waker::default());
-        screens.deliver(Delivery::Accepted(HelloAccepted {
-            host_name: "test host".into(),
-            surface: Some(spec),
-            preferences: be_sdk_api::Preferences::default(),
-        }));
+        screens.deliver(accepted(spec));
         let host = EditorHost::new(crate::Waker::default());
         let shared = Rc::new(Shared::default());
         let editor = Layered {
@@ -267,21 +299,7 @@ impl Rig {
             anchor_space: layers,
             fit: false,
         }];
-        screens.deliver(Delivery::Open(Opening {
-            instance: INSTANCE,
-            editor: [6; 16],
-            account_id: [3; 16],
-            organization_id: [4; 16],
-            client_id: [5; 16],
-            kind: OpeningKind::Block(OpenBlock {
-                block_id: [1; 16],
-                block_type: [2; 16],
-                view_block: None,
-                editable: true,
-                page_origin: String::new(),
-                host_palette: false,
-            }),
-        }));
+        screens.deliver(opening());
         let surfaces = Surfaces::new(spec).expect("the test runner has a gpu");
         Self {
             screens,
@@ -373,7 +391,7 @@ fn read_back(device: &wgpu::Device, buffer: &wgpu::Buffer) -> Vec<u8> {
         Some(Ok(())),
         "the read map settled"
     );
-    let bytes = buffer.get_mapped_range(..).to_vec();
+    let bytes = buffer.get_mapped_range(..).unwrap().to_vec();
     buffer.unmap();
     bytes
 }
@@ -510,8 +528,10 @@ fn resolved(
     encoder.copy_buffer_to_buffer(&resolve, 0, &destination, 0, size);
     queue.submit([encoder.finish()]);
     read_back(device, &destination)
-        .chunks_exact(8)
-        .map(|value| u64::from_le_bytes(value.try_into().unwrap()))
+        .as_chunks::<8>()
+        .0
+        .iter()
+        .map(|value| u64::from_le_bytes(*value))
         .collect()
 }
 

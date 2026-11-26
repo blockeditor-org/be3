@@ -1,5 +1,4 @@
 use be_block_client::Event;
-use be_block_protocol::RelayKind;
 
 use super::*;
 
@@ -9,25 +8,25 @@ use super::*;
 #[test]
 fn a_relayed_message_sealed_with_a_key_another_search_awaits_waits_for_it() {
     with_another_device(|peer, phone, shared, mut replicas| async move {
-        let block = block(&peer).await;
+        // A block of the account whose key this device has not fetched: another device made it.
+        let block = phone
+            .create::<Sections>(BlockParent::Root)
+            .await
+            .expect("the other device makes a block");
+        let key = phone.current_key(block).expect("the block has a key");
         replicas
             .open((&peer, &shared), block, Sections::CONTENT_TYPE, true)
-            .await;
+            .await
+            .expect("the block opens");
         while replicas.joining() {
             replicas.woken().await;
             replicas.pump((&peer, &shared)).await;
         }
 
-        // A key of the account this device has not fetched: another device made it.
-        let made = phone
-            .create::<Sections>(BlockParent::Root)
-            .await
-            .expect("the other device makes a block");
-        let key = phone.current_key(made).expect("the block has a key");
         let payload = phone
             .commits()
             .vault()
-            .seal(key, b"from the phone")
+            .seal(key, b"\0from the phone")
             .expect("the phone seals with its key");
         // A search for it is on its way already.
         assert!(peer.first_search_for(key));
@@ -37,7 +36,6 @@ fn a_relayed_message_sealed_with_a_key_another_search_awaits_waits_for_it() {
             &Event::Relayed {
                 block,
                 from: 2,
-                kind: RelayKind::Peer,
                 payload,
                 received: 0,
             },

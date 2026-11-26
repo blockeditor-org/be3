@@ -29,7 +29,7 @@ fn a_component_can_return_a_show_for_its_parent_to_lay_out() {
 #[component]
 fn Extra(shown: Prop<bool>) -> DynamicSegment<ListItem> {
     view! {
-        <Show condition={shown}>
+        <Show value={shown}>
             <Frame height=20.0 fill=Color32::BLACK />
         </Show>
     }

@@ -6,7 +6,7 @@ use beui_core::icons::{ICON_FOLDER, ICON_SEARCH, ICON_SETTINGS};
 use beui_core::painter::Shape;
 use beui_core::program::{Setup, Waker};
 use beui_core::window::WindowState;
-use beui_font_freetype::FreetypeFonts;
+use beui_font_skrifa::SkrifaFonts;
 use beui_types::Color32;
 use beui_types::Corners;
 use beui_types::Rotation;
@@ -97,7 +97,7 @@ pub(super) fn window(context: &Context, id: WindowId, size: Vec2, title: &str) -
 #[test]
 fn the_chrome_around_a_curved_panel() {
     let (mut space, now) = space();
-    let context = Context::new(FreetypeFonts::default());
+    let context = Context::new(SkrifaFonts::default());
     let mut setup = Setup::new(Waker::new(|| {}));
     setup.provide(context.clone());
     space.setup(&setup);

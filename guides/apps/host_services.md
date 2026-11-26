@@ -68,20 +68,32 @@ Notes on particular calls:
 - Files are picked with beui's own picker (guides/beui/components.md, Inputs and
   forms), which
   inside an app forwards to the host's; `be_sdk_beui::FileChooser` adds the
-  import step. `save_file` saves through the platform's dialog or as a
+  import step. A file type's editor makes and replaces its block from a file
+  with `ContentFileCreation` and `ContentFileReplace`, filtered by its
+  `BlobFile::FILE_EXTENSIONS` and `MIME_TYPES`. `save_file` saves through the platform's dialog or as a
   browser download.
 - `read_plain_file(block)` is a block's plain-file form from its type module
   (guides/type_modules.md); renders such as PNG or PDF are the editor's own and go
   through `save_file`.
 - `drag()` is a block the host drags over the screen; the editor draws the
-  feedback and answers `accept_drag`. A drag inside the editor's own document
-  never reaches the host: that is beui's `Draggable` and `DropTarget`
+  feedback and answers `accept_drag`. The host lifts the block onto its drag
+  board at the pointer pressing, where the view holding each editor's content
+  (its main view, or the dock view given its frame; never its bars) is a place
+  wherever the view takes the pointer, and tells the editor the point in that
+  view, the action the keys held make (`DropAction`) and the drop. An editor
+  reads that drag from any of its views (`drag()`), so a docked editor, which
+  steps its bars' views too, hears it. A drag inside the editor's own document never reaches the host:
+  that is a carry on the editor's own board and its drop sites
   (guides/beui/components.md, Drag and drop).
 - `present(on)` asks for the whole window; the host may take it away (Escape,
   another instance on screen), so read `presenting()` rather than remembering
   what you asked.
 - `occlude(rect)` tells the host the editor draws over children placed so
   far there.
+- No call gives a child the keyboard: its placement asks for it
+  (`ChildBlock`'s and `Subregion`'s `keyboard`, the protocol's `keyboard-ask`),
+  and the host moves the keyboard at the commit that carries the ask, without
+  waiting for the child's app (guides/apps/children.md, Focus).
 - `create_block_agent(block, name)`, `rotate_agent_token(agent)` and
   `remove_agent(agent)` make, re-key and delete an agent that reaches only one
   block, the editor's own, one below it, or one the app made that still sits
@@ -96,15 +108,19 @@ Notes on particular calls:
   refuses to rotate or remove anything but a block's agent the person made
   (`member.bound-to` and `created-by`); removing one no longer listed answers
   success without asking the server.
-- `sign(bytes)` signs as the person and `verify(account, bytes, signature)`
-  answers a `Signer` (verified, unverified, changed or bad), both in the block
-  the editor shows, with a key the app never holds (guides/blocks/keys.md,
-  Signing what a person writes). Sign what a record means, not its encoding: a
-  type defines the bytes (be-type-chat's `signed.rs`). `verify` is
-  `unavailable` while its answer needs the server and it is out of reach.
-  `BeuiTest` answers both itself: everyone signs as `be_sdk_test::signature`
-  gives, and `set_signer(account, signer)` sets how a good signature by
-  `account` verifies (a contact's, `Verified`, unless set).
+- `list_access`, `set_access`, `transfer_ownership`, `accept_ownership` and the share and contact
+  link calls grant access or reveal who has it, so the host denies them unless
+  the manifest sets `"sharing": true` (an app the person opened cannot share
+  what it shows, or read its links, unasked). Any app may still open a block
+  it just made (one it created in this run, answered once the server took the
+  create and the block is still the app's: made by this app and account, so if
+  the listing of such a block made on another device lands before this
+  device's create is set aside, the opening goes ahead) to anyone inside
+  (`set_access(ANYONE_INSIDE, View)`), as the editor framework does when it
+  makes a settings kind every member reads (`ensure_block_kind`,
+  `ensure_edit_kind`): that names no one. It is not airtight: such an app can
+  still copy what it reads into a block it makes and open that one to everyone
+  inside at View.
 - Web views can be placed (`SubregionContent::WebView`) but no host shows one
   yet: every open fails, and the editor shows that in its place.
 - A revision preview is a temporary, read-only block: the host isolates it
@@ -114,26 +130,25 @@ Notes on particular calls:
   closes one that opens after the editor let go. In tests,
   `take_revision_previews` and `take_closed_previews`. `list_revisions` marks the head the server read
   with the list, and history keeps one state a minute (guides/blocks/server.md).
-  Restoring keeps the state it replaced: the owner seals it as a "Before
-  restoring" bookmark first (`Replicas::bookmark`); a follower, which cannot
-  seal, stashes it and publishes the restore as a merge with it, whose parents
-  history never prunes.
+  Restoring keeps the state it replaced: the lease holder seals it as a
+  "Before restoring" bookmark first (`Replicas::bookmark`), and the replica
+  stashes what it showed under the restore, which the order takes as a
+  barrier; history never prunes a stash.
 - Notifications to a block's members who have no connection open
-  (guides/blocks/server.md, "Notifications") are not an editor's to send: an
-  edit announces itself. The block type names what each edit made on this
-  device tells them (`LiveEdit::announcements`: chat's sends tell the message's
-  body, mentioning the author of the message it replies to), and the host
-  sends it once the server holds the edit, whether an editor or replica is open
-  then or not (guides/type_modules.md, "Announcements"). The host cuts the
+  (guides/blocks/server.md, "Notifications") go with a signed log's entry:
+  an append names what it tells them (`Along::announcement`: chat's sends tell
+  the message's body, mentioning the author of the message it replies to), and
+  the host sends it once the server holds the entry, whether an editor or
+  replica is open then or not (guides/type_modules.md, "Announcements"). The host cuts the
   text to `be_block_client::MAX_NOTIFICATION_TEXT` and seals it under the
   block's key with the organization, the block, the sender and the time, so
   the server reads none of it; the device that shows it names the sender (whom
   the server vouches for) and the block itself. A member whose mode is
-  `mentions` is told only of what mentions them. `NotifyModesWatch` follows
-  the account's mode for every block, and `set_notify_mode` changes one; the
+  `mentions` is told only of what mentions them. `MutesWatch` follows
+  the account's mode for every block, and `set_mute` changes one; the
   workspace's block menu offers them (Notifications: All, Mentions only, Off),
   showing a change until the host answers and going back if it refuses.
-  `BeuiTest::take_announced` records what the editor's edits announced.
+  `BeuiTest::take_announced` records what the editor's log entries announced.
 - `set_push_device(on)` turns pushes to this device on or off and `PushDeviceWatch` follows it
   (none on a host that cannot receive them, which is every host but the web build); turning
   them on asks for the person's permission, so call it from their press. The settings list's
@@ -143,12 +158,35 @@ Notes on particular calls:
   other editor has any use for them.
 - The host's leave confirm and the shell's share dialog name the block in their
   own words, from the host's graph. Each passes the name through
-  `be_block::quotable_name`, which drops control and format characters,
+  `be_lib_quoted_name::quotable_name`, which drops control and format characters,
   straightens every quotation mark and lookalike, caps runs of combining marks
   and shortens it on a grapheme boundary, then quotes it with
   `Phrase::quoted`, which isolates it for bidi (guides/beui/text.md), so no
   name can pass for the dialog's own words. Quote any name a person typed into
   the host's words the same way.
+
+## Reporting a failure
+
+An editor draws no error of its own for something the person asked for that
+failed and that leaves nothing to show in place: a copy that could not be
+written, a file that could not be read or saved, a block that could not be
+copied. The SDK reports a failed `pick_block` and `paste_blocks` itself.
+`editor.host().report_failure(message)` hands the message, written for the
+person to read (a `Failure`'s `Display` usually is), to the host, which shows
+it as it shows its own failures: a toast (`be_host_base::notices::report`,
+drawn by `notice_toasts` in `crates/be-host/src/ui.rs`). It is the
+`report-failure` shell message (`shell.wit`), told in order with the editor's
+other messages; a revision preview may tell it too. Lead with what failed,
+"The X could not be Y.", and follow it with the reason as a sentence of its
+own (`"The slide could not be duplicated. {failure}"`); a reason that already
+says what failed (boat's "Your plan's compute hours are used up for this
+month.") can stand alone. A failure identical to one still showing is not
+shown again, so an editor need not throttle its reports. The editor keeps no
+error signal and no `Banner` for it, and nothing to dismiss. A failure that belongs
+to a place in the editor (a field that does not parse, a child that could not
+open, a list that could not load) is still drawn there. In a test,
+`BeuiTest::take_reported_failures()` returns the messages reported since the
+last take.
 
 ## The graph
 
@@ -157,6 +195,19 @@ the host's mirror of the server's. `editor.watch_blocks(query)` is a memo of
 the `BlockInfo`s for a `BlockQuery` (`Roots`, `Shared`, `Children`,
 `References`, `Backrefs`, ...). Nothing lists every block, so a browser walks
 a folder at a time from `Roots` and `Shared`.
+
+An editor that shows blocks as nested rows builds them with
+`be_sdk_beui::block_tree`: `sections` says which sections there are, and
+`BlockTree::walk` walks blocks below them into rows keyed by path, unfolding
+what the editor's `open` says, showing what its `shown` filter does, and, while
+searching, keeping what `matches` with the blocks above it. Children come from
+whatever the editor lists them with: the files pane's live watch per open
+folder, or the picker's snapshot of the graph. A block on its own path shows
+but never unfolds. A block row's menu takes Move to, Delete (or Remove link)
+and Export as (its own file, a block file, and its editor's exporters) from
+`be_sdk_beui::block_menu`, for a `MenuBlock` the row
+describes, and renames through `rename_block`, which says why a name is
+refused; the files pane and a folder (workspace-index) use them.
 
 `editor.blocks()` changes it: create, set parent, name, define metadata.
 Each is a `GraphCommand` the host applies to its mirror at once, checks
@@ -167,7 +218,9 @@ instance closes.
 ## Copying and cutting blocks
 
 A copy of blocks is a reference: `editor.copy_blocks` writes `be3/blocks` and,
-as plain text, each title and its link; the host adds the blocks' exported
+as plain text, each title and its link (with no link base, as on a local
+server, the link's `#block/…` fragment alone, which a text reads as naming the
+block too); the host adds the blocks' exported
 files, read through their types only when a paste asks. Its blocks are the
 item's `refs`, which the host translates like any id crossing the protocol.
 
@@ -196,10 +249,12 @@ for one to be dragged in. The SDK places a picker child
 editor that accepts `pick` (`be-app-workspace/src/picker.rs`). After a touch
 or on a phone the view sits on the bottom edge and the picker draws itself as
 a sheet. The view takes the keyboard as it opens, so typing reaches the
-picker at once. `picked` gets the block, or nothing when cancelled; a new pick
-replaces the one before. `Creation::pick_block` does the same in a creation
-dialog, which is how the game editor gets its game module before its own block
-exists. Tests: `BeuiTest::placed_picker()` and `answer_picker(pick)`.
+picker at once. `picked` gets the block, or nothing when cancelled; a pick
+that failed is reported to the host (Reporting a failure) and `picked` hears
+nothing of it either. A new pick replaces the one before.
+`Creation::pick_block` does the same in a creation dialog, which is how the
+game editor gets its game module before its own block exists. Tests:
+`BeuiTest::placed_picker()` and `answer_picker(pick)`.
 
 `editor.rename_block(block, anchor)` and `editor.show_host_menu(anchor)` are
 the same kind of popup, holding `SubregionContent::Rename` (run in the
@@ -239,11 +294,180 @@ A host call is a function of the same interface made inside `editor.act`:
 On the host, `be_host_base::watches::publish::<W>(&value)` sets a value,
 `watched::<W>()` says whether any watch is open (the host starts PulseAudio
 only then), `openings::<W>()` counts openings and `take_calls(be_sdk_api::requested::power)` takes what instances
-asked. `be-host-runtime/src/wire.rs` refuses an extension the manifest does
-not grant or the platform cannot back. Adding one is a WIT resource or
+asked. `be-sdk-app-host/src/wire.rs` refuses an extension the manifest does
+not grant or the platform cannot back (be-host-runtime's `published::offered`,
+which it passes as `Wire::offering`). Adding one is a WIT resource or
 function, a `publish` or `take_calls` on the host, and `watch` or `act` in the
 editor; nothing else lists them. Tests use `BeuiTest::set_watched::<W>`,
 `host_calls` and `take_host_calls`.
+
+## Offered and permitted
+
+Whether an editor shows a way to share is two questions. Whether sharing is
+offered at all is the host's (`opening.offers-share`,
+`EditorHost::offers_share`): false for a local account, which has no server,
+so the frame registers no `editor.share` and menus leave out Share and the
+access a block is viewed at rather than disable them. Whether this account may
+share a given block is its access (it manages the block: the frame's
+`can_share`, be-sdk-shell's `Permissions::share`), which only enables or
+disables a Share that is offered. `offers-share` holds for the instance's
+life, as the account it opens for does.
+
+## Naming a block's members
+
+An app learns who may view its own block, and what to call them, from a
+`block-watch` of the `members` subject (`editor.members()`, a
+`Ready<Vec<BlockMember>>`): each account that may view the block, and its
+author while it may view it too, with a name and `verified`. A contact is
+named by the name on its contact card this device verified (`Contact::verified`
+set, and no `mismatch` since), the signed-in account by its own (the name this
+device holds of it, `be_host_stack::own_name`, which it puts on the card it
+hands out), and anyone else by the name its account gave the server, which the
+server could change, so `verified` is false and the editor marks it.
+`verified` never covers a name the server gave. Nothing else of a
+member reaches the app (no email, role or grant; a manager lists those with
+`list-access`). It is a block watch, not a published `*-watch`, because its
+answer differs per block and per editor; it is scoped to the editor's own
+block so an editor learns only the names of people it already shares a block
+with.
+
+The server names them for anyone who may view the block (`query.names`,
+guides/blocks/server.md); be-host-runtime asks through
+`be_host_stack::list_names` once the watch opens (`members.rs`), and again
+whenever the block's `changed` moves (a grant, a revoke, a move or a share
+above it, any of which can land in the same summary as a new head, so a sent
+message asks again too; removing a member from the organization moves the
+`changed` of every block they could view, guides/blocks/server.md, "Changes
+since"), or after a failed ask (offline) once the graph moves. Each answer is
+named afresh from the contacts
+(`app_graph::members_of`), so a contact's new card reaches the editor without
+asking the server. A host component may not watch it
+(`may_be_made_by_a_host`): names are for a person. Tests answer it with
+`BeuiTest::set_members`.
+
+## Host components
+
+A host component is a component of the app's wasm with no frame: the manifest
+names it under `hosts` (an id; `edits`, the one block type it runs on, one its
+own app declares; and `levels`, what the share dialog offers on a block of that
+type, Join among them, each with a `name` and a `line` saying what it adds for
+the stored block: `HostManifest::levels`, guides/blocks/hosted.md, "The share
+dialog"), and the app's `beui_app!` map pairs the name with a root as it does an
+editor's; the framework refuses to start unless the roots cover the editors and
+hosts together. The root's `BeuiRoot::host(editor)` runs once it is attached,
+in a reactive scope kept while it runs, and is where the component does its
+work (it needs no `View`, whose default is empty, since it is never shown):
+be-app-example-counter's `CounterHost` adds one to its block once the content
+arrives. With no frames, the guest takes in
+what changed each time the instance is woken instead (`Instance::pass`, which
+be-sdk-beui runs as `begin_frame` inside that scope, so the effects woken
+then run as it ends). The host opens it with `opening-kind.host` (block, type,
+whether it may edit) through `be_host_runtime::host` and stops it with
+`close`, and it never gets a screen: no frame, no view, no input, so it lays
+out and paints nothing. It is attached to its block's replica as an editor is
+and calls host services the same way, within a narrower reach, since it runs
+unattended with the account's access. The runtime enforces it, whatever the
+app asks (`Instances::hosting`):
+- the graph only at its own block and the blocks below it: every block a
+  blocks call names must be one of those, and the call must be one a host may
+  make (`blocks::Call::may_be_made_by_a_host`, an exhaustive allowlist):
+  writing and replicating content, watching and searching within its reach,
+  making blocks under a block, and on a block in reach undo, redo, history,
+  unlink, delete, move, reorder, place, restore, define and set-parent to a
+  block, and the version commands that stay in its checkout (adopt, resolve,
+  finish, update, switch, merge, undo). Opening, sharing or leaving a block,
+  closing an editor, artifacts, and a fork, checkout, branch, pull or push
+  (which find or place blocks of their own) are not;
+- of the host services, only its app's own data (`list-data`, `read-data`);
+- no shell message but a failure report, no web view, no `open-url`, and no
+  gpu. A fetch is the manifest's `network` as for any instance. It is how a
+hosted block's host runs (guides/blocks/hosted.md), in be-host or headless in
+`be` (guides/apps/runtime.md, "Headless").
+
+be-host runs a block's host component while it hosts the block
+(`crates/be-host/src/hosting.rs`, every frame): an editor of the block is open
+on the device, the account may edit it, and no other device hosts the block's
+session (`be_host_stack::may_host`, from `Seen::session_hosts`, which follows
+`session-event.host` and the host each join answers); it stops it otherwise.
+Starting it claims the session's lease (`restart_host`), which makes this device
+the host, the server's claimed holder; a later claim elsewhere makes that device
+the host, and this one stops its component. When the host leaves, no one hosts
+until a device with an editor open starts its component and claims. One that
+stops while its replica stays open (a preview) has the replica join the session
+again (`release_host`, `Replicas::rejoin_block`), which drops the claim; so does
+one stopped because another device claimed after it, since its claim stays in the
+session and would name this device host again once that device goes. Which claims
+those are is be-host-stack's `Hosting::claimed`, each claim since the replica last
+joined, and be-host also releases any block the server names this device host of
+(`be_host_stack::hosted`) with no component running. That this device hosts comes
+only from `session-event.host`, the claimant's own included, never from a claim's
+answer, so it stays in order with every other claim; Keep hosting is offered only
+where a component runs and the server names this device host. A join of a block's session that
+answers no one hosts it while a component runs there (a rejoin that dropped a claim as the
+component started again, or a reconnect) claims again (`Hosting::running`). The component hears its block's host channel members as `editor-event.member`
+(`member-event`: `joined` with the member's number, account and level, `said`,
+`left`), which be-host-stack admits and checks (`crates/be-host-stack/src/hosting.rs`,
+guides/blocks/keys.md, "Hosted channels") and the runtime passes on
+(`be_host_stack::take_member_events`, read on each pass; the worker queues
+them in `Seen::member_news`, which reaches the page on the web too), and
+answers one with the block command `tell-member`, which only a
+host component of its own block may send. A member goes (`left`) when it
+leaves the session, when a message of its does not open (taken then as its new
+handshake), when the component falls too far behind to hear it, and when the
+signed logs no longer let it in, checked again on `KeysChanged`, `Roots`,
+`TreeAdvanced`, a resynchronized connection, and after the device's own change
+of the block's access or a ban. A component that starts hears every member
+already admitted join. be-host looks again at which components should run only
+when a lease (`be_host_stack::lease_revision`), the instances running
+(`be_host_runtime::roles_revision`) or the graph changed, and does not start a
+failed one again until the block stops being one it should host. In
+be-sdk-beui, `Editor::on_member` and `Editor::tell_member`.
+
+An editor hears whether this device hosts its block as `editor-event.hosting`
+(`hosting-here`: `no`, `yes`, `kept`), told by be-host's `Hosts` through
+`be_host_runtime::set_hosting`, and be-sdk-beui's frame menu offers Keep
+hosting while it is anything but `no` (`Editor::hosting`,
+`Editor::keep_hosting`). It sends the block command `keep-hosting`: be-host
+then counts the block as edited here once its editors close, so its component
+runs on, and lists it in the host menu with Stop (`UiCommand::StopHosting`), saying
+whether it hosts the block now or stands by while another device does (`KeptHost::now`).
+While kept, be-host holds the block's replica open itself
+(`be_host_stack::open`, let go with `close`), so a lease lost to a disconnect
+comes back and the component starts again; only Stop, or the account no
+longer allowed to edit, lets it go; meanwhile, without the lease, the device's
+replica stays a participant of the session, waiting for it. Only an editor of
+the block may ask to keep hosting it. What is kept lives in memory only: quitting be-host stops it.
+
+The other end of the channel is an ordinary editor. An editor opened on a
+block whose access is Join opens with `opening-kind.join` (block, type), is
+given no content (`Instance::connect_join`, `EditorHost::joined`), and speaks
+to whoever hosts the block: it hears `editor-event.channel` (`channel-event`:
+`open` with the hosting account, `closed`, `said`) and sends with the block
+command `tell-host`, which only a Join editor of its own block may send and
+which is lost while the channel is not open. The runtime asks the stack for
+the channel while such an editor is open (`be_host_stack::want_channel`), and
+the stack joins the block's session as a Join member, handshakes with the
+account holding the lease, and makes the channel again whenever the host
+changes, the session is joined again, or a message on it does not open
+(`crates/be-host-stack/src/joining.rs`); what the editor tells the host leaves
+one message at a time, and one the server holds back (`slow-down`) is sent
+again, the same bytes, before any after it. An editor open on a block whose
+access falls to Join, or rises from it, is closed at the app and opened again
+as the other kind, so a participant that falls to Join handshakes as a member.
+One just opened hears first who hosts now (`be_host_stack::channel_host`).
+In be-sdk-beui, `Editor::joined`, `Editor::on_channel` and `Editor::tell_host`.
+
+## Workers
+
+An app's workers (guides/adding_an_app.md, Workers) are not an `EditorHost`
+call: `be_sdk::worker::Worker` speaks the sandbox API (`be3:sandbox`,
+`crates/be-wasm-sandbox-api`) on the app's connection, which
+`be-sdk-app-host/src/wire.rs` hands to the app's `Sandbox` before the `be3:app`
+calls: be-host-runtime's `AppSandbox` over `be_wasm_sandbox_host::Server`. The
+host keeps the rule: an app spawns only its own workers and compiles nothing. An
+editor test's `BeuiTest` runs the same wire with a sandbox of its own, running
+each worker the test serves in its own instance
+(`crates/be-sdk-test/src/workers.rs`).
 
 ## Extending the protocol
 
@@ -267,7 +491,9 @@ its own (guest: `EditorHost::tell` queues each in the order the editor made it, 
   resource. A value delivered outside a runtime step (a watch's `next`) has to
   wake the session's waker, or nothing asks for a frame while a driven host's
   clock is stopped.
-- Host side: `crates/be-host-runtime/src/wire.rs` takes the generated `Call`s.
+- Host side: `crates/be-sdk-app-host/src/wire.rs` takes the generated `Call`s;
+  a `be3:blocks` call goes on to `be-sdk-app-host/src/blocks.rs`'s dispatcher over
+  the host's `BlockStore` (guides/blocks/apps.md, "The graph on the app protocol").
   Answer every call where it is handled; a dropped `Reply` answers
   `Unanswered`. Block ids a call carries go through the checkout's scope
   (`calls::BlockIds`).

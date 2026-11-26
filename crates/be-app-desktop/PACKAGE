@@ -21,6 +21,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-sdk-shell:be-sdk-shell",
                 "//crates/be-type-database:be-type-database",
                 "//crates/beui:beui",
+                "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},

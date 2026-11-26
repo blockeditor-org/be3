@@ -46,13 +46,9 @@ fn typed_text_grows_away_from_the_edges_it_is_aligned_to() {
 
     for label in &labels {
         editor.click(format!("infinite-canvas.entity.{}", label.id));
-        editor.run();
         editor.key(Key::Enter, Modifiers::NONE);
-        editor.run();
         editor.type_text("Hi there, a longer line");
-        editor.run();
         editor.key(Key::Escape, Modifiers::NONE);
-        editor.run();
     }
 
     let held = entities(&editor);

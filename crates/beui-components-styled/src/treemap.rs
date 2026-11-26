@@ -1,6 +1,5 @@
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{TreemapHandle, TreemapItem, TreemapTileHandle, TreemapTileKey};
-use beui_macros::{component, view};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::icons::ICON_CORNER_LEFT_UP;
@@ -146,10 +145,10 @@ where
             padding=TILE_PADDING
         >
             <List spacing=Space::None>
-                <Show condition={labelled}>
+                <Show value={labelled}>
                     <Text size=TextSize::Xs overflow=Overflow::Ellipsis>{label}</Text>
                 </Show>
-                <Show condition={detailed}>
+                <Show value={detailed}>
                     <Text size=TextSize::Xs color=TextColor::Muted overflow=Overflow::Ellipsis>
                         {detail}
                     </Text>

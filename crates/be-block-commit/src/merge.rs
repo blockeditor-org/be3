@@ -59,6 +59,21 @@ fn base_positions<T: Eq + std::hash::Hash + Ord>(base: &[T], side: &[T]) -> Vec<
     positions
 }
 
+/// Where `new` differs from `old`, in order: each region of `old` and what `new` holds in its
+/// place, with what the two share left out.
+pub fn changed_regions<T: Eq + std::hash::Hash + Ord>(
+    old: &[T],
+    new: &[T],
+) -> Vec<(std::ops::Range<usize>, std::ops::Range<usize>)> {
+    capture_diff_slices(Algorithm::Myers, old, new)
+        .into_iter()
+        .filter_map(|operation| {
+            let (tag, old, new) = operation.as_tag_tuple();
+            (tag != similar::DiffTag::Equal).then_some((old, new))
+        })
+        .collect()
+}
+
 pub fn merge_slices<T: Clone + Eq + std::hash::Hash + Ord>(
     base: &[T],
     ours: &[T],

@@ -1,5 +1,3 @@
-use beui_macros::{component, view};
-
 use crate::frame::{Frame, Radius};
 use crate::tokens::Stroke;
 use beui_view::reactive::NodeId;

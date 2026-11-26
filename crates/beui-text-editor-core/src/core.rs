@@ -254,10 +254,6 @@ pub enum EditorCommand<'a> {
         case_sensitive: bool,
         replacement: &'a [u8],
     },
-    ReplaceRanges {
-        ranges: &'a [Range<usize>],
-        replacement: &'a [u8],
-    },
     DuplicateLine(UDDirection),
     DuplicateCursor(LRDirection),
     Click {
@@ -547,36 +543,6 @@ impl Core {
         }
     }
 
-    fn replace_ranges(&mut self, ranges: &[Range<usize>], replacement: &[u8]) {
-        let history_cursors = self.cursor_positions.clone();
-        let Some(read) = self.document.read() else {
-            return;
-        };
-        let document = DocumentView::new(&*read);
-        let replacements = ranges
-            .iter()
-            .map(|range| {
-                (
-                    Position::at(&document, range.start),
-                    range.len(),
-                    replacement.to_vec(),
-                )
-            })
-            .collect::<Vec<_>>();
-        drop(document);
-        drop(read);
-        if !replacements.is_empty() {
-            let positions = self.apply_replacements(
-                replacements,
-                UndoClassification::AlwaysSplit,
-                history_cursors,
-            );
-            if let Some(position) = positions.first() {
-                self.select(Selection::at(*position));
-            }
-        }
-    }
-
     pub fn cursor_stop(&self, byte_index: usize, stop: CursorLeftRightStop) -> Position {
         let read = self
             .document
@@ -806,10 +772,6 @@ impl Core {
                 case_sensitive,
                 replacement,
             } => self.replace_all_matches(text, case_sensitive, replacement),
-            EditorCommand::ReplaceRanges {
-                ranges,
-                replacement,
-            } => self.replace_ranges(ranges, replacement),
             EditorCommand::SelectAll => {
                 let start = self.position(0);
                 self.select(Selection::range(start, self.position(usize::MAX)));
@@ -2602,6 +2564,13 @@ fn has_stop(
     stop: CursorLeftRightStop,
     stops: CursorStops,
 ) -> Option<BetweenCharsStop> {
+    // The end of text only ends its last line, unless a line break leaves an empty one there.
+    if stop == CursorLeftRightStop::Line
+        && index >= bytes.len()
+        && bytes.last().is_some_and(|byte| *byte != b'\n')
+    {
+        return Some(BetweenCharsStop::RightOnly);
+    }
     if index == 0 || index >= bytes.len() {
         return Some(BetweenCharsStop::Both);
     }

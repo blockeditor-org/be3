@@ -8,6 +8,7 @@ mod reports_cursor_position;
 mod resolves_styles_and_colors;
 mod rows_carry_their_soft_wrap;
 mod rows_that_scroll_away_are_read_from_history;
+mod scrollback_is_limited_by_lines_not_bytes;
 mod struct_layouts_match_the_library;
 
 fn render(cols: u16, rows: u16, data: &str) -> Screen {

@@ -604,6 +604,7 @@ impl Document {
     }
 
     pub fn update_focus(&mut self, new_focus: Option<NodeId>) {
+        let new_focus = new_focus.map(|node| self.hosted(node));
         if new_focus == self.focused {
             return;
         }

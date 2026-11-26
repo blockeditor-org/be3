@@ -44,9 +44,11 @@ impl TextGeometry {
 }
 
 /// Where `node` was laid out. `None` until it is first laid out and again once it
-/// is unplaced, and on the HTML core (or under `delay_measurement`) a frame after
-/// its cause, so callers must handle a late answer. One signal per node, made on
-/// the first call and dropped with the node, so calling it repeatedly is cheap.
+/// is unplaced. The first call answers where it is now, on every core; a change after
+/// comes on the HTML core (or under `delay_measurement`) a frame after its cause, so
+/// callers must handle a late answer. One signal per node, made on the first call and
+/// dropped with the node, so calling it again is cheap. On HTML the first call reads the DOM,
+/// which lays the page out at once: don't make it for each node of a loop that builds the tree.
 pub fn measure(node: NodeId) -> ReadSignal<Option<Measured>> {
     crate::core::measure::measure(node)
 }
@@ -74,7 +76,7 @@ pub fn measure_text(node: NodeId) -> TextGeometrySignal {
 
 /// Lays out text that is not in the tree, answering at once on both cores (the
 /// HTML core from the browser's font metrics); `None` before the document has
-/// fonts. Read `use_font_revision()` and `pixels_per_point()` in the memo that
+/// fonts. Track `use_font_changes()` and read `pixels_per_point()` in the memo that
 /// calls it, so it measures again when fonts load or the scale changes.
 pub fn lay_out_text(text: &str, font: FontId, layout: TextLayout) -> Option<TextBlock> {
     crate::core::painter::lay_out_text(text, font, layout).map(TextBlock)

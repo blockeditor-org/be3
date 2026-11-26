@@ -1,17 +1,17 @@
 # Radio groups, segments and tabs choose by pointer and move their choice with
 # the arrow keys.
 clock stop
-wait 'value="Mode Some(0) period 1 tab 0"'
+wait 'value="Mode Automatic period Week tab Overview"'
 click 'RadioButton "Manual"'
-wait 'value="Mode Some(1) period 1 tab 0"'
+wait 'value="Mode Manual period Week tab Overview"'
 key down
-wait 'value="Mode Some(2) period 1 tab 0"'
+wait 'value="Mode Scheduled period Week tab Overview"'
 click 'RadioButton "Month"'
-wait 'value="Mode Some(2) period 2 tab 0"'
+wait 'value="Mode Scheduled period Month tab Overview"'
 key left
-wait 'value="Mode Some(2) period 1 tab 0"'
+wait 'value="Mode Scheduled period Week tab Overview"'
 click 'Tab "Details"'
-wait 'value="Mode Some(2) period 1 tab 1"'
+wait 'value="Mode Scheduled period Week tab Details"'
 wait 'Tab "Details" selected'
 key left
-wait 'value="Mode Some(2) period 1 tab 0"'
+wait 'value="Mode Scheduled period Week tab Overview"'

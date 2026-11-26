@@ -16,6 +16,7 @@ fn a_block_opens_in_the_editor_it_keeps_for_itself() {
         name: name.to_owned(),
         icon_codepoint: String::new(),
         extensions: Vec::new(),
+        exporters: Vec::new(),
     };
     catalog.editors = vec![edits(BUILT_IN, "List"), edits(BOARD, "Board")];
     fixture.test.catalog(catalog);

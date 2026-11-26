@@ -16,7 +16,7 @@ fn choose(harness: &mut Harness, label: &str) {
     harness.click(at);
     harness.settle();
     let root = harness.document().root().expect("the document has a root");
-    let row = text_within(harness.document(), root, label)
+    let row = find_text(harness.document(), root, label, Match::Exact)
         .unwrap_or_else(|| panic!("the menu lists {label}"));
     harness.click(harness.center(row));
     harness.settle();
@@ -28,7 +28,7 @@ fn a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_do
     let ran = create_signal(0);
     let dock = NodeRef::new();
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost @node_ref=&dock>
                 <dock::Docking layout focus=2u64>
@@ -85,8 +85,13 @@ fn a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_do
         pressed: true,
     }]);
     harness.frame(Vec::new());
-    let sidebar = text_within(harness.document(), dock, "Show tabs in a sidebar")
-        .expect("the grip's menu offers a sidebar");
+    let sidebar = find_text(
+        harness.document(),
+        dock,
+        "Show tabs in a sidebar",
+        Match::Exact,
+    )
+    .expect("the grip's menu offers a sidebar");
     harness.click(harness.center(sidebar));
     harness.settle();
     let state = harness.document().api::<DockApi>(dock).state();

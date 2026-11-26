@@ -1,5 +1,4 @@
 use crate::frame::{ColorRole, Frame, Radius};
-use beui_macros::{component, view};
 use beui_view::types::icons::Glyph;
 
 use crate::list::List;
@@ -58,14 +57,12 @@ fn AccordionHeader(
         focused,
         ..
     } = handle;
-    let header_color = create_memo(move || header_fill(hovered.get()));
     let marker_glyph = create_memo(move || glyph(open.get()).to_owned());
     let marker_color = TextColor::Muted;
     let title_color = TextColor::Default;
-    let detailed = create_memo(move || !detail.get().is_empty());
     view! {
         <Frame
-            fill={header_color}
+            fill={move || header_fill(hovered.get())}
             focus={focused}
             focus_offset=Stroke::Focus
             radius=Radius::Md
@@ -75,7 +72,7 @@ fn AccordionHeader(
                 <ListItem grow=1.0>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Text size={size} color={title_color} align=TextAlign::Start>{title}</Text>
-                        <Show condition={detailed}>
+                        <Show value={move || !detail.with(String::is_empty)}>
                             <ListItem grow=1.0>
                                 <Text
                                     overflow=Overflow::Ellipsis

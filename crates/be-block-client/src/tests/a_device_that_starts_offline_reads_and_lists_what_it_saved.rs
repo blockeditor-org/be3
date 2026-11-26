@@ -59,10 +59,15 @@ async fn a_device_that_starts_offline_reads_and_lists_what_it_saved() {
     assert_eq!(offline.local_head(note), Some(head));
     assert_eq!(offline.known_remote_head(note), Some(head));
     assert_eq!(text(&offline, note).await, "written online");
-    assert!(matches!(
-        offline.history(note).await,
-        Err(ClientError::Disconnected(_))
-    ));
+    let history = offline.history(note).await.unwrap();
+    assert_eq!(
+        history
+            .iter()
+            .map(|entry| (entry.commit, entry.head))
+            .collect::<Vec<_>>(),
+        [(head, true)],
+        "offline, the history is what the device holds"
+    );
 
     let manifest = offline
         .write_content(note, TextContent::CONTENT_TYPE, b"sealed with a cached key")

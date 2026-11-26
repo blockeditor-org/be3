@@ -11,7 +11,7 @@ fn titled(block: Uuid, title: &str) {
         .root()
         .replace(&HistoryItem::new("https://example.com/", title));
     be_host_stack::operate(block, BrowserTabContent::encode_operation(&edit));
-    be_host_stack::wait_until(|shared| {
+    be_host_stack::wait_until(&format!("titled the tab {title:?}"), |shared| {
         let held = shared.blocks.get(&block)?;
         let tab = BrowserTabContent::decode(held.bytes()).ok()?;
         (tab.root().current().title == title).then_some(())
@@ -19,7 +19,7 @@ fn titled(block: Uuid, title: &str) {
 }
 
 fn named(block: Uuid, name: &str) {
-    be_host_stack::wait_until(|shared| {
+    be_host_stack::wait_until(&format!("named the block {name:?}"), |shared| {
         let node = shared.graph.get(block)?;
         (node.metadata.name().as_deref() == Some(name)).then_some(())
     });
@@ -37,7 +37,7 @@ fn a_block_is_named_after_its_content_until_someone_names_it() {
         block,
         &be_sdk_type_guest::editor::FromEditor::Resend,
     );
-    be_host_stack::wait_until(|shared| {
+    be_host_stack::wait_until("held and listed the tab", |shared| {
         (shared.blocks.contains_key(&block) && shared.graph.get(block).is_some()).then_some(())
     });
 

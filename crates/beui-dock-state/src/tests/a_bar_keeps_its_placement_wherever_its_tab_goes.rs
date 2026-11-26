@@ -11,6 +11,7 @@ fn a_bar_keeps_its_placement_wherever_its_tab_goes() {
             placement: DockBarPlacement::Over(DockEdge::Left, DockAlign::Center),
             hidden: false,
             pane: None,
+            slot: None,
         },
         DockSpecBar {
             bar: TabId::new(21),
@@ -18,6 +19,7 @@ fn a_bar_keeps_its_placement_wherever_its_tab_goes() {
             placement: DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Center),
             hidden: false,
             pane: None,
+            slot: None,
         },
     ];
     let declared = DockSpec {

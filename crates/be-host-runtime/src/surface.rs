@@ -51,12 +51,7 @@ pub struct SurfaceFrame {
     pub damage: Option<Vec<ScreenDamage>>,
 }
 
-#[derive(Clone)]
-pub struct PresentedTexture {
-    pub surface: u32,
-    pub texture: wgpu::Texture,
-    pub generation: u64,
-}
+pub use be_wasm_host::PresentedTexture;
 
 impl ShownFrame for SurfaceFrame {
     fn presents(&self) -> u64 {

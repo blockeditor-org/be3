@@ -1,5 +1,4 @@
 use beui_components_unstyled as unstyled;
-use beui_macros::{component, view};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
@@ -20,18 +19,15 @@ pub fn Banner(
     #[prop(default = String::from("Dismiss"))] dismiss_label: Prop<String>,
     on_dismiss: Callback<()>,
 ) -> NodeId {
-    let message = create_memo(move || message.get());
-    let shown = create_memo(move || message.with(Option::is_some));
-    let text = create_memo(move || message.get().unwrap_or_default());
     let id = id.get_untracked();
     view! {
         <List spacing=Space::None>
-            <Show condition={shown}>
+            <Show value={message}>|text: ReadSignal<String>|
                 <BannerBar
                     text
                     id={id.clone()}
                     dismiss_label={dismiss_label.clone()}
-                    on_dismiss={on_dismiss.clone()}
+                    on_dismiss={on_dismiss}
                 />
             </Show>
         </List>
@@ -40,7 +36,7 @@ pub fn Banner(
 
 #[component]
 fn BannerBar(
-    text: Memo<String>,
+    text: ReadSignal<String>,
     id: String,
     dismiss_label: Prop<String>,
     on_dismiss: Callback<()>,
@@ -54,15 +50,15 @@ fn BannerBar(
                     <ListItem grow=1.0>
                         <Text color=TextColor::Danger>{text}</Text>
                     </ListItem>
-                    <Show condition=dismissable>
+                    {dismissable.then(|| view! {
                         <Button
-                            label={dismiss_label.clone()}
+                            label={dismiss_label}
                             size=ButtonSize::Compact
                             variant=ButtonVariant::Secondary
-                            @test_id={dismiss_id.clone()}
-                            on_click={on_dismiss.clone()}
+                            @test_id={dismiss_id}
+                            on_click={on_dismiss}
                         />
-                    </Show>
+                    })}
                 </List>
             </Frame>
         </unstyled::Banner>

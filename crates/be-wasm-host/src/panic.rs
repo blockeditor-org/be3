@@ -1,62 +1,42 @@
-use std::fmt;
+//! `host_panic`, through which be-wasm-guest-abi's panic hook hands the host the message a guest
+//! panicked with: kept in the State for the call that ran the guest to report, then thrown, which
+//! unwinds the guest.
 
 use be_wasm_guest_abi as abi;
-use wasmtime::{Caller, Linker};
 
-use crate::state::Reads;
+use crate::engine::Defined;
+use crate::gpu::throw;
+use crate::state::state_of;
 
-#[derive(Debug)]
-struct GuestPanic(String);
-
-impl fmt::Display for GuestPanic {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.0)
-    }
+fn host_panic(
+    scope: &mut v8::PinScope,
+    arguments: v8::FunctionCallbackArguments,
+    _: v8::ReturnValue<v8::Value>,
+) {
+    // the function's data is its State (state_of).
+    // unsafe(memory)
+    let state = unsafe { state_of(arguments.data()) };
+    let pointer = arguments.get(0).uint32_value(scope).unwrap_or(0);
+    let length = arguments.get(1).uint32_value(scope).unwrap_or(0);
+    let message = match state.view_in(scope).read(pointer, length) {
+        Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
+        Err(error) => format!("the app panicked, and its message was lost: {error}"),
+    };
+    throw(scope, &message);
+    state.panicked = Some(message);
 }
 
-impl std::error::Error for GuestPanic {}
-
-#[derive(Debug)]
-struct Stopped(String);
-
-impl fmt::Display for Stopped {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.0)
-    }
-}
-
-impl std::error::Error for Stopped {}
-
-pub(crate) fn link<T: Reads + 'static>(linker: &mut Linker<T>) -> Result<(), String> {
-    linker
-        .func_wrap(
-            abi::HOST_MODULE,
-            abi::HOST_PANIC,
-            |mut caller: Caller<'_, T>, pointer: u32, length: u32| -> wasmtime::Result<()> {
-                let message = match T::read(&mut caller, pointer, length) {
-                    Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
-                    Err(error) => format!("the app panicked, and its message was lost: {error}"),
-                };
-                Err(panicked(message))
-            },
-        )
-        .map(|_| ())
-        .map_err(|error| format!("{} could not be linked: {error}", abi::HOST_PANIC))
-}
-
-pub(crate) fn panicked(message: String) -> wasmtime::Error {
-    wasmtime::Error::new(GuestPanic(message))
-}
-
-pub(crate) fn stopped(message: String) -> wasmtime::Error {
-    wasmtime::Error::new(Stopped(message))
-}
-
-pub(crate) fn message(error: &wasmtime::Error) -> Option<String> {
-    if let Some(Stopped(message)) = error.downcast_ref::<Stopped>() {
-        return Some(message.clone());
-    }
-    let GuestPanic(message) = error.downcast_ref::<GuestPanic>()?;
-    eprintln!("be-wasm-host: an app panicked: {error:?}");
-    Some(message.clone())
+pub(crate) fn define<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    defined: &mut Defined<'s>,
+    data: v8::Local<'s, v8::Value>,
+) -> Result<(), String> {
+    crate::engine::function(
+        scope,
+        defined,
+        abi::HOST_MODULE,
+        abi::HOST_PANIC,
+        data,
+        host_panic,
+    )
 }

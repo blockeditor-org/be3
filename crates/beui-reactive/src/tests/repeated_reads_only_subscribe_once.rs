@@ -7,8 +7,8 @@ fn repeated_reads_only_subscribe_once() {
     let scope = Scope::new();
     scope.run(|| {
         create_effect(move || {
-            value.get();
-            value.get();
+            value.track();
+            value.track();
         });
     });
     for next in 2..10 {

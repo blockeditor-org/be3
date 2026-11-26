@@ -12,7 +12,7 @@ fn finds(text: &str, blocks: &[Uuid]) {
         within: None,
     };
     want_searches(Owner::Host, vec![ask.clone()]);
-    crate::wait_until(|shared| {
+    crate::wait_until(&format!("found {text:?} in what it should"), |shared| {
         let answer = shared.search.answer(&ask)?;
         let found: Vec<Uuid> = answer.hits.iter().map(|hit| hit.block).collect();
         (answer.complete && found == blocks).then_some(())
@@ -52,14 +52,11 @@ fn a_deleted_database_row_is_no_longer_found() {
         Some(database.encode()),
         false,
     );
-    assert_eq!(
-        change_child(
-            workspace,
-            WorkspaceContent::CONTENT_TYPE,
-            ChildChange::Add(block)
-        ),
-        Some(true)
-    );
+    assert!(made(change_child(
+        workspace,
+        WorkspaceContent::CONTENT_TYPE,
+        ChildChange::Add(block)
+    )));
     open(block, DatabaseContent::CONTENT_TYPE);
     flush();
     finds("plumber", &[block]);

@@ -6,11 +6,8 @@ fn listening_ends_when_its_picker_closes() {
     let mut editor = editor(RemapState::On, Some(CAPS_TO_ESCAPE));
 
     editor.click("input-remaps.group.0.rule.0");
-    editor.run();
     editor.click("input-remaps.group.0.rule.0.key");
-    editor.run();
     editor.click("input-remaps.picker.listen");
-    editor.run();
     editor.set_watched::<InputCaptureWatch>(&InputCapture {
         held: Vec::new(),
         chord: Some(CapturedChord {
@@ -27,7 +24,6 @@ fn listening_ends_when_its_picker_closes() {
     assert_eq!(stored(&editor), CAPS_TO_ESCAPE);
 
     editor.key(Key::Escape, Modifiers::NONE);
-    editor.run();
     assert!(!editor.shown("input-remaps.picker"));
     assert!(
         !editor.watches::<InputCaptureWatch>(),
@@ -35,7 +31,6 @@ fn listening_ends_when_its_picker_closes() {
     );
 
     editor.click("input-remaps.group.0.rule.0.on");
-    editor.run();
     assert!(
         editor.shown("input-remaps.picker.listen"),
         "the next picker starts not listening"

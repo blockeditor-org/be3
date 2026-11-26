@@ -1,4 +1,5 @@
 use super::*;
+use be_type_image::BlobFile as _;
 
 use be_block_content::{BlockMetadata, INTRINSIC_NAME, MetaKey, NAME};
 use be_type_image::{ImageContent, ImageFile};
@@ -24,13 +25,13 @@ async fn a_save_keeps_defined_metadata_it_does_not_know_and_drops_stale_derived_
         .unwrap()
         .published()
         .unwrap();
-    let named = phone.metadata_of(first).await.unwrap();
+    let named = phone.metadata_of(block, first).await.unwrap();
     assert_eq!(named.get(&INTRINSIC_NAME).as_deref(), Some("beach.png"));
 
     let mut newer = named.clone();
     newer.insert(&PINNED, &true);
     newer.insert(&WORDS, &3);
-    let commit = phone.load_commit(first).await.unwrap();
+    let commit = phone.load_reached(first).await.unwrap();
     let second = phone
         .write(
             block,
@@ -65,7 +66,7 @@ async fn a_save_keeps_defined_metadata_it_does_not_know_and_drops_stale_derived_
         .unwrap()
         .published()
         .unwrap();
-    let saved = phone.metadata_of(third).await.unwrap();
+    let saved = phone.metadata_of(block, third).await.unwrap();
     assert_eq!(
         saved.get(&PINNED),
         Some(true),

@@ -62,7 +62,7 @@ fn paste(instances: &mut Instances, block: Uuid, folder: Uuid) -> Option<Uuid> {
 fn a_paste_names_where_a_cut_reference_was_cut_from_once() {
     let harness = be_host_testing::Harness::start();
     harness.connect();
-    be_host_stack::wait_until(|_| {
+    be_host_stack::wait_until("knew the database view and counter types", |_| {
         (be_host_stack::is_known(DatabaseViewContent::CONTENT_TYPE)
             && be_host_stack::is_known(CounterContent::CONTENT_TYPE))
         .then_some(())
@@ -89,9 +89,9 @@ fn a_paste_names_where_a_cut_reference_was_cut_from_once() {
     );
     instances.next_screens(PASS);
     be_host_stack::flush_and_send();
-    be_host_stack::wait_until(|shared| {
+    be_host_stack::wait_until("the holder references the linked block", |shared| {
         let node = shared.graph.get(holder)?;
-        (node.references == [linked]).then_some(())
+        (node.references.as_deref() == Some(&[linked][..])).then_some(())
     });
     be_host_stack::set_parent(holder, BlockParent::Root);
 

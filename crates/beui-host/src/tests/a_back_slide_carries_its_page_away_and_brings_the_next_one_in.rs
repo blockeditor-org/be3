@@ -1,7 +1,7 @@
 use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::unstyled::BackSlide;
+use crate::styled::BackSlide;
 use beui::input::{BackEdge, BackGesture};
 
 #[test]
@@ -10,9 +10,11 @@ fn a_back_slide_carries_its_page_away_and_brings_the_next_one_in() {
     let depth = create_signal(2_u32);
     let page = NodeRef::new();
     let document = build_node(move || {
-        let nested = create_memo(move || depth.get() > 0);
         view! {
-            <BackSlide enabled={nested} on_back={move || depth.set(depth.get_untracked() - 1)}>
+            <BackSlide
+                enabled={move || depth.get() > 0}
+                on_back={move || depth.set(depth.get_untracked() - 1)}
+            >
                 <Text color=Color32::WHITE @node_ref={&page}>"Page"</Text>
             </BackSlide>
         }

@@ -3,7 +3,7 @@ use beui::reactive::*;
 use beui::styled::*;
 
 use super::{HostUiStore, UiCommand, send};
-use be_host_accounts_ui::{Column, ErrorText};
+use be_root_accounts_ui::{Column, ErrorText};
 use beui::{Align, Direction};
 
 #[component]
@@ -28,7 +28,6 @@ pub(super) fn RecoveryScreen(view: HostUiStore) -> NodeId {
     });
     let busy = create_memo(move || recovery.get().busy);
     let replacing = create_memo(move || recovery.get().replacing);
-    let first_time = create_memo(move || !replacing.get());
     let title = create_memo(move || match replacing.get() {
         true => "New recovery phrase".to_owned(),
         false => "Save your recovery phrase".to_owned(),
@@ -66,7 +65,7 @@ pub(super) fn RecoveryScreen(view: HostUiStore) -> NodeId {
     view! {
         <Column>
             <Text style=TextStyle::TITLE>{title}</Text>
-            <Show condition={replacing}>
+            <Show value={replacing}>
                 <Text style=TextStyle::PARAGRAPH>
                     "Once you save this phrase, your old one stops working. Every key sealed to the old phrase is sealed to this one instead, and your other devices will ask to be unlocked again."
                 </Text>
@@ -90,18 +89,20 @@ pub(super) fn RecoveryScreen(view: HostUiStore) -> NodeId {
             />
             <ErrorText text={error} />
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                <Show condition={busy}>
+                <Show value={busy}>
                     <Progress width=INLINE_PROGRESS_WIDTH />
                 </Show>
                 <Spacer />
-                <Show condition={first_time}>
-                    <Button
-                        label="Switch account"
-                        variant=ButtonVariant::Secondary
-                        on_click={|| send(UiCommand::SwitchAccount)}
-                    />
-                </Show>
-                <Show condition={replacing}>
+                <Show
+                    value={replacing}
+                    fallback={|| view! {
+                        <Button
+                            label="Switch account"
+                            variant=ButtonVariant::Secondary
+                            on_click={|| send(UiCommand::SwitchAccount)}
+                        />
+                    }}
+                >
                     <Button
                         label="Cancel"
                         variant=ButtonVariant::Secondary
@@ -123,9 +124,6 @@ pub(super) fn RecoveryScreen(view: HostUiStore) -> NodeId {
 pub(super) fn UnlockScreen(view: HostUiStore) -> NodeId {
     let unlock = view.unlock;
     let title = create_memo(move || format!("Unlock {}", unlock.get().account));
-    let code = create_memo(move || unlock.get().code.unwrap_or_default());
-    let waiting = create_memo(move || unlock.get().code.is_some());
-    let idle = create_memo(move || !waiting.get());
     let error = create_memo(move || unlock.get().error);
     let phrase = create_signal(String::new());
     let cannot = create_memo(move || phrase.get().trim().is_empty());
@@ -159,21 +157,23 @@ pub(super) fn UnlockScreen(view: HostUiStore) -> NodeId {
                 </List>
             </List>
             <Text style=TextStyle::HEADING>"With another device"</Text>
-            <Show condition={idle}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <ListItem grow=1.0>
-                        <Text style=TextStyle::PARAGRAPH>
-                            "Open any organization of this account on a device that is unlocked, and it will ask for a code."
-                        </Text>
-                    </ListItem>
-                    <Button
-                        label="Show a code"
-                        variant=ButtonVariant::Secondary
-                        on_click={|| send(UiCommand::StartPairing)}
-                    />
-                </List>
-            </Show>
-            <Show condition={waiting}>
+            <Show
+                value={move || unlock.get().code}
+                fallback={|| view! {
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                        <ListItem grow=1.0>
+                            <Text style=TextStyle::PARAGRAPH>
+                                "Open any organization of this account on a device that is unlocked, and it will ask for a code."
+                            </Text>
+                        </ListItem>
+                        <Button
+                            label="Show a code"
+                            variant=ButtonVariant::Secondary
+                            on_click={|| send(UiCommand::StartPairing)}
+                        />
+                    </List>
+                }}
+            >|code: ReadSignal<String>|
                 <List spacing=Space::Md>
                     <Text style=TextStyle::PARAGRAPH>"Type this code on the other device:"</Text>
                     <Text size=TextSize::Xl>{code}</Text>
@@ -204,7 +204,7 @@ pub(super) fn UnlockScreen(view: HostUiStore) -> NodeId {
 #[component]
 pub(super) fn PairingDialog(view: HostUiStore) -> NodeId {
     let pairing = view.pairing;
-    let open = create_memo(move || !pairing.get().is_empty());
+    let open = create_memo(move || !pairing.with(Vec::is_empty));
     let request = create_memo(move || pairing.get().first().cloned());
     let message = create_memo(move || {
         let device = request
@@ -221,13 +221,11 @@ pub(super) fn PairingDialog(view: HostUiStore) -> NodeId {
             .map(|request| request.refused)
             .unwrap_or_default()
     });
-    let was_refused = create_memo(move || !refused.get().is_empty());
-    let code = create_signal(String::new());
     // A new request starts with no code; a refusal of this one keeps what was typed.
     let from = create_memo(move || request.get().map(|request| request.from));
-    create_effect(move || {
-        from.get();
-        untrack(|| code.set(String::new()));
+    let code = create_linked_signal(move || {
+        from.track();
+        String::new()
     });
     let cannot = create_memo(move || code.get().trim().is_empty());
     let approve = move || {
@@ -259,7 +257,7 @@ pub(super) fn PairingDialog(view: HostUiStore) -> NodeId {
         >
             <Text style=TextStyle::PARAGRAPH>{message}</Text>
             <TextInput value={code} label="Code" placeholder="XXXX-XXXX" />
-            <Show condition={was_refused}>
+            <Show value={move || !refused.with(String::is_empty)}>
                 <Text style=TextStyle::CAPTION @test_id="host.pairing.refused">{refused}</Text>
             </Show>
         </Dialog>

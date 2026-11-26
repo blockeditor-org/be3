@@ -1,13 +1,14 @@
 use super::*;
 
-fn saved(id: Uuid, parent: Option<usize>) -> Saved {
-    Saved {
+fn saved(id: Uuid, parent: Option<usize>) -> SavedBlock {
+    SavedBlock {
         id,
         block_type: Uuid::nil(),
         parent,
         metadata: be_block_content::BlockMetadata::default(),
         references: Vec::new(),
         content: None,
+        log: Vec::new(),
     }
 }
 

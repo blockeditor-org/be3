@@ -9,8 +9,8 @@ use super::*;
 #[tokio::test]
 async fn an_object_asked_for_without_its_length_is_answered_only_to_one_who_holds_it() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let account = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let account = owner.id();
     owner.personal().await;
     let author = Author::new(account);
     let block = owner.create_block(BlockParent::Root).await;
@@ -24,7 +24,11 @@ async fn an_object_asked_for_without_its_length_is_answered_only_to_one_who_hold
     let asked = |hash| vec![ObjectLength { hash, length: None }];
 
     let held = owner
-        .call(|peer| client::objects::upload_urls(peer, asked(stored)))
+        .call(|peer| {
+            peer.write::<Vec<Option<be_block_protocol::UploadUrl>>>(
+                be_block_protocol::Op::ReserveUploads(asked(stored)),
+            )
+        })
         .await;
     assert!(
         matches!(held.as_deref(), Ok([None])),
@@ -39,13 +43,16 @@ async fn an_object_asked_for_without_its_length_is_answered_only_to_one_who_hold
             .unwrap()
     };
     let before = sizes();
-    let mut other = harness.client().await;
-    other.register("other@example.com").await;
+    let mut other = harness.member("other@example.com").await;
     other.organization("elsewhere").await;
     let mut refusals = Vec::new();
     for hash in [stored, unknown] {
         let answer = other
-            .call(|peer| client::objects::upload_urls(peer, asked(hash)))
+            .call(|peer| {
+                peer.write::<Vec<Option<be_block_protocol::UploadUrl>>>(
+                    be_block_protocol::Op::ReserveUploads(asked(hash)),
+                )
+            })
             .await;
         let Err(error) = answer else {
             panic!("{hash} was answered to an account that does not hold it: {answer:?}");

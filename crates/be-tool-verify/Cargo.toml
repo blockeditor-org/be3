@@ -12,7 +12,8 @@ path = "src/main.rs"
 [dependencies]
 be-lib-build-record = { path = "../be-lib-build-record" }
 serde_json = "1"
-sha2 = "0.10"
+be-lib-git = { path = "../be-lib-git" }
+be-lib-sha256 = { path = "../be-lib-sha256" }
 
 [lints]
 workspace = true

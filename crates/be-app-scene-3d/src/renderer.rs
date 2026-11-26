@@ -129,7 +129,7 @@ impl SceneRenderer {
                 module: &scene_shader,
                 entry_point: Some("scene_vertex"),
                 compilation_options: Default::default(),
-                buffers: &[SceneVertex::layout()],
+                buffers: &[Some(SceneVertex::layout())],
             },
             primitive: wgpu::PrimitiveState::default(),
             depth_stencil: Some(wgpu::DepthStencilState {

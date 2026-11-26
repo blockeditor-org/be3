@@ -6,7 +6,7 @@ use crate::styled::*;
 #[test]
 fn closing_a_panes_last_tab_keeps_its_bar_tall_and_darkens_it_without_a_border() {
     let document = build_node(move || {
-        let layout = dock::DockingLayout::new();
+        let layout = dock::DockingLayout::<u64>::new();
         let open = create_signal(true);
         view! {
             <dock_host::styled::DockHost>
@@ -17,7 +17,7 @@ fn closing_a_panes_last_tab_keeps_its_bar_tall_and_darkens_it_without_a_border()
                             <Frame @test_id={"nothing_open"} />
                         }}
                     >
-                        <Show condition={open}>
+                        <Show value={open}>
                             <dock::DockTab id=1u64 title="Tab 1" on_close={move || open.set(false)}>
                                 <Frame @test_id={"content.1"} />
                             </dock::DockTab>

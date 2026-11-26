@@ -1,0 +1,15 @@
+[package]
+name = "be-root-accounts-ui"
+description = "The account picker of be-host and its root, built from props and callbacks so that it runs on either of beui's cores"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui = { path = "../beui" }
+
+[target.'cfg(not(beui_html))'.dev-dependencies]
+beui-host = { path = "../beui-host" }
+
+[lints]
+workspace = true

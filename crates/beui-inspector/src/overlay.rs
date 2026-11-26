@@ -45,6 +45,24 @@ pub fn highlight(painter: &Painter, target: &Document, id: NodeId, scale: f32) {
     label(painter, rect, &tree::label(target, id));
 }
 
+/// A place a carried item can land in, outlined; filled when it is the one chosen.
+pub fn place(painter: &Painter, rect: Rect, chosen: bool) {
+    if chosen {
+        painter.rect_filled(rect, 0.0, HIGHLIGHT);
+    }
+    painter.rect_stroke(rect, 0.0, OUTLINE_WIDTH, Theme::DARK.accent);
+}
+
+/// The zone the pointer must be in for a place to be chosen.
+pub fn zone(painter: &Painter, rect: Rect) {
+    painter.rect_filled(rect, 0.0, faded(Theme::DARK.accent, FLASH_FILL / 2.0));
+}
+
+/// Where a carried item draws now.
+pub fn carried(painter: &Painter, rect: Rect) {
+    painter.rect_stroke(rect, 0.0, OUTLINE_WIDTH, Theme::DARK.text_muted);
+}
+
 pub fn flash(painter: &Painter, rect: Rect, color: Color32, remaining: f32) {
     if !rect.is_positive() {
         return;

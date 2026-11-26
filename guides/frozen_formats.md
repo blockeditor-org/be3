@@ -47,7 +47,7 @@ Each kind of test below exists with zero instances:
   servers (a data directory and a backup of it), made by the `freeze` example
   from `scene.rs` (whose doc comment lists what is in it) and listed in
   `SNAPSHOTS` (src/snapshots.rs), which is empty. Its test serves each and
-  reads it as the host and `be` do: signing in by password, token and phrase,
+  reads it as the host and `be` do: signing in by emailed code, token and phrase,
   keys, names, content and history, contacts, the escrow chain, links,
   invitations, and restoring the backup. Take one with:
 

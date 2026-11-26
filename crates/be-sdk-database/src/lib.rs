@@ -62,7 +62,7 @@ pub fn DatabaseValueEditor(
     });
     view! {
         <List spacing=FIELD_SPACING>
-            <ForEach keys={keys}>|id: Uuid| {
+            <ForEach value={keys}>|id: Uuid| {
                 let field = field_of(fields, id);
                 let value = value_of(values, id);
                 let test_id = format!("{}.field.{id}", prefix.get_untracked());
@@ -117,11 +117,11 @@ fn DatabaseValueRow(
     view! {
         <List spacing=SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Show condition={headings}>
+                <Show value={headings}>
                     <Text style=TextStyle::CAPTION>{heading}</Text>
                 </Show>
                 <Spacer />
-                <Show condition={set}>
+                <Show value={set}>
                     <Button
                         icon_only=true
                         glyph=ICON_X
@@ -155,114 +155,113 @@ fn DatabaseValueControl(
     on_change: Callback<DatabaseValueChange>,
     on_pick: Callback<DatabaseBlockPickRequest>,
     on_submit: Callback<Uuid>,
-) -> NodeId {
-    let kind = create_memo(move || {
-        field.with(|field| {
-            field.as_ref().map(|field| match field.field_type {
-                DatabaseFieldType::Relation if field.relation_options.multiple => None,
-                other => Some(other),
-            })
-        })
-    });
+) -> DynamicSegment<ListItem> {
     view! {
-        <List spacing=Space::None>
-            <Dynamic value={kind}>|kind: Option<Option<DatabaseFieldType>>| {
-                let test_id = id.clone();
-                let on_change = forward(on_change);
-                let on_pick = forward(on_pick);
-                let on_submit = forward(on_submit);
-                match kind {
-                    None => view! {
-                        <Frame />
-                    },
-                    Some(Some(DatabaseFieldType::String)) => view! {
-                        <StringValue
-                            field={field}
-                            value={value}
-                            disabled={disabled}
-                            id={test_id}
-                            on_change={on_change}
-                            on_submit={on_submit}
-                        />
-                    },
-                    Some(Some(DatabaseFieldType::Number)) => view! {
-                        <NumberValue
-                            field={field}
-                            value={value}
-                            disabled={disabled}
-                            id={test_id}
-                            on_change={on_change}
-                        />
-                    },
-                    Some(Some(DatabaseFieldType::Enum)) => view! {
-                        <EnumValue
-                            field={field}
-                            value={value}
-                            disabled={disabled}
-                            id={test_id}
-                            on_change={on_change}
-                        />
-                    },
-                    Some(Some(DatabaseFieldType::Boolean)) => view! {
-                        <BooleanValue
-                            field={field}
-                            value={value}
-                            disabled={disabled}
-                            id={test_id}
-                            on_change={on_change}
-                        />
-                    },
-                    Some(Some(DatabaseFieldType::Color)) => view! {
-                        <ColorValue
-                            field={field}
-                            value={value}
-                            disabled={disabled}
-                            id={test_id}
-                            on_change={on_change}
-                        />
-                    },
-                    Some(Some(DatabaseFieldType::Datetime)) => view! {
-                        <DatetimeValue
-                            field={field}
-                            value={value}
-                            disabled={disabled}
-                            id={test_id}
-                            on_change={on_change}
-                        />
-                    },
-                    Some(None) => view! {
-                        <LinksValue
-                            field={field}
-                            value={value}
-                            labels={labels}
-                            disabled={disabled}
-                            id={test_id}
-                            on_change={on_change}
-                        />
-                    },
-                    Some(Some(DatabaseFieldType::Relation)) => view! {
-                        <RelationValue
-                            field={field}
-                            value={value}
-                            labels={labels}
-                            disabled={disabled}
-                            id={test_id}
-                            on_change={on_change}
-                        />
-                    },
-                    Some(Some(DatabaseFieldType::Block)) => view! {
-                        <BlockValue
-                            field={field}
-                            value={value}
-                            labels={labels}
-                            disabled={disabled}
-                            id={test_id}
-                            on_pick={on_pick}
-                        />
-                    },
-                }
-            }</Dynamic>
-        </List>
+        <Dynamic
+            value={move || {
+                field.with(|field| {
+                    field.as_ref().map(|field| match field.field_type {
+                        DatabaseFieldType::Relation if field.relation_options.multiple => None,
+                        other => Some(other),
+                    })
+                })
+            }}
+            fallback={|| view! {
+                <Frame />
+            }}
+        >|kind: Option<DatabaseFieldType>| {
+            let test_id = id.clone();
+            let on_change = forward(on_change);
+            let on_pick = forward(on_pick);
+            let on_submit = forward(on_submit);
+            match kind {
+                Some(DatabaseFieldType::String) => view! {
+                    <StringValue
+                        field={field}
+                        value={value}
+                        disabled={disabled}
+                        id={test_id}
+                        on_change={on_change}
+                        on_submit={on_submit}
+                    />
+                },
+                Some(DatabaseFieldType::Number) => view! {
+                    <NumberValue
+                        field={field}
+                        value={value}
+                        disabled={disabled}
+                        id={test_id}
+                        on_change={on_change}
+                    />
+                },
+                Some(DatabaseFieldType::Enum) => view! {
+                    <EnumValue
+                        field={field}
+                        value={value}
+                        disabled={disabled}
+                        id={test_id}
+                        on_change={on_change}
+                    />
+                },
+                Some(DatabaseFieldType::Boolean) => view! {
+                    <BooleanValue
+                        field={field}
+                        value={value}
+                        disabled={disabled}
+                        id={test_id}
+                        on_change={on_change}
+                    />
+                },
+                Some(DatabaseFieldType::Color) => view! {
+                    <ColorValue
+                        field={field}
+                        value={value}
+                        disabled={disabled}
+                        id={test_id}
+                        on_change={on_change}
+                    />
+                },
+                Some(DatabaseFieldType::Datetime) => view! {
+                    <DatetimeValue
+                        field={field}
+                        value={value}
+                        disabled={disabled}
+                        id={test_id}
+                        on_change={on_change}
+                    />
+                },
+                None => view! {
+                    <LinksValue
+                        field={field}
+                        value={value}
+                        labels={labels}
+                        disabled={disabled}
+                        id={test_id}
+                        on_change={on_change}
+                    />
+                },
+                Some(DatabaseFieldType::Relation) => view! {
+                    <RelationValue
+                        field={field}
+                        value={value}
+                        labels={labels}
+                        disabled={disabled}
+                        id={test_id}
+                        on_change={on_change}
+                    />
+                },
+                Some(DatabaseFieldType::Block) => view! {
+                    <BlockValue
+                        field={field}
+                        value={value}
+                        labels={labels}
+                        disabled={disabled}
+                        id={test_id}
+                        on_pick={on_pick}
+                    />
+                },
+            }
+        }</Dynamic>
     }
 }
 
@@ -322,9 +321,12 @@ fn NumberValue(
     let edited = changer(field, on_change, true, |typed: f64| {
         Some(DatabaseValue::Number(typed))
     });
+    // A scrub shows here and reaches `on_change` once, when it is kept.
+    let held = HeldValue::new(Binding::new(number, edited));
     view! {
         <NumberInput
-            value={Binding::new(number, edited)}
+            value={held.value}
+            on_scrub={held.on_drag}
             min={bounds.minimum.unwrap_or(f64::NEG_INFINITY)}
             max={bounds.maximum.unwrap_or(f64::INFINITY)}
             drag={number_drag(bounds)}
@@ -358,33 +360,27 @@ fn EnumValue(
                 .collect::<Vec<Uuid>>()
         })
     });
-    let selected = create_memo(move || {
-        let chosen = match value.get() {
-            Some(DatabaseValue::Enum(id)) => id,
-            _ => return None,
-        };
-        options.with(|options| options.iter().position(|option| option.id == chosen))
+    let selected = create_memo(move || match value.get() {
+        Some(DatabaseValue::Enum(id)) => Some(id),
+        _ => None,
     });
-    let picked = move |index: Option<usize>| {
-        let (Some(index), Some(field_id)) = (
-            index,
+    let picked = move |chosen: Option<Uuid>| {
+        let (Some(chosen), Some(field_id)) = (
+            chosen,
             field.with_untracked(|field| field.as_ref().map(|field| field.id)),
         ) else {
             return;
         };
-        let Some(option) = options.with_untracked(|options| options.get(index).cloned()) else {
-            return;
-        };
         on_change.call(DatabaseValueChange {
             field_id,
-            value: Some(DatabaseValue::Enum(option.id)),
+            value: Some(DatabaseValue::Enum(chosen)),
             continuous: false,
         });
     };
     view! {
         <Select
             options={view! {
-                <ForEach keys={keys}>|id: Uuid| {
+                <ForEach value={keys}>|id: Uuid| {
                     let label = create_memo(move || {
                         options.with(|options| {
                             options
@@ -394,7 +390,7 @@ fn EnumValue(
                         })
                     });
                     view! {
-                        <ChoiceOption label={label} />
+                        <ChoiceOption value=id label={label} />
                     }
                 }</ForEach>
             }}
@@ -449,9 +445,12 @@ fn ColorValue(
             alpha,
         }))
     });
+    // A drag shows here and reaches `on_change` once, when it is kept.
+    let held = HeldValue::new(Binding::new(color, edited));
     view! {
         <ColorInput
-            value={Binding::new(color, edited)}
+            value={held.value}
+            on_drag_change={held.on_drag}
             label="Color"
             disabled={disabled}
             @test_id={id}
@@ -568,21 +567,15 @@ fn RelationValue(
                 .collect::<Vec<RowRef>>()
         })
     });
-    let selected = create_memo(move || {
-        let Some(DatabaseValue::Relation(chosen)) = value.get() else {
-            return None;
-        };
-        choices.with(|choices| choices.iter().position(|(link, _)| *link == chosen))
+    let selected = create_memo(move || match value.get() {
+        Some(DatabaseValue::Relation(chosen)) => Some(chosen),
+        _ => None,
     });
-    let unlinked = create_memo(move || target.get().is_none());
-    let picked = move |index: Option<usize>| {
+    let picked = move |link: Option<RowRef>| {
         let Some(field_id) = field.with_untracked(|field| field.as_ref().map(|field| field.id))
         else {
             return;
         };
-        let link = index.and_then(|index| {
-            choices.with_untracked(|choices| choices.get(index).map(|(link, _)| *link))
-        });
         on_change.call(DatabaseValueChange {
             field_id,
             value: link.map(DatabaseValue::Relation),
@@ -591,12 +584,12 @@ fn RelationValue(
     };
     view! {
         <List spacing=SPACING>
-            <Show condition={unlinked}>
+            <Show value={move || target.get().is_none()}>
                 <Text style=TextStyle::CAPTION>"Choose the database this column links to."</Text>
             </Show>
             <Select
                 options={view! {
-                    <ForEach keys={keys}>|link: RowRef| {
+                    <ForEach value={keys}>|link: RowRef| {
                         let label = create_memo(move || {
                             choices.with(|choices| {
                                 choices
@@ -606,7 +599,7 @@ fn RelationValue(
                             })
                         });
                         view! {
-                            <ChoiceOption label={label} />
+                            <ChoiceOption value=link label={label} />
                         }
                     }</ForEach>
                 }}
@@ -667,10 +660,8 @@ fn LinksValue(
             continuous: false,
         });
     };
-    let added = move |index: Option<usize>| {
-        let Some(link) = index.and_then(|index| {
-            addable.with_untracked(|rows| rows.get(index).map(|(link, _)| *link))
-        }) else {
+    let added = move |link: Option<RowRef>| {
+        let Some(link) = link else {
             return;
         };
         let mut links = linked.get_untracked();
@@ -680,7 +671,7 @@ fn LinksValue(
     let add_id = format!("{id}.add");
     view! {
         <List spacing=SPACING>
-            <ForEach keys={linked}>|link: RowRef| {
+            <ForEach value={linked}>|link: RowRef| {
                 let remove_id = format!("{id}.remove.{}", link.row);
                 let label = create_memo(move || {
                     labels.with(|labels| labels.row(&link))
@@ -711,7 +702,7 @@ fn LinksValue(
             }</ForEach>
             <Select
                 options={view! {
-                    <ForEach keys={add_keys}>|link: RowRef| {
+                    <ForEach value={add_keys}>|link: RowRef| {
                         let label = create_memo(move || {
                             addable.with(|rows| {
                                 rows.iter()
@@ -720,7 +711,7 @@ fn LinksValue(
                             })
                         });
                         view! {
-                            <ChoiceOption label={label} />
+                            <ChoiceOption value=link label={label} />
                         }
                     }</ForEach>
                 }}
@@ -733,15 +724,17 @@ fn LinksValue(
     }
 }
 
+/// The relations other databases hold to `database`, loading until each of them is read.
 pub fn watch_inverses(
     editor: be_sdk_beui::Editor,
     database: Memo<Option<Uuid>>,
-) -> Memo<Option<Vec<Inverse>>> {
-    let found = create_signal(None::<Vec<Inverse>>);
+) -> Memo<Ready<Vec<Inverse>>> {
+    let found = create_source::<Vec<Inverse>>();
     let watched: std::cell::RefCell<Option<(Uuid, be_sdk_beui::BlockList)>> =
         std::cell::RefCell::new(None);
     create_binding(move || {
         let Some(target) = database.get() else {
+            found.set(Ok(Vec::new()));
             return;
         };
         let mut held = watched.borrow_mut();
@@ -785,34 +778,18 @@ pub fn watch_inverses(
                 };
                 all.extend(inverses);
             }
-            found.set(Some(all));
+            found.set(Ok(all));
         });
-    });
-    wait_for(move || {
-        if database.get().is_some() && found.with(Option::is_none) {
-            Err(Pending::Loading)
-        } else {
-            Ok(())
-        }
     });
     create_memo(move || found.get())
 }
 
-fn settled<C>(
-    editor: be_sdk_beui::Editor,
-    block: Uuid,
-    content: be_sdk_beui::ContentProjection<C>,
-) -> Memo<bool>
+/// Whether `content` arrived, or settled as one this viewer cannot view.
+fn settled<C>(content: be_sdk_beui::ContentProjection<C>) -> Memo<bool>
 where
     C: be_block_content::LiveEdit + Clone + Default,
 {
-    let found = editor.blocks().watch(be_sdk_beui::BlockQuery::Block(block));
-    create_memo(move || {
-        content.ready().is_ok()
-            || found
-                .read()
-                .is_ok_and(|found| found.first().is_none_or(|info| !info.access.can_view()))
-    })
+    create_memo(move || content.ready().is_ok())
 }
 
 fn source_inverses(
@@ -821,7 +798,7 @@ fn source_inverses(
     source: Uuid,
 ) -> ReadSignal<Option<Vec<Inverse>>> {
     let content = editor.content_of::<DatabaseContent>(source);
-    let content_settled = settled(editor, source, content);
+    let content_settled = settled(content);
     let schema_id = content.field(be_block_content::ObjectId::ROOT, Database::SCHEMA);
     let found = create_signal(None);
     create_binding(move || {
@@ -833,7 +810,7 @@ fn source_inverses(
             return;
         };
         let schema_content = editor.content_of::<DatabaseSchemaContent>(schema);
-        let schema_settled = settled(editor, schema, schema_content);
+        let schema_settled = settled(schema_content);
         let schema = schema_content.project(|schema| schema.root());
         let rows = content.objects(be_block_content::ObjectId::ROOT, Database::ROWS);
         create_binding(move || {
@@ -874,10 +851,13 @@ pub struct RowLabels {
     pub unreachable: Memo<std::collections::BTreeSet<Uuid>>,
 }
 
+/// The labels of the rows of `databases`, loading until all of them are read; while they are
+/// read again after `databases` changes, the labels read last.
 pub fn watch_row_labels(editor: be_sdk_beui::Editor, databases: Memo<Vec<Uuid>>) -> RowLabels {
-    let found = create_signal(None::<(Vec<Uuid>, BTreeMap<RowRef, String>)>);
+    let found = create_source::<BTreeMap<RowRef, String>>();
     create_binding(move || {
         let wanted = databases.get();
+        found.set(Err(Pending::Loading));
         let watched: Vec<ReadSignal<Option<RowTitles>>> = wanted
             .iter()
             .map(|database| row_titles(editor, *database))
@@ -890,7 +870,7 @@ pub fn watch_row_labels(editor: be_sdk_beui::Editor, databases: Memo<Vec<Uuid>>)
                 };
                 all.extend(titles);
             }
-            found.set(Some((wanted.clone(), all)));
+            found.set(Ok(all));
         });
     });
     let blocks = editor.blocks();
@@ -903,29 +883,12 @@ pub fn watch_row_labels(editor: be_sdk_beui::Editor, databases: Memo<Vec<Uuid>>)
                 .collect()
         })
     });
-    let loaded = create_memo(move || {
-        let wanted = databases.get();
-        found.with(|found| {
-            found
-                .as_ref()
-                .is_some_and(|(covered, _)| *covered == wanted)
-        })
-    });
-    wait_for(move || {
-        if loaded.get() {
-            Ok(())
-        } else {
-            Err(Pending::Loading)
-        }
-    });
     RowLabels {
         unreachable,
-        labels: create_memo(move || {
-            found.with(|found| {
-                found
-                    .as_ref()
-                    .map(|(_, labels)| labels.clone())
-                    .unwrap_or_default()
+        labels: create_memo(move |last: Option<&BTreeMap<RowRef, String>>| {
+            found.with(|found| match found {
+                Ok(labels) => labels.clone(),
+                Err(_) => last.cloned().unwrap_or_default(),
             })
         }),
     }
@@ -933,7 +896,7 @@ pub fn watch_row_labels(editor: be_sdk_beui::Editor, databases: Memo<Vec<Uuid>>)
 
 fn row_titles(editor: be_sdk_beui::Editor, database: Uuid) -> ReadSignal<Option<RowTitles>> {
     let content = editor.content_of::<DatabaseContent>(database);
-    let content_settled = settled(editor, database, content);
+    let content_settled = settled(content);
     let schema_id = content.field(be_block_content::ObjectId::ROOT, Database::SCHEMA);
     let titles = create_signal(None);
     create_binding(move || {
@@ -942,7 +905,7 @@ fn row_titles(editor: be_sdk_beui::Editor, database: Uuid) -> ReadSignal<Option<
         }
         let title_field = schema_id.get().map(|schema| {
             let schema_content = editor.content_of::<DatabaseSchemaContent>(schema);
-            let settled = settled(editor, schema, schema_content);
+            let settled = settled(schema_content);
             let title = schema_content.project(|schema| schema.root().title_field());
             (settled, title)
         });

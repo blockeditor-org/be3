@@ -1,0 +1,7 @@
+use be_block_content::*;
+use uuid::Uuid;
+
+mod a_branch_both_sides_moved_keeps_both_commits;
+mod a_checkout_copy_answers_to_its_local_id_only_in_its_own_scope;
+mod a_repository_keeps_its_latest_operations_and_knows_what_was_undone;
+mod a_repository_moves_and_drops_branches;

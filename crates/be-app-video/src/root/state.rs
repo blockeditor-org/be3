@@ -5,7 +5,8 @@ use std::time::{Duration, Instant};
 
 use be_sdk_beui::be_sdk_ui::{BlockCatalog, BlockLabel};
 use be_sdk_beui::beui::reactive::*;
-use be_sdk_beui::{BlockFilter, ChildTarget, ContentProjection, Editor, PickAnchor};
+use be_sdk_beui::beui::unstyled::ValueDrag;
+use be_sdk_beui::{BlockFilter, ChildTarget, ContentProjection, DragHold, Editor, PickAnchor};
 use be_sdk_beui::{BlockInfo, BlockParent, BlockQuery};
 use be_type_video::VideoContent;
 use be_type_video::{
@@ -22,15 +23,19 @@ pub(crate) const ZOOM_STEP: f32 = 1.5;
 pub(crate) struct ClipDrag {
     pub(crate) clip: Uuid,
     pub(crate) grab: u64,
+    /// Whether the keyboard carries it, which the timeline pans to follow.
+    pub(crate) keyboard: bool,
 }
 
 #[derive(Clone, Copy)]
 pub(crate) struct VideoState {
     editor: Editor,
     fit_requested: Signal<bool>,
-    pub(crate) clips: ReadSignal<Vec<VideoClip>>,
-    pub(crate) duration: ReadSignal<u64>,
-    pub(crate) frame_rate: ReadSignal<VideoFrameRate>,
+    pub(crate) clips: Memo<Vec<VideoClip>>,
+    /// The whole edit, for what is worked out from every clip at once (lanes, what shows).
+    pub(crate) edit: Memo<Video>,
+    pub(crate) duration: Memo<u64>,
+    pub(crate) frame_rate: Memo<VideoFrameRate>,
     pub(crate) selected: Signal<Option<Uuid>>,
     pub(crate) playhead: Signal<u64>,
     pub(crate) playing: Signal<bool>,
@@ -42,6 +47,8 @@ pub(crate) struct VideoState {
 
 struct Inner {
     block: ContentProjection<VideoContent>,
+    /// What a clip field's drag writes, held until it is kept (`drag_value`).
+    hold: DragHold<VideoContent>,
     play_origin: Cell<Option<(Instant, u64)>>,
 }
 
@@ -49,6 +56,7 @@ impl VideoState {
     pub(crate) fn new(editor: Editor) -> Self {
         let block = editor.block_content::<VideoContent>();
         let clips = block.project(|video| video.root().video().clips().to_vec());
+        let edit = block.project(|video| video.root().video());
         let duration = block.project(|video| video.root().video().duration());
         let frame_rate = block.project(|video| video.root().frame_rate);
         let selected = create_signal(None);
@@ -72,6 +80,7 @@ impl VideoState {
             editor,
             fit_requested,
             clips,
+            edit,
             duration,
             frame_rate,
             selected,
@@ -82,6 +91,7 @@ impl VideoState {
             labels,
             inner: store(Inner {
                 block,
+                hold: DragHold::new(block),
                 play_origin: Cell::new(None),
             }),
         };
@@ -112,8 +122,13 @@ impl VideoState {
     pub(crate) fn operate(&self, operation: VideoOperation) {
         let inner = self.inner.value();
         if let Ok(edit) = inner.block.read(|video| video.root().edit_for(&operation)) {
-            inner.block.operate(edit);
+            inner.hold.operate(edit);
         }
+    }
+
+    /// A clip field's drag starts or ends: what it writes between is held (`DragHold`).
+    pub(crate) fn drag_value(&self, change: ValueDrag) {
+        self.inner.value().hold.drag(change);
     }
 
     pub(crate) fn update_clip(&self, clip: VideoClip) {
@@ -193,9 +208,6 @@ impl VideoState {
         let state = *self;
         self.editor
             .pick_block(BlockFilter::default(), PickAnchor::Centre, move |picked| {
-                let Ok(picked) = picked else {
-                    return;
-                };
                 if state.inner.is_alive() {
                     state.adopt(picked.id());
                     state.insert_clip(

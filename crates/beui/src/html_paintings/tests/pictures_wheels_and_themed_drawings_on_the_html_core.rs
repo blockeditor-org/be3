@@ -1,5 +1,5 @@
 use super::*;
-use beui_macros::view;
+use crate::reactive::view;
 use std::rc::Rc;
 
 fn gradient() -> crate::Image {

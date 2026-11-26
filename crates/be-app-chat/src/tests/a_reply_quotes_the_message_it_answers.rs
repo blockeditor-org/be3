@@ -6,17 +6,15 @@ fn a_reply_quotes_the_message_it_answers() {
         (ROSA, "Who has the keys to the lab?"),
         (ROSA, "Also, coffee at three?"),
     ]);
-    let keys = chat.id(0);
+    let keys = chat.seq(0);
 
     chat.click(&format!("chat.message.{keys}.reply"));
     assert!(chat.editor.shown("chat.reply.cancel"));
     chat.send("I do, I'll leave them at the desk");
 
-    let reply = chat.id(2);
+    let reply = chat.seq(2);
     assert_eq!(
-        chat.content()
-            .message(reply)
-            .and_then(|message| message.reply_to),
+        chat.log().message(reply).and_then(|shown| shown.reply_to),
         Some(keys)
     );
     assert!(

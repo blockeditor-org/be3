@@ -105,21 +105,9 @@ write_package_value("be3.cargo", {
             ],
             "examples": {},
             "features": [],
-            "test_deps": [],
-            "test_features": [],
-        },
-        "wasm32": {
-            "binaries": {},
-            "deps": [
-                "//crates/be-block-content:be-block-content",
-                "//crates/be-block-model:be-block-model",
-                "//crates/be-sdk-type-guest:be-sdk-type-guest",
-                "//third-party/rust:serde-1.0.228",
-                "//third-party/rust:uuid-1.29.1",
+            "test_deps": [
+                "//crates/be-block-commit:be-block-commit",
             ],
-            "examples": {},
-            "features": [],
-            "test_deps": [],
             "test_features": [],
         },
         "windows-arm64": {

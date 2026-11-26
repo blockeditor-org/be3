@@ -64,6 +64,7 @@ pub(crate) fn text(
     let model = TextModel::new(node);
     let held = model.clone();
     let sized = font.clone();
+    let measured = font.clone();
     bind(font, move |font| {
         held.set_font(font);
         set_style(node, "font", Some(css::font(font)));
@@ -111,6 +112,19 @@ pub(crate) fn text(
         };
         set_style(node, "white-space", Some(white_space.to_owned()));
         set_style(node, "overflow-wrap", wrap.map(str::to_owned));
+        // What a gap's share is a share of: the width the text wraps at, and none while it
+        // wraps nowhere, as natively.
+        set_style(
+            node,
+            "--beui-gap-room",
+            Some(
+                match wrap {
+                    Some(_) => "100%",
+                    None => "0px",
+                }
+                .to_owned(),
+            ),
+        );
         set_style(node, "display", clamp.map(|_| "-webkit-box".to_owned()));
         set_style(
             node,
@@ -155,8 +169,10 @@ pub(crate) fn text(
                 model.set_single(Run::new(&element, span.text, glyphed));
             }
         }
-        Ok(child) => Children::from(ChildSegment::One(child)).mount(host(&model, glyphed)),
-        Err(children) => children.mount(host(&model, glyphed)),
+        Ok(child) => {
+            Children::from(ChildSegment::One(child)).mount(host(&model, glyphed, measured))
+        }
+        Err(children) => children.mount(host(&model, glyphed, measured)),
     }
     let rendered = model.clone();
     create_binding(move || rendered.render(&glyphs.get()));
@@ -184,7 +200,9 @@ fn inline(kind: &'static str, tag: &'static str, styles: &[(&'static str, &str)]
 }
 
 impl TextChild {
-    fn build(self, glyphed: bool) -> (NodeId, Piece) {
+    /// `font` is the text's, which a `Blank` without one of its own is measured in, again
+    /// whenever it changes.
+    fn build(self, glyphed: bool, font: Option<Prop<FontId>>) -> (NodeId, Piece) {
         match self {
             TextChild::Span(span) => span.build(glyphed),
             TextChild::Item(item) => (item.node, Piece::Item(item.data)),
@@ -194,8 +212,67 @@ impl TextChild {
                     "span",
                     &[("display", "inline-block"), ("user-select", "none")],
                 );
-                set_style(node, "width", Some(css::px(gap.width)));
-                (node, Piece::Skip { newline: false })
+                let width = match gap.width.share == 0.0 {
+                    true => css::px(gap.width.px),
+                    false => format!(
+                        "max(0px, calc({} + {} * var(--beui-gap-room, 0px)))",
+                        css::px(gap.width.px),
+                        css::number(gap.width.share)
+                    ),
+                };
+                set_style(node, "width", Some(width));
+                (node, Piece::Gap)
+            }
+            TextChild::Blank(blank) => {
+                // A space in the blank's font, so a mark or glyph over it is as tall as the
+                // text's, `letter-spacing` making it `width` wide: the browser hangs it past a
+                // line's end as it does trailing spaces under `pre-wrap`, where a wider space
+                // character (an em space) or an inline block would wrap.
+                let node = inline("Blank", "span", &[]);
+                set_attribute(node, "class", Some("beui-blank".to_owned()));
+                if let Some(font) = blank.font {
+                    set_style(node, "font-size", Some(css::px(font.size)));
+                    set_style(
+                        node,
+                        "line-height",
+                        Some(css::px(font_line_height(font.size))),
+                    );
+                    set_style(
+                        node,
+                        "font-family",
+                        Some(css::family(font.family).to_owned()),
+                    );
+                    set_style(
+                        node,
+                        "font-weight",
+                        Some(if font.bold { "bold" } else { "normal" }.to_owned()),
+                    );
+                    set_style(
+                        node,
+                        "font-style",
+                        Some(if font.italic { "italic" } else { "normal" }.to_owned()),
+                    );
+                }
+                let own = blank.font;
+                let fonts = beui_core_html::page::use_font_changes();
+                let width = blank.width;
+                create_binding(move || {
+                    fonts.track();
+                    let space = own
+                        .or_else(|| font.as_ref().map(|font| font.get()))
+                        .and_then(beui_core_html::text::space_advance)
+                        .unwrap_or(0.0);
+                    set_style(node, "letter-spacing", Some(css::px(width - space)));
+                });
+                let Some(element) = element(node) else {
+                    return (node, Piece::Skip { newline: false });
+                };
+                let run = Run::new(
+                    &element,
+                    Prop::Static(crate::types::text::BLANK.to_owned()),
+                    glyphed,
+                );
+                (node, Piece::Run(run))
             }
             TextChild::Break(_) => {
                 let node = create("Break", "span");
@@ -208,20 +285,29 @@ impl TextChild {
 
 impl SlotChild for TextChild {
     type Stored = NodeId;
+    type Node = NodeId;
 
+    fn node(stored: &NodeId) -> NodeId {
+        *stored
+    }
+
+    /// A child stored away from any `Text` (in a run of children not yet mounted) keeps only
+    /// its node: its piece, which the text reads its content and layout from, is dropped, so
+    /// no `Text` reaches this; a `Blank` here would be measured in no font.
     fn store(self) -> NodeId {
-        self.build(false).0
+        self.build(false, None).0
     }
 }
 
 struct TextHost {
     model: Rc<TextModel>,
     glyphed: bool,
+    font: Prop<FontId>,
 }
 
 impl SlotHost<TextChild> for TextHost {
     fn store(&self, child: TextChild) -> NodeId {
-        let (node, piece) = child.build(self.glyphed);
+        let (node, piece) = child.build(self.glyphed, Some(self.font.clone()));
         self.model.insert(node, piece);
         node
     }
@@ -239,10 +325,11 @@ impl SlotHost<TextChild> for TextHost {
     }
 }
 
-fn host(model: &Rc<TextModel>, glyphed: bool) -> Rc<dyn SlotHost<TextChild>> {
+fn host(model: &Rc<TextModel>, glyphed: bool, font: Prop<FontId>) -> Rc<dyn SlotHost<TextChild>> {
     Rc::new(TextHost {
         model: model.clone(),
         glyphed,
+        font,
     })
 }
 
@@ -343,6 +430,14 @@ impl Span {
                 span,
                 "border-radius",
                 background.map(|background| css::px(background.radius)),
+            );
+            // A decorated text draws the background itself, under its marks, grown by its outset
+            // as natively (the attribute holds it).
+            set_attribute(
+                span,
+                "data-beui-background",
+                background
+                    .map(|background| format!("{} {}", background.outset.x, background.outset.y)),
             );
             let clone = background.map(|_| "clone".to_owned());
             set_style(span, "box-decoration-break", clone.clone());

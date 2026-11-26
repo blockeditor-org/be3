@@ -437,7 +437,7 @@ fn fix_inline_tests(path: &Path) -> Result<(), Box<dyn Error>> {
             })
             .collect::<Vec<_>>(),
     );
-    merge_support(&aggregator, &support)?;
+    merge_support(&aggregator, &support, false)?;
     for function in &inline.functions {
         write_test_file(&tests_directory, function, &source)?;
     }
@@ -474,7 +474,7 @@ fn fix_top_level_tests(path: &Path) -> Result<(), Box<dyn Error>> {
             .collect::<Vec<_>>(),
     );
     if is_individual_test_file(path) {
-        merge_support(&aggregator, &fixed)?;
+        merge_support(&aggregator, &fixed, true)?;
         fs::remove_file(path)?;
         for function in &functions {
             write_test_file(&tests_directory, function, &source)?;
@@ -537,7 +537,14 @@ fn write_test_file(
     Ok(())
 }
 
-fn merge_support(aggregator: &Path, support: &[u8]) -> Result<(), Box<dyn Error>> {
+/// Moves what `support` holds besides its tests into `aggregator`. `from_child` says that
+/// `support` was a test file under it, whose `super` is `aggregator` itself: its imports are
+/// rewritten for their new place ([`from_parent`]).
+fn merge_support(
+    aggregator: &Path,
+    support: &[u8],
+    from_child: bool,
+) -> Result<(), Box<dyn Error>> {
     let mut content = if aggregator.exists() {
         fs::read_to_string(aggregator)?
     } else {
@@ -561,12 +568,19 @@ fn merge_support(aggregator: &Path, support: &[u8]) -> Result<(), Box<dyn Error>
     for item in parse(support)?.items() {
         let text = item.syntax().text().to_string();
         if let ast::Item::Use(import) = &item {
-            let leaves = use_leaves(import);
+            let original = use_leaves(import);
+            let leaves = match from_child {
+                true => original
+                    .iter()
+                    .filter_map(|leaf| from_parent(leaf))
+                    .collect(),
+                false => original.clone(),
+            };
             let missing = leaves
                 .iter()
                 .filter(|leaf| !imported.contains(*leaf))
                 .collect::<Vec<_>>();
-            if missing.len() == leaves.len() {
+            if missing.len() == leaves.len() && leaves == original {
                 imports.push(text.trim().to_owned());
             } else {
                 let visibility = import
@@ -629,6 +643,22 @@ fn merge_support(aggregator: &Path, support: &[u8]) -> Result<(), Box<dyn Error>
     }
     fs::write(aggregator, content)?;
     Ok(())
+}
+
+/// An import of a child module as its parent would write it. One of the parent's own items
+/// (`super::x` in the child, or `self::x` for one moved along with it) needs no import, unless
+/// it is renamed, which stays as `self::x as y`.
+fn from_parent(leaf: &str) -> Option<String> {
+    if let Some(rest) = leaf.strip_prefix("super::super::") {
+        return Some(format!("super::{rest}"));
+    }
+    let Some(rest) = leaf
+        .strip_prefix("super::")
+        .or_else(|| leaf.strip_prefix("self::"))
+    else {
+        return Some(leaf.to_owned());
+    };
+    rest.contains(" as ").then(|| format!("self::{rest}"))
 }
 
 fn use_leaves(import: &ast::Use) -> Vec<String> {

@@ -1,4 +1,4 @@
-//! A record of each build, sent to the build server's dashboard (scripts/internal/nativelink/dashboard,
+//! A record of each build, sent to the build server's dashboard (servers/build/dashboard,
 //! guides/build_server.md): how long buck2 took, what ran and what was cached, the critical path, every test run and
 //! every other action over 10 s. buck2's event log has it all, down to the CPU each test that ran used, which its
 //! launcher (crates/be-tool-run-test) writes last. crates/be-tool-verify sends one for ./scripts/verify and

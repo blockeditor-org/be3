@@ -5,7 +5,7 @@ fn a_docked_pane_lays_its_content_edge_to_edge() {
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
     let document = build_node(move || {
-        let layout = dock::DockingLayout::new();
+        let layout = dock::DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost @node_ref=&dock>
                 <dock::Docking layout>

@@ -9,7 +9,7 @@ fn a_hosted_dock_window_resized_by_its_tab_asks_its_host_and_takes_the_size_it_r
     let dock = NodeRef::new();
     let control = StoredCell::new(None::<DockTabControl>);
     let document = build_node(move || {
-        let layout = dock::DockingLayout::new();
+        let layout = dock::DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost @node_ref=&dock>
                 <dock::Docking layout>

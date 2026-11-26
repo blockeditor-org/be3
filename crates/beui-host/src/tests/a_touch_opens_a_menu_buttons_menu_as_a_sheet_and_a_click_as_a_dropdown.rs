@@ -13,7 +13,7 @@ fn laid_out(harness: &Harness, test_id: &str) -> bool {
 
 fn row(harness: &Harness, label: &str) -> Pos2 {
     let root = harness.document().root().expect("the document has a root");
-    let row = text_within(harness.document(), root, label)
+    let row = find_text(harness.document(), root, label, Match::Exact)
         .unwrap_or_else(|| panic!("the menu lists {label}"));
     harness.center(row)
 }

@@ -10,6 +10,8 @@ pub use serde::{Serialize, de::DeserializeOwned};
 
 pub mod guest;
 
+pub mod local;
+
 pub mod net;
 
 pub mod wire;
@@ -19,6 +21,17 @@ pub type OpId = u64;
 pub type MethodId = u32;
 
 pub const GUEST_BIT: OpId = 1 << 63;
+
+/// The bit every op a host's relayed connection (`Connection::relayed`) starts carries, so its
+/// ops never meet those of the host's connection that forwards it their frames.
+pub const RELAYED_BIT: OpId = 1 << 62;
+
+/// Whether `op` was started by a host's relayed connection (`Connection::relayed`): it carries
+/// `RELAYED_BIT` and is the host's side's, so an op the guest started with that bit set in its
+/// own id is not taken for one.
+pub fn is_relayed(op: OpId) -> bool {
+    op & (RELAYED_BIT | GUEST_BIT) == RELAYED_BIT
+}
 
 pub const STREAM_WINDOW: u32 = 16;
 
@@ -162,6 +175,16 @@ impl Outcome {
             Outcome::Ok(bytes) => wire::decode::<S, T>(&bytes).ok_or(OpError::Unsupported),
             Outcome::Err(error) => Err(error),
         }
+    }
+}
+
+/// Zeroes `bytes` in place, in a way the compiler keeps: what a decoded call's arguments or a
+/// received frame held (a password) is then gone from that buffer.
+pub fn scrub(bytes: &mut [u8]) {
+    for byte in bytes.iter_mut() {
+        // Volatile, so the zeroing is not optimised away as a dead store.
+        // unsafe(memory)
+        unsafe { std::ptr::write_volatile(byte, 0) };
     }
 }
 
@@ -312,8 +335,25 @@ impl Connection {
         }
     }
 
+    /// A host's connection to a guest another host's connection already talks to, which
+    /// forwards this one the frames of the ops it starts and of those the guest starts under
+    /// them, and relays the frames it sends unread: the ops it starts carry `RELAYED_BIT`, so
+    /// the forwarder tells them by their ids alone (`is_relayed`).
+    pub fn relayed() -> Self {
+        Self {
+            next: RELAYED_BIT,
+            ..Self::new(Side::Host)
+        }
+    }
+
     pub fn side(&self) -> Side {
         self.side
+    }
+
+    /// Sends `frame`, which another connection to the same peer encoded, as it is: one a
+    /// relayed connection sent, which its forwarder passes on.
+    pub fn relay(&mut self, frame: Vec<u8>) {
+        self.outbound.push(frame);
     }
 
     fn live(&self, op: OpId) -> bool {

@@ -1,6 +1,11 @@
 #![cfg(not(any(target_os = "android", target_arch = "wasm32")))]
 
 mod accessibility;
+#[cfg(all(
+    unix,
+    not(any(target_os = "android", target_os = "macos", target_os = "ios"))
+))]
+mod backdrop;
 mod clipboard;
 mod file_picker;
 mod file_saver;
@@ -225,6 +230,13 @@ impl PlatformServices for WinitPlatform<'_> {
             && window.appearance.title != shown.appearance.title
         {
             surface.window.set_title(title);
+        }
+        #[cfg(all(
+            unix,
+            not(any(target_os = "android", target_os = "macos", target_os = "ios"))
+        ))]
+        if window.appearance.clear_color != shown.appearance.clear_color {
+            backdrop::set(&*surface.window, window.appearance.clear_color);
         }
     }
 
@@ -609,6 +621,11 @@ impl ApplicationHandler for Runner {
         if let Ok(handle) = window.window_handle() {
             setup.provide(NativeWindow(handle.as_raw()));
         }
+        #[cfg(all(
+            unix,
+            not(any(target_os = "android", target_os = "macos", target_os = "ios"))
+        ))]
+        backdrop::fresh(&*window);
         self.surface = Some(Surface {
             window,
             touch_cursor,
@@ -679,7 +696,12 @@ impl ApplicationHandler for Runner {
                         reports.fullscreen(fullscreen);
                     }
                     reports.resized(size.width, size.height);
-                    surface.window.request_redraw();
+                }
+                // Draw at the new size now, in answer to the resize, not at a redraw a frame
+                // later: until then the system shows the grown part of the window as it likes
+                // (black on X11 and Windows) or the last frame scaled.
+                if self.surface.is_some() {
+                    self.redraw(event_loop);
                 }
             }
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
@@ -804,7 +826,7 @@ impl ApplicationHandler for Runner {
                 self.push(Input::Ime(ImeEvent::SetComposingText(String::new())));
                 self.push(Input::Ime(ImeEvent::Disabled));
             }
-            WindowEvent::DragEntered { id, .. } => {
+            WindowEvent::DragEntered { id, position } => {
                 let files = event_loop
                     .data_transfer(id)
                     .is_ok_and(|transfer| transfer.has_type(&TypeHint::UriList));
@@ -813,8 +835,18 @@ impl ApplicationHandler for Runner {
                         .set_valid_dnd_actions(id, &[DndAction::Copy])
                         .is_ok()
                 {
+                    // Where the files are is the pointer's: no pointer moves come while the
+                    // system carries them.
+                    if let Some(position) = position {
+                        self.pointer = physical(position);
+                        self.push(Input::PointerMoved(self.pointer));
+                    }
                     self.push(FileDrag::Hovered);
                 }
+            }
+            WindowEvent::DragPosition { position, .. } => {
+                self.pointer = physical(position);
+                self.push(Input::PointerMoved(self.pointer));
             }
             WindowEvent::DragLeft { .. } => {
                 self.dropping = None;

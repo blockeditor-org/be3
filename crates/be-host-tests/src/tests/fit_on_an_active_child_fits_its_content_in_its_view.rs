@@ -14,7 +14,9 @@ fn fit_on_an_active_child_fits_its_content_in_its_view() {
     host.gone("#infinite-canvas.dock");
     host.run(&["wheel", &inside, "3"]);
     let panned = host.place(ARTWORK);
-    host.click("#pan_zoom.fit");
+    // The active child's bar: the canvas hides its own while a child has the frame, so this
+    // is the only one.
+    host.click("#editor.zoom_fit");
     let fitted = pan_zoom_world(&mut host);
     let canvas = host.place("#pan_zoom.stage");
     let centre = |place: (f32, f32, f32, f32)| (place.0 + place.2 / 2.0, place.1 + place.3 / 2.0);

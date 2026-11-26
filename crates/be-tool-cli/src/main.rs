@@ -9,7 +9,9 @@ use be_tool_cli::tracker::Tracker;
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    apps();
+    // A panic a host component's run contains (be-host-runtime) is reported in full, with its
+    // backtrace, as be-host reports it.
+    be_host_base::panic_guard::install();
     match run().await {
         Ok(output) => {
             if !output.is_empty() {
@@ -37,12 +39,18 @@ async fn run() -> Result<String, String> {
     }
     be_lib_build_id::current()?;
     let settings = Settings::from_env()?;
+    be_tool_cli::release::serve(&settings.cache)?;
     if invocation.verb == "terminal-host"
         && let Some(target) = &invocation.target
     {
         return host_terminal(&settings, target, &invocation.options.command).await;
     }
-    let tracker = Tracker::new(connect(&settings).await?, sources(&settings));
+    if invocation.verb == "host"
+        && let Some(target) = &invocation.target
+    {
+        return host_block(&settings, target).await;
+    }
+    let tracker = Tracker::new(connect(&settings).await?, sources());
     let (block, label, base) = match cli::run(&tracker, &invocation).await? {
         Outcome::Print(text) => return Ok(text),
         Outcome::Edit { block, label, base } => (block, label, base),
@@ -103,36 +111,12 @@ async fn run() -> Result<String, String> {
     }
 }
 
-const APP_TYPES: &[u8] = include_bytes!(env!("APP_TYPES"));
-
-fn apps() -> &'static [be_tool_cli::apps::App] {
-    if be_tool_cli::apps::installed().is_empty() {
-        match be_tool_cli::apps::parse(APP_TYPES) {
-            Ok(apps) => return be_tool_cli::apps::install(apps),
-            Err(error) => eprintln!("be: {error}"),
-        }
-    }
-    be_tool_cli::apps::installed()
-}
-
-fn sources(settings: &Settings) -> be_tool_cli::tracker::Sources {
-    let cache = settings.cache.join("modules");
-    let apps = apps();
-    Box::new(move || {
-        let mut sources = Vec::new();
-        for app in apps.iter().filter(|app| !app.module.is_empty()) {
-            let module = app.module;
-            sources.push(
-                be_block_type_host::modules::wasm(
-                    app.manifest.identity.id.clone(),
-                    Ok(be_block_type_host::tag_of(module)),
-                    Some(cache.clone()),
-                    move |host| host.load_bytes(module),
-                )
-                .declaring(app.declared()),
-            );
-        }
-        sources
+/// The apps' type modules, found as be-host finds them (`be_tool_cli::release`): read, and
+/// downloaded by a deployed `be`, only when a command first starts its types.
+fn sources() -> be_tool_cli::tracker::Sources {
+    Box::new(|| {
+        be_tool_cli::apps::found();
+        be_host_stack::types::app_sources()
     })
 }
 
@@ -147,6 +131,46 @@ fn private_directory() -> Result<std::path::PathBuf, String> {
     Ok(path)
 }
 
+/// `be BLOCK host` (guides/apps/runtime.md, "Headless"): the block's type's host component, run
+/// headless on a block stack signed in as this account, until Ctrl-C.
+async fn host_block(settings: &Settings, target: &str) -> Result<String, String> {
+    let tracker = Tracker::new(connect_live(settings).await?, sources());
+    let entry = tracker.resolve(target).await?;
+    let (block, block_type, label) = (entry.id, entry.block_type, entry.label());
+    drop(tracker);
+    let config = be_tool_cli::session::stack_config(settings).await?;
+    let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let stopping = std::sync::Arc::clone(&stop);
+    // The first Ctrl-C stops hosting, closing the component and leaving the session; a second
+    // exits at once.
+    tokio::spawn(async move {
+        while tokio::signal::ctrl_c().await.is_ok() {
+            if stopping.swap(true, std::sync::atomic::Ordering::AcqRel) {
+                eprintln!("be: stopped without closing the host component");
+                std::process::exit(130);
+            }
+            eprintln!("be: stopping; press Ctrl-C again to exit at once");
+            be_tool_cli::hosting::wake();
+        }
+    });
+    // The stack and the runtime keep their state on the thread that runs them.
+    tokio::task::spawn_blocking(move || {
+        be_host_stack::start(config);
+        let hosted = be_tool_cli::hosting::host_block(
+            block,
+            block_type,
+            uuid::Uuid::new_v4(),
+            || stop.load(std::sync::atomic::Ordering::Acquire),
+            |said| eprintln!("be: {label}: {said}"),
+        );
+        be_host_stack::stop_and_wait();
+        hosted
+    })
+    .await
+    .map_err(|error| format!("the host stopped: {error}"))??;
+    Ok(String::new())
+}
+
 async fn host_terminal(
     settings: &Settings,
     target: &str,
@@ -155,7 +179,7 @@ async fn host_terminal(
     settings.check_machine(std::env::var("BOAT_ID").ok().as_deref())?;
     let mut host = Host::new(HostOptions::here(command.to_vec()))?;
     let connect = async || {
-        let tracker = Tracker::new(connect_live(settings).await?, sources(settings));
+        let tracker = Tracker::new(connect_live(settings).await?, sources());
         let entry = tracker.resolve(target).await?;
         if entry.block_type != be_type_terminal::TerminalContent::CONTENT_TYPE {
             return Err(format!("{} is not a terminal block", entry.label()));
@@ -166,7 +190,7 @@ async fn host_terminal(
         let _ = tokio::signal::ctrl_c().await;
     };
     tokio::task::LocalSet::new()
-        .run_until(host.run(connect, &sources(settings), stopped))
+        .run_until(host.run(connect, &sources(), stopped))
         .await?;
     Ok(String::new())
 }

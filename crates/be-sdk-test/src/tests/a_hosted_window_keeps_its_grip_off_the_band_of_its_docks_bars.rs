@@ -79,3 +79,5 @@ fn a_hosted_window_keeps_its_grip_off_the_band_of_its_docks_bars() {
          {moved:?} {band:?}"
     );
 }
+
+test_editor!(BandedRoot);

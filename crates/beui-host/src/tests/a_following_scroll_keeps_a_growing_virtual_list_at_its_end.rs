@@ -15,10 +15,10 @@ fn a_following_scroll_keeps_a_growing_virtual_list_at_its_end() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @node_ref=&scroll follow_end=true>
+                    <Scroll @node_ref=&scroll follow_end=true style={plain_scroll()}>
                         <VirtualList
                             @node_ref=&list
-                            keys={keys}
+                            value={keys}
                             item_size=ESTIMATE
                         >|_index: ReadSignal<usize>|
                             <Frame height=ACTUAL>

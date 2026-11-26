@@ -10,7 +10,6 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::{MarkerKind, TextAreaState, TextMarker};
 use beui::{Direction, NodeId, TextAlign};
-use beui_macros::{component, sample};
 use beui_text_editor_core::schema::basic::{
     self, Basic, CHECK, CHECKED, CODE_BLOCK, LIST, MENTION, NUMBER, QUOTE,
 };
@@ -114,7 +113,7 @@ pub(crate) fn editor_seeds() -> Vec<Seed> {
     ]
 }
 
-pub(crate) fn render_marker() -> RenderFn<TextMarker> {
+pub(crate) fn render_marker() -> RenderFn<TextMarker, NodeId> {
     RenderFn::new(|marker: TextMarker| match marker.kind.get_untracked() {
         MarkerKind::Void(_) => view! {
             <Mention marker />

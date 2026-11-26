@@ -57,6 +57,12 @@ async fn fcm_sends_a_data_message_with_the_service_accounts_token() {
     });
     let mut fcm = push::FcmConfig::from_service_account(&account.to_string()).unwrap();
     fcm.endpoint = service.url.clone();
+    // The configuration prints, as a log of it would, without the service account's key.
+    let printed = format!("{fcm:?}");
+    assert!(
+        printed.contains("a-project") && !printed.contains(&format!("{:?}", fcm.private_key)),
+        "{printed}"
+    );
     let public = RsaKeyPair::from_pkcs8(&fcm.private_key)
         .unwrap()
         .public_key()
@@ -71,14 +77,15 @@ async fn fcm_sends_a_data_message_with_the_service_accounts_token() {
         ..ServerConfig::OPEN
     })
     .await;
-    let mut owner = harness.client().await;
-    let owner_id = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let owner_id = owner.id();
     let organization = owner.personal().await;
     let block = owner.create_block(BlockParent::Root).await;
     let (mut member, _) = viewer_of(&harness, &mut owner, block, "member@example.com").await;
     let offers = member
-        .call(|peer| client::notifications::offers_fcm(peer))
-        .await;
+        .call(|peer| peer.read::<be_block_protocol::ServerInfo>(Query::ServerInfo))
+        .await
+        .map(|info| info.offers_fcm);
     assert!(matches!(offers, Ok(true)), "{offers:?}");
     let device = TestDevice::new();
     member

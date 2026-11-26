@@ -4,13 +4,13 @@ use super::*;
 #[tokio::test]
 async fn nobody_makes_or_writes_to_another_accounts_unfiled() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let account = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let account = owner.id();
     let organization = owner.personal().await;
     let unfiled = be_block::unfiled(organization, account);
 
-    let mut other = harness.client().await;
-    let intruder = other.register("other@example.com").await;
+    let mut other = harness.member("other@example.com").await;
+    let intruder = other.id();
     other.personal().await;
     let taken = make(
         &mut other,

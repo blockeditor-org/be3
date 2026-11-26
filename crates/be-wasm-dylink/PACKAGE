@@ -19,6 +19,8 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:sha2-0.10.9",
+                "//third-party/rust:wasm-encoder-0.257.1",
+                "//third-party/rust:wasmparser-0.257.1",
             ],
             "examples": {},
             "features": [],
@@ -30,6 +32,8 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:sha2-0.10.9",
+                "//third-party/rust:wasm-encoder-0.257.1",
+                "//third-party/rust:wasmparser-0.257.1",
             ],
             "examples": {},
             "features": [],
@@ -41,6 +45,8 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:sha2-0.10.9",
+                "//third-party/rust:wasm-encoder-0.257.1",
+                "//third-party/rust:wasmparser-0.257.1",
             ],
             "examples": {},
             "features": [],
@@ -52,6 +58,8 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:sha2-0.10.9",
+                "//third-party/rust:wasm-encoder-0.257.1",
+                "//third-party/rust:wasmparser-0.257.1",
             ],
             "examples": {},
             "features": [],
@@ -63,17 +71,34 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:sha2-0.10.9",
+                "//third-party/rust:wasm-encoder-0.257.1",
+                "//third-party/rust:wasmparser-0.257.1",
             ],
             "examples": {},
             "features": [],
             "test_deps": [],
             "test_features": [],
         },
-        "wasm32": {
+        "wasi": {
             "binaries": {},
             "deps": [
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:sha2-0.10.9",
+                "//third-party/rust:wasm-encoder-0.257.1",
+                "//third-party/rust:wasmparser-0.257.1",
+            ],
+            "examples": {},
+            "features": [],
+            "test_deps": [],
+            "test_features": [],
+        },
+        "wasm32-bindgen": {
+            "binaries": {},
+            "deps": [
+                "//third-party/rust:serde-1.0.228",
+                "//third-party/rust:sha2-0.10.9",
+                "//third-party/rust:wasm-encoder-0.257.1",
+                "//third-party/rust:wasmparser-0.257.1",
             ],
             "examples": {},
             "features": [],
@@ -85,6 +110,8 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:sha2-0.10.9",
+                "//third-party/rust:wasm-encoder-0.257.1",
+                "//third-party/rust:wasmparser-0.257.1",
             ],
             "examples": {},
             "features": [],
@@ -96,6 +123,8 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:sha2-0.10.9",
+                "//third-party/rust:wasm-encoder-0.257.1",
+                "//third-party/rust:wasmparser-0.257.1",
             ],
             "examples": {},
             "features": [],

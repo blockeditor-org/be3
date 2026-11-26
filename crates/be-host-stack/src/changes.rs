@@ -8,12 +8,12 @@
 //! change, and a mailbox delivers a letter once, to one receiver. It is process-wide, so stacks
 //! that run side by side in tests wake each other's watchers, which only costs a look.
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 use std::sync::{Arc, PoisonError, Weak};
 use uuid::Uuid;
 
 /// What changed since a watcher last heard.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Changes {
     /// The graph mirror: a query may answer differently, and so may what apps are told of a
     /// block (`BlockInfo::out_of_reach` changes with the connection).
@@ -26,8 +26,8 @@ pub struct Changes {
     pub stale: bool,
     /// The answers to searches (`searched`).
     pub search: bool,
-    /// The account's notification modes (`notify_modes`).
-    pub notify_modes: bool,
+    /// The blocks the account muted (`mutes`).
+    pub mutes: bool,
     /// The blocks whose content, or what is shown of it, changed.
     pub blocks: be_lib_stable_hash::HashSet<Uuid>,
     /// Every block's content may have changed: the stack started or stopped.
@@ -44,7 +44,7 @@ impl Changes {
             storage: true,
             stale: true,
             search: true,
-            notify_modes: true,
+            mutes: true,
             blocks: Default::default(),
             every_block: true,
         }
@@ -54,13 +54,13 @@ impl Changes {
         *self == Self::default()
     }
 
-    fn merge(&mut self, other: Changes) {
+    pub(crate) fn merge(&mut self, other: Changes) {
         self.graph |= other.graph;
         self.contacts |= other.contacts;
         self.storage |= other.storage;
         self.stale |= other.stale;
         self.search |= other.search;
-        self.notify_modes |= other.notify_modes;
+        self.mutes |= other.mutes;
         self.blocks.extend(other.blocks);
         self.every_block |= other.every_block;
     }
@@ -102,8 +102,44 @@ impl Default for ChangeWatch {
     }
 }
 
-/// Tells every watcher of `changes`.
+/// Tells every watcher of `changes`: from the worker thread, with the update that has them
+/// (`seen::hold_changes`), which the page tells them as it takes it.
 pub(crate) fn post(changes: Changes) {
+    if changes.is_empty() || QUIET.get() {
+        return;
+    }
+    if let Some(changes) = crate::seen::hold_changes(changes) {
+        deliver(changes);
+    }
+}
+
+/// Wakes the host: from the worker thread, as the update with what it did is handed over.
+pub(crate) fn wake() {
+    if !QUIET.get() && !crate::seen::hold_wake() {
+        be_host_base::host::wake();
+    }
+}
+
+thread_local! {
+    static QUIET: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Runs `change` posting no change notice and no wake: for what this thread was told of
+/// already, done again (the page laying its edits over a newer `Seen`).
+pub(crate) fn quietly<T>(change: impl FnOnce() -> T) -> T {
+    // Put back by a guard, so a panic in `change` does not leave this thread quiet.
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            QUIET.set(self.0);
+        }
+    }
+    let _restore = Restore(QUIET.replace(true));
+    change()
+}
+
+/// Tells every watcher of `changes` now.
+pub(crate) fn deliver(changes: Changes) {
     if changes.is_empty() {
         return;
     }

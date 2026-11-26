@@ -1,6 +1,5 @@
 use std::rc::Rc;
 
-use be_sdk_beui::beui::Pos2;
 use be_sdk_beui::beui::reactive::*;
 use tabletop_api::{Gesture, Spot};
 
@@ -15,12 +14,6 @@ pub(crate) enum Mark {
     Over,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct Dragging {
-    pub(crate) from: Spot,
-    pub(crate) at: Pos2,
-}
-
 #[derive(Clone, Copy)]
 pub(crate) struct Play {
     pub(crate) game: Stored<Rc<dyn GameModel>>,
@@ -28,8 +21,8 @@ pub(crate) struct Play {
     pub(crate) editable: Memo<bool>,
     pub(crate) selected: Signal<Option<Spot>>,
     pub(crate) choices: Signal<Vec<Action>>,
-    pub(crate) dragging: Signal<Option<Dragging>>,
-    pub(crate) over: Signal<Option<Spot>>,
+    /// The spot a carried piece would land on: the stage's drop site's `over`.
+    pub(crate) over: ReadSignal<Option<Spot>>,
 }
 
 impl Play {
@@ -71,6 +64,22 @@ impl Play {
             actions
                 .iter()
                 .any(|action| action.gesture == Some(Gesture::Drag { from, to }))
+        })
+    }
+
+    /// The spots a move from `from` leads to.
+    pub(crate) fn targets(&self, from: Spot) -> Vec<Spot> {
+        self.actions.with_untracked(|actions| {
+            let mut targets: Vec<Spot> = Vec::new();
+            for action in actions {
+                if let Some(Gesture::Drag { from: start, to }) = action.gesture
+                    && start == from
+                    && !targets.contains(&to)
+                {
+                    targets.push(to);
+                }
+            }
+            targets
         })
     }
 
@@ -139,6 +148,16 @@ impl Play {
 
     pub(crate) fn can_drag(&self, spot: Spot) -> bool {
         self.editable.get_untracked() && self.movable_untracked(spot)
+    }
+
+    /// Whether the piece at `spot` can move now; tracked.
+    pub(crate) fn movable(&self, spot: Spot) -> bool {
+        self.editable.get()
+            && self.actions.with(|actions| {
+                actions.iter().any(
+                |action| matches!(action.gesture, Some(Gesture::Drag { from, .. }) if from == spot),
+            )
+            })
     }
 
     fn movable_untracked(&self, spot: Spot) -> bool {

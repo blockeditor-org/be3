@@ -12,7 +12,6 @@ fn dragging_a_clip_past_the_next_one_reorders_the_base_track() {
         first.center(),
         Pos2::new(second.right() - 3.0, second.center().y),
     );
-    fixture.editor.run();
 
     let order = fixture
         .video()

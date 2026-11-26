@@ -9,7 +9,7 @@ fn a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <ForEach keys={keys}>|key: usize| {
+                <ForEach value={keys}>|key: usize| {
                     let grow = create_memo(move || match shown.get() == key {
                         true => 1.0,
                         false => 0.0,

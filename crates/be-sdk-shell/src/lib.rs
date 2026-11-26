@@ -4,6 +4,7 @@ mod deleted;
 mod dialogs;
 mod host_panel;
 mod linked;
+mod log_doubt;
 mod menu;
 mod panel;
 mod program;
@@ -19,6 +20,6 @@ pub use program::{
     ProgramRecord, ProgramTab, ProgramWindow, UnshownWindows, WindowDialog, dialog_tab,
     picture_image,
 };
-pub use saved::{SavedProgram, saved_programs};
+pub use saved::{ClosedViews, SavedLayout, SavedProgram, saved_programs};
 pub use tab::TabItem;
-pub use workspace::{BlockTab, Failure, Focus, PanelStatus, PanelWindow, SHELL_BARS, Workspace};
+pub use workspace::{BlockTab, Focus, PanelStatus, PanelWindow, SHELL_BARS, Workspace};

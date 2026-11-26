@@ -2,9 +2,11 @@
 Extended grapheme clusters (UAX #29, https://www.unicode.org/reports/tr29/) at
 the Unicode version of icu_properties. This is the only grapheme segmenter:
 text-editor-core's cursor stops and beui-core's galley cursors both use it.
+`grapheme_boundaries` walks a whole text forward in one pass, for layout.
 It also holds the one word rule: text-editor-core's word stops and double
 click, and beui-view's selectable text, all use word_classes and word_around,
-and be-lib-search splits text into terms with words.
+and be-lib-search splits text into terms with words. A word is a run of clusters
+that are alphanumeric or `_`, joined across an apostrophe between two of them.
 
 A query is one byte offset, inside a scalar or not, and malformed UTF-8 is one
 U+FFFD per byte, as text-editor-core edits raw bytes. It reads only as far back
@@ -88,6 +90,104 @@ pub fn is_grapheme_boundary(bytes: &[u8], index: usize) -> bool {
     let mut before = index;
     let left = previous(bytes, &mut before).unwrap();
     let right = decode(bytes, index).0;
+    let linked = || {
+        let mut cursor = index;
+        while let Some(c) = previous(bytes, &mut cursor) {
+            match incb(c) {
+                Incb::Extend => {}
+                Incb::Linker => return true,
+                _ => return false,
+            }
+        }
+        false
+    };
+    let joined = || {
+        let mut cursor = before;
+        while let Some(c) = previous(bytes, &mut cursor) {
+            if gcb(c) != Gcb::Extend {
+                return pictographic(c);
+            }
+        }
+        false
+    };
+    let odd = || {
+        let mut cursor = before;
+        let mut odd = true;
+        while let Some(c) = previous(bytes, &mut cursor) {
+            if gcb(c) != Gcb::RegionalIndicator {
+                break;
+            }
+            odd = !odd;
+        }
+        odd
+    };
+    breaks_between(left, right, linked, joined, odd)
+}
+
+/// Every grapheme cluster boundary of `bytes` in order, from 0 to `bytes.len()`, in one pass
+/// forward. The same boundaries as `is_grapheme_boundary` at every index, but linear however long
+/// a run of regional indicators or extending marks is.
+pub fn grapheme_boundaries(bytes: &[u8]) -> impl Iterator<Item = usize> + '_ {
+    let mut index = 0;
+    let mut left: Option<char> = None;
+    // GB9c: the last character that is not InCB=Extend is a Linker.
+    let mut linked = false;
+    // GB11: before `left`, the last character that is not Extend is pictographic.
+    let mut joined = false;
+    let mut pictographic_run = false;
+    // GB12, GB13: an odd number of regional indicators ends at `left`.
+    let mut odd = false;
+    std::iter::from_fn(move || {
+        loop {
+            if index > bytes.len() {
+                return None;
+            }
+            let at = index;
+            if at == bytes.len() {
+                index += 1;
+                return Some(at);
+            }
+            let (right, width) = decode(bytes, at);
+            let boundary = match left {
+                None => true,
+                Some(left) if left.is_ascii() && right.is_ascii() => left != '\r' || right != '\n',
+                Some(left) => breaks_between(left, right, || linked, || joined, || odd),
+            };
+            joined = pictographic_run;
+            match right.is_ascii() {
+                true => (linked, pictographic_run, odd) = (false, false, false),
+                false => {
+                    let class = gcb(right);
+                    match incb(right) {
+                        Incb::Extend => {}
+                        found => linked = found == Incb::Linker,
+                    }
+                    if class != Gcb::Extend {
+                        pictographic_run = pictographic(right);
+                    }
+                    odd = class == Gcb::RegionalIndicator && !odd;
+                }
+            }
+            left = Some(right);
+            index += width;
+            if boundary {
+                return Some(at);
+            }
+        }
+    })
+}
+
+/// Whether a cluster boundary lies between `left` and `right` (GB3 to GB999), asking the
+/// context before them only where a rule needs it: `linked` for GB9c, `joined` (the last
+/// character before `left` that is not Extend is pictographic) for GB11 and `odd` (an odd
+/// number of regional indicators ends at `left`) for GB12 and GB13.
+fn breaks_between(
+    left: char,
+    right: char,
+    linked: impl FnOnce() -> bool,
+    joined: impl FnOnce() -> bool,
+    odd: impl FnOnce() -> bool,
+) -> bool {
     let (l, r) = (gcb(left), gcb(right));
     // GB3: CR × LF
     if l == Gcb::CR && r == Gcb::LF {
@@ -114,40 +214,16 @@ pub fn is_grapheme_boundary(bytes: &[u8], index: usize) -> bool {
         return false;
     }
     // GB9c: \p{InCB=Linker} \p{InCB=Extend}* × \p{InCB=Consonant}
-    if incb(right) == Incb::Consonant {
-        let mut cursor = index;
-        while let Some(c) = previous(bytes, &mut cursor) {
-            match incb(c) {
-                Incb::Extend => {}
-                Incb::Linker => return false,
-                _ => break,
-            }
-        }
+    if incb(right) == Incb::Consonant && linked() {
+        return false;
     }
     // GB11: \p{Extended_Pictographic} Extend* ZWJ × \p{Extended_Pictographic}
-    if l == Gcb::ZWJ && pictographic(right) {
-        let mut cursor = before;
-        while let Some(c) = previous(bytes, &mut cursor) {
-            if gcb(c) == Gcb::Extend {
-                continue;
-            }
-            if pictographic(c) {
-                return false;
-            }
-            break;
-        }
+    if l == Gcb::ZWJ && pictographic(right) && joined() {
+        return false;
     }
     // GB12: sot (RI RI)* RI × RI, GB13: [^RI] (RI RI)* RI × RI
     if l == Gcb::RegionalIndicator && r == Gcb::RegionalIndicator {
-        let mut cursor = before;
-        let mut odd = true;
-        while let Some(c) = previous(bytes, &mut cursor) {
-            if gcb(c) != Gcb::RegionalIndicator {
-                break;
-            }
-            odd = !odd;
-        }
-        return !odd;
+        return !odd();
     }
     // GB999: Any ÷ Any
     true
@@ -194,13 +270,40 @@ fn cluster_after(bytes: &[u8], index: usize) -> Option<(char, usize)> {
     Some((c, end))
 }
 
+/// The cluster before `index`: its first character, its class and where it starts.
+fn before(bytes: &[u8], index: usize) -> Option<(char, WordClass, usize)> {
+    let (c, start) = cluster_before(bytes, index)?;
+    Some((c, class_of(bytes, c, start, index), start))
+}
+
+/// The cluster after `index`: its first character, its class and where it ends.
+fn after(bytes: &[u8], index: usize) -> Option<(char, WordClass, usize)> {
+    let (c, end) = cluster_after(bytes, index)?;
+    Some((c, class_of(bytes, c, index, end), end))
+}
+
+/// The class of the cluster from `start` to `end`, whose first character is `c`. An apostrophe
+/// between two word clusters joins them into one word, as UAX #29's WB6, WB7, WB11 and WB12 do,
+/// so "don't" and "rock’n’roll" are each one word but "'quoted'" is not.
+fn class_of(bytes: &[u8], c: char, start: usize, end: usize) -> WordClass {
+    let word =
+        |found: Option<(char, usize)>| found.is_some_and(|(c, _)| word_class(c) == WordClass::Word);
+    if matches!(c, '\'' | '\u{2019}')
+        && word(cluster_before(bytes, start))
+        && word(cluster_after(bytes, end))
+    {
+        return WordClass::Word;
+    }
+    word_class(c)
+}
+
 pub fn word_classes(bytes: &[u8], index: usize) -> Option<(WordClass, WordClass)> {
     if !is_grapheme_boundary(bytes, index) {
         return None;
     }
-    let (before, _) = cluster_before(bytes, index)?;
-    let (after, _) = cluster_after(bytes, index)?;
-    Some((word_class(before), word_class(after)))
+    let (_, before, _) = before(bytes, index)?;
+    let (_, after, _) = after(bytes, index)?;
+    Some((before, after))
 }
 
 pub fn word_around(bytes: &[u8], index: usize, joined: impl Fn(usize) -> bool) -> (usize, usize) {
@@ -209,29 +312,31 @@ pub fn word_around(bytes: &[u8], index: usize, joined: impl Fn(usize) -> bool) -
         index -= 1;
     }
     let in_line = |c: char| !matches!(c, '\n' | '\r');
-    let after = cluster_after(bytes, index)
-        .map(|(c, _)| c)
-        .filter(|c| in_line(*c));
-    let before = cluster_before(bytes, index)
-        .map(|(c, _)| c)
-        .filter(|c| in_line(*c));
-    let class = match (after.map(word_class), before.map(word_class)) {
+    let class_in_line = |found: Option<(char, WordClass, usize)>| {
+        found
+            .filter(|(c, _, _)| in_line(*c))
+            .map(|(_, class, _)| class)
+    };
+    let class = match (
+        class_in_line(after(bytes, index)),
+        class_in_line(before(bytes, index)),
+    ) {
         (Some(class), _) | (_, Some(class)) if class != WordClass::Space => class,
         (None, None) => return (index, index),
         _ => WordClass::Space,
     };
-    let same = |c: char| in_line(c) && word_class(c) == class;
+    let same = |(c, found, _): (char, WordClass, usize)| in_line(c) && found == class;
     let mut start = index;
-    while let Some((c, previous)) = cluster_before(bytes, start)
-        && (same(c) || joined(start))
+    while let Some(cluster) = before(bytes, start)
+        && (same(cluster) || joined(start))
     {
-        start = previous;
+        start = cluster.2;
     }
     let mut end = index;
-    while let Some((c, next)) = cluster_after(bytes, end)
-        && (same(c) || joined(end))
+    while let Some(cluster) = after(bytes, end)
+        && (same(cluster) || joined(end))
     {
-        end = next;
+        end = cluster.2;
     }
     (start, end)
 }
@@ -242,15 +347,13 @@ pub fn words(bytes: &[u8]) -> impl Iterator<Item = std::ops::Range<usize>> + '_ 
     let mut index = 0;
     std::iter::from_fn(move || {
         loop {
-            let (c, end) = cluster_after(bytes, index)?;
+            let (_, class, end) = after(bytes, index)?;
             let start = index;
             index = end;
-            if word_class(c) != WordClass::Word {
+            if class != WordClass::Word {
                 continue;
             }
-            while let Some((c, end)) = cluster_after(bytes, index)
-                && word_class(c) == WordClass::Word
-            {
+            while let Some((_, WordClass::Word, end)) = after(bytes, index) {
                 index = end;
             }
             return Some(start..index);

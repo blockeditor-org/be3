@@ -5,12 +5,13 @@ use super::*;
 #[test]
 fn a_zoomed_out_views_menu_paints_all_of_itself() {
     let _root = RootScope::new();
-    let open_at = create_signal(None::<Pos2>);
+    let open = create_signal(false);
+    let at = create_signal(None::<Pos2>);
     let mut surface = launched(
         &EditorHost::default(),
         Windowed::new(move |_| {
             let items = view! {
-                <ForEach keys={(0..2).collect::<Vec<usize>>()}>|index: usize| {
+                <ForEach value={(0..2).collect::<Vec<usize>>()}>|index: usize| {
                     let label = format!("Item {index}");
                     view! {
                         <beui::unstyled::MenuItem label on_click={|| {}} />
@@ -18,11 +19,7 @@ fn a_zoomed_out_views_menu_paints_all_of_itself() {
                 }</ForEach>
             };
             view! {
-                <styled::ContextMenu
-                    items
-                    open_at={Prop::dynamic(move || open_at.get())}
-                    on_close={move || open_at.set(None)}
-                >
+                <styled::ContextMenu items open at>
                     <styled::Frame />
                 </styled::ContextMenu>
             }
@@ -39,7 +36,8 @@ fn a_zoomed_out_views_menu_paints_all_of_itself() {
     });
     one(&mut surface, &shown);
     one(&mut surface, &shown);
-    open_at.set(Some(pos2(40.0, 40.0)));
+    at.set(Some(pos2(40.0, 40.0)));
+    open.set(true);
     let frame = one(&mut surface, &shown);
     let menu = anchored_shown(&shown, &frame.anchored[0]);
     let framed = one_anchored(&mut surface, &menu);

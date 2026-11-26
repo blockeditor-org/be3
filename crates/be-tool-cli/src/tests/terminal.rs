@@ -4,6 +4,7 @@ use std::time::Duration;
 use be_block_client::Peer;
 use be_block_content::ObjectId;
 use be_block_content::presence::{ChannelKind, PresenceKind};
+use be_block_graph::Access;
 use be_block_store::FileStore;
 use be_type_terminal::{
     Key, Modifiers, Terminal, TerminalContent, TerminalHost, TerminalKey, TerminalLine,
@@ -50,10 +51,23 @@ impl Setup {
     /// A terminal host's peer, signed in as an agent bound to the block, as on a machine the
     /// owner trusts less than their own devices.
     pub async fn agent(&self) -> Arc<Peer<FileStore>> {
-        let (settings, account, public) = agent(&self.harness, &self.owner, Some(self.block)).await;
+        let (settings, account, identity) =
+            agent(&self.harness, &self.owner, Some(self.block)).await;
         self.owner
             .peer()
-            .seal_share(self.block, account, &public)
+            .seal_share(self.block, account, &identity.public)
+            .await
+            .unwrap();
+        Arc::new(connect_live(&settings).await.unwrap())
+    }
+
+    /// A terminal host's peer signed in as an agent not bound to the block, which is shared
+    /// with it at `access`.
+    pub async fn agent_with(&self, access: Access) -> Arc<Peer<FileStore>> {
+        let (settings, account, identity) = agent(&self.harness, &self.owner, None).await;
+        self.owner
+            .peer()
+            .share(self.block, account, access, &identity)
             .await
             .unwrap();
         Arc::new(connect_live(&settings).await.unwrap())
@@ -61,9 +75,14 @@ impl Setup {
 
     pub async fn viewer(&self) -> Viewer {
         Viewer {
-            session: Session::open(self.owner.shared_peer(), self.block, sources()())
-                .await
-                .unwrap(),
+            session: Session::open(
+                self.owner.shared_peer(),
+                self.block,
+                sources()(),
+                Vec::new(),
+            )
+            .await
+            .unwrap(),
         }
     }
 
@@ -120,6 +139,19 @@ impl Viewer {
             .iter()
             .find(|peer| peer.client == host && peer.kind == TerminalHost::ID)
             .map(|peer| peer.value.as_slice())
+    }
+
+    /// The client of the host on `machine`, by what it shows.
+    pub fn client_of(&self, machine: &str) -> Option<u64> {
+        self.session
+            .presence()
+            .iter()
+            .filter(|peer| peer.kind == TerminalHost::ID)
+            .find(|peer| {
+                serde_json::from_slice::<TerminalHost>(&peer.value)
+                    .is_ok_and(|shown| shown.machine == machine)
+            })
+            .map(|peer| peer.client)
     }
 
     pub fn host(&self) -> Option<u64> {
@@ -196,9 +228,9 @@ impl Viewer {
         .await;
         assert!(
             reached.is_ok(),
-            "the viewer never {what}; it is {:?} in {:?} with {:?}, and the terminal holds:\n{}",
+            "the viewer never {what}; it is {:?} with the holder {:?} and {:?}, and the terminal holds:\n{}",
             self.session.client(),
-            self.session.state(),
+            self.session.holder(),
             self.session.status(),
             self.text()
         );

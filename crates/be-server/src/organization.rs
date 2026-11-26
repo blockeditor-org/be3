@@ -59,9 +59,9 @@ impl ServerKey {
 
     fn create(connection: &Connection) -> Result<Self, ServerError> {
         let account = Uuid::new_v4();
-        let secret = RecoverySecret::from_bytes(random_secret());
+        let secret = RecoverySecret::from_bytes(crate::new_secret_bytes());
         connection.execute(
-            "INSERT INTO accounts (id, email, display_name, password_hash) VALUES (?1, ?2, ?3, '!')",
+            "INSERT INTO accounts (id, email, display_name) VALUES (?1, ?2, ?3)",
             params![
                 account.to_string(),
                 format!("server-{}@server.invalid", account.simple()),
@@ -82,13 +82,12 @@ impl ServerKey {
     /// A secret for `purpose` derived from the server's own, so it lasts as long as the data
     /// directory without being stored apart from it.
     pub(crate) fn derived(&self, purpose: &str) -> [u8; 32] {
-        use sha2::{Digest, Sha256};
-        let mut hasher = Sha256::new();
-        hasher.update(b"be3.server.derived.v1\0");
-        hasher.update(purpose.as_bytes());
-        hasher.update(b"\0");
-        hasher.update(self.secret.to_bytes());
-        hasher.finalize().into()
+        let mut derived = [0u8; 32];
+        let secret = zeroize::Zeroizing::new(self.secret.to_bytes());
+        hkdf::Hkdf::<sha2::Sha256>::new(Some(b"be3 server derived"), secret.as_slice())
+            .expand(purpose.as_bytes(), &mut derived)
+            .expect("32 bytes is a valid HKDF-SHA256 length");
+        derived
     }
 
     pub(crate) fn described(&self) -> ServerAccount {
@@ -141,8 +140,22 @@ impl ServerKey {
                     }
                 }
             };
-            if let Some(bytes) = plain.and_then(|plain| <[u8; 32]>::try_from(plain).ok()) {
-                ring.insert(key, ContentKey::from_bytes(bytes));
+            // A wrap opens only to the key its row names: one the server's own table relabels
+            // (as an older key served as the newest) opens nothing.
+            let row = crate::keys::key_row(connection, organization, key)?;
+            if let Some(carried) = plain
+                .and_then(|plain| be_block_keys::CarriedKey::decode(&plain).ok())
+                .filter(|carried| {
+                    row.is_some_and(|row| {
+                        carried.label == label(row) && carried.block == row.block.into_bytes()
+                    })
+                })
+            {
+                ring.insert(
+                    key,
+                    ContentKey::from_bytes(carried.key),
+                    Uuid::from_bytes(carried.block),
+                );
                 return Ok(true);
             }
         }
@@ -174,6 +187,55 @@ impl ServerKey {
         C::decode(&content).map(Some).map_err(|_| unreadable(block))
     }
 
+    /// Seals again, from the server itself, what `account` sealed to it by its `old` public key
+    /// (the organization settings' keys, `Peer::share_with_server`), before a new phrase replaces
+    /// that key: a wrap opens by its sender's current key (`open_key`), so the server would
+    /// otherwise stop reading the policies. A wrap that does not open by `old` is left as it is.
+    pub(crate) fn reseal_from(
+        &self,
+        connection: &Connection,
+        account: Uuid,
+        old: [u8; 32],
+    ) -> Result<(), ServerError> {
+        let sender = Party {
+            account: account.into_bytes(),
+            public: RecoveryPublic(old),
+        };
+        let me = Party {
+            account: self.account.into_bytes(),
+            public: self.secret.public(),
+        };
+        let by = encode_wrapped_by(WrappedBy::Account(self.account));
+        let held: Vec<(String, String, Vec<u8>)> = connection
+            .prepare_cached(
+                "SELECT organization_id, key_id, sealed FROM wrapped_keys
+                 WHERE wrapped_by = ?1 AND sender = ?2",
+            )?
+            .query_map(params![by, account.to_string()], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            })?
+            .collect::<Result<_, _>>()?;
+        for (organization, key, sealed) in held {
+            let id = crate::store::parse_uuid(&key)?;
+            let Ok(plain) =
+                self.secret
+                    .open_from(&sender, self.account.into_bytes(), id.as_bytes(), &sealed)
+            else {
+                continue;
+            };
+            let sealed = self
+                .secret
+                .seal_for(self.account.into_bytes(), &me, id.as_bytes(), &plain)
+                .map_err(|_| ServerError::Corrupt)?;
+            connection.execute(
+                "UPDATE wrapped_keys SET sender = ?4, sealed = ?5
+                 WHERE organization_id = ?1 AND key_id = ?2 AND wrapped_by = ?3",
+                params![organization, key, by, self.account.to_string(), sealed],
+            )?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn seal_settings_to(
         &self,
         connection: &Connection,
@@ -182,7 +244,12 @@ impl ServerKey {
         account: Uuid,
     ) -> Result<(), ServerError> {
         let settings = settings_of(organization);
-        if account == self.account || !graph.contains(settings) {
+        // A guest reads no settings: it holds only what links granted it.
+        if account == self.account
+            || !graph.contains(settings)
+            || crate::contacts::role_in(connection, account, organization)?
+                == Some(be_block_protocol::OrganizationRole::Guest)
+        {
             return Ok(());
         }
         let Some(public) = recovery_key_of(connection, account)? else {
@@ -206,12 +273,25 @@ impl ServerKey {
                 continue;
             }
             let plain = ring.get(row.id).ok_or(ServerError::Corrupt)?;
+            // The server vouches for no root (decisions/the_server_never_vouches_for_an_identity.md)
+            // nor head, so it carries none: its seal is never sealed on by a log.
+            let carried = be_block_keys::CarriedKey {
+                key: *plain.as_bytes(),
+                label: label(row),
+                block: settings.into_bytes(),
+                root: None,
+                heads: be_block_keys::Heads::default(),
+            };
             let sealed = self.secret.seal_for(
                 self.account.into_bytes(),
                 &to,
                 row.id.as_bytes(),
-                plain.as_bytes(),
+                &carried.encode(),
             );
+            // An account whose key nothing can be sealed to is sealed nothing.
+            let Ok(sealed) = sealed else {
+                continue;
+            };
             connection.execute(
                 "INSERT OR REPLACE INTO wrapped_keys
                     (organization_id, key_id, wrapped_by, sender, sealed)
@@ -227,13 +307,6 @@ impl ServerKey {
         }
         Ok(())
     }
-}
-
-fn random_secret() -> [u8; 32] {
-    use rand::RngCore;
-    let mut bytes = [0u8; 32];
-    rand::rng().fill_bytes(&mut bytes);
-    bytes
 }
 
 fn unreadable(block: Uuid) -> ServerError {
@@ -394,6 +467,21 @@ impl ServerStore {
                 "this id is kept for another account's Unfiled".into(),
             ));
         }
+        let claimed = be_block::account_block_of(identity.organization, block);
+        if claimed != identity.account && account_exists(connection, claimed)? {
+            return Err(ServerError::Refused(
+                ErrorCode::PermissionDenied,
+                "this id is kept for another account's own block".into(),
+            ));
+        }
+        if content_type == <be_block::AccountBlock as be_block_content::Root>::CONTENT_TYPE
+            && block != be_block::account_block(identity.organization, identity.account)
+        {
+            return Err(ServerError::Refused(
+                ErrorCode::PermissionDenied,
+                "an account's own block is made only at its own id".into(),
+            ));
+        }
         let own_unfiled = block == be_block::unfiled(identity.organization, identity.account);
         if own_unfiled != (content_type == be_block::UNFILED_TYPE)
             || (own_unfiled && parent != BlockParent::Root)
@@ -434,5 +522,18 @@ impl ServerStore {
             )),
             WhoMay::Everyone => Ok(()),
         }
+    }
+}
+
+/// The label a key carries of its own row (`be_block_keys::Label`).
+fn label(row: be_block_protocol::KeyRow) -> be_block_keys::Label {
+    be_block_keys::Label {
+        id: row.id.into_bytes(),
+        kind: match row.kind {
+            KeyKind::Data => be_block_keys::KeyRole::Data,
+            KeyKind::Scope => be_block_keys::KeyRole::Scope,
+            KeyKind::Escrow => be_block_keys::KeyRole::Escrow,
+        },
+        epoch: row.epoch,
     }
 }

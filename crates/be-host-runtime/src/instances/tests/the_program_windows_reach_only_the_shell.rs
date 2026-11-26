@@ -15,6 +15,7 @@ fn the_program_windows_reach_only_the_shell() {
         origin: WindowOrigin::default(),
         size: None,
         maximized: false,
+        opens_hidden: false,
     }];
     instances.next_screens(PASS);
 

@@ -48,7 +48,7 @@ fn a_batch_given_back_waits_for_its_index_to_move_on_or_a_growing_delay() {
     assert_eq!(search.take_queued(), [block]);
 
     // A batch written starts the delay over.
-    search.wrote(index);
+    search.wrote(index, None);
     search.hold_moving(index, vec![block], given_back, Duration::ZERO);
     assert_eq!(search.moving_due(), Some(second));
 }

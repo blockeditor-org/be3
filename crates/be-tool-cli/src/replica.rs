@@ -1,17 +1,16 @@
 use std::marker::PhantomData;
 use std::sync::{Arc, PoisonError};
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 use std::time::Instant;
 
 use be_block_client::Event;
 use be_block_client::{ClientError, Peer};
-use be_block_commit::CommitId;
 use be_block_content::LiveEdit;
-use be_block_protocol::{ClientId, SessionState};
+use be_block_protocol::ClientId;
 use be_block_store::ObjectStore;
-use be_block_type_host::{Conflict, HOST_EDITOR, Replicas, Source};
-use be_sdk_type_api::{Description, EditorId, Status};
+use be_block_type_host::{HOST_EDITOR, Replicas, Source};
+use be_sdk_type_api::{EditorId, Status};
 use be_sdk_type_guest::editor::{EditorMirror, FromEditor, PeerMessage, PeerPresence, ToEditor};
 use tokio::sync::{broadcast, watch};
 use uuid::Uuid;
@@ -19,6 +18,17 @@ use uuid::Uuid;
 use crate::session::explain;
 
 const CLOSING: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Where a test holds back the presence the replica tells a session, keyed by the session's
+/// account: what the replica says of its peers waits until released, so a test sees what the
+/// session does with a peer whose presence is late.
+#[cfg(test)]
+pub const PRESENCE_PAUSE: &str = "be-tool-cli presence";
+
+/// Where a test holds a session still, keyed by its account: what wakes it (`Session::next`)
+/// waits until released, so a test sees what the others do while it does nothing.
+#[cfg(test)]
+pub const SESSION_PAUSE: &str = "be-tool-cli session";
 
 pub struct Held<S> {
     frames: Vec<ToEditor>,
@@ -71,20 +81,6 @@ impl<S: ObjectStore + 'static> be_block_type_host::Host for Held<S> {
         }
     }
 
-    fn owned(_: &Arc<Mutex<Self>>, _: Uuid) -> bool {
-        false
-    }
-
-    fn reshaped(_: &Arc<Mutex<Self>>, _: Uuid, _: &str) -> bool {
-        false
-    }
-
-    fn reset_notice() {}
-
-    fn known_head(_: &Arc<Mutex<Self>>, _: Uuid) -> Option<CommitId> {
-        None
-    }
-
     fn to_editor(shared: &Arc<Mutex<Self>>, _: Uuid, editor: EditorId, bytes: Vec<u8>) -> bool {
         if editor == HOST_EDITOR
             && let Some(frame) = ToEditor::decode(&bytes)
@@ -94,27 +90,9 @@ impl<S: ObjectStore + 'static> be_block_type_host::Host for Held<S> {
         true
     }
 
-    fn content(_: &Arc<Mutex<Self>>, _: Uuid, _: Uuid, _: Vec<u8>) {}
-
     fn released(shared: &Arc<Mutex<Self>>, _: Uuid) {
         held(shared).released = true;
     }
-
-    fn status(_: &Arc<Mutex<Self>>, _: Uuid, _: &Status) {}
-
-    fn described(_: &Arc<Mutex<Self>>, _: Uuid, _: Vec<Uuid>, _: Description) {}
-
-    fn conflict(_: &Arc<Mutex<Self>>, _: Uuid, _: Conflict) {}
-
-    fn counted(
-        _: &Arc<Mutex<Self>>,
-        _: usize,
-        _: Vec<be_block_type_host::Owing>,
-        _: Vec<be_block_type_host::Owing>,
-    ) {
-    }
-
-    fn leaving(_: &Arc<Mutex<Self>>, _: bool) {}
 }
 
 pub enum Woken {
@@ -132,13 +110,23 @@ pub struct Session<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> {
     events: broadcast::Receiver<Event>,
     closed: watch::Receiver<bool>,
     mirror: EditorMirror<C>,
+    /// The entry point whose tree holds the block, followed so another device's publish
+    /// reaches the replica, and the sequence read to.
+    followed: Option<(Uuid, u64)>,
+    /// What the replica said of its peers while a test held it back (`PRESENCE_PAUSE`).
+    #[cfg(test)]
+    withheld: Vec<ToEditor>,
 }
 
 impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
+    /// Opens `block`'s session showing `shown` (kind and value), so the first the others hear
+    /// of this session's presence (`SessionMessage::Shown`) already holds it. `show` changes it
+    /// later.
     pub async fn open(
         peer: Arc<Peer<S>>,
         block: Uuid,
         sources: Vec<Source>,
+        shown: Vec<(Uuid, Vec<u8>)>,
     ) -> Result<Self, String> {
         let content_type = C::CONTENT_TYPE;
         let replicas = Replicas::new(
@@ -154,14 +142,20 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
             events,
             closed,
             mirror: EditorMirror::default(),
+            followed: None,
+            #[cfg(test)]
+            withheld: Vec::new(),
         };
         if !be_block_type_host::is_known(content_type) {
             return Err(format!("no type module has the block type {content_type}"));
         }
         session
             .replicas
+            .show_on_opening(block, shown.into_iter().collect());
+        session
+            .replicas
             .open((&session.peer, &session.shared), block, content_type, true)
-            .await;
+            .await?;
         if !session.replicas.is_open(block) {
             let errors = std::mem::take(&mut held(&session.shared).errors);
             return Err(match errors.is_empty() {
@@ -169,7 +163,11 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
                 false => errors.join("; "),
             });
         }
+        session.follow().await;
         session.settle().await;
+        if let Some(failure) = session.mirror.failure() {
+            return Err(format!("block {block}: {failure}"));
+        }
         Ok(session)
     }
 
@@ -190,7 +188,7 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
     }
 
     pub fn edit(&mut self, operation: C::Op) {
-        if let Some(message) = self.mirror.operate(operation) {
+        if let Some(message) = self.mirror.operate(None, operation) {
             self.say(message);
         }
     }
@@ -203,27 +201,71 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
         self.replicas.status(self.block)
     }
 
-    pub fn is_owner(&self) -> bool {
-        self.status().is_some_and(|status| status.owner)
+    pub fn is_holder(&self) -> bool {
+        self.status().is_some_and(|status| status.holder)
     }
 
     pub fn client(&self) -> Option<ClientId> {
         self.replicas.session(self.block).map(|(client, _)| client)
     }
 
-    pub fn state(&self) -> Option<&SessionState> {
-        self.replicas.session(self.block).map(|(_, state)| state)
+    /// The members that may hold the lease: those with edit access that run the build the
+    /// session speaks.
+    pub fn editors(&self) -> Vec<ClientId> {
+        self.replicas.editors(self.block)
+    }
+
+    /// Who holds the lease of the block's session, by its membership.
+    pub fn holder(&self) -> Option<ClientId> {
+        self.replicas.holder(self.block)
     }
 
     pub fn claim(&mut self) {
         self.replicas.claim(self.block);
     }
 
+    /// Seals what the order holds, once it holds every edit submitted here.
     pub async fn seal(&mut self) {
+        while self.replicas.ordering() {
+            let woken = self.next().await;
+            if self.handle(woken).await.is_err() {
+                break;
+            }
+        }
         self.replicas
             .seal((&self.peer, &self.shared), self.block, false)
             .await;
         self.settle().await;
+    }
+
+    /// Follows the tree the block lies in, from its summary now.
+    async fn follow(&mut self) {
+        let Ok(summary) = self.peer.summary(self.block).await else {
+            return;
+        };
+        let Some(entry) = summary.entry else {
+            return;
+        };
+        if let Ok((_, _, since)) = self.peer.changed_since(entry, summary.changed, true).await {
+            self.followed = Some((entry, since));
+        }
+    }
+
+    /// Reads what changed in the followed tree, and tells the replica the block's head.
+    async fn advanced(&mut self) {
+        let Some((entry, since)) = self.followed else {
+            return;
+        };
+        let Ok((_, _, sequence)) = self.peer.changed_since(entry, since, false).await else {
+            return;
+        };
+        self.followed = Some((entry, sequence));
+        let ctx = (&self.peer, &self.shared);
+        for (block, head) in self.peer.take_moved_heads() {
+            if block == self.block {
+                self.replicas.heard_head(ctx, block, head);
+            }
+        }
     }
 
     fn say(&mut self, message: FromEditor) {
@@ -235,11 +277,58 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
         self.mirror.presence()
     }
 
+    /// Whether `client`'s presence has arrived in full, whatever it shows: everything it
+    /// showed as of when it saw this session's replica, or this one saw it
+    /// (`EditorMirror::heard`).
+    pub fn heard(&self, client: ClientId) -> bool {
+        self.mirror.heard(client)
+    }
+
+    /// Sets aside what the replica says of its peers while a test holds it back, and gives it
+    /// back once released.
+    #[cfg(test)]
+    fn withhold(&mut self, frames: Vec<ToEditor>) -> Vec<ToEditor> {
+        if be_lib_test_pause::is_held(PRESENCE_PAUSE, self.peer.account().as_u128()) {
+            let (held, frames) = frames
+                .into_iter()
+                .partition(|frame| matches!(frame, ToEditor::Presence { .. }));
+            self.withheld.extend::<Vec<ToEditor>>(held);
+            return frames;
+        }
+        std::mem::take(&mut self.withheld)
+            .into_iter()
+            .chain(frames)
+            .collect()
+    }
+
+    #[cfg(not(test))]
+    fn withhold(&mut self, frames: Vec<ToEditor>) -> Vec<ToEditor> {
+        frames
+    }
+
+    /// Wakes once a test lets go of what `withhold` set aside. Each `next` while frames are
+    /// set aside comes to `point` again, so a test's `reached` counts those waits.
+    fn released(&self) -> impl Future<Output = ()> + use<S, C> {
+        #[cfg(test)]
+        let waiting = (!self.withheld.is_empty()).then(|| self.peer.account().as_u128());
+        #[cfg(not(test))]
+        let waiting: Option<u128> = None;
+        async move {
+            match waiting {
+                #[cfg(test)]
+                Some(key) => be_lib_test_pause::point(PRESENCE_PAUSE, key).await,
+                _ => std::future::pending().await,
+            }
+        }
+    }
+
     pub fn take_messages(&mut self) -> Vec<PeerMessage> {
         self.mirror.take_peer_messages()
     }
 
     pub async fn next(&mut self) -> Woken {
+        #[cfg(test)]
+        be_lib_test_pause::point(SESSION_PAUSE, self.peer.account().as_u128()).await;
         if *self.closed.borrow() {
             return Woken::Closed;
         }
@@ -251,7 +340,9 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
                 None => std::future::pending().await,
             }
         };
+        let released = self.released();
         tokio::select! {
+            () = released => Woken::Module,
             event = self.events.recv() => match event {
                 Ok(event) => Woken::Event(Box::new(Some(event))),
                 Err(broadcast::error::RecvError::Lagged(_)) => Woken::Event(Box::new(None)),
@@ -271,7 +362,12 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
                 Some(Event::KeysChanged) => {
                     self.peer.keys_changed();
                     // The session's block opened before this woke, so none is left closed.
-                    self.replicas.unlock(&self.shared);
+                    self.replicas.unlock(ctx).await;
+                }
+                Some(Event::TreeAdvanced { entry, .. })
+                    if self.followed.is_some_and(|(followed, _)| followed == entry) =>
+                {
+                    self.advanced().await;
                 }
                 Some(event) => self.replicas.heard(ctx, &event),
                 None => self.replicas.resynchronize(ctx),
@@ -299,7 +395,8 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
             for error in errors {
                 eprintln!("be: {error}");
             }
-            let answers: Vec<FromEditor> = frames
+            let answers: Vec<FromEditor> = self
+                .withhold(frames)
                 .into_iter()
                 .filter_map(|frame| self.mirror.receive(frame))
                 .collect();

@@ -1,5 +1,3 @@
-use beui_macros::{component, view};
-
 use crate::ContextMenu;
 use crate::text_area::text_area_geometry;
 use crate::theme::use_theme;
@@ -24,7 +22,7 @@ use beui_view::types::Rect;
 #[component]
 pub fn SelectableText(
     #[prop(default = ComponentRef::new())] api: ComponentRef<SelectableState>,
-    children: Child,
+    children: NodeId,
     #[prop(default = 0.0)] child_grow: Prop<f32>,
     #[prop(default = Some(COPY_KEY))] copy_key: Prop<Option<Chord>>,
     #[prop(default = Some(SELECT_ALL_KEY))] select_all_key: Prop<Option<Chord>>,

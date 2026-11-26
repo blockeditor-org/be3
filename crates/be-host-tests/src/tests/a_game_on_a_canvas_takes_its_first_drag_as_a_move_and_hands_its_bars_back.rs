@@ -19,7 +19,7 @@ fn a_game_on_a_canvas_takes_its_first_drag_as_a_move_and_hands_its_bars_back() {
     host.gone("#editor.loading");
     host.run(&["settle"]);
     let card = host.place(CARD);
-    let away = format!("{:.0},{:.0}", card.0 - 120.0, card.1 - 60.0);
+    let away = format!("{:.0},{:.0}", card.0 - 60.0, card.1 + card.3 / 2.0);
     host.run(&["click", &away]);
     host.run(&["settle"]);
 

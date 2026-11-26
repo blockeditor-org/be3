@@ -12,10 +12,10 @@ fn its_settings_dialog_offers_apply_once_the_copy_changes() {
             block_id: Uuid::new_v4(),
             block_type: CompiledLogicContent::CONTENT_TYPE,
             source,
+            exporter: "component".to_owned(),
         },
     );
-    let data = crate::root::descriptor_data(source);
-    let mut settings = BeuiTest::<LogicGridRoot>::settings(artifacts, data);
+    let mut settings = BeuiTest::<LogicGridRoot>::settings(artifacts, Vec::new());
     settings.set_size(vec2(360.0, 200.0));
     settings.run();
     assert_eq!(settings.handles_dismiss(), Some(true));
@@ -27,10 +27,8 @@ fn its_settings_dialog_offers_apply_once_the_copy_changes() {
     );
 
     settings.click("logic-grid.rename-with-source");
-    settings.run();
     settings.snapshot("its_settings_dialog_offers_apply_once_the_copy_changes");
     settings.click("artifact-settings.confirm");
-    settings.run();
     assert_eq!(settings.take_dialog_closes(), vec![DialogAnswer::Accepted]);
 
     settings.dismiss();

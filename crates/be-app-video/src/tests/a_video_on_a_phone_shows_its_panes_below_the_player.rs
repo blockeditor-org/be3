@@ -18,9 +18,7 @@ fn a_video_on_a_phone_shows_its_panes_below_the_player() {
     fixture.editor.record();
 
     fixture.editor.tap(format!("video.clip.{clip}"));
-    fixture.editor.run();
     fixture.editor.tap("dock.tab.effects");
-    fixture.editor.run();
     fixture.editor.settle();
     assert!(
         fixture.editor.shown("video.clip-length"),

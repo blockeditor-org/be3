@@ -8,21 +8,21 @@ use beui::layer::{OverlayAnchor, Placement};
 #[test]
 fn clicking_an_open_selects_button_again_closes_it() {
     let _root = crate::reactive::RootScope::new();
-    let select = ComponentRef::<styled::SelectApi>::new();
+    let select = ComponentRef::<styled::SelectApi<&str>>::new();
     let document = build_node(move || {
         view! {
             <Frame>
                 <Overlay
                     anchor=OverlayAnchor::Point(pos2(20.0, 20.0))
-                    placement=Placement::BelowStart
+                    placement=Placement::BELOW_START
                     policy=LayerPolicy::Pass
                     traps_focus=false
                     open=true
                     on_dismiss={|_: Dismiss| {}}
                 >|| {
                     let options = view! {
-                        <unstyled::ChoiceOption label="Apple" />
-                        <unstyled::ChoiceOption label="Banana" />
+                        <unstyled::ChoiceOption value="Apple" label="Apple" />
+                        <unstyled::ChoiceOption value="Banana" label="Banana" />
                     };
                     view! {
                         <Select api={select} options />

@@ -126,3 +126,5 @@ fn the_frame_offers_one_menu_on_a_phone_and_a_desktop_and_runs_what_is_picked() 
         "a desktop frame draws no bar of its own"
     );
 }
+
+test_editor!(ActionRoot);

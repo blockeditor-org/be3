@@ -1,5 +1,4 @@
 use accesskit::{HasPopup, Node, Role};
-use beui_macros::{component, view};
 use beui_view::types::icons::Glyph;
 
 use crate::menu::MenuItem;
@@ -8,12 +7,12 @@ use crate::popup_trigger::{PopupTrigger, PopupTriggerHandle};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::{Placement, PointerPress, Rect, ScrollGesture};
+use beui_view::types::{Placement, PointerPress, Pos2, Rect, ScrollGesture};
 
 #[component]
 pub fn MenuButton(
     items: Children<MenuItem>,
-    trigger: Render<PopupTriggerHandle>,
+    trigger: Render<PopupTriggerHandle, NodeId>,
     menu: MenuStyle,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = None)] glyph: Prop<Option<Glyph>>,
@@ -23,20 +22,20 @@ pub fn MenuButton(
     #[prop(default = false)] secondary_opens: Prop<bool>,
     #[prop(default = true)] tab_stop: Prop<bool>,
     #[prop(default = false)] capture_presses: Prop<bool>,
-    #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    /// `Placement::Menu`, or `BelowStart` for a button whose menu must keep clear of it,
+    #[prop(default = false)] open: Binding<bool>,
+    #[prop(default = None)] at: Binding<Option<Pos2>>,
+    /// `Placement::Menu`, or `Placement::BELOW_START` for a button whose menu must keep clear of it,
     /// such as a bar's grip.
     #[prop(default = Placement::Menu)]
     placement: Prop<Placement>,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
     accessibility: Option<Prop<Node>>,
     on_click: Callback<()>,
     on_secondary_click: Callback<()>,
     on_middle_click: Callback<()>,
     on_scroll: Callback<ScrollGesture>,
-    #[prop(default = false)] open: Binding<bool>,
 ) -> NodeId {
     let button = NodeRef::new();
-    let shown = create_memo(move || open.get());
     let disabled = create_memo(move || disabled.get());
     let mut trigger_node = view! {
         <PopupTrigger
@@ -105,11 +104,11 @@ pub fn MenuButton(
                 items={items.into_run()}
                 menu
                 anchor={button}
+                open
+                at
                 placement
                 bounds
                 trigger={button}
-                open={shown}
-                on_dismiss={move || open.set(false)}
             />
         </List>
     }

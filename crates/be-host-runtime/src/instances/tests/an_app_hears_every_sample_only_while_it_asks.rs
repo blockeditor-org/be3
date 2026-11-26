@@ -5,7 +5,7 @@ fn an_app_hears_every_sample_only_while_it_asks() {
     let mut instances = placed();
     let screens = instances.next_screens(PASS).screens;
     let screen = screens[0].screen;
-    instances.screen_set(screens);
+    instances.announce(screens);
     let stroke = || {
         forwarded(
             [20.0, 30.0, 40.0].map(|x| moved(pos2(x, 50.0))).to_vec(),

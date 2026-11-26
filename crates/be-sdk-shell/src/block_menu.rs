@@ -29,7 +29,10 @@ pub(crate) fn with_block_menu(
         ICON_ARROW_DOWN_LEFT,
         &info.backrefs,
     ));
-    added.push(access(workspace, info));
+    // The access a block is viewed at is part of sharing, which a local account has none of.
+    if workspace.host().offers_share() {
+        added.push(access(workspace, info));
+    }
     added.extend(notifications(workspace, info));
     added.push(MenuNode::Separator);
     let at = nodes
@@ -111,7 +114,7 @@ fn notifications(workspace: Workspace, info: &TabInfo) -> Option<MenuNode> {
         return None;
     }
     let id = info.item.id;
-    let mode = workspace.notify_mode(id)?;
+    let mode = workspace.mute(id)?;
     let modes = [
         (NotifyMode::All, "all", "All"),
         (NotifyMode::Mentions, "mentions", "Mentions only"),
@@ -121,7 +124,7 @@ fn notifications(workspace: Workspace, info: &TabInfo) -> Option<MenuNode> {
         .into_iter()
         .map(|(choice, key, label)| {
             let chosen = Action::new(format!("workspace.notify.{key}"), label, move || {
-                workspace.set_notify_mode(id, choice);
+                workspace.set_mute(id, choice);
             })
             .radio(mode == choice)
             .detached();
@@ -153,6 +156,7 @@ fn wording(access: AccessLevel) -> &'static str {
         AccessLevel::Manage => "Managing",
         AccessLevel::Edit => "Editing",
         AccessLevel::View => "Viewing",
+        AccessLevel::Join => "Joining",
         AccessLevel::KnowExists | AccessLevel::None => "No access",
     }
 }

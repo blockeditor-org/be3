@@ -1,4 +1,3 @@
-use super::copying_as_svg_writes_every_shape_kind::palette_runs;
 use super::*;
 use be_sdk_beui::beui::{Key, Modifiers, Rect, native::Shape};
 
@@ -43,8 +42,7 @@ fn turned_text_is_drawn_turned_as_it_is_exported() {
     card.transform.center = CanvasPoint::new(140.0, 0.0);
     card.transform.rotation = TURN;
     card.text = "Turned label".into();
-    let mut editor = editor(&[note.clone(), card]);
-    editor.next_frame();
+    let mut editor = editor(&[note.clone(), card.clone()]);
 
     for written in ["Turned note", "Turned label"] {
         let (angle, bounds, clip) = turned(&editor, written);
@@ -59,18 +57,24 @@ fn turned_text_is_drawn_turned_as_it_is_exported() {
     }
     editor.snapshot("turned_text_is_drawn_turned_as_it_is_exported");
 
-    editor.key(
+    editor.double_click(format!("infinite-canvas.text.{}", note.id));
+    let (angle, ..) = turned(&editor, "Turned note");
+    assert_eq!(angle, 0.0, "text being edited is drawn upright");
+
+    let mut exporting = super::editor(&[note, card]);
+    exporting.key(
         Key::A,
         Modifiers {
             ctrl: true,
             ..Modifiers::NONE
         },
     );
-    editor.run();
-    palette_runs(&mut editor, "copy as svg");
-    let copied = editor.take_copied_text();
+    let copied = vec![
+        String::from_utf8(copied_export(&mut exporting, "svg", "image/svg+xml"))
+            .expect("the SVG is text"),
+    ];
     let [svg] = copied.as_slice() else {
-        panic!("Copy as SVG puts one SVG on the clipboard, put {copied:?}");
+        panic!("Copy puts one SVG on the clipboard, put {copied:?}");
     };
     let turns = "transform=\"rotate(28.65 ";
     let texts: Vec<&str> = svg
@@ -82,10 +86,4 @@ fn turned_text_is_drawn_turned_as_it_is_exported() {
         texts.iter().all(|text| text.contains(turns)),
         "the export turns the text and the label as the canvas does:\n{svg}"
     );
-
-    editor.double_click(format!("infinite-canvas.text.{}", note.id));
-    editor.run();
-    editor.next_frame();
-    let (angle, ..) = turned(&editor, "Turned note");
-    assert_eq!(angle, 0.0, "text being edited is drawn upright");
 }

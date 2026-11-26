@@ -72,7 +72,7 @@ fn the_clock_lists_the_days_events_and_opens_the_full_calendar() {
     let order: Vec<f32> = ["Standup", "Dentist"]
         .iter()
         .map(|title| {
-            text_within(&document, document.root().unwrap(), title)
+            find_text(&document, document.root().unwrap(), title, Match::Contains)
                 .and_then(|node| document.node_rect(node))
                 .expect("the event is shown")
                 .min

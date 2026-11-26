@@ -29,8 +29,9 @@ The parts:
 
 - `crates/be-host-wayland`: the compositor (smithay). `Compositor` is its face to be-host;
   `state.rs` the protocol handlers; `windows.rs` the window list (`Windows`, `WindowInfo`);
-  `view.rs` the `WindowView`; `compositor/clipboard.rs` the clipboard; `xwayland.rs` the X11 window manager; `programs.rs` the `.desktop`
-  entries, icons and MIME globs.
+  `view.rs` the `WindowView`; `compositor/clipboard.rs` the clipboard; `xwayland.rs` the X11 window manager.
+- `crates/be-host-programs`: the `.desktop` entries, how to run them, their icons and MIME globs,
+  which the compositor, the desktop host and the D-Bus services read.
 - `crates/be-host-desktop`: `desktop_host/linux.rs` implements `DesktopHost` over the compositor;
   `programs.rs` lists programs as block editors; `remap/linux.rs` holds the input remapper.
 - `crates/be-host-services`: everything on D-Bus (guides/desktop/linux_services.md).
@@ -54,11 +55,19 @@ with `drive click ID in WINDOW`. In a window or headless there is one display, b
 the platform as `DisplayConfig::scales`), else `HostDisplay::default_scale`: `BEUI_SCALE` when set,
 else one from its pixel density (beui-platform-drm's `density.rs`).
 
-**Arrangement.** With several displays, Settings > Display arranges them
-(`display/arrangement.rs` in be-app-settings; `touching::settle` snaps them edge to edge) and sets
-each display's use (part of the desktop, a mirror, or off) and the main display. These are kept per
-device and reach the platform as `DisplayConfig`'s `uses`, `main` and `places`. A changed main
-display or use must be kept like a new mode (`display/guard.rs`), or it reverts.
+**Arrangement.** With several displays, Settings > Display arranges them (`display/arrangement.rs`
+in be-app-settings; `touching::settle` snaps them edge to edge) and sets each display's use (part of
+the desktop, a mirror, or off) and the main display. These are kept per device and reach the
+platform as `DisplayConfig`'s `uses`, `main` and `places`. A changed main display or use must be
+kept like a new mode (`display/guard.rs`), or it reverts. The area draws the arrangement through a
+canvas camera fitted to the displays; from a display's lift until the carry ends it fits the
+displays and every place that display can be let go (`carry_places`), so a display carried past the
+first fit (below another) is drawn whole and, from the lift on, nothing under the pointer moves
+while it is carried. The carried tile, drawn smaller at that fit, keeps the fraction of it that was
+grabbed under the pointer (the board measures a carry's source at each point, `Carry::lifted_from`),
+and snaps and settles by the rect it is drawn at. That refit comes after the layout the places are
+read from, so their rests are in desktop pixels, relative to a zoomed canvas item, and the board
+reads them through the camera as it is at each point.
 
 **Outputs.** be-host-wayland advertises one `wl_output` per display at its desktop position
 (`Compositor::set_monitors`, `heads.rs`), with one mode and its scale rounded up for integer-scale

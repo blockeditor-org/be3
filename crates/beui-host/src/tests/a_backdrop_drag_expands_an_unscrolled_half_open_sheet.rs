@@ -26,11 +26,15 @@ fn a_backdrop_drag_expands_an_unscrolled_half_open_sheet() {
     harness.finger_drag_and_hold(pos2(200.0, 270.0), pos2(200.0, 40.0));
     harness.settle();
     assert_eq!(harness.rect(handle).top(), 60.0);
-    assert_eq!(harness.document().scroll_offset(sheet.get()), 0.0);
+    assert_eq!(
+        harness.document().scroll_offset(sheet.get()),
+        540.0,
+        "raised to its top stop, with what it holds not scrolled"
+    );
     let from = harness.center(handle);
     harness.finger_drag_and_hold(from, from + vec2(0.0, 220.0));
     harness.settle();
     assert_eq!(harness.rect(handle).top(), 300.0);
-    assert_eq!(harness.document().scroll_offset(sheet.get()), 0.0);
+    assert_eq!(harness.document().scroll_offset(sheet.get()), 300.0);
     assert_eq!(closed.get_untracked(), 0);
 }

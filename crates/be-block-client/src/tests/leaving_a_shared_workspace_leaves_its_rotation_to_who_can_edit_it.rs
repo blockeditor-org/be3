@@ -17,7 +17,7 @@ async fn leaving_a_shared_workspace_leaves_its_rotation_to_who_can_edit_it() {
         .save(note, &TextBlock::of("hello"), None)
         .await
         .unwrap();
-    let public = owner.keys().contact(guest.account()).unwrap();
+    let public = owner.verified_identity(guest.account()).unwrap();
     owner
         .share(team, guest.account(), Access::View, &public)
         .await

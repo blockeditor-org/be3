@@ -3,20 +3,20 @@ use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::beui::ClipItem;
 use be_sdk_beui::beui::clipboard::Blocks;
 use be_sdk_beui::beui::icons::{
-    ICON_CLIPBOARD_PASTE, ICON_COPY, ICON_FILE_PLUS, ICON_INFO, ICON_LOG_OUT, ICON_MOVE_UP,
-    ICON_PALETTE, ICON_PENCIL_LINE, ICON_ROTATE_CCW_CLOCK, ICON_SCISSORS, ICON_SETTINGS,
-    ICON_SHARE_2, ICON_TRASH, ICON_UNLINK, ICON_ZOOM_IN,
+    ICON_CLIPBOARD_PASTE, ICON_COPY, ICON_FILE_PLUS, ICON_INFO, ICON_LOG_OUT, ICON_PALETTE,
+    ICON_PENCIL_LINE, ICON_ROTATE_CCW_CLOCK, ICON_SCISSORS, ICON_SETTINGS, ICON_SHARE_2,
+    ICON_TRASH, ICON_UNLINK, ICON_ZOOM_IN,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
+use be_sdk_beui::block_menu::{DeleteBlock, ExportAs, Exporter, MenuBlock, MoveTo};
 use be_sdk_beui::{BlockParent, Editor};
 use uuid::Uuid;
 
-use super::export::Exporter;
 use super::kinds::{HomeItems, OpensIn, TagsMenu};
 use super::rename::Renaming;
 use super::rows::{Inspection, Row, RowKey, Tree as FileTree};
-use super::ui::{ExportAs, OpenWith, Picker, add_to_section, leavable};
+use super::ui::{OpenWith, Picker, add_to_section, leavable};
 use super::zoom::Zoom;
 
 #[derive(Clone, Copy)]
@@ -66,7 +66,7 @@ fn ZoomIn(on_click: Callback<()>) -> MenuItem {
         <MenuItem
             label="Zoom in"
             glyph=ICON_ZOOM_IN
-            row_test_id={"file-tree.zoom-in".to_owned()}
+            @test_id={"file-tree.zoom-in".to_owned()}
             on_click
         />
     }
@@ -86,7 +86,7 @@ fn UnfiledMenu<F: Fn() + 'static>(tools: RowTools, zoom_in: F) -> TreeMenu {
                 .collect::<Vec<_>>()
         })
     });
-    let none = create_memo(move || unused.with(Vec::is_empty));
+    let none = move || unused.with(Vec::is_empty);
     let move_unused = move || {
         for (id, block_type) in unused.get_untracked() {
             editor
@@ -101,7 +101,7 @@ fn UnfiledMenu<F: Fn() + 'static>(tools: RowTools, zoom_in: F) -> TreeMenu {
                 label="Move unused to Recently Deleted"
                 glyph=ICON_TRASH
                 disabled={none}
-                row_test_id={"file-tree.unfiled.move-unused".to_owned()}
+                @test_id={"file-tree.unfiled.move-unused".to_owned()}
                 on_click={move_unused}
             />
         },
@@ -116,12 +116,16 @@ fn SectionMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_
         renaming,
         ..
     } = tools;
-    let unaddable = create_memo(move || !row.get().is_some_and(|row| row.can_add));
-    let edit = create_memo(move || !row.get().is_some_and(|row| row.can_edit));
-    let unshareable = create_memo(move || !row.get().is_some_and(|row| row.access.can_manage()));
-    let deletable = create_memo(move || !row.get().is_some_and(|row| row.can_delete));
+    let unaddable = move || !row.with(|row| row.as_ref().is_some_and(|row| row.can_add));
+    let edit = move || !row.with(|row| row.as_ref().is_some_and(|row| row.can_edit));
+    let unshareable =
+        move || !row.with(|row| row.as_ref().is_some_and(|row| row.access.can_manage()));
+    // A local account has no server to share through.
+    let offers_share = editor.host().offers_share();
+    let deletable = move || !row.with(|row| row.as_ref().is_some_and(|row| row.can_delete));
     let my_files = be_block::my_files(editor.host().organization_id(), editor.host().account_id());
-    let offers_delete = create_memo(move || !row.get().is_some_and(|row| row.id == Some(my_files)));
+    let offers_delete =
+        move || !row.with(|row| row.as_ref().is_some_and(|row| row.id == Some(my_files)));
     let delete = move || {
         if let Some(shown) = row.get_untracked()
             && let Some(id) = shown.id
@@ -160,41 +164,43 @@ fn SectionMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_
                 label="Add"
                 glyph=ICON_FILE_PLUS
                 disabled={unaddable}
-                row_test_id={"file-tree.section.add".to_owned()}
+                @test_id={"file-tree.section.add".to_owned()}
                 on_click={add}
             />
             <MenuItem
                 label="Rename"
                 glyph=ICON_PENCIL_LINE
                 disabled={edit}
-                row_test_id={"file-tree.section.rename".to_owned()}
+                @test_id={"file-tree.section.rename".to_owned()}
                 on_click={rename}
             />
-            <MenuItem
-                label="Share"
-                glyph=ICON_SHARE_2
-                disabled={unshareable}
-                row_test_id={"file-tree.section.share".to_owned()}
-                on_click={share}
-            />
-            <Show condition={offers_delete}>
+            <Show value={move || offers_share}>
+                <MenuItem
+                    label="Share"
+                    glyph=ICON_SHARE_2
+                    disabled={unshareable}
+                    @test_id={"file-tree.section.share".to_owned()}
+                    on_click={share}
+                />
+            </Show>
+            <Show value={offers_delete}>
                 <MenuItem
                     label="Delete"
                     glyph=ICON_TRASH
                     disabled={deletable}
                     danger=true
-                    row_test_id={"file-tree.section.delete".to_owned()}
+                    @test_id={"file-tree.section.delete".to_owned()}
                     on_click={delete}
                 />
             </Show>
             <Appearance editor picker row />
             <BlockSettings editor row row_test_id={"file-tree.section.settings".to_owned()} />
-            <Show condition={leavable}>
+            <Show value={leavable}>
                 <MenuItem
                     label="Leave"
                     glyph=ICON_LOG_OUT
                     danger=true
-                    row_test_id={"file-tree.section.leave".to_owned()}
+                    @test_id={"file-tree.section.leave".to_owned()}
                     on_click={leave}
                 />
             </Show>
@@ -221,63 +227,64 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
             editor.host().leave_block(id);
         }
     };
-    let restorable = create_memo(move || row.get().is_some_and(|row| row.deleted && row.can_edit));
+    let restorable =
+        move || row.with(|row| row.as_ref().is_some_and(|row| row.deleted && row.can_edit));
     let restore = move || {
         if let Some(id) = row.get_untracked().and_then(|row| row.id) {
             editor.host().restore_block(id);
         }
     };
-    let add = create_memo(move || !row.get().is_some_and(|row| row.can_add));
-    let edit = create_memo(move || !row.get().is_some_and(|row| row.can_edit));
-    let unshareable = create_memo(move || !row.get().is_some_and(|row| row.access.can_manage()));
-    let unlinkable = create_memo(move || {
+    let add = create_memo(move || !row.with(|row| row.as_ref().is_some_and(|row| row.can_add)));
+    let edit = create_memo(move || !row.with(|row| row.as_ref().is_some_and(|row| row.can_edit)));
+    let unshareable =
+        move || !row.with(|row| row.as_ref().is_some_and(|row| row.access.can_manage()));
+    // A local account has no server to share through.
+    let offers_share = editor.host().offers_share();
+    let unlinkable = move || {
         !row.get()
             .is_some_and(|row| row.is_reference && row.unlink.is_ok())
+    };
+    let rooted = create_memo(move || {
+        edit.get() || !row.with(|row| row.as_ref().is_some_and(|row| row.can_delete))
     });
-    let deletable = create_memo(move || !row.get().is_some_and(|row| row.can_delete));
-    let delete_label = create_memo(
-        move || match row.get().is_some_and(|row| row.is_reference) {
-            true => "Remove link".to_owned(),
-            false => "Delete".to_owned(),
-        },
-    );
-    let rooted = create_memo(move || edit.get() || !row.get().is_some_and(|row| row.can_delete));
-    let uninspectable = create_memo(move || !row.get().is_some_and(|row| row.inspection.is_some()));
-    let taggable = create_memo(move || row.get().is_some_and(|row| row.can_edit && !row.deleted));
-    let choosable = create_memo(move || {
-        row.get().is_some_and(|row| {
-            row.can_edit
-                && editor
-                    .block_types()
-                    .editors_for(row.block_type, row.file_name.as_deref())
-                    .len()
-                    > 1
+    let uninspectable =
+        move || !row.with(|row| row.as_ref().is_some_and(|row| row.inspection.is_some()));
+    let taggable =
+        move || row.with(|row| row.as_ref().is_some_and(|row| row.can_edit && !row.deleted));
+    let choosable = move || {
+        row.with(|row| {
+            row.as_ref().is_some_and(|row| {
+                row.can_edit
+                    && editor
+                        .block_types()
+                        .editors_for(row.block_type, row.file_name.as_deref())
+                        .len()
+                        > 1
+            })
         })
-    });
-    let homeable = create_memo(move || {
-        row.get().is_some_and(|row| {
-            !row.deleted
-                && row.id.is_some_and(|id| {
-                    editor.workspace_of(id).is_some_and(|workspace| {
-                        workspace != id && editor.blocks().access(workspace).can_manage()
+    };
+    let homeable = move || {
+        row.with(|row| {
+            row.as_ref().is_some_and(|row| {
+                !row.deleted
+                    && row.id.is_some_and(|id| {
+                        editor.workspace_of(id).is_some_and(|workspace| {
+                            workspace != id && editor.blocks().access(workspace).can_manage()
+                        })
                     })
-                })
+            })
         })
-    });
+    };
     let rows = tree.rows();
     let destinations = create_memo(move || {
-        let here = row.get().and_then(|row| row.container);
         rows.with(|rows| {
             rows.iter()
                 .filter(|other| other.is_workspace())
                 .filter_map(|other| Some((other.id?, other.label.clone())))
-                .filter(|(id, _)| Some(*id) != here)
                 .collect::<Vec<_>>()
         })
     });
-    let destination_keys = create_memo(move || {
-        destinations.with(|shown| shown.iter().map(|(id, _)| *id).collect::<Vec<_>>())
-    });
+    let block = menu_block(row);
     let shown = move || row.get_untracked().and_then(|row| Some((row.id?, row)));
     let add_into = move || {
         if let Some((id, shown)) = shown() {
@@ -328,13 +335,6 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
             editor.host().unlink_block(id, container);
         }
     };
-    let delete = move || {
-        if let Some((id, shown)) = shown() {
-            editor
-                .host()
-                .delete_block(id, shown.block_type, shown.source);
-        }
-    };
     let inspecting = move || {
         if let Some((_, shown)) = shown() {
             if let Some(row) = focused_node() {
@@ -348,105 +348,70 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
             <ZoomIn on_click={zoom_in} />
             <OpenWith editor={editor} row={row} />
             <MenuItem label="Add" glyph=ICON_FILE_PLUS disabled={add} on_click={add_into} />
-            <MenuItem
-                label="Move to"
-                glyph=ICON_MOVE_UP
-                disabled={rooted}
-                row_test_id={"file-tree.move-to".to_owned()}
-            >
-                <ForEach keys={destination_keys}>|target: Uuid| {
-                    let label = create_memo(move || {
-                        destinations.with(|shown| {
-                            shown
-                                .iter()
-                                .find(|(id, _)| *id == target)
-                                .map(|(_, name)| name.clone())
-                                .unwrap_or_default()
-                        })
-                    });
-                    view! {
-                        <MenuItem
-                            label={label}
-                            row_test_id={format!("file-tree.move-to.{target}")}
-                            on_click={move || {
-                                if let Some(shown) = row.get_untracked()
-                                    && let Some(id) = shown.id
-                                {
-                                    editor.host().move_block(
-                                        id,
-                                        shown.block_type,
-                                        shown.source,
-                                        target,
-                                        shown.is_reference,
-                                    );
-                                }
-                            }}
-                        />
-                    }
-                }</ForEach>
-            </MenuItem>
+            <MoveTo editor block destinations named={"file-tree.move-to".to_owned()} />
             <MenuItem label="Rename" glyph=ICON_PENCIL_LINE disabled={edit} on_click={rename} />
             <MenuItem
                 label="Copy"
                 glyph=ICON_COPY
-                row_test_id={"file-tree.copy".to_owned()}
+                @test_id={"file-tree.copy".to_owned()}
                 on_click={copy_row}
             />
             <MenuItem
                 label="Cut"
                 glyph=ICON_SCISSORS
                 disabled={rooted}
-                row_test_id={"file-tree.cut".to_owned()}
+                @test_id={"file-tree.cut".to_owned()}
                 on_click={cut}
             />
             <MenuItem
                 label="Paste"
                 glyph=ICON_CLIPBOARD_PASTE
                 disabled={add}
-                row_test_id={"file-tree.paste".to_owned()}
+                @test_id={"file-tree.paste".to_owned()}
                 on_click={paste}
             />
-            <MenuItem label="Share" glyph=ICON_SHARE_2 disabled={unshareable} on_click={share} />
+            <Show value={move || offers_share}>
+                <MenuItem
+                    label="Share"
+                    glyph=ICON_SHARE_2
+                    disabled={unshareable}
+                    on_click={share}
+                />
+            </Show>
             <MenuItem label="Unlink" glyph=ICON_UNLINK disabled={unlinkable} on_click={unlink} />
-            <MenuItem
-                label={delete_label}
-                glyph=ICON_TRASH
-                disabled={deletable}
-                danger=true
-                on_click={delete}
-            />
+            <DeleteBlock editor block />
             <MenuItem
                 label="Inspect"
                 glyph=ICON_INFO
                 disabled={uninspectable}
                 on_click={inspecting}
             />
-            <ExportAs exporter row row_test_id={"file-tree.export".to_owned()} />
-            <Show condition={restorable}>
+            <ExportAs exporter block named={"file-tree.export".to_owned()} />
+            <Show value={restorable}>
                 <MenuItem
                     label="Restore"
                     glyph=ICON_ROTATE_CCW_CLOCK
-                    row_test_id={"file-tree.restore".to_owned()}
+                    @test_id={"file-tree.restore".to_owned()}
                     on_click={restore}
                 />
             </Show>
             <Appearance editor picker row />
             <BlockSettings editor row row_test_id={"file-tree.settings".to_owned()} />
-            <Show condition={taggable}>
+            <Show value={taggable}>
                 <TagsMenu editor row />
             </Show>
-            <Show condition={choosable}>
+            <Show value={choosable}>
                 <OpensIn editor row />
             </Show>
-            <Show condition={homeable}>
+            <Show value={homeable}>
                 <HomeItems editor row />
             </Show>
-            <Show condition={leavable}>
+            <Show value={leavable}>
                 <MenuItem
                     label="Leave"
                     glyph=ICON_LOG_OUT
                     danger=true
-                    row_test_id={"file-tree.leave".to_owned()}
+                    @test_id={"file-tree.leave".to_owned()}
                     on_click={leave}
                 />
             </Show>
@@ -456,7 +421,7 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
 
 #[component]
 fn Appearance(editor: Editor, picker: Picker, row: Memo<Option<Row>>) -> MenuItem {
-    let disabled = create_memo(move || !row.get().is_some_and(|row| row.can_edit));
+    let disabled = move || !row.with(|row| row.as_ref().is_some_and(|row| row.can_edit));
     let open = move || {
         if let Some(shown) = row.get_untracked().filter(|row| row.can_edit)
             && let Some(id) = shown.id
@@ -469,7 +434,7 @@ fn Appearance(editor: Editor, picker: Picker, row: Memo<Option<Row>>) -> MenuIte
             label="Icon and color…"
             glyph=ICON_PALETTE
             disabled
-            row_test_id="file-tree.appearance"
+            @test_id="file-tree.appearance"
             on_click={open}
         />
     }
@@ -479,9 +444,10 @@ fn Appearance(editor: Editor, picker: Picker, row: Memo<Option<Row>>) -> MenuIte
 fn BlockSettings(editor: Editor, row: Memo<Option<Row>>, row_test_id: String) -> MenuItem {
     let shown = create_memo(move || row.get().and_then(|row| row.id));
     let has = create_memo(move || shown.get().and_then(|id| editor.settings_block(id)));
-    let disabled = create_memo(move || {
-        has.get().is_none() && !row.get().is_some_and(|row| row.access.can_manage())
-    });
+    let disabled = move || {
+        has.with(Option::is_none)
+            && !row.with(|row| row.as_ref().is_some_and(|row| row.access.can_manage()))
+    };
     let open = move || {
         if let Some(id) = shown.get_untracked()
             && let Some(settings) = editor.ensure_settings_block(id)
@@ -492,7 +458,13 @@ fn BlockSettings(editor: Editor, row: Memo<Option<Row>>, row_test_id: String) ->
         }
     };
     view! {
-        <MenuItem label="Settings" glyph=ICON_SETTINGS disabled row_test_id on_click={open} />
+        <MenuItem
+            label="Settings"
+            glyph=ICON_SETTINGS
+            disabled
+            @test_id={row_test_id}
+            on_click={open}
+        />
     }
 }
 
@@ -524,4 +496,20 @@ pub(crate) fn paste_into(editor: Editor, row: Option<Row>, pasted: ClipItem) {
             }
         }
     });
+}
+
+/// A block row as the shared menu items act on it (be_sdk_beui's `block_menu`).
+fn menu_block(row: Memo<Option<Row>>) -> Memo<Option<MenuBlock>> {
+    create_memo(move || {
+        row.get().and_then(|row| {
+            Some(MenuBlock {
+                id: row.id?,
+                block_type: row.block_type,
+                source: row.source,
+                is_reference: row.is_reference,
+                access: row.access,
+                can_delete: row.can_delete,
+            })
+        })
+    })
 }

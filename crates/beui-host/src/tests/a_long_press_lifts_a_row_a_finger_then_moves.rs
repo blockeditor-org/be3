@@ -5,7 +5,6 @@ use crate::reactive::*;
 fn a_long_press_lifts_a_row_a_finger_then_moves() {
     let _root = RootScope::new();
     let state = ReorderLists {
-        long_press: true,
         ..ReorderLists::new(vec![vec![1, 2, 3]])
     };
     let mut harness = Harness::new(reorder_lists(state));

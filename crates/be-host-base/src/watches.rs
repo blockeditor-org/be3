@@ -19,6 +19,24 @@ thread_local! {
     static PUBLISHED: RefCell<HashMap<MethodId, Arc<Vec<u8>>>> = RefCell::new(HashMap::new());
     static HOST: Cell<Option<&'static dyn WatchHost>> = const { Cell::new(None) };
     static OPENINGS: RefCell<HashMap<MethodId, u64>> = RefCell::new(HashMap::new());
+    /// Counts each change published (`revision`).
+    static REVISION: Cell<u64> = const { Cell::new(0) };
+    /// Whether editors outside the host's runtimes hear what is published (`serve_forwarded`).
+    static FORWARDED: Cell<bool> = const { Cell::new(false) };
+}
+
+/// How many changes were published so far: what an editor served outside the host's runtimes
+/// (be-host-runtime's `Forwarded`) compares with the last it took, to take what is published
+/// only when it changed.
+pub fn revision() -> u64 {
+    REVISION.with(Cell::get)
+}
+
+/// Says editors outside the host's runtimes hear what is published, each frame they are stepped
+/// (a root's, which be-host-runtime's `Forwarded` serves): each change wakes the host for that
+/// frame, however it was published, as the host's runtimes ask for one when they watch it.
+pub fn serve_forwarded() {
+    FORWARDED.with(|forwarded| forwarded.set(true));
 }
 
 pub fn serve(host: &'static dyn WatchHost) {
@@ -39,6 +57,12 @@ pub fn publish<W: Watched>(value: &W::Value) {
         published.insert(W::OPEN, Arc::clone(&value));
         Some(value)
     });
+    if value.is_some() {
+        REVISION.with(|revision| revision.set(revision.get() + 1));
+        if FORWARDED.with(Cell::get) {
+            crate::host::wake();
+        }
+    }
     if let Some(value) = value
         && let Some(host) = HOST.with(Cell::get)
     {

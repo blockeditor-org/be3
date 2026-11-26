@@ -3,8 +3,9 @@ use ra_ap_syntax::{SourceFile, SyntaxNode};
 
 const SIGNAL_WRITES: [&str; 3] = ["set", "update", "set_unconditionally"];
 
-const PRIMITIVE_USERS: [&str; 24] = [
+const PRIMITIVE_USERS: [&str; 28] = [
     "crates/beui/",
+    "crates/beui-documents/",
     "crates/beui-host/",
     "crates/beui-view/",
     "crates/beui-components-styled/",
@@ -13,10 +14,12 @@ const PRIMITIVE_USERS: [&str; 24] = [
     "crates/beui-dock-host/",
     "crates/beui-inspector/",
     "crates/beui-keyboard/",
+    "crates/beui-layer-space/",
     "crates/beui-renderer-wgpu/",
     "crates/beui-demo/src/base_pages.rs",
     "crates/beui-tests/",
     "crates\\beui\\",
+    "crates\\beui-documents\\",
     "crates\\beui-host\\",
     "crates\\beui-view\\",
     "crates\\beui-components-styled\\",
@@ -25,9 +28,10 @@ const PRIMITIVE_USERS: [&str; 24] = [
     "crates\\beui-dock-host\\",
     "crates\\beui-inspector\\",
     "crates\\beui-keyboard\\",
+    "crates\\beui-layer-space\\",
     "crates\\beui-renderer-wgpu\\",
     "crates\\beui-demo\\src\\base_pages.rs",
-    "crates\\beui-shared-tests\\",
+    "crates\\beui-tests\\",
 ];
 
 const COMPONENT_CRATES: [&str; 10] = [
@@ -50,13 +54,28 @@ const BASE_CRATES: [&str; 4] = [
     "crates\\beui-types\\",
 ];
 
-const CORE_CHOOSERS: [&str; 6] = [
+/// The crates that choose by cfg(beui_html): the cores, the facades over them, and
+/// beui-host-window, which runs a program on whichever core it was built for.
+const CORE_CHOOSERS: [&str; 10] = [
     "crates/beui/",
+    "crates/beui-documents/",
     "crates/beui-view/",
     "crates/beui-core-html/",
+    "crates/beui-host-window/",
     "crates\\beui\\",
+    "crates\\beui-documents\\",
     "crates\\beui-view\\",
     "crates\\beui-core-html\\",
+    "crates\\beui-host-window\\",
+];
+
+/// The crates that name beui_macros: the macros themselves, and beui-tree, whose reactive module
+/// re-exports them for every crate above it.
+const MACRO_NAMERS: [&str; 4] = [
+    "crates/beui-macros/",
+    "crates/beui-tree/",
+    "crates\\beui-macros\\",
+    "crates\\beui-tree\\",
 ];
 
 const DOCUMENT_ACCESS: [&str; 5] = [
@@ -140,6 +159,12 @@ pub(crate) fn beui_violations(tree: &SourceFile, source: &str, relative: &str) -
         if !BASE_CRATES.iter().any(|base| relative.starts_with(base)) {
             violations.extend(fixed_extent_uses(tree, source, relative));
         }
+    }
+    if !MACRO_NAMERS
+        .iter()
+        .any(|allowed| relative.starts_with(allowed))
+    {
+        violations.extend(macro_uses(tree, source, relative));
     }
     if !CORE_CHOOSERS
         .iter()
@@ -271,9 +296,11 @@ fn deferred_renderer(call: &ast::CallExpr) -> bool {
                 name.text(),
                 "Render"
                     | "RenderFn"
+                    | "Build"
+                    | "BuildFn"
                     | "MenuStyle"
                     | "AnchoredStyle"
-                    | "ScrollbarStyle"
+                    | "ScrollStyle"
                     | "CompletionMenu"
             )
         })
@@ -296,6 +323,21 @@ fn primitive_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String
             let line = source[..offset].matches('\n').count() + 1;
             format!(
                 "primitive outside beui: {relative}:{line} only beui's own crates use beui::primitives; import beui::styled::* instead"
+            )
+        })
+        .collect()
+}
+
+fn macro_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String> {
+    tree.syntax()
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .filter(|token| token.text() == "beui_macros")
+        .map(|token| {
+            let offset = u32::from(token.text_range().start()) as usize;
+            let line = source[..offset].matches('\n').count() + 1;
+            format!(
+                "beui_macros outside beui-tree: {relative}:{line} component, view and sample come with the reactive module beui's crates export (beui::reactive::*)"
             )
         })
         .collect()
@@ -354,7 +396,7 @@ fn core_cfg_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String>
             let offset = u32::from(token.text_range().start()) as usize;
             let line = source[..offset].matches('\n').count() + 1;
             format!(
-                "core cfg outside the cores: {relative}:{line} only beui-view, beui and beui-core-html choose by cfg(beui_html); elsewhere branch on `if CORE == Core::Html`"
+                "core cfg outside the cores: {relative}:{line} only beui-view, beui-documents, beui, beui-core-html and beui-host-window choose by cfg(beui_html); elsewhere branch on `if CORE == Core::Html`"
             )
         })
         .collect()

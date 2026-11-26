@@ -1,31 +1,34 @@
 use be_lib_stable_hash::HashMap;
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, VecDeque},
+    collections::BTreeMap,
     rc::Rc,
     sync::Arc,
     time::{Duration, Instant},
 };
 
 use be_sdk_api::{
-    AnchorSpace, ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, DockMessage,
-    EditorInstanceId, FrameSpec, HostPanel, HostTransform, LayoutCommit, OpeningKind,
-    PresentCommit, PresentedFrame, PreviewImage, ScreenDamage, ScreenId, ScreenLayout,
-    ScreenPlacement, ScreenRequest, ScreenWindow, SurfaceFormat, SurfaceSpec, View, ViewId,
-    ViewSize, WindowRequest,
+    AnchorSpace, ArtifactDescription, BlockPick, ChildPreview, EditorInstanceId, FrameSpec,
+    HostPanel, HostTransform, LayoutCommit, OpeningKind, PresentCommit, PreviewImage, ScreenDamage,
+    ScreenId, ScreenLayout, ScreenPlacement, SurfaceFormat, SurfaceSpec, View, ViewId,
+    WindowRequest,
+};
+use be_sdk_app_host::{
+    holds::{Held, Laid},
+    pacing::{self, FrameClock},
+    run::{Run, Telling},
 };
 use be_sdk_manifest::AppManifest;
 use beui::native::EmbedPlacement;
-use beui::{Modifiers, Pos2, Rect, Vec2, pos2, vec2};
+use beui::{Pos2, Rect, Vec2, pos2, vec2};
 
-use crate::instances::gift::{GiftView, KeyProgress, Keys};
 use uuid::Uuid;
 
 use be_host_base::host;
 use be_sdk_api::app::{EditorEvent, MenuChoice};
 
 use super::{
-    ArtifactSlot, ArtifactState, CreationSlot, CreationState, HostAnchored, HostChild,
+    ArtifactSlot, ArtifactState, CreationSlot, CreationState, EditorBlock, HostAnchored, HostChild,
     HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
     backend::{Availability, Backend, Deadline, Frame, ShownFrame},
     calls::{AppCall, EditorAnswer, EditorCall, Heard, Outbound},
@@ -41,18 +44,7 @@ use super::{
 
 const HOST_NAME: &str = "BE3";
 const UNIT: Rect = Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0));
-const FRAME_TIMEOUT: Duration = Duration::from_secs(1);
-/// How many frames in a row an app may say its input is still waiting (`input-waiting`) before
-/// the host counts one as answering it all the same, so an app that always says so cannot hold
-/// a press's answer for ever.
-const INPUT_WAITING_FRAMES: u32 = 4;
-const UNKNOWN_REFRESH: Duration = Duration::from_micros(16_667);
-const UNMEASURED_COMPOSITE: Duration = Duration::from_millis(4);
-const SUBMIT_MARGIN: Duration = Duration::from_millis(1);
-const REMEMBERED_COMPOSITES: usize = 16;
-const STOPPED_CLOCK_FRAME_BUDGET: Duration = Duration::from_secs(10);
 use be_host_base::performance::PACING;
-const REMEMBERED_PRESENTS: usize = 16;
 const IDLE_TIMEOUT: Duration = Duration::from_secs(30);
 
 thread_local! {
@@ -70,12 +62,9 @@ pub fn take_steps() -> Vec<(String, beui::native::FrameTimes)> {
 
 struct Host {
     availability: Availability,
-    deadline: Option<(u64, Deadline)>,
-    present: Option<(Instant, Duration)>,
-    settled_at: Option<Instant>,
-    composites: VecDeque<Duration>,
-    waited: Duration,
-    over_budget: u64,
+    clock: FrameClock,
+    /// What the frame clock's real times count from.
+    origin: Instant,
     runtimes: HashMap<String, Runtime>,
     warming: Option<Vec<AppManifest>>,
     focus: Focus,
@@ -88,88 +77,14 @@ impl Host {
         be_host_base::watches::serve(&Watches);
         Self {
             availability: Availability::missing(),
-            deadline: None,
-            present: None,
-            settled_at: None,
-            composites: VecDeque::new(),
-            waited: Duration::ZERO,
-            over_budget: 0,
+            clock: FrameClock::default(),
+            origin: Instant::now(),
             runtimes: HashMap::default(),
             warming: Some(Vec::new()),
             focus: Focus::default(),
             shell: None,
             grabbed: false,
         }
-    }
-
-    fn frame_deadline(&self) -> Deadline {
-        if host::clock_stopped() {
-            return Deadline::after(STOPPED_CLOCK_FRAME_BUDGET);
-        }
-        let now = Instant::now();
-        let origin = self.present.map_or(now, |(at, _)| at.min(now));
-        let present = self
-            .present
-            .map(|(at, interval)| (at.duration_since(origin), interval));
-        let wait = frame_wait(now.duration_since(origin), present, &self.composites);
-        Deadline::at(now + wait)
-    }
-
-    fn request_frames(&mut self, asked: &[String]) {
-        let active: be_lib_stable_hash::HashSet<String> = self
-            .runtimes
-            .iter()
-            .filter(|(id, runtime)| {
-                runtime.pacing.laying_out(host::pass())
-                    || (asked.contains(*id) && runtime.will_draw())
-            })
-            .map(|(id, _)| id.clone())
-            .collect();
-        let held = self.held_behind(&active);
-        for id in asked {
-            let held = held.contains(id.as_str());
-            if let Some(runtime) = self.runtimes.get_mut(id) {
-                runtime.contain(|runtime| runtime.request_frame(held));
-            }
-        }
-    }
-
-    fn held_behind(
-        &self,
-        active: &be_lib_stable_hash::HashSet<String>,
-    ) -> be_lib_stable_hash::HashSet<String> {
-        let mut edges: Vec<(EditorInstanceId, &str, &str)> = self
-            .runtimes
-            .iter()
-            .filter(|(id, _)| active.contains(*id))
-            .flat_map(|(id, runtime)| {
-                runtime
-                    .placers
-                    .iter()
-                    .filter(|(_, placer)| {
-                        placer.app != *id
-                            && active.contains(&placer.app)
-                            && self.runtimes.get(&placer.app).is_some_and(|runtime| {
-                                runtime.instances.mounted(placer.instance, placer.view)
-                            })
-                    })
-                    .map(move |((instance, view), placer)| {
-                        match runtime.instances.fits(*instance, *view) {
-                            true => (*instance, id.as_str(), placer.app.as_str()),
-                            false => (*instance, placer.app.as_str(), id.as_str()),
-                        }
-                    })
-            })
-            .collect();
-        edges.sort();
-        edges.dedup();
-        let mut kept: Vec<(&str, &str)> = Vec::new();
-        for (_, first, then) in edges {
-            if !reaches(&kept, then, first) {
-                kept.push((first, then));
-            }
-        }
-        kept.into_iter().map(|(_, then)| then.to_owned()).collect()
     }
 
     fn runtime(&mut self, app: &AppManifest) -> Result<&mut Runtime, String> {
@@ -250,23 +165,120 @@ impl Host {
     }
 }
 
+/// Asks the `asked` runtimes for the frames now due, holding a child whose placer draws in this
+/// frame until the placer's layout commit lands, so it is asked once, at its new place.
+fn request_frames(runtimes: &mut HashMap<String, Runtime>, asked: &[String]) {
+    let active: be_lib_stable_hash::HashSet<String> = runtimes
+        .iter()
+        .filter(|(id, runtime)| {
+            runtime.run.pacing.laying_out(host::pass())
+                || (asked.contains(*id) && runtime.will_draw())
+        })
+        .map(|(id, _)| id.clone())
+        .collect();
+    let held = held_behind(runtimes, &active);
+    for id in asked {
+        let held = held.contains(id.as_str());
+        if let Some(runtime) = runtimes.get_mut(id) {
+            runtime.contain(|runtime| runtime.request_frame(held));
+        }
+    }
+}
+
+fn held_behind(
+    runtimes: &HashMap<String, Runtime>,
+    active: &be_lib_stable_hash::HashSet<String>,
+) -> be_lib_stable_hash::HashSet<String> {
+    let held = pacing::held_behind(
+        runtimes
+            .iter()
+            .filter(|(id, _)| active.contains(*id))
+            .flat_map(|(id, runtime)| {
+                runtime
+                    .placers
+                    .iter()
+                    .filter(|(_, placer)| {
+                        placer.app != *id
+                            && active.contains(&placer.app)
+                            && runtimes.get(&placer.app).is_some_and(|runtime| {
+                                runtime.instances.mounted(placer.instance, placer.view)
+                            })
+                    })
+                    .map(move |((instance, view), placer)| {
+                        match runtime.instances.fits(*instance, *view) {
+                            true => (*instance, id.as_str(), placer.app.as_str()),
+                            false => (*instance, placer.app.as_str(), id.as_str()),
+                        }
+                    })
+            })
+            .collect(),
+    );
+    held.into_iter().map(str::to_owned).collect()
+}
+
+/// The runtimes a settle asked, as the library's settling steps and waits on them.
+struct Asked<'a> {
+    runtimes: &'a mut HashMap<String, Runtime>,
+    asked: &'a [String],
+    origin: Instant,
+}
+
+impl pacing::Settling for Asked<'_> {
+    fn pump(&mut self) -> bool {
+        let mut relaid = false;
+        for id in self.asked {
+            if let Some(runtime) = self.runtimes.get_mut(id) {
+                runtime.contain(Runtime::pump);
+                relaid |= runtime.take_relaid();
+            }
+        }
+        relaid
+    }
+
+    fn request_frames(&mut self) {
+        request_frames(self.runtimes, self.asked);
+    }
+
+    fn outstanding(&self) -> bool {
+        self.asked.iter().any(|id| {
+            self.runtimes
+                .get(id)
+                .is_some_and(|runtime| runtime.outstanding())
+        })
+    }
+
+    fn wait(&mut self, rung: u64, deadline: Duration) -> bool {
+        be_wasm_guest_host::bell::wait(rung, Deadline::at(self.origin + deadline))
+    }
+
+    fn rung(&self) -> u64 {
+        be_wasm_guest_host::bell::rung()
+    }
+
+    fn now(&self) -> Duration {
+        self.origin.elapsed()
+    }
+}
+
 pub(super) struct Runtime {
     app: AppManifest,
     pub(super) backend: Backend,
-    session: Session,
-    queued: Vec<Outbound>,
-    held: Vec<Answer>,
+    /// What the app's module said and was told since it last started.
+    run: Run<Answer>,
     /// The person asked to restart the app; the next `poll` does.
     restart_asked: bool,
     taking_in: bool,
-    layouts_heard: u64,
-    presents_heard: u64,
-    /// Presents applied, in the order the app sent them among its other answers.
-    presents_applied: u64,
-    /// The app's screens while anchored views it closed are still shown (`Runtime::place`).
-    closing: Option<Closing>,
+    /// A frame held until the poll applies the children and docks its layout brought
+    /// (`Runtime::received`), so both show in the same host frame.
+    held_frame: Option<Frame>,
+    /// What the app sent from its first present on, held while a driven host takes presents in
+    /// late (`host::presents_late`, `drive present late`) until the next poll hears it first,
+    /// so a host frame is drawn between the app's layout and its present.
+    late: Vec<Heard>,
+    /// What the app sent while a driven host holds it back (`host::holds`, `drive hold`), heard
+    /// in order, after `late`, once the hold ends.
+    withheld: Vec<Heard>,
     pub(super) instances: Instances,
-    pub(super) layout: ScreenLayout,
     pub(super) pass: u64,
     since: u64,
     placed: u64,
@@ -274,18 +286,10 @@ pub(super) struct Runtime {
     status: PresenterStatus,
     shared: Rc<RefCell<Shared>>,
     presented: bool,
-    sent: Vec<ScreenRequest>,
     error: Option<String>,
-    pacing: Pacing,
-    preferences: be_sdk_api::Preferences,
-    utc_offset: Option<i32>,
-    fonts_sent: bool,
-    described: bool,
-    painting: bool,
     pub(super) placements: HashMap<(EditorInstanceId, ViewId), Placed>,
     offers: HashMap<(EditorInstanceId, ViewId), Vec<Offer>>,
     fallbacks: super::fonts::Fallbacks,
-    presents: Presents,
     frames: u64,
     steps: u64,
     relaid: bool,
@@ -331,7 +335,7 @@ impl From<Heard> for Answer {
             Heard::Answer(instance, answer) => Self::Editor(instance, answer),
             Heard::Paintings(payload) => Self::Paintings(payload),
             Heard::Blocks(instance, call) => Self::Blocks(instance, call),
-            Heard::Watch(instance, open) => Self::Watch(instance, open),
+            Heard::Watch(instance, open, _) => Self::Watch(instance, open),
             Heard::Unwatch(instance, open) => Self::Unwatch(instance, open),
             Heard::Published(instance, started) => Self::Published(instance, started),
             Heard::Debug(instance, call) => Self::Debug(instance, call),
@@ -343,51 +347,11 @@ impl From<Heard> for Answer {
     }
 }
 
-/// The app's screens while anchored views they leave out are still shown: until the present
-/// after the layout (`presented_by`, counted in `Runtime::presents_applied`) and, when it painted,
-/// the frame of that present's sequence (`drawn_by`).
-struct Closing {
-    presented_by: u64,
-    drawn_by: Option<u64>,
-    layout: ScreenLayout,
-}
-
-struct Laid {
-    serial: u64,
-    /// How many presents the app must have sent before this is applied: the one that follows
-    /// the layout commit it came in. Children come and go only with the frame that punches or
-    /// fills their space, so a closed child never leaves its hole in the placer's old frame.
-    presented_by: u64,
-    sizes: Vec<ViewSize>,
-    windows: Vec<ScreenWindow>,
-    children: Vec<ChildPlacements>,
-    /// The commit's dock messages, applied after its children: which tabs a root shows decides
-    /// which of the children it places are drawn, so a tab switched to and the one it hides
-    /// change in the same frame (`docks::resolve`).
-    docks: Vec<DockMessage>,
-}
-
-impl Laid {
-    fn is_empty(&self) -> bool {
-        self.sizes.is_empty()
-            && self.windows.is_empty()
-            && self.children.is_empty()
-            && self.docks.is_empty()
-    }
-
-    fn screens(&self, instances: &Instances) -> be_lib_stable_hash::HashSet<ScreenId> {
-        self.sizes
-            .iter()
-            .map(|size| size.screen)
-            .chain(self.windows.iter().map(|window| window.screen))
-            .chain(
-                self.children.iter().filter_map(|placements| {
-                    instances.screen_id(placements.instance, placements.view)
-                }),
-            )
-            .collect()
-    }
-}
+/// Whether a present's pixels show only once the host draws a frame (natively, where it holds the
+/// app's textures), so a kept or closing frame waits for that frame (`Shown`). On the web the app's
+/// worker shows each present on its canvases as it makes it, and the page keeps a hidden view's
+/// canvas (`web::canvases`).
+const DRAWS_PRESENTS: bool = cfg!(not(target_arch = "wasm32"));
 
 pub(super) struct Placed {
     pub(super) rect: Rect,
@@ -397,130 +361,36 @@ pub(super) struct Placed {
     shown: Rect,
 }
 
-#[derive(Default)]
-struct Pacing {
-    needed: bool,
-    unseen: bool,
-    animating: bool,
-    paint_at: Option<Duration>,
-    drawn_at: Duration,
-    requested_at: Option<Duration>,
-    animated: u64,
-    asked_in: u64,
-    painting: bool,
-    needed_again: bool,
-    /// Frames asked of the app and answered by it, so the host can tell when the app has drawn
-    /// a frame that took input it sent: the first answer to a request made after it. A frame
-    /// that says it has not taken in all its input yet (`input-waiting`) does not count as
-    /// answered, for up to `INPUT_WAITING_FRAMES` in a row.
-    asked: u64,
-    answered: u64,
-    /// The frames in a row that said their input was still waiting.
-    waiting: u32,
+/// Readies `messages` for `app`'s wire: offers the previews they carry, holds what waits for a
+/// report, and translates their ids and pastes.
+fn ready(
+    app: &str,
+    instances: &mut Instances,
+    backend: &mut Backend,
+    messages: Vec<Outbound>,
+) -> Vec<Outbound> {
+    offer_previews(app, backend, &messages);
+    let mut messages = instances.hold_unreported(messages);
+    for message in &mut messages {
+        instances.translate_pastes(message);
+        instances.translate(message, false);
+    }
+    instances.gate(messages)
 }
 
-impl Pacing {
-    fn reset(&mut self) {
-        self.needed = false;
-        self.unseen = false;
-        self.animating = false;
-        self.paint_at = None;
-        self.requested_at = None;
-        self.painting = false;
-        self.needed_again = false;
-        self.answered = self.asked;
-        self.waiting = 0;
-    }
-
-    fn due(&self, now: Duration, pass: u64) -> bool {
-        self.due_once_seen(false, now, pass)
-    }
-
-    fn due_once_seen(&self, seen: bool, now: Duration, pass: u64) -> bool {
-        (self.needed || (seen && self.unseen) || (self.animated != pass && self.asked_by(now)))
-            && self
-                .requested_at
-                .is_none_or(|at| now.saturating_sub(at) >= FRAME_TIMEOUT)
-    }
-
-    fn asked_by(&self, now: Duration) -> bool {
-        self.paint_at.is_some_and(|at| at <= now) && now > self.drawn_at
-    }
-
-    fn request(&mut self, now: Duration, pass: u64) {
-        self.asked += 1;
-        self.requested_at = Some(now);
-        self.animated = pass;
-        self.asked_in = pass;
-    }
-
-    fn laying_out(&self, pass: u64) -> bool {
-        self.requested_at.is_some() && self.asked_in == pass && !self.painting
-    }
-
-    /// Asks for a frame. One asked for while a frame is in flight is asked again once that
-    /// frame is answered, which `ready` would otherwise clear along with the frame's own need.
-    fn need(&mut self) {
-        self.needed = true;
-        self.needed_again |= self.requested_at.is_some();
-    }
-
-    fn need_if(&mut self, needed: bool) {
-        if needed {
-            self.need();
-        }
-    }
-
-    fn ready(&mut self, now: Duration, repaint_after: Option<Duration>, input_waiting: bool) {
-        match input_waiting && self.waiting < INPUT_WAITING_FRAMES {
-            true => self.waiting += 1,
-            false => {
-                self.answered = self.asked;
-                self.waiting = 0;
+fn offer_previews(app: &str, backend: &mut Backend, messages: &[Outbound]) {
+    for message in messages {
+        let Outbound::Editor(_, EditorCall::ChildStatuses(statuses)) = message else {
+            continue;
+        };
+        for status in statuses {
+            let ChildPreview::Image(image) = status.preview else {
+                continue;
+            };
+            if let Some(picture) = previews::offer(app, image.image) {
+                backend.offer(image.image, &picture);
             }
         }
-        self.needed = std::mem::take(&mut self.needed_again);
-        self.requested_at = None;
-        self.drawn_at = now;
-        self.paint_at = repaint_after.map(|delay| now + delay);
-    }
-
-    fn wake_after(&self, now: Duration, drawing: bool) -> Option<Duration> {
-        match (self.requested_at, self.paint_at) {
-            (Some(_), _) => Some(FRAME_TIMEOUT),
-            (None, Some(at)) if drawing => Some(at.saturating_sub(now)),
-            _ => None,
-        }
-    }
-}
-
-#[derive(Default)]
-struct Presents {
-    reported: VecDeque<PresentedFrame>,
-    shown: u64,
-}
-
-impl Presents {
-    fn report(&mut self, presented: PresentedFrame) {
-        if self.reported.len() == REMEMBERED_PRESENTS {
-            self.reported.pop_front();
-        }
-        self.reported.push_back(presented);
-    }
-
-    fn damage_through(&mut self, presents: u64) -> Option<Vec<ScreenDamage>> {
-        let since = std::mem::replace(&mut self.shown, presents);
-        let mut damage = Vec::new();
-        let mut found = 0;
-        for presented in &self.reported {
-            if presented.sequence > since && presented.sequence <= presents {
-                damage.extend_from_slice(&presented.damage);
-                found += 1;
-            }
-        }
-        self.reported
-            .retain(|presented| presented.sequence > presents);
-        (presents > since && found == presents - since).then_some(damage)
     }
 }
 
@@ -535,21 +405,17 @@ impl Runtime {
         let mut instances = Instances::default();
         instances.allow_network(app.network.clone());
         instances.allow_block_agents(app.block_agents);
+        instances.allow_sharing(app.sharing);
         instances.set_app_id(app.identity.id.clone());
-        let session = session();
         Self {
             app: app.clone(),
             backend,
-            session,
-            queued: Vec::new(),
-            held: Vec::new(),
+            run: Run::new(session(), DRAWS_PRESENTS, host::preferences()),
             taking_in: false,
-            layouts_heard: 0,
-            presents_heard: 0,
-            presents_applied: 0,
-            closing: None,
+            held_frame: None,
+            late: Vec::new(),
+            withheld: Vec::new(),
             instances,
-            layout: ScreenLayout::default(),
             pass: 0,
             since: 0,
             placed: 0,
@@ -557,19 +423,11 @@ impl Runtime {
             status: PresenterStatus::waiting(),
             shared: Rc::new(RefCell::new(Shared::default())),
             presented: false,
-            sent: Vec::new(),
             error: None,
-            pacing: Pacing::default(),
-            preferences: host::preferences(),
-            utc_offset: None,
-            fonts_sent: false,
-            described: false,
-            painting: false,
             restart_asked: false,
             placements: HashMap::default(),
             offers: HashMap::default(),
             fallbacks: super::fonts::Fallbacks::new(),
-            presents: Presents::default(),
             frames: 0,
             steps: 0,
             relaid: false,
@@ -581,7 +439,7 @@ impl Runtime {
     }
 
     fn stop(&mut self) {
-        if self.session.shutdown(self.milliseconds()) {
+        if self.run.session.shutdown(self.milliseconds()) {
             self.backend.ask_to_shut_down();
         }
         self.backend.shutdown();
@@ -595,28 +453,23 @@ impl Runtime {
         self.stop();
         presenter::release(self.surface, &self.status);
         self.shared.borrow_mut().frames.clear();
-        self.session = session();
-        self.queued.clear();
-        self.held.clear();
-        self.layouts_heard = 0;
-        self.presents_heard = 0;
-        self.presents_applied = 0;
-        self.closing = None;
+        self.held_frame = None;
+        self.late.clear();
         self.error = None;
         self.status = PresenterStatus::waiting();
-        self.layout = ScreenLayout::default();
-        self.sent.clear();
-        self.pacing.reset();
-        self.preferences = host::preferences();
-        self.utc_offset = None;
-        self.fonts_sent = false;
-        self.described = false;
-        self.painting = false;
         self.fallbacks = super::fonts::Fallbacks::new();
-        self.presents = Presents::default();
         self.drawn.clear();
+        let (run, instances) = (&mut self.run, &mut self.instances);
+        super::docks::with(|docks| {
+            run.restart(
+                session(),
+                host::preferences(),
+                &app.identity.id,
+                docks,
+                instances,
+            );
+        });
         self.instances.reopen();
-        super::docks::restarted(&app.identity.id);
         self.backend.start(&app);
     }
 
@@ -627,27 +480,13 @@ impl Runtime {
         }
         self.since = self.pass;
         self.pass = pass;
-        let mut messages: Vec<Outbound> = Vec::new();
-        if !self.fonts_sent && self.session.running() {
-            self.fonts_sent = true;
-            messages.push(AppCall::Fonts(super::fonts::bundled()).into());
-        }
-        let describing = super::description::describing();
-        if self.session.running() && self.described != describing {
-            self.described = describing;
-            messages.push(Outbound::App(AppCall::Describe(describing)));
-        }
-        let preferences = host::preferences();
-        if self.preferences != preferences {
-            self.preferences = preferences;
-            messages.push(AppCall::Preferences(preferences).into());
-        }
-        let utc_offset = be_host_base::platform::utc_offset();
-        if self.session.running() && self.utc_offset != Some(utc_offset) {
-            self.utc_offset = Some(utc_offset);
-            messages.push(AppCall::UtcOffset(utc_offset).into());
-        }
-        self.update(messages);
+        let messages = self.run.tell(Telling {
+            fonts: super::fonts::bundled,
+            describing: super::description::describing(),
+            preferences: host::preferences(),
+            utc_offset: be_host_base::platform::utc_offset(),
+        });
+        self.update(messages.into_iter().map(Outbound::App).collect());
     }
 
     fn refresh_anchor_space(&mut self, instance: EditorInstanceId, region: ViewId) {
@@ -657,13 +496,12 @@ impl Runtime {
     }
 
     fn update(&mut self, mut messages: Vec<Outbound>) {
-        let drawing = self.session.granted_surface().is_some();
+        let drawing = self.run.session.granted_surface().is_some();
         let next = self.instances.next_screens(self.since);
         messages.extend(next.opened);
-        if drawing && self.sent != next.screens {
-            self.sent.clone_from(&next.screens);
-            messages.push(AppCall::Screens(self.instances.screen_set(next.screens)).into());
-            messages.extend(self.instances.take_announced_input());
+        if drawing && self.run.screens != next.screens {
+            self.run.screens.clone_from(&next.screens);
+            messages.extend(self.instances.announce(next.screens));
         }
         messages.extend(self.instances.pending());
         messages.extend(
@@ -696,8 +534,7 @@ impl Runtime {
                     if matches!(opening.kind, OpeningKind::Block(_) | OpeningKind::Artifact(_))
             )
         });
-        self.pacing.need_if(!messages.is_empty());
-        self.send(messages);
+        self.send_for_frame(messages);
         self.answer();
         if awaited {
             host::request_repaint();
@@ -709,16 +546,12 @@ impl Runtime {
         if self.error.is_some() || self.pass + 1 < pass {
             return;
         }
-        if let Some(left) = self.instances.expire_gifts(self.now()) {
-            host::request_repaint_after(left);
-        }
         let messages = self.instances.drive_web_views();
-        self.pacing.need_if(!messages.is_empty());
-        self.send(messages);
+        self.send_for_frame(messages);
     }
 
     fn ask(&mut self, pass: u64) -> bool {
-        if self.placed == pass || self.instances.has_mounted() {
+        if self.placed == pass || self.instances.has_mounted() || self.instances.has_hosts() {
             self.begin_pass(pass);
         }
         self.detect_error();
@@ -744,14 +577,15 @@ impl Runtime {
     fn will_draw(&self) -> bool {
         let pass = host::pass();
         self.error.is_none()
-            && self.session.granted_surface().is_some()
-            && self.pacing.asked_in != pass
-            && self.pacing.due_once_seen(host::seen(), self.now(), pass)
+            && self.run.session.granted_surface().is_some()
+            && self.run.pacing.will_draw(host::seen(), self.now(), pass)
     }
 
     fn outstanding(&self) -> bool {
         self.error.is_none()
-            && (!self.backend.settled() || self.pacing.painting || self.awaiting_input)
+            && (!self.backend.settled()
+                || (self.run.pacing.painting() && self.late.is_empty())
+                || self.awaiting_input)
     }
 
     fn take_relaid(&mut self) -> bool {
@@ -771,8 +605,7 @@ impl Runtime {
         screen: ScreenId,
         request: beui::accesskit::ActionRequest,
     ) {
-        self.pacing.need();
-        self.send(vec![Outbound::App(AppCall::NodeAction {
+        self.send_for_frame(vec![Outbound::App(AppCall::NodeAction {
             screen,
             request: request.into(),
         })]);
@@ -780,22 +613,31 @@ impl Runtime {
     }
 
     pub(super) fn run_action(&mut self, screen: ScreenId, id: String) {
-        self.pacing.need();
-        self.send(vec![Outbound::App(AppCall::RunAction { screen, id })]);
+        self.send_for_frame(vec![Outbound::App(AppCall::RunAction { screen, id })]);
         host::request_repaint();
     }
 
+    /// An app a driven host holds back counts as settled: the test holds it on purpose.
     fn busy(&mut self) -> Vec<&'static str> {
-        if self.error.is_some() || !self.instances.has_mounted() {
+        if self.error.is_some() || host::holds(&self.app.identity.id) {
             return Vec::new();
         }
         let starting = matches!(
-            self.session.state(),
+            self.run.session.state(),
             SessionState::Idle | SessionState::Starting
         );
+        // An app with nothing mounted is settled, unless it is starting for a view the host
+        // asked of it (a new block's tab, say): that view mounts once the app has started, which
+        // a stopped clock must not be taken for having settled before.
+        if !self.instances.has_mounted() {
+            return match starting && self.instances.has_views() {
+                true => vec!["is starting for a view the host asked of it"],
+                false => Vec::new(),
+            };
+        }
         [
             (starting, "is starting"),
-            (self.painting, "has yet to answer a paint"),
+            (self.run.painting, "has yet to answer a paint"),
             (self.drawing(), "is drawing a frame"),
             (
                 self.shows_undrawn_size(),
@@ -803,8 +645,12 @@ impl Runtime {
             ),
             (!self.backend.settled(), "has input or a step in flight"),
             (
-                !self.held.is_empty(),
+                !self.run.holds.is_empty(),
                 "has answers it sent mid-frame for the next frame to take in",
+            ),
+            (
+                !self.late.is_empty(),
+                "has a present held for the next frame to take in",
             ),
             (
                 self.instances.awaiting_content(),
@@ -817,7 +663,8 @@ impl Runtime {
     }
 
     fn shows_undrawn_size(&self) -> bool {
-        self.layout
+        self.run
+            .layout()
             .screens
             .iter()
             .filter(|placement| placement.view != ViewId::PREVIEW)
@@ -839,29 +686,32 @@ impl Runtime {
         let request = self.instances.request_of(screen)?;
         if request.fit {
             return self
-                .layout
+                .run
+                .layout()
                 .placement(screen)
                 .map(|placement| (placement.width, placement.height));
         }
         let metrics = &request.metrics;
-        Some(match self.layout.placement(screen) {
+        Some(match self.run.layout().placement(screen) {
             Some(placement) => super::input::requested_at(metrics, super::input::finer(placement)),
             None => (metrics.pixel_width, metrics.pixel_height),
         })
     }
 
     fn request_painting(&mut self) {
-        if self.error.is_some() || !self.instances.has_mounted() || !self.session.running() {
+        if self.error.is_some() || !self.instances.has_mounted() || !self.run.session.running() {
             return;
         }
-        self.painting = true;
+        self.run.painting = true;
         self.send(vec![Outbound::App(AppCall::Paintings)]);
     }
 
     fn painted(&mut self, payload: &[u8]) {
-        self.painting = false;
+        self.run.painting = false;
         let mut shared = self.shared.borrow_mut();
-        shared.paintings.clear();
+        // A kept frame's painting stays with it: the app no longer paints a view it left out.
+        let kept = &self.run.shown;
+        shared.paintings.retain(|screen, _| kept.keeps(*screen));
         shared.overflows.clear();
         let Ok(paintings) = beui::native::painting::ScreenPaintings::decode(payload) else {
             return;
@@ -878,37 +728,39 @@ impl Runtime {
         if self.error.is_some() || !self.instances.has_mounted() {
             return false;
         }
-        let drawing = self.session.granted_surface().is_some();
-        drawing && (self.pacing.needed || self.pacing.requested_at.is_some())
+        let drawing = self.run.session.granted_surface().is_some();
+        drawing && self.run.pacing.drawing()
     }
 
     fn request_frame(&mut self, held: bool) {
         if self.error.is_some() {
             return;
         }
-        let drawing = self.session.granted_surface().is_some();
+        let drawing = self.run.session.granted_surface().is_some();
         let seen = host::seen();
         let pass = host::pass();
-        self.pacing.need_if(seen && self.pacing.unseen);
-        let due = drawing && self.pacing.due(self.now(), pass);
-        self.awaiting_input = false;
-        if due && (held || self.pacing.asked_in == pass) {
-            host::request_repaint();
-        } else if due && self.backend.holds_input() {
-            self.awaiting_input = true;
-        } else if due {
-            self.pacing.request(self.now(), pass);
-            self.pacing.unseen = !seen;
-            self.send(vec![AppCall::Draw {
+        let ask = self.run.pacing.ask(pacing::Asking {
+            drawing,
+            seen,
+            now: self.now(),
+            pass,
+            held,
+            holds_input: self.backend.holds_input(),
+        });
+        self.awaiting_input = ask == pacing::Ask::AfterInput;
+        match ask {
+            pacing::Ask::Nothing | pacing::Ask::AfterInput => {}
+            pacing::Ask::Later => host::request_repaint(),
+            pacing::Ask::Draw => self.send(vec![AppCall::Draw {
                 now_micros: self.now().as_micros() as u64,
                 wall_micros: host::wall_clock().as_micros() as u64,
                 seen,
-            }]);
+            }]),
         }
-        if let Some(delay) = self.pacing.wake_after(self.now(), drawing) {
+        if let Some(delay) = self.run.pacing.wake_after(self.now(), drawing) {
             host::request_repaint_after(delay);
         }
-        if drawing && self.pacing.animating {
+        if drawing && self.run.pacing.animating() {
             host::note_animating();
         }
     }
@@ -922,7 +774,7 @@ impl Runtime {
     }
 
     fn contain<R: Default>(&mut self, act: impl FnOnce(&mut Self) -> R) -> R {
-        match be_host_base::panic_guard::contain(|| act(self)) {
+        match be_wasm_panic::contain(|| act(self)) {
             Ok(done) => done,
             Err(panic) => {
                 self.crashed(format!("be-host failed while running it: {panic}"));
@@ -948,7 +800,9 @@ impl Runtime {
             return;
         }
         self.error = Some(error);
-        let _ = be_host_base::panic_guard::contain(|| self.backend.shutdown());
+        self.held_frame = None;
+        self.late.clear();
+        let _ = be_wasm_panic::contain(|| self.backend.shutdown());
         self.instances.forget_fetches(None);
         previews::forget(&self.app.identity.id);
         heard_stop(&self.app.identity.id);
@@ -985,33 +839,43 @@ impl Runtime {
             return;
         }
         let now = self.milliseconds();
-        let before = self.session.state().clone();
+        let before = self.run.session.state().clone();
         let received = self.backend.receive();
-        if *self.session.state() == SessionState::Idle && self.backend.ready() {
-            self.session.start(now);
+        if *self.run.session.state() == SessionState::Idle && self.backend.ready() {
+            self.run.session.start(now);
+        }
+        // A load that never finishes stops the app rather than leave it starting for ever.
+        if *self.run.session.state() == SessionState::Idle
+            && let Some(loading) = self.backend.loading_for()
+        {
+            let timeout = be_sdk_app_host::session::LOAD_TIMEOUT;
+            if loading >= timeout {
+                return self.stopped(format!("its module did not load within {timeout:?}"));
+            }
+            host::request_repaint_after(timeout - loading);
         }
         let mut forwarded = Vec::with_capacity(received.len());
         for heard in received {
             match heard {
                 Heard::Hello(hello) => {
-                    let accepted = self.session.connect(&hello, self.preferences);
+                    let accepted = self.run.session.connect(&hello, self.run.preferences());
                     self.backend.accept(&accepted);
                 }
-                Heard::ShutDown => self.session.shut_down(),
-                Heard::Unanswered(error) => self.session.fail(SessionFailure::Protocol(error)),
+                Heard::ShutDown => self.run.session.shut_down(),
+                Heard::Unanswered(error) => self.run.session.fail(SessionFailure::Protocol(error)),
                 heard => forwarded.push(heard),
             }
         }
         self.deliver();
-        self.session.tick(now);
-        if *self.session.state() != before {
+        self.run.session.tick(now);
+        if *self.run.session.state() != before {
             mark(&self.app.identity.id);
             host::request_repaint();
         }
-        if let Some(deadline) = self.session.next_deadline() {
+        if let Some(deadline) = self.run.session.next_deadline() {
             host::request_repaint_after(Duration::from_millis(deadline.saturating_sub(now)));
         }
-        match self.session.state() {
+        match self.run.session.state() {
             SessionState::Idle | SessionState::Starting | SessionState::Running => {}
             SessionState::Failed(failure) => {
                 let error = format!("The app session stopped: {failure:?}");
@@ -1024,7 +888,7 @@ impl Runtime {
                 return;
             }
         }
-        self.hear(forwarded);
+        self.take_in(forwarded, host::presents_late() && !self.taking_in);
         let (count, longest) = self.backend.stepped();
         self.steps += count;
         if count > 0 {
@@ -1053,24 +917,90 @@ impl Runtime {
         for image in previews::take_withdrawn(&self.app.identity.id) {
             self.backend.withdraw(image);
         }
-        if let Some(mut frame) = self.backend.received_frame() {
-            let previewed = self.export_previews(&frame);
-            let mut changed = true;
-            if frame.composited() {
-                frame.set_damage(self.presents.damage_through(frame.presents()));
-                changed = frame_changed(frame.damage());
-                self.shared.borrow_mut().publish(&self.layout, Some(frame));
-                self.close_anchored();
-                self.frames += 1;
-                be_host_base::performance::record_group_count(
-                    PACING,
-                    &format!("{} frames", self.app.identity.id),
-                    self.frames,
-                );
+        self.show_presented(|runtime| runtime.backend.received_frame());
+    }
+
+    /// Hears what the app sent after what a late present held back, in the order it came.
+    /// Taken in `late` (`host::presents_late`, outside a poll), everything from the first
+    /// present on is held again, for the next poll to hear.
+    /// While a driven host holds the app back, nothing it sends is heard (`withheld`).
+    fn take_in(&mut self, received: Vec<Heard>, late: bool) {
+        if host::holds(&self.app.identity.id) {
+            self.withheld.extend(received);
+            return;
+        }
+        let mut forwarded = std::mem::take(&mut self.late);
+        forwarded.append(&mut self.withheld);
+        forwarded.extend(received);
+        if late
+            && let Some(first) = forwarded
+                .iter()
+                .position(|heard| matches!(heard, Heard::Presented(_)))
+        {
+            self.late = forwarded.split_off(first);
+            host::request_repaint();
+        }
+        self.hear(forwarded);
+    }
+
+    /// Shows the frame `take` gives (the worker's last presented), unless a late present is
+    /// held: its frame stays with the worker until the present is heard.
+    fn show_presented(&mut self, take: impl FnOnce(&mut Self) -> Option<Frame>) {
+        if self.late.is_empty()
+            && self.withheld.is_empty()
+            && !host::holds(&self.app.identity.id)
+            && let Some(frame) = take(self)
+        {
+            self.received(frame);
+        }
+    }
+
+    /// Shows a frame the app presented, unless it may paint what held children or docks go
+    /// with: shown before the poll applies them, its painting (a dock's bar showing the tab it
+    /// switched to) would sit a frame over the children it replaces. It is shown once they are
+    /// applied, in `hear`.
+    fn received(&mut self, frame: Frame) {
+        if self.waits_for_children(frame.presents()) {
+            self.held_frame = Some(frame);
+            host::request_repaint();
+            return;
+        }
+        self.held_frame = None;
+        self.show_frame(frame);
+    }
+
+    /// Whether the frame of present `sequence` comes after the layout of children still held.
+    fn waits_for_children(&self, sequence: u64) -> bool {
+        self.run.holds.waits_for_children(sequence)
+    }
+
+    fn show_frame(&mut self, mut frame: Frame) {
+        let previewed = self.export_previews(&frame);
+        let mut changed = true;
+        if frame.composited() {
+            let (damage, painted) = self.run.presents.damage_through(frame.presents());
+            frame.set_damage(damage);
+            self.shared.borrow_mut().paint(&painted);
+            changed = frame_changed(frame.damage());
+            let release = self.run.shown.frame_shown(self.run.presents.shown());
+            if release.kept {
+                self.release_kept();
             }
-            if previewed || changed {
-                mark(&self.app.identity.id);
-            }
+            self.shared.borrow_mut().publish(
+                self.run.layout(),
+                self.run.shown.kept_placements(),
+                Some(frame),
+            );
+            self.close_anchored(release.closed);
+            self.frames += 1;
+            be_host_base::performance::record_group_count(
+                PACING,
+                &format!("{} frames", self.app.identity.id),
+                self.frames,
+            );
+        }
+        if previewed || changed {
+            mark(&self.app.identity.id);
         }
     }
 
@@ -1079,7 +1009,7 @@ impl Runtime {
             .iter()
             .filter(|heard| matches!(heard, Heard::Presented(_)))
             .count() as u64;
-        self.presents_heard += presents;
+        self.run.holds.heard_presents(presents);
         let mut answers = Vec::with_capacity(forwarded.len());
         if self.taking_in {
             self.release_presented(&mut answers);
@@ -1088,52 +1018,68 @@ impl Runtime {
         for heard in forwarded {
             match heard {
                 Heard::LaidOut(commit) => {
-                    self.layouts_heard += 1;
-                    let (now, later) = self.split(*commit);
-                    answers.push(Answer::LaidOut(now));
-                    if let Some(later) = later {
-                        held = true;
-                        self.held.push(Answer::Laid(later));
-                    }
+                    let mut commit = *commit;
+                    self.instances.translate(&mut commit, true);
+                    let instances = &self.instances;
+                    held |= self
+                        .run
+                        .holds
+                        .heard_layout(&mut commit, |placements| instances.only_moves(placements));
+                    answers.push(Answer::LaidOut(commit));
                 }
-                heard @ (Heard::Paintings(_)
-                | Heard::Layout(_)
-                | Heard::FrameNeeded
-                | Heard::Presented(_)) => {
+                Heard::Presented(commit) => {
+                    if let Some(presented) = &commit.presented {
+                        self.run.holds.heard_painted(presented.sequence);
+                    }
+                    answers.push(Answer::Presented(commit));
+                }
+                heard @ (Heard::Paintings(_) | Heard::Layout(_) | Heard::FrameNeeded) => {
                     answers.push(Answer::from(heard));
                 }
-                heard if self.taking_in && self.held.is_empty() => {
+                heard if self.taking_in && self.run.holds.is_empty() => {
                     answers.push(Answer::from(heard));
                 }
                 heard => {
                     held = true;
-                    self.held.push(Answer::from(heard));
+                    self.run.holds.hold(Answer::from(heard));
                 }
             }
         }
         if self.taking_in {
             self.release_presented(&mut answers);
         }
-        if (held || presents > 0) && !self.held.is_empty() {
+        if (held || presents > 0) && !self.run.holds.is_empty() {
             host::request_repaint();
         }
         self.apply(answers);
+        if let Some(frame) = &self.held_frame
+            && !self.waits_for_children(frame.presents())
+            && let Some(frame) = self.held_frame.take()
+        {
+            self.show_frame(frame);
+        }
         self.answer();
     }
 
     /// Moves the held answers into `answers` in order, up to the first children still waiting on
     /// the frame they came with.
     fn release_presented(&mut self, answers: &mut Vec<Answer>) {
-        let waiting = self.held.iter().position(
-            |held| matches!(held, Answer::Laid(laid) if laid.presented_by > self.presents_heard),
+        answers.extend(
+            self.run
+                .holds
+                .release_presented()
+                .into_iter()
+                .map(|held| match held {
+                    Held::Laid(laid) => Answer::Laid(laid),
+                    Held::Answer(answer) => answer,
+                }),
         );
-        let rest = self.held.split_off(waiting.unwrap_or(self.held.len()));
-        answers.extend(std::mem::replace(&mut self.held, rest));
     }
 
     fn export_previews(&mut self, frame: &Frame) -> bool {
         let shown: Vec<ScreenPlacement> = self
-            .layout
+            .run
+            .layout()
             .screens
             .iter()
             .filter(|placement| placement.view == ViewId::PREVIEW)
@@ -1163,51 +1109,24 @@ impl Runtime {
     }
 
     /// Takes the app's screens. An anchored view they leave out stays, showing its last frame,
-    /// until the frame that closed it is drawn (`Closing`): what the view showed may have moved
+    /// until the frame that closed it is drawn (`Shown::place`): what the view showed may have moved
     /// into another of the app's surfaces (a dragged dock bar settling back into its band), which
     /// shows only with that frame, so it is never missing in between, as children come and go
     /// with the frame that fills their space. The app sends a layout ahead of the frame's commits.
     fn place(&mut self, layout: ScreenLayout) {
-        self.closing = None;
-        let closed: Vec<_> = self
-            .layout
-            .screens
-            .iter()
-            .filter(|placement| {
-                layout.placement(placement.screen).is_none()
-                    && self.instances.is_anchored_screen(placement.screen)
-            })
-            .cloned()
-            .collect();
-        if closed.is_empty() {
-            self.laid_out(layout);
-            return;
-        }
-        let mut shown = layout.clone();
-        shown.screens.extend(closed);
+        let instances = &self.instances;
+        let shown = self
+            .run
+            .place(layout, |screen| instances.is_anchored_screen(screen));
         self.laid_out(shown);
-        self.closing = Some(Closing {
-            presented_by: self.presents_applied + 1,
-            drawn_by: None,
-            layout,
-        });
     }
 
-    /// Lets the anchored views a layout closed go once the frame that follows it has been
-    /// presented and, where the host composites the app's surfaces, its pixels have arrived.
-    fn close_anchored(&mut self) {
-        let Some(closing) = &self.closing else {
-            return;
-        };
-        let presented = self.presents_applied >= closing.presented_by;
-        let drawn = closing
-            .drawn_by
-            .is_none_or(|sequence| self.presents.shown >= sequence);
-        if !presented || !drawn {
-            return;
-        }
-        if let Some(closing) = self.closing.take() {
-            self.laid_out(closing.layout);
+    /// Lets the anchored views a layout closed go (`Release::closed`), once the frame that
+    /// follows it has been presented and, where the host composites the app's surfaces, its
+    /// pixels have arrived.
+    fn close_anchored(&mut self, closed: Option<ScreenLayout>) {
+        if let Some(layout) = closed {
+            self.laid_out(layout);
             mark(&self.app.identity.id);
         }
     }
@@ -1227,94 +1146,54 @@ impl Runtime {
         self.backend
             .export(shown.iter().map(|placement| placement.surface).collect());
         self.instances.keep_anchored(&layout);
-        let surfaces: Vec<u32> = layout
-            .screens
-            .iter()
-            .map(|placement| placement.surface)
-            .collect();
-        presenter::keep(self.surface, &surfaces);
-        self.layout = layout;
+        let instances = &self.instances;
+        self.run.lay_out(layout, |placement| {
+            placement.view != ViewId::PREVIEW
+                && instances.view_request_of(placement.screen).is_some()
+        });
+        self.release_kept();
     }
 
-    fn offer_previews(&mut self, messages: &[Outbound]) {
-        for message in messages {
-            let Outbound::Editor(_, EditorCall::ChildStatuses(statuses)) = message else {
-                continue;
-            };
-            for status in statuses {
-                let ChildPreview::Image(image) = status.preview else {
-                    continue;
-                };
-                if let Some(picture) = previews::offer(&self.app.identity.id, image.image) {
-                    self.backend.offer(image.image, &picture);
-                }
-            }
-        }
+    /// Lets go of each kept frame whose view is gone or whose new frame has been drawn, and of
+    /// every texture neither the app's layout nor a kept frame holds.
+    fn release_kept(&mut self) {
+        let instances = &self.instances;
+        self.run
+            .shown
+            .release_kept(self.run.presents.shown(), |screen| {
+                instances.view_request_of(screen).is_some()
+            });
+        self.shared.borrow_mut().kept = self.run.shown.kept_placements();
+        presenter::keep(self.surface, &self.run.retained_surfaces());
     }
 
-    fn split(&self, commit: LayoutCommit) -> (LayoutCommit, Option<Laid>) {
-        let mut commit = commit;
-        self.instances.translate(&mut commit, true);
-        let (moving, coming) =
-            std::mem::take(&mut commit.children)
-                .into_iter()
-                .partition(|placements| {
-                    !self.held.iter().any(|held| {
-                    matches!(held, Answer::Laid(laid) if laid.children.iter().any(|earlier| {
-                        (earlier.instance, earlier.view) == (placements.instance, placements.view)
-                    }))
-                }) && self.instances.only_moves(placements)
-                });
-        commit.children = moving;
-        let mut later = Laid {
-            serial: commit.serial,
-            presented_by: self.layouts_heard,
-            sizes: Vec::new(),
-            windows: std::mem::take(&mut commit.windows),
-            children: coming,
-            docks: Vec::new(),
-        };
-        let waiting = self.held.iter().any(|held| matches!(held, Answer::Laid(_)));
-        if waiting || !later.is_empty() {
-            later.docks = std::mem::take(&mut commit.docks);
-        }
-        (commit, (!later.is_empty()).then_some(later))
+    /// The placement a screen is drawn from: its kept last frame while it has one, else the
+    /// app's layout's.
+    fn shown_placement(&self, screen: ScreenId) -> Option<&ScreenPlacement> {
+        self.run.placement(screen)
     }
 
     fn held_screens(&self) -> be_lib_stable_hash::HashSet<ScreenId> {
-        self.held
-            .iter()
-            .filter_map(|held| match held {
-                Answer::Laid(laid) => Some(laid.screens(&self.instances)),
-                Answer::Layout(_)
-                | Answer::FrameNeeded
-                | Answer::MissingCharacters(_)
-                | Answer::Shell(_)
-                | Answer::Editor(..)
-                | Answer::Paintings(_)
-                | Answer::Blocks(..)
-                | Answer::Watch(..)
-                | Answer::Unwatch(..)
-                | Answer::Published(..)
-                | Answer::Debug(..)
-                | Answer::Ended(_)
-                | Answer::Service(_)
-                | Answer::Network(..)
-                | Answer::Withdrawn(_)
-                | Answer::LaidOut(_)
-                | Answer::Presented(_) => None,
-            })
-            .flatten()
+        self.run
+            .holds
+            .laid()
+            .flat_map(|laid| self.laid_screens(laid))
             .collect()
     }
 
+    fn laid_screens(&self, laid: &Laid) -> be_lib_stable_hash::HashSet<ScreenId> {
+        laid.screens(|instance, view| self.instances.screen_id(instance, view))
+    }
+
     fn lay(&mut self, laid: Laid) -> bool {
-        let screens = laid.screens(&self.instances);
+        let screens = self.laid_screens(&laid);
         let mut changed = self.instances.set_view_sizes(laid.sizes);
         changed |= self.instances.set_windows(laid.windows);
+        let asking = laid.children.clone();
         for placements in laid.children {
             changed |= self.instances.set_children(placements);
         }
+        self.instances.hear_keyboard_asks(&asking);
         self.instances.laid(laid.serial, &screens);
         changed |= self.report_docked();
         changed |= super::docks::heard(&self.app.identity.id, laid.docks);
@@ -1357,7 +1236,7 @@ impl Runtime {
                     true
                 }
                 Answer::FrameNeeded => {
-                    self.pacing.need();
+                    self.run.pacing.need();
                     true
                 }
                 Answer::MissingCharacters(missing) => {
@@ -1468,24 +1347,31 @@ impl Runtime {
             presented,
             input_waiting,
         } = presented;
-        self.pacing.animating = animating;
-        self.pacing.painting = false;
-        self.await_next_frame(repaint_after_micros, input_waiting);
-        self.presents_applied += 1;
-        if let Some(closing) = &mut self.closing
-            && self.presents_applied == closing.presented_by
-        {
-            closing.drawn_by = presented
-                .as_ref()
-                .filter(|_| cfg!(not(target_arch = "wasm32")))
-                .map(|presented| presented.sequence);
+        let delay = repaint_after_micros.map(Duration::from_micros);
+        self.run
+            .pacing
+            .presented(self.now(), animating, delay, input_waiting);
+        if let Some(delay) = delay {
+            host::request_repaint_after(delay);
         }
+        let release = self.run.shown.presented(
+            presented.as_ref().map(|presented| presented.sequence),
+            self.run.presents.shown(),
+        );
         if let Some(presented) = presented {
-            self.presents.report(presented);
+            // The browser's worker shows a present on its canvases as it makes it, so what each
+            // surface holds changes now; natively it changes as the frame is shown (`show_frame`).
+            #[cfg(target_arch = "wasm32")]
+            self.shared.borrow_mut().paint(&presented.painted);
+            self.run.presents.report(presented);
         }
-        self.close_anchored();
+        self.close_anchored(release.closed);
+        if release.kept {
+            self.release_kept();
+        }
         self.drawn = self
-            .layout
+            .run
+            .layout()
             .screens
             .iter()
             .map(|placement| (placement.screen, (placement.width, placement.height)))
@@ -1503,53 +1389,56 @@ impl Runtime {
             window_requests,
             docks,
         } = commit;
-        self.pacing.painting = self.pacing.requested_at.is_some();
+        self.run.pacing.laid_out();
         for request in &window_requests {
             if let WindowRequest::Open(open) = request {
-                self.instances.adopt_window(open, &self.layout);
+                self.instances.adopt_window(open, self.run.layout());
             }
         }
         super::request_windows(&self.app.identity.id, window_requests);
-        self.instances.adopt_anchored(&reports, &self.layout);
-        let committed = self.instances.committed(&reports, &children);
+        self.instances.adopt_anchored(&reports, self.run.layout());
         let held = self.held_screens();
         let mut changed = self.instances.confirm(serial, &held);
         changed |= self.instances.set_frame_reports(reports);
-        changed |= self.lay(Laid {
-            serial,
-            presented_by: 0,
-            sizes,
-            windows,
-            children,
-            docks: Vec::new(),
-        });
+        changed |= self.lay(Laid::now(serial, sizes, windows, children));
         changed |= self.instances.refresh_anchoring_views();
         changed |= super::docks::heard(&self.app.identity.id, docks);
-        self.instances.settle_gifts(&committed);
         changed
     }
 
-    fn await_next_frame(&mut self, repaint_after_micros: Option<u64>, input_waiting: bool) {
-        let delay = repaint_after_micros.map(Duration::from_micros);
-        self.pacing.ready(self.now(), delay, input_waiting);
-        if let Some(delay) = delay {
-            host::request_repaint_after(delay);
-        }
-    }
-
+    /// Sends the app `messages` without asking it for a frame for them (`send_for_frame` does).
     fn send<T: Into<Outbound>>(&mut self, messages: Vec<T>) {
         if messages.is_empty() || self.error.is_some() {
             return;
         }
-        let messages: Vec<Outbound> = messages.into_iter().map(Into::into).collect();
-        self.offer_previews(&messages);
-        let mut messages = self.instances.hold_unreported(messages);
-        for message in &mut messages {
-            self.instances.translate_pastes(message);
-            self.instances.translate(message, false);
-        }
-        self.queued.extend(self.instances.gate(messages));
-        self.deliver();
+        let messages = ready(
+            &self.app.identity.id,
+            &mut self.instances,
+            &mut self.backend,
+            messages.into_iter().map(Into::into).collect(),
+        );
+        let sending = self.run.queue(messages);
+        self.backend_send(sending);
+    }
+
+    /// Sends the app `messages` it answers with a frame, asking it for one if there are any
+    /// (`Run::send_for_frame`).
+    fn send_for_frame<T: Into<Outbound>>(&mut self, messages: Vec<T>) {
+        let Self {
+            app,
+            instances,
+            backend,
+            run,
+            error,
+            ..
+        } = self;
+        let messages = messages.into_iter().map(Into::into).collect();
+        let sending = run.send_for_frame(messages, |messages| {
+            error
+                .is_none()
+                .then(|| ready(&app.identity.id, instances, backend, messages))
+        });
+        self.backend_send(sending);
     }
 
     fn release_reported(&mut self) {
@@ -1558,12 +1447,13 @@ impl Runtime {
     }
 
     fn deliver(&mut self) {
-        if !self.session.running() {
-            return;
-        }
-        let queued = std::mem::take(&mut self.queued);
-        if !queued.is_empty() {
-            self.backend.send(queued);
+        let sending = self.run.deliverable();
+        self.backend_send(sending);
+    }
+
+    fn backend_send(&mut self, sending: Vec<Outbound>) {
+        if !sending.is_empty() {
+            self.backend.send(sending);
         }
     }
 
@@ -1573,11 +1463,16 @@ impl Runtime {
         if !presented {
             return;
         }
-        self.shared.borrow_mut().publish(&self.layout, None);
+        self.shared
+            .borrow_mut()
+            .publish(self.run.layout(), self.run.shown.kept_placements(), None);
     }
 
-    fn template(&self, screen: ScreenId, drawn: Option<(u32, u32)>) -> Blit {
-        let placement = self.layout.placement(screen);
+    fn template(&self, screen: ScreenId) -> Blit {
+        let placement = self.shown_placement(screen);
+        let zoom = placement
+            .and_then(|placement| self.placements.get(&(placement.instance, placement.view)))
+            .map_or(1.0, |placed| placed.zoom);
         Blit {
             surface: self.surface,
             status: self.status.clone(),
@@ -1585,8 +1480,8 @@ impl Runtime {
             screen,
             quad: Quad::upright(Rect::ZERO),
             source: UNIT,
-            drawn,
-            requested: self.requested_size(screen),
+            zoom,
+            picture: placement.is_some_and(|placement| placement.view == ViewId::PREVIEW),
             placed: placement
                 .map(|placement| [placement.surface, placement.width, placement.height]),
             layer: None,
@@ -1606,37 +1501,51 @@ impl Runtime {
 
 #[cfg(target_arch = "wasm32")]
 pub fn place_screens(
-    blits: &[Blit],
+    blits: &[(u64, Blit)],
     viewport: beui::Vec2,
     pixels_per_point: f32,
     scale: f32,
     background: beui::color::Color32,
 ) {
     super::web::set_background(background);
-    let mut layers = super::web::overlays(blits, viewport, pixels_per_point, scale);
-    let mut placed = HashMap::<u32, Vec<super::web::Placement>>::default();
-    let lifted = super::presenter::lifted(
-        blits
-            .iter()
-            .map(|blit| (blit.quad.rect, blit.layer.is_some())),
-    );
-    for (order, (blit, above)) in blits.iter().zip(lifted).enumerate() {
-        if let Some(placement) = super::web::placement(blit, order, above, scale) {
-            placed.entry(blit.surface).or_default().push(placement);
-        }
-    }
+    let frame = super::layers::frame(blits, viewport);
+    let mut layers = super::web::overlays(&frame, viewport, pixels_per_point, scale);
+    let mut placed = super::web::placements(&frame, scale);
     HOST.with(|host| {
         for runtime in host.borrow_mut().runtimes.values_mut() {
-            let placements = placed.remove(&runtime.surface).unwrap_or_default();
+            let slot = u64::from(runtime.surface);
+            let placements = placed.remove(&slot).unwrap_or_default();
+            let retained = runtime.run.retained_surfaces();
             runtime
                 .backend
-                .place(placements, layers.remove(&runtime.surface));
+                .place(placements, layers.remove(&slot), &retained);
         }
     });
 }
 
-pub fn install(setup: &beui::native::Setup) {
-    let availability = presenter::install(setup);
+pub fn install(setup: &beui::native::Setup, audio: super::AudioOutput) {
+    super::audio::set_output(audio);
+    install_with(presenter::install(setup));
+}
+
+/// Installs the runtime with no beui setup: no presenter and no gpu, so an app that asks for
+/// the device is told there is none (guides/apps/runtime.md, "Headless"; `Headless`), and no
+/// audio output, so an app that plays is told there is none.
+pub fn install_headless() {
+    HEADLESS.store(true, std::sync::atomic::Ordering::Relaxed);
+    install_with(Availability(Ok(())));
+}
+
+static HEADLESS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether the runtime was installed headless (`install_headless`), where it runs only host
+/// components, so only the apps that have one are ever staged to run.
+#[cfg(not(target_arch = "wasm32"))]
+pub(super) fn headless() -> bool {
+    HEADLESS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+fn install_with(availability: Availability) {
     super::backend::hand_over_device();
     HOST.with(|host| {
         let mut host = host.borrow_mut();
@@ -1657,13 +1566,14 @@ pub fn exiting() {
     });
     super::backend::discard_prepared();
     for (_, mut runtime) in runtimes {
+        runtime.instances.close_all();
         runtime.stop();
     }
     presenter::stop();
 }
 
 pub fn replace_gpu(setup: &beui::native::Setup) {
-    install(setup);
+    install_with(presenter::install(setup));
     HOST.with(|host| {
         for runtime in host.borrow_mut().runtimes.values_mut() {
             runtime.restart();
@@ -1721,10 +1631,9 @@ pub fn report_children(
             .instances
             .set_child_statuses(instance, region, statuses);
         if !messages.is_empty() {
-            runtime.pacing.need();
             host::request_repaint();
         }
-        runtime.send(messages);
+        runtime.send_for_frame(messages);
     });
 }
 
@@ -1739,151 +1648,25 @@ pub fn card(app_id: &str, instance: EditorInstanceId) -> bool {
 /// The instance's view gives the keyboard it has to `child`, which fills the view.
 pub fn pass_child_focus(app_id: &str, instance: EditorInstanceId, child: be_sdk_api::ChildId) {
     if with(app_id, |runtime| {
-        runtime
-            .instances
-            .ask_gift(instance, crate::instances::gift::GiftTo::Child(child))
+        runtime.instances.ask_keyboard(instance, child)
     })
-    .is_some()
+    .unwrap_or(false)
     {
         mark(app_id);
     }
 }
 
-/// The child `child`'s view `view` takes the keyboard the instance gives it (it heard
-/// `InstanceEvent::KeyboardGift`), already having it (`focused`) or being given it now. Answers
-/// whether the instance still gives it.
-pub fn take_gift(
-    (app_id, instance): (&str, EditorInstanceId),
-    child: be_sdk_api::ChildId,
-    view: GiftView,
-    focused: bool,
-) -> bool {
-    let asked = frames_answered(&view.0).0;
-    with(app_id, |runtime| {
-        runtime.error.is_none()
-            && runtime
-                .instances
-                .take_gift(instance, child, view, focused, (asked, host::pass()))
-    })
-    .unwrap_or(false)
-}
-
-/// Ends the keyboard the instance gives, dropping the keys held for it: the keyboard is elsewhere.
-pub fn end_gift(app_id: &str, instance: EditorInstanceId) {
-    with(app_id, |runtime| {
-        runtime
-            .instances
-            .end_gift(instance, crate::instances::gift::Keys::Drop);
-    });
-}
-
-/// The child `child` the instance gives the keyboard to is up: its view is built and its app
-/// running. The gift is counted from now and ends if the view does not take it in time.
-pub fn child_up_for_gift((app_id, instance): (&str, EditorInstanceId), child: be_sdk_api::ChildId) {
-    with(app_id, |runtime| {
-        runtime
-            .instances
-            .start_gift_count(instance, child, host::now());
-    });
-}
-
-/// The app of the child `child` the instance gives the keyboard to failed to start: the gift
-/// ends, and the keys held go back to the editor's view if it still has the keyboard.
-pub fn child_failed_for_gift(
-    (app_id, instance): (&str, EditorInstanceId),
-    child: be_sdk_api::ChildId,
-) {
-    with(app_id, |runtime| {
-        if runtime.instances.gives_to(instance, child) {
-            runtime.instances.end_gift(instance, Keys::Return);
-        }
-    });
-}
-
-/// The view `view` forwarded a press to its app while `asked` frames had been asked of it: keys
-/// typed into it wait for the frame that answers it, which may give the keyboard to a child.
-pub fn sent_press(view: &GiftView, asked: u64) {
-    with(&view.0, |runtime| {
-        runtime.instances.sent_press(view.1, view.clone(), asked);
-    });
-}
-
-/// Routes the keys of input forwarded to `view`, whose app stands at `app`: they are held while
-/// its editor's gift of the keyboard is pending, and keys owed to it come first, as the editor
-/// that placed it (`placer`) gave it the keyboard or as its own gift gave them back.
-pub fn route_keys(
-    view: &GiftView,
-    placer: Option<(&str, EditorInstanceId)>,
-    app: KeyProgress,
-    input: &mut beui::ForwardedInput,
-) {
-    let pass = host::pass();
-    with(&view.0, |runtime| {
-        if runtime.error.is_some() {
-            runtime.instances.end_gift(view.1, Keys::Return);
-        }
-        runtime.instances.hold_keys(view.1, view, app, input, pass);
-    });
-    if let Some((placer, instance)) = placer {
-        with(placer, |runtime| {
-            runtime.instances.owe_keys(instance, view, app, input, pass);
-        });
+/// Where the instance's content moved when its view `from` goes: for its main view, the dock tab
+/// view that holds it, as a joined editor's content moves there once its dock is hosted. Content
+/// moves only that way; a dock tab view that goes leaves nothing to the main view.
+pub fn content_moved(app_id: &str, instance: EditorInstanceId, from: ViewId) -> Option<ViewId> {
+    if from != ViewId::MAIN {
+        return None;
     }
-}
-
-/// Settles what `view` holds and is owed after its app moved on, `focused` saying whether it has
-/// the keyboard. Answers the modifiers to forward it an empty input with, to carry what it can
-/// take now (`route_keys`).
-pub fn settle_keys(
-    view: &GiftView,
-    placer: Option<(&str, EditorInstanceId)>,
-    app: KeyProgress,
-    focused: bool,
-) -> Option<Modifiers> {
-    let pass = host::pass();
-    let own = with(&view.0, |runtime| {
-        if runtime.error.is_some() {
-            runtime.instances.end_gift(view.1, Keys::Return);
-        }
-        runtime
-            .instances
-            .settle_own_keys(view.1, view, app, focused, pass)
-    })
-    .flatten();
-    let owed = placer.and_then(|(placer, instance)| {
-        with(placer, |runtime| {
-            runtime
-                .instances
-                .settle_owed_keys(instance, view, app, focused, pass)
-        })
-        .flatten()
-    });
-    own.or(owed)
-}
-
-/// The view `view` is gone: what it held and was owed goes with it.
-pub fn forget_keys(view: &GiftView, placer: Option<(&str, EditorInstanceId)>) {
-    with(&view.0, |runtime| runtime.instances.forget_keys(view));
-    if let Some((placer, _)) = placer {
-        with(placer, |runtime| runtime.instances.forget_keys(view));
-    }
-}
-
-/// Whether the instance's block content, if it edits one, has reached it.
-pub fn content_delivered(app_id: &str, instance: EditorInstanceId) -> bool {
     with(app_id, |runtime| {
-        runtime.instances.content_delivered(instance)
+        runtime.instances.content_view_besides(instance, Some(from))
     })
-    .unwrap_or(true)
-}
-
-/// The frames asked of the app and the frames it answered: input sent while `asked` was `n`
-/// has been drawn once `answered` exceeds `n`.
-pub fn frames_answered(app_id: &str) -> (u64, u64) {
-    with(app_id, |runtime| {
-        (runtime.pacing.asked, runtime.pacing.answered)
-    })
-    .unwrap_or_default()
+    .flatten()
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1948,6 +1731,26 @@ pub fn creation(slot: CreationSlot<'_>) -> CreationState {
     })
 }
 
+/// Starts a host component (the manifest's `hosts`, guides/apps/host_services.md, "Host
+/// components") on `block`: an instance with no view, which opens once its app is up and runs
+/// until `close`.
+pub fn host(
+    app: &AppManifest,
+    block_types: &Arc<crate::AppCatalog>,
+    client_id: Uuid,
+    instance: EditorInstanceId,
+    host: Uuid,
+    block: crate::EditorBlock,
+) -> CreationState {
+    creation(CreationSlot {
+        app,
+        block_types,
+        client_id,
+        instance,
+        role: InstanceRole::Host(host, block),
+    })
+}
+
 pub fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
     let ArtifactSlot {
         app,
@@ -1957,6 +1760,7 @@ pub fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
         editor,
         block,
         source,
+        exporter,
         data,
         resync,
     } = slot;
@@ -1977,6 +1781,7 @@ pub fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
                 editor,
                 block,
                 source,
+                exporter,
                 data,
                 resync,
             );
@@ -1995,10 +1800,81 @@ pub fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
     })
 }
 
+thread_local! {
+    /// What the shell last said of its phone layout, which every frame spec carries.
+    static PHONE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// Asks to set it, heard while an app's runtime is busy, taken at the next `poll`.
+    static PHONE_ASKED: RefCell<Vec<(String, EditorInstanceId, bool)>> =
+        const { RefCell::new(Vec::new()) };
+}
+
+/// An app says it lays out as on a phone (`set-phone-layout`); only the shell is heard.
+pub(crate) fn ask_phone_layout(app_id: &str, instance: EditorInstanceId, on: bool) {
+    PHONE_ASKED.with_borrow_mut(|asked| asked.push((app_id.to_owned(), instance, on)));
+    host::request_repaint();
+}
+
+fn take_phone_asks(host: &mut Host) {
+    let asked = PHONE_ASKED.with_borrow_mut(std::mem::take);
+    let shell = host.shell.clone();
+    let mut changed = false;
+    for (app_id, instance, on) in asked {
+        if shell.as_ref() == Some(&(app_id, instance)) && PHONE.replace(on) != on {
+            changed = true;
+        }
+    }
+    if changed {
+        place_every_offer(host);
+    }
+}
+
+/// Places every view again, so each frame spec carries the phone layout as it now is.
+fn place_every_offer(host: &mut Host) {
+    for (app_id, runtime) in &mut host.runtimes {
+        let placed: Vec<(EditorInstanceId, ViewId)> = runtime.offers.keys().copied().collect();
+        for (instance, region) in placed {
+            apply_offers(runtime, instance, region);
+        }
+        mark(app_id);
+    }
+}
+
+/// With a driven host's clock stopped, waits until every app's steps on what the host sent
+/// it have finished, up to `STOPPED_CLOCK_FRAME_BUDGET`, so what the poll takes in, and so
+/// which frame shows it, does not depend on how fast an app's thread ran (guides/apps/runtime.md,
+/// Frames and pacing). Logs the apps it waited on when it gives up.
+fn finish_steps(runtimes: &mut HashMap<String, Runtime>) {
+    let deadline = Deadline::at(Instant::now() + pacing::STOPPED_CLOCK_FRAME_BUDGET);
+    loop {
+        let rung = be_wasm_guest_host::bell::rung();
+        let mut stepping = Vec::new();
+        for (app_id, runtime) in runtimes.iter_mut() {
+            if runtime.error.is_none() && !runtime.backend.steps_finished() {
+                stepping.push(app_id.as_str());
+            }
+        }
+        if stepping.is_empty() {
+            return;
+        }
+        if !be_wasm_guest_host::bell::wait(rung, deadline) {
+            eprintln!(
+                "be-host: a stopped clock's poll went on after {} s with apps still stepping: {}",
+                pacing::STOPPED_CLOCK_FRAME_BUDGET.as_secs(),
+                stepping.join(", ")
+            );
+            return;
+        }
+    }
+}
+
 pub fn poll() {
     let pass = host::pass();
     HOST.with(|host| {
         let mut host = host.borrow_mut();
+        if host::clock_stopped() {
+            finish_steps(&mut host.runtimes);
+        }
+        take_phone_asks(&mut host);
         for runtime in host.runtimes.values_mut() {
             runtime.contain(|runtime| {
                 if std::mem::take(&mut runtime.restart_asked) {
@@ -2036,11 +1912,11 @@ pub fn settle() -> bool {
     let pass = host::pass();
     HOST.with(|host| {
         let mut host = host.borrow_mut();
-        let deadline = match host.deadline {
-            Some((at, deadline)) if at == pass => deadline,
-            _ => host.frame_deadline(),
-        };
-        host.deadline = Some((pass, deadline));
+        let host = &mut *host;
+        let origin = host.origin;
+        let deadline = host
+            .clock
+            .deadline(pass, host::clock_stopped(), origin.elapsed());
         let asked: Vec<String> = host
             .runtimes
             .iter_mut()
@@ -2051,33 +1927,14 @@ pub fn settle() -> bool {
                     .then(|| id.clone())
             })
             .collect();
-        host.request_frames(&asked);
-        let started = std::time::Instant::now();
-        let (relaid, over) = wait_on(&mut host, &asked, deadline);
-        host.waited += started.elapsed();
-        host.over_budget += u64::from(over);
-        host.settled_at = Some(Instant::now());
-        relaid
+        request_frames(&mut host.runtimes, &asked);
+        let mut asked = Asked {
+            runtimes: &mut host.runtimes,
+            asked: &asked,
+            origin,
+        };
+        host.clock.settle(&mut asked, deadline)
     })
-}
-
-fn frame_wait(
-    now: Duration,
-    present: Option<(Duration, Duration)>,
-    composites: &VecDeque<Duration>,
-) -> Duration {
-    let composite = composites
-        .iter()
-        .max()
-        .copied()
-        .unwrap_or(UNMEASURED_COMPOSITE)
-        + SUBMIT_MARGIN;
-    let (mut present, interval) = present.unwrap_or((now + UNKNOWN_REFRESH, UNKNOWN_REFRESH));
-    let interval = interval.max(Duration::from_millis(1));
-    while present < now + composite {
-        present += interval;
-    }
-    present - composite - now
 }
 
 pub fn begin_frame(
@@ -2087,45 +1944,11 @@ pub fn begin_frame(
 ) {
     HOST.with(|host| {
         let mut host = host.borrow_mut();
-        if let (Some(settled), Some(prepared)) = (host.settled_at.take(), prepared)
-            && prepared > settled
-        {
-            if host.composites.len() == REMEMBERED_COMPOSITES {
-                host.composites.pop_front();
-            }
-            host.composites.push_back(prepared - settled);
-        }
-        host.present = next_present.map(|at| (at, refresh.unwrap_or(UNKNOWN_REFRESH)));
+        let origin = host.origin;
+        let since = |at: Instant| at.saturating_duration_since(origin);
+        host.clock
+            .begin_frame(next_present.map(since), refresh, prepared.map(since));
     });
-}
-
-fn wait_on(host: &mut Host, asked: &[String], deadline: Deadline) -> (bool, bool) {
-    loop {
-        let rung = be_wasm_guest_host::bell::rung();
-        let mut relaid = false;
-        let mut outstanding = false;
-        for id in asked {
-            if let Some(runtime) = host.runtimes.get_mut(id) {
-                runtime.contain(Runtime::pump);
-                relaid |= runtime.take_relaid();
-            }
-        }
-        if relaid {
-            return (true, false);
-        }
-        host.request_frames(asked);
-        for id in asked {
-            if let Some(runtime) = host.runtimes.get(id) {
-                outstanding |= runtime.outstanding();
-            }
-        }
-        if !outstanding {
-            return (false, false);
-        }
-        if !be_wasm_guest_host::bell::wait(rung, deadline) {
-            return (false, true);
-        }
-    }
 }
 
 pub fn busy() -> Vec<String> {
@@ -2179,16 +2002,13 @@ pub fn start_frames(laying_out: bool) {
             })
             .collect();
         if !laying_out {
-            host.request_frames(&started);
+            request_frames(&mut host.runtimes, &started);
         }
     });
 }
 
 pub fn record_pacing() {
-    let (waited, over_budget) = HOST.with(|host| {
-        let mut host = host.borrow_mut();
-        (std::mem::take(&mut host.waited), host.over_budget)
-    });
+    let (waited, over_budget) = HOST.with(|host| host.borrow_mut().clock.take_waited());
     be_host_base::performance::record_group_duration(PACING, "Waiting on apps", waited);
     be_host_base::performance::record_group_count(PACING, "Frames over budget", over_budget);
 }
@@ -2211,7 +2031,7 @@ pub fn set_focus(block: Option<(Uuid, Uuid)>, editor: Option<Uuid>, via: Vec<Uui
         host.focus = focus.clone();
         for runtime in host.runtimes.values_mut() {
             if runtime.instances.set_focus(focus.clone()) {
-                runtime.pacing.need();
+                runtime.run.pacing.need();
             }
         }
     });
@@ -2225,7 +2045,7 @@ impl be_host_base::watches::WatchHost for Watches {
             let mut host = host.borrow_mut();
             for (app_id, runtime) in &mut host.runtimes {
                 if runtime.instances.publish(open, Arc::clone(&value)) {
-                    runtime.pacing.need();
+                    runtime.run.pacing.need();
                     mark(app_id);
                     host::request_repaint();
                 }
@@ -2262,13 +2082,17 @@ pub fn set_shell(shell: Option<(&str, EditorInstanceId)>) {
             return;
         }
         host.shell = shell.clone();
+        // A new shell says again how it lays out; until it does, frames lay out as on a desktop.
+        if PHONE.replace(false) {
+            place_every_offer(&mut host);
+        }
         for (app_id, runtime) in &mut host.runtimes {
             let instance = shell
                 .as_ref()
                 .filter(|(shell, _)| shell == app_id)
                 .map(|(_, instance)| *instance);
             if runtime.instances.set_shell(instance) {
-                runtime.pacing.need();
+                runtime.run.pacing.need();
                 mark(app_id);
                 host::request_repaint();
             }
@@ -2380,8 +2204,17 @@ pub fn close(app_id: &str, instance: EditorInstanceId) {
         if let Some(messages) = messages {
             runtime.send(messages);
         }
+        runtime.release_kept();
     });
     mark(app_id);
+}
+
+/// Why the artifact instance could not make its artifact again as its source last changed.
+pub fn artifact_failure(app_id: &str, instance: EditorInstanceId) -> Option<String> {
+    with(app_id, |runtime| {
+        runtime.instances.artifact_failure(instance)
+    })
+    .flatten()
 }
 
 pub fn artifact_draft(app_id: &str, instance: EditorInstanceId) -> Option<Vec<u8>> {
@@ -2459,6 +2292,13 @@ pub fn frame_rects(app_id: &str, instance: EditorInstanceId, view: ViewId) -> Op
     .flatten()
 }
 
+/// For a docked instance: the app and instance placing it, and its child id there.
+pub fn docked_placer(
+    instance: EditorInstanceId,
+) -> Option<(String, EditorInstanceId, be_sdk_api::ChildId)> {
+    crate::docks::placed_by(instance)
+}
+
 pub fn content_view(app_id: &str, instance: EditorInstanceId) -> ViewId {
     with(app_id, |runtime| runtime.instances.content_view(instance)).unwrap_or(ViewId::MAIN)
 }
@@ -2479,7 +2319,7 @@ pub fn present(app_id: &str, instance: EditorInstanceId, presenting: bool) {
 pub fn set_presented(app_id: &str, instance: EditorInstanceId, presented: bool) {
     with(app_id, |runtime| {
         if runtime.instances.set_presented(instance, presented) {
-            runtime.pacing.need();
+            runtime.run.pacing.need();
             mark(app_id);
             host::request_repaint();
         }
@@ -2511,20 +2351,6 @@ pub fn render_clip(
     .flatten()
 }
 
-pub fn replace_child(
-    app_id: &str,
-    instance: EditorInstanceId,
-    old: Uuid,
-    new: Uuid,
-) -> Option<bool> {
-    with(app_id, |runtime| {
-        let (messages, replaced) = runtime.instances.replace_child(instance, old, new);
-        runtime.send(messages);
-        replaced
-    })
-    .flatten()
-}
-
 pub fn resized(app_id: &str, instance: EditorInstanceId, size: Vec2) {
     with(app_id, |runtime| {
         let messages = runtime.instances.resized(instance, size);
@@ -2538,6 +2364,15 @@ pub fn assigned_size(app_id: &str, instance: EditorInstanceId) -> Option<Vec2> {
 
 pub fn intrinsic_size(app_id: &str, instance: EditorInstanceId) -> Option<Vec2> {
     with(app_id, |runtime| runtime.instances.intrinsic_size(instance)).flatten()
+}
+
+/// Whether the instance has reported a frame of any of its views: by then it has told its
+/// intrinsic size if it has one, as an editor tells it with its first frame.
+pub fn reported_a_frame(app_id: &str, instance: EditorInstanceId) -> bool {
+    with(app_id, |runtime| {
+        runtime.instances.reported_a_frame(instance)
+    })
+    .unwrap_or(false)
 }
 
 pub fn warm(app: &AppManifest) {
@@ -2571,6 +2406,38 @@ pub fn in_use() -> Vec<String> {
     })
 }
 
+/// What hosted blocks need of the runtime (guides/blocks/hosted.md, "Hosting"): each block an
+/// editor shows, with its type, and each host component running, by its app, instance and
+/// block.
+pub fn editing_and_hosting() -> (Vec<EditorBlock>, Vec<(String, EditorInstanceId, Uuid)>) {
+    HOST.with(|host| {
+        let host = host.borrow();
+        let mut editing = Vec::new();
+        let mut hosting = Vec::new();
+        for (app_id, runtime) in &host.runtimes {
+            for (instance, role) in runtime.instances.roles() {
+                match role {
+                    InstanceRole::Editor(_, block) => editing.push(block),
+                    InstanceRole::Host(_, block) => {
+                        hosting.push((app_id.clone(), instance, block.id));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        (editing, hosting)
+    })
+}
+
+/// The ids of the running apps, sorted: `running` without a status built for each.
+pub fn app_ids() -> Vec<String> {
+    HOST.with(|host| {
+        let mut ids: Vec<_> = host.borrow().runtimes.keys().cloned().collect();
+        ids.sort();
+        ids
+    })
+}
+
 pub fn running() -> Vec<RuntimeStatus> {
     HOST.with(|host| {
         let host = host.borrow();
@@ -2584,17 +2451,20 @@ pub fn running() -> Vec<RuntimeStatus> {
                     index: runtime.surface,
                     serial: runtime.instances.serial(),
                     pixels: runtime
-                        .layout
+                        .run
+                        .layout()
                         .screens
                         .iter()
                         .map(|placement| u64::from(placement.width) * u64::from(placement.height))
                         .sum(),
-                    placements: runtime.layout.screens.len(),
+                    placements: runtime.run.layout().screens.len(),
                 },
                 steps: runtime.steps,
                 frames: runtime.frames,
                 uptime: runtime.backend.uptime(),
-                instances: runtime.instances.statuses(&runtime.layout, runtime.pass),
+                instances: runtime
+                    .instances
+                    .statuses(runtime.run.layout(), runtime.pass),
             })
             .collect();
         running.sort_by(|left, right| left.app_id.cmp(&right.app_id));
@@ -2654,25 +2524,6 @@ struct Placer {
     view: ViewId,
 }
 
-fn reaches(edges: &[(&str, &str)], from: &str, to: &str) -> bool {
-    let mut seen = be_lib_stable_hash::HashSet::default();
-    let mut next = vec![from];
-    while let Some(at) = next.pop() {
-        if at == to {
-            return true;
-        }
-        if seen.insert(at) {
-            next.extend(
-                edges
-                    .iter()
-                    .filter(|(placer, _)| *placer == at)
-                    .map(|(_, placed)| *placed),
-            );
-        }
-    }
-    false
-}
-
 pub struct ViewSlot<'a> {
     pub app: &'a AppManifest,
     pub placer: Option<ViewPlacer<'a>>,
@@ -2708,7 +2559,9 @@ pub fn mount_view(slot: ViewSlot<'_>) {
                     InstanceRole::Creation(..)
                     | InstanceRole::Artifact(..)
                     | InstanceRole::Picker(_)
-                    | InstanceRole::Rename(..) => None,
+                    | InstanceRole::Rename(..)
+                    | InstanceRole::Export(..)
+                    | InstanceRole::Host(..) => None,
                 },
             );
             runtime
@@ -2882,7 +2735,10 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: ViewI
         .fit
         .filter(|fit| region != ViewId::PREVIEW && fit.x > 0.0 && fit.y > 0.0);
     let inert = offers.iter().all(|offer| offer.inert);
-    let frame = chosen.frame;
+    let frame = chosen.frame.map(|frame| FrameSpec {
+        phone: PHONE.get(),
+        ..frame
+    });
     let view = chosen.view;
     let ViewPlace {
         rect, clip, zoom, ..
@@ -2972,8 +2828,7 @@ pub fn forward_anchored(
         let messages = runtime
             .instances
             .forward_anchored(instance, region, layer, input);
-        runtime.pacing.need_if(!messages.is_empty());
-        runtime.send(messages);
+        runtime.send_for_frame(messages);
     });
     host::request_repaint();
 }
@@ -2988,14 +2843,31 @@ pub fn dismiss_anchored_views(
         let messages = runtime
             .instances
             .dismiss_anchored_views(instance, region, dismissed);
-        runtime.pacing.need_if(!messages.is_empty());
-        runtime.send(messages);
+        runtime.send_for_frame(messages);
     });
     host::request_repaint();
 }
 
 /// Forwards the input a view heard to its app. Whether the app was sent anything: if so it will
-/// draw a frame that answers it.
+/// draw a frame that answers it. An app that does not run yet hears only where the keyboard is
+/// (`Input::Focus`), state it is told once it runs: every key, press and move is dropped, never
+/// held for when it runs (decisions/keys_are_never_held.md).
+/// What an app that does not run yet hears of the input routed to its views: only where the
+/// keyboard is (`Input::Focus`), which is state; every key, press and move is dropped, never
+/// queued for when it runs (decisions/keys_are_never_held.md).
+fn keep_only_focus(messages: &mut Vec<Outbound>) {
+    for message in messages.iter_mut() {
+        if let Outbound::App(AppCall::Input(batch)) = message {
+            batch
+                .events
+                .retain(|event| matches!(event.input, beui::Input::Focus(_)));
+        }
+    }
+    messages.retain(|message| {
+        !matches!(message, Outbound::App(AppCall::Input(batch)) if batch.events.is_empty())
+    });
+}
+
 pub fn forward_view(
     app_id: &str,
     instance: EditorInstanceId,
@@ -3006,12 +2878,14 @@ pub fn forward_view(
 ) -> bool {
     with(app_id, |runtime| {
         runtime.refresh_anchor_space(instance, region);
-        let (messages, revoked) = runtime
+        let (mut messages, revoked) = runtime
             .instances
             .forward(instance, region, input, aim, target);
+        if !runtime.run.session.running() {
+            keep_only_focus(&mut messages);
+        }
         let sent = !messages.is_empty();
-        runtime.pacing.need_if(sent);
-        runtime.send(messages);
+        runtime.send_for_frame(messages);
         if revoked {
             mark(app_id);
         }
@@ -3036,8 +2910,7 @@ pub fn back_view(
 ) {
     with(app_id, |runtime| {
         let messages = runtime.instances.back(instance, region, gesture);
-        runtime.pacing.need_if(!messages.is_empty());
-        runtime.send(messages);
+        runtime.send_for_frame(messages);
     });
     host::request_repaint();
 }
@@ -3053,8 +2926,7 @@ pub fn intercept_view(
         let messages = runtime
             .instances
             .intercepted(instance, region, press, modifiers);
-        runtime.pacing.need_if(!messages.is_empty());
-        runtime.send(messages);
+        runtime.send_for_frame(messages);
     });
     host::request_repaint();
 }
@@ -3069,8 +2941,7 @@ pub fn view_has_keyboard(app_id: &str, instance: EditorInstanceId, region: ViewI
 pub fn intercept_tap(app_id: &str, instance: EditorInstanceId, region: ViewId, key: beui::Key) {
     with(app_id, |runtime| {
         let messages = runtime.instances.intercepted_tap(instance, region, key);
-        runtime.pacing.need_if(!messages.is_empty());
-        runtime.send(messages);
+        runtime.send_for_frame(messages);
     });
     host::request_repaint();
 }
@@ -3255,7 +3126,7 @@ fn shown_view(
         let chosen = (placement.rect, placement.clip);
         let (rect, clip) = own.map_or(chosen, |own| (own.rect, own.clip));
         let screen = runtime.instances.screen_id(instance, region);
-        let painted = screen.and_then(|screen| runtime.layout.placement(screen));
+        let painted = screen.and_then(|screen| runtime.shown_placement(screen));
         let visible = rect.intersect(clip);
         let shown = runtime
             .placements
@@ -3356,7 +3227,7 @@ fn shown_view(
             .collect();
         let base: Vec<Rect> = match painted_rects.is_empty() {
             true => vec![visible],
-            false => super::pieces::subtract(visible, &painted_rects),
+            false => visible.subtract(&painted_rects),
         };
         let (base, floating, marks) = match held {
             Some(_) => (
@@ -3373,7 +3244,7 @@ fn shown_view(
                 pieces_of(rect, visible, textured, &marks_painted),
             ),
         };
-        let loading = screen.is_none_or(|screen| runtime.layout.placement(screen).is_none());
+        let loading = screen.is_none_or(|screen| runtime.shown_placement(screen).is_none());
         let anchored = runtime.instances.shown_anchored(instance, region);
         let gives_keyboard = |layer: &HostAnchored| {
             layer.keyboard
@@ -3470,8 +3341,7 @@ pub fn drag_over_view(
         let messages = runtime
             .instances
             .drag(instance, region, DragKind::Block, event);
-        runtime.pacing.need_if(!messages.is_empty());
-        runtime.send(messages);
+        runtime.send_for_frame(messages);
         if was != runtime.instances.dragging(instance, region) {
             mark(app_id);
         }
@@ -3493,23 +3363,12 @@ pub fn view_drawing(
     }
     with(app_id, |runtime| {
         let screen = runtime.instances.screen_id(instance, region)?;
-        let mut template = runtime.template(screen, view.drawn);
+        let mut template = runtime.template(screen);
         template.quad.opacity = opacity;
         template.quad.corner_radius = corner_radius;
-        let shown_once = region != ViewId::PREVIEW
-            && runtime
-                .offers
-                .get(&(instance, region))
-                .is_some_and(|offers| offers.len() == 1);
-        let made_for = runtime
-            .placements
-            .get(&(instance, region))
-            .filter(|_| shown_once)
-            .map(|placed| placed.rect.size());
         let shared = Rc::new(RefCell::new(pieces.to_vec()));
         let drawing = beui::native::painted_drawing(ViewDrawing::new(
             template,
-            made_for,
             Rc::clone(&shared),
             view.held,
             rotation,
@@ -3521,7 +3380,7 @@ pub fn view_drawing(
 
 pub fn anchored_blits(app_id: &str, layer: &HostAnchored) -> Vec<Blit> {
     with(app_id, |runtime| {
-        let template = runtime.template(layer.screen, None);
+        let template = runtime.template(layer.screen);
         let pixels_per_point = layer.pixels_per_point;
         Some(
             layer
@@ -3535,8 +3394,6 @@ pub fn anchored_blits(app_id: &str, layer: &HostAnchored) -> Vec<Blit> {
                     Blit {
                         quad: Quad::upright(piece),
                         source: UNIT,
-                        drawn: None,
-                        requested: None,
                         layer: Some(AnchoredSource {
                             surface: layer.surface,
                             bounds: layer.bounds,
@@ -3560,14 +3417,18 @@ pub fn anchored_drawing(blits: AnchoredBlits) -> beui::native::Drawing {
 }
 
 pub fn view_placed(app_id: &str, instance: EditorInstanceId, region: ViewId) -> Option<[u32; 3]> {
-    with(app_id, |runtime| {
-        let screen = runtime.instances.screen_id(instance, region)?;
-        runtime
-            .layout
-            .placement(screen)
-            .map(|placement| [placement.surface, placement.width, placement.height])
-    })
-    .flatten()
+    with(app_id, |runtime| view_placed_in(runtime, instance, region)).flatten()
+}
+
+fn view_placed_in(
+    runtime: &Runtime,
+    instance: EditorInstanceId,
+    region: ViewId,
+) -> Option<[u32; 3]> {
+    let screen = runtime.instances.screen_id(instance, region)?;
+    runtime
+        .shown_placement(screen)
+        .map(|placement| [placement.surface, placement.width, placement.height])
 }
 
 pub fn view_damage(
@@ -3584,7 +3445,9 @@ pub fn view_damage(
     }
     with(app_id, |runtime| {
         let screen = runtime.instances.screen_id(instance, region)?;
-        runtime.template(screen, view.drawn).damage(pieces, seen)
+        runtime
+            .template(screen)
+            .damage(pieces, view.rect.size(), seen)
     })
     .flatten()
 }

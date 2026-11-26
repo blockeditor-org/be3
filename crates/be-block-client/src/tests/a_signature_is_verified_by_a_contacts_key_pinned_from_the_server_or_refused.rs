@@ -12,7 +12,7 @@ async fn a_signature_is_verified_by_a_contacts_key_pinned_from_the_server_or_ref
 
     let account = guest.account();
     let verify = async |peer: &Peer<MemoryStore>, bytes: &[u8], signature: Vec<u8>| {
-        peer.verify_authored(account, block, bytes, &signature)
+        peer.verify_authored(account, block, bytes, &signature, None)
             .await
             .unwrap()
     };
@@ -34,7 +34,7 @@ async fn a_signature_is_verified_by_a_contacts_key_pinned_from_the_server_or_ref
     assert_eq!(verify(&owner, b"hullo", signed.clone()).await, Signer::Bad);
     assert_eq!(
         owner
-            .verify_authored(guest.account(), Uuid::new_v4(), b"hello", &signed)
+            .verify_authored(guest.account(), Uuid::new_v4(), b"hello", &signed, None)
             .await
             .unwrap(),
         Signer::Bad,

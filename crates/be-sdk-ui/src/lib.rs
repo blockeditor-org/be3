@@ -99,6 +99,17 @@ pub struct EditorEntry {
     pub name: String,
     pub icon: Option<Glyph>,
     pub extensions: Vec<String>,
+    /// What the editor exports its block as, from its manifest.
+    pub exporters: Vec<ExporterEntry>,
+}
+
+/// An exporter an editor's manifest declares (guides/apps/editor.md, "Exporting").
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExporterEntry {
+    /// The name its code registers it under.
+    pub name: String,
+    /// What menus call it.
+    pub label: String,
 }
 
 impl EditorEntry {
@@ -184,6 +195,17 @@ impl BlockCatalog {
 
     pub fn editor(&self, editor: Uuid) -> Option<&EditorEntry> {
         self.editors.iter().find(|entry| entry.editor == editor)
+    }
+
+    /// What a block of `block_type` exports as: the exporters of the type's own editor, which
+    /// the host runs them in.
+    pub fn exporters(&self, block_type: Uuid) -> &[ExporterEntry] {
+        self.editors
+            .iter()
+            .find(|editor| {
+                editor.extensions.is_empty() && editor.edits == Edits::Type(block_type.into_bytes())
+            })
+            .map_or(&[], |editor| editor.exporters.as_slice())
     }
 
     pub fn own_editor(&self, block_type: Uuid, file_name: Option<&str>) -> Option<Uuid> {

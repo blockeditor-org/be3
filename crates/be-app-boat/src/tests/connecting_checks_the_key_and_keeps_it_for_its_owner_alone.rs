@@ -18,7 +18,6 @@ fn connecting_checks_the_key_and_keeps_it_for_its_owner_alone() {
     );
 
     boat.test.click("boat.sign-in.connect");
-    boat.test.run();
     let me = boat.fetch();
     boat.answer(&me, 200, ME);
 

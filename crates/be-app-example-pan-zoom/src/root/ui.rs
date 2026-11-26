@@ -1,21 +1,18 @@
 use be_sdk_beui::Fit;
 use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
 use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
-use be_sdk_beui::beui::dock::{
-    DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize,
-};
-use be_sdk_beui::beui::icons::{ICON_PANEL_LEFT_OPEN, ICON_SCAN, ICON_ZOOM_IN, ICON_ZOOM_OUT};
+use be_sdk_beui::beui::dock::{DockBar, DockPane, DockSplit, DockTab, Docking, SplitSize};
+use be_sdk_beui::beui::icons::ICON_PANEL_LEFT_OPEN;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{CursorIcon, NodeId, Rect, Vec2, pos2, vec2};
-use be_sdk_beui::{Editor, Fitting};
+use be_sdk_beui::{Editor, ZoomBar};
 
 const STAGE: &str = "stage";
 const CARDS_TAB: &str = "cards";
 const ZOOM: &str = "zoom";
 const REOPEN: &str = "reopen";
 const SIDEBAR_WIDTH: f32 = 220.0;
-const PANEL_PADDING: Space = Space::Lg;
 const PANEL_SPACING: Space = Space::Md;
 const CARD_TITLE_SIZE: f32 = 17.0;
 const CARD_LABEL_SIZE: f32 = 11.0;
@@ -23,7 +20,6 @@ const CARD_PADDING: f32 = 12.0;
 const CARD_SPACING: f32 = 6.0;
 const CARD_OUTLINE: f32 = 2.0;
 const CARD_RADIUS: f32 = 10.0;
-const ZOOM_STEP: f32 = 1.25;
 
 pub const WORLD: Vec2 = Vec2::new(880.0, 580.0);
 
@@ -103,41 +99,36 @@ pub fn PanZoom(editor: Editor) -> NodeId {
     let selected = create_signal(None::<usize>);
     let stage = NodeRef::new();
     editor.content(&stage);
-    let fitting =
-        editor.keep_fitted(|| Some(Fit::Area(Rect::from_min_size(pos2(0.0, 0.0), WORLD))));
+    editor.keep_fitted(|| Some(Fit::Area(Rect::from_min_size(pos2(0.0, 0.0), WORLD))));
 
     let chrome = editor.chrome_shown();
-    let panel_shown = create_memo(move || chrome.get() && open.get());
-    let reopen_shown = create_memo(move || chrome.get() && !open.get());
-    let zoom_shown = create_memo(move || chrome.get());
-    let layout = DockingLayout::<&'static str>::new();
 
     view! {
-        <Docking layout focus={Some(STAGE)}>
-            <DockSplit id="pan_zoom" size={SplitSize::First(SIDEBAR_WIDTH)}>
-                <Show condition={panel_shown}>
-                    <DockPane id="sidebar" locked=true>
+        <Docking>
+            <DockSplit size={SplitSize::First(SIDEBAR_WIDTH)}>
+                <Show value={open}>
+                    <DockPane id="sidebar" chrome=true>
                         <DockTab id=CARDS_TAB title="Cards" on_close={move || open.set(false)}>
                             <Sidebar editor selected />
                         </DockTab>
                     </DockPane>
                 </Show>
-                <DockPane id="stage" locked=true bare=true>
-                    <DockTab id=STAGE title="Canvas">
+                <DockPane stage=true>
+                    <DockTab id=STAGE>
                         <Stage @node_ref={&stage} editor={editor} selected={selected} />
                     </DockTab>
                 </DockPane>
             </DockSplit>
-            <Show condition={zoom_shown}>
+            <Show value={chrome}>
                 <DockBar
                     id=ZOOM
                     parent=STAGE
                     placement={DockBarPlacement::Over(DockEdge::Top, DockAlign::End)}
                 >
-                    <ZoomBar editor fitting />
+                    <ZoomBar editor />
                 </DockBar>
             </Show>
-            <Show condition={reopen_shown}>
+            <Show value={move || chrome.get() && !open.get()}>
                 <DockBar
                     id=REOPEN
                     parent=STAGE
@@ -147,44 +138,6 @@ pub fn PanZoom(editor: Editor) -> NodeId {
                 </DockBar>
             </Show>
         </Docking>
-    }
-}
-
-#[component]
-fn ZoomBar(editor: Editor, fitting: Fitting) -> NodeId {
-    let scale = editor.scale();
-    let readout = create_memo(move || format!("Zoom {:.0}%", scale.get() * 100.0));
-    let zoom_out = move || editor.zoom(1.0 / ZOOM_STEP);
-    let zoom_in = move || editor.zoom(ZOOM_STEP);
-    let fit = move || fitting.fit();
-    view! {
-        <DockBarSurface @test_id={"pan_zoom.zoom_bar"}>
-            <DockBarGrip />
-            <Button
-                icon_only=true
-                glyph=ICON_ZOOM_OUT
-                label="Zoom out"
-                on_click={zoom_out}
-                @test_id={"pan_zoom.zoom_out"}
-            />
-            <Text size=TextSize::Sm color=TextColor::Muted @test_id={"pan_zoom.zoom"}>
-                {readout}
-            </Text>
-            <Button
-                icon_only=true
-                glyph=ICON_ZOOM_IN
-                label="Zoom in"
-                on_click={zoom_in}
-                @test_id={"pan_zoom.zoom_in"}
-            />
-            <Button
-                icon_only=true
-                glyph=ICON_SCAN
-                label="Fit"
-                on_click={fit}
-                @test_id={"pan_zoom.fit"}
-            />
-        </DockBarSurface>
     }
 }
 
@@ -212,27 +165,17 @@ fn Sidebar(editor: Editor, selected: Signal<Option<usize>>) -> NodeId {
         None => "Nothing selected".to_owned(),
     });
     view! {
-        <Frame fill=ColorRole::Surface>
-            <Scroll>
-                <Frame padding=PANEL_PADDING>
-                    <List spacing=PANEL_SPACING>
-                        <Text size=TextSize::Lg @test_id={"pan_zoom.title"}>"Pan and Zoom"</Text>
-                        <Text
-                            size=TextSize::Sm
-                            color=TextColor::Muted
-                            @test_id={"pan_zoom.selected"}
-                        >
-                            {chosen}
-                        </Text>
-                        <List spacing=Space::Xs>
-                            <ForEach keys={card_indices()}>|index: usize|
-                                <FocusRow index editor={editor} selected={selected} />
-                            </ForEach>
-                        </List>
-                    </List>
-                </Frame>
-            </Scroll>
-        </Frame>
+        <List spacing=PANEL_SPACING>
+            <Text size=TextSize::Lg @test_id={"pan_zoom.title"}>"Pan and Zoom"</Text>
+            <Text size=TextSize::Sm color=TextColor::Muted @test_id={"pan_zoom.selected"}>
+                {chosen}
+            </Text>
+            <List spacing=Space::Xs>
+                <ForEach value={card_indices()}>|index: usize|
+                    <FocusRow index editor={editor} selected={selected} />
+                </ForEach>
+            </List>
+        </List>
     }
 }
 
@@ -258,7 +201,7 @@ fn Stage(editor: Editor, selected: Signal<Option<usize>>) -> NodeId {
     let scale = editor.scale();
     view! {
         <Canvas view={editor.canvas()} @test_id={"pan_zoom.stage"}>
-            <ForEach keys={card_indices()}>|index: usize|
+            <ForEach value={card_indices()}>|index: usize|
                 <CardView index scale={scale} selected={selected} />
             </ForEach>
         </Canvas>
@@ -275,15 +218,10 @@ fn CardView(index: usize, scale: ReadSignal<f32>, selected: Signal<Option<usize>
     });
     let title_size = scaled(scale, CARD_TITLE_SIZE);
     let label_size = scaled(scale, CARD_LABEL_SIZE);
-    let title_size = create_memo(move || TextSize::Custom(title_size.get()));
-    let label_size = create_memo(move || TextSize::Custom(label_size.get()));
     let padding = scaled(scale, CARD_PADDING);
-    let padding = create_memo(move || Padding::all(Space::Custom(padding.get())));
     let spacing = scaled(scale, CARD_SPACING);
-    let spacing = create_memo(move || Space::Custom(spacing.get()));
     let outline_width = scaled(scale, CARD_OUTLINE);
     let radius = scaled(scale, CARD_RADIUS);
-    let radius = create_memo(move || Radius::Custom(radius.get()));
     let position = format!("{:.0}, {:.0}", card.x, card.y);
     let select = move || selected.set(Some(index));
 
@@ -298,13 +236,18 @@ fn CardView(index: usize, scale: ReadSignal<f32>, selected: Signal<Option<usize>
             <Interactive cursor=CursorIcon::PointingHand on_click={select}>
                 <Frame
                     fill=ColorRole::Control
-                    border={create_memo(move || Some(Border::new(outline.get()).width(Stroke::Custom(outline_width.get()))))}
-                    radius={radius}
-                    padding=padding
+                    border={move || Some(Border::new(outline.get()).width(Stroke::Custom(outline_width.get())))}
+                    radius={move || Radius::Custom(radius.get())}
+                    padding={move || Padding::all(Space::Custom(padding.get()))}
                 >
-                    <List spacing={spacing}>
-                        <Text size={title_size}>{card.name}</Text>
-                        <Text size={label_size} color=TextColor::Muted>{position}</Text>
+                    <List spacing={move || Space::Custom(spacing.get())}>
+                        <Text size={move || TextSize::Custom(title_size.get())}>{card.name}</Text>
+                        <Text
+                            size={move || TextSize::Custom(label_size.get())}
+                            color=TextColor::Muted
+                        >
+                            {position}
+                        </Text>
                     </List>
                 </Frame>
             </Interactive>

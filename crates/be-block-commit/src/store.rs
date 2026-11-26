@@ -102,40 +102,59 @@ impl<S: ObjectStore> CommitStore<S> {
         Ok(seen)
     }
 
-    /// Walks `descendant`'s history only until it reaches `ancestor`.
+    /// Walks `descendant`'s history only until it reaches `ancestor`. A commit the store lacks
+    /// (retention thinned it away) ends its chain, but not as a root does: a walk that does not
+    /// reach `ancestor` and passed such a gap answers `Unreached`, not `No`.
     pub fn is_ancestor(
         &self,
         ancestor: CommitId,
         descendant: CommitId,
-    ) -> Result<bool, StoreError> {
+    ) -> Result<Descent, StoreError> {
         let mut seen = HashSet::new();
         let mut queue = VecDeque::from([descendant]);
+        let mut cut = false;
         while let Some(id) = queue.pop_front() {
             if id == ancestor {
-                return Ok(true);
+                return Ok(Descent::Yes);
             }
             if !seen.insert(id) {
                 continue;
             }
-            queue.extend(self.parents_of(id)?);
+            match self.try_get(id)? {
+                Some(commit) => queue.extend(commit.parents),
+                None => cut = true,
+            }
         }
-        Ok(false)
+        Ok(match cut {
+            true => Descent::Unreached,
+            false => Descent::No,
+        })
     }
 
+    /// The common ancestor of `ours` and `theirs` nearest `ours`, walking both histories whole:
+    /// `Behind` when `theirs` is in `ours`'s history, and `Unreached` rather than `Unrelated`
+    /// when they did not meet and a side passed a commit the store lacks.
     pub fn common_ancestor(
         &self,
         ours: CommitId,
         theirs: CommitId,
-    ) -> Result<Option<CommitId>, StoreError> {
+    ) -> Result<MergeBase, StoreError> {
+        let mut cut = false;
         let mut depths = HashMap::new();
         let mut queue = VecDeque::from([(ours, 0usize)]);
         while let Some((id, depth)) = queue.pop_front() {
             if depths.insert(id, depth).is_some() {
                 continue;
             }
-            for parent in self.parents_of(id)? {
-                queue.push_back((parent, depth + 1));
+            match self.try_get(id)? {
+                Some(commit) => {
+                    queue.extend(commit.parents.into_iter().map(|parent| (parent, depth + 1)))
+                }
+                None => cut = true,
             }
+        }
+        if depths.contains_key(&theirs) {
+            return Ok(MergeBase::Behind);
         }
         let mut best: Option<(CommitId, usize)> = None;
         let mut seen = HashSet::new();
@@ -150,8 +169,145 @@ impl<S: ObjectStore> CommitStore<S> {
                 }
                 continue;
             }
-            queue.extend(self.parents_of(id)?);
+            match self.try_get(id)? {
+                Some(commit) => queue.extend(commit.parents),
+                None => cut = true,
+            }
         }
-        Ok(best.map(|(id, _)| id))
+        Ok(match (best, cut) {
+            (Some((base, _)), _) => MergeBase::Base(base),
+            (None, true) => MergeBase::Unreached,
+            (None, false) => MergeBase::Unrelated,
+        })
+    }
+}
+
+/// Whether a commit is in another's history, as far as the store holds it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Descent {
+    Yes,
+    /// The history was walked to its roots without meeting it.
+    No,
+    /// The walk did not meet it, and passed a commit the store lacks, which says nothing of what
+    /// lies past it.
+    Unreached,
+}
+
+/// Where two heads' histories meet, as far as a `MergeBaseWalk` looked.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MergeBase {
+    /// `theirs` is in `ours`'s history: everything it holds, `ours` holds too.
+    Behind,
+    /// The common ancestor nearest the two heads.
+    Base(CommitId),
+    /// The two histories share no commit: each was walked to its root.
+    Unrelated,
+    /// They did not meet within the walk's depth, or before a side reached a commit the store
+    /// lacks (retention thinned it away), which says nothing of what lies past it. A caller falls
+    /// back to the head its own side was made from: what reached past the gap was made on it.
+    Unreached,
+}
+
+/// A walk from two heads back to their common ancestor, a level of parents on each side at a
+/// time, that gives up past a depth: a merge wants the nearest base, and history deeper than
+/// that is not worth reading for it. The caller fetches `frontier` before each `step`, so a
+/// peer reads from the server only the commits the walk reaches. A commit the store lacks ends
+/// its chain, but not as a root does: a walk that ends there is `Unreached`, not `Unrelated`.
+pub struct MergeBaseWalk {
+    theirs: CommitId,
+    sides: [Side; 2],
+    level: usize,
+    depth: usize,
+}
+
+struct Side {
+    /// Each commit reached, by its distance from the head.
+    seen: HashMap<CommitId, usize>,
+    /// The commits reached at the last level, whose parents the next step reads.
+    frontier: Vec<CommitId>,
+    /// Whether it reached a commit the store lacks.
+    cut: bool,
+}
+
+impl MergeBaseWalk {
+    /// A walk that reads at most `depth` levels of parents on each side.
+    pub fn new(ours: CommitId, theirs: CommitId, depth: usize) -> Self {
+        let side = |head| Side {
+            seen: HashMap::from([(head, 0)]),
+            frontier: vec![head],
+            cut: false,
+        };
+        Self {
+            theirs,
+            sides: [side(ours), side(theirs)],
+            level: 0,
+            depth,
+        }
+    }
+
+    /// The commits whose parents the next `step` reads, to fetch first.
+    pub fn frontier(&self) -> impl Iterator<Item = CommitId> + '_ {
+        self.sides
+            .iter()
+            .flat_map(|side| side.frontier.iter().copied())
+    }
+
+    /// How many commits the walk reached on the two sides: those whose parents it read, and
+    /// those it would read next.
+    pub fn reached(&self) -> usize {
+        self.sides.iter().map(|side| side.seen.len()).sum()
+    }
+
+    /// Takes one level of parents on each side; answers once the walk is over, before it
+    /// reaches commits it would have to fetch.
+    pub fn step<S: ObjectStore>(
+        &mut self,
+        store: &CommitStore<S>,
+    ) -> Result<Option<MergeBase>, StoreError> {
+        if let Some(over) = self.over() {
+            return Ok(Some(over));
+        }
+        self.level += 1;
+        for side in &mut self.sides {
+            let mut next = Vec::new();
+            for id in std::mem::take(&mut side.frontier) {
+                let Some(commit) = store.try_get(id)? else {
+                    side.cut = true;
+                    continue;
+                };
+                for parent in commit.parents {
+                    if let std::collections::hash_map::Entry::Vacant(e) = side.seen.entry(parent) {
+                        e.insert(self.level);
+                        next.push(parent);
+                    }
+                }
+            }
+            side.frontier = next;
+        }
+        Ok(self.over())
+    }
+
+    fn over(&self) -> Option<MergeBase> {
+        let [ours, theirs] = &self.sides;
+        if ours.seen.contains_key(&self.theirs) {
+            return Some(MergeBase::Behind);
+        }
+        // Only the commits the last level reached can be new meetings.
+        let nearest = ours
+            .frontier
+            .iter()
+            .chain(&theirs.frontier)
+            .filter_map(|id| Some((ours.seen.get(id)? + theirs.seen.get(id)?, *id)))
+            .min_by_key(|(distance, _)| *distance);
+        if let Some((_, base)) = nearest {
+            return Some(MergeBase::Base(base));
+        }
+        if ours.frontier.is_empty() && theirs.frontier.is_empty() {
+            return Some(match ours.cut || theirs.cut {
+                true => MergeBase::Unreached,
+                false => MergeBase::Unrelated,
+            });
+        }
+        (self.level == self.depth).then_some(MergeBase::Unreached)
     }
 }

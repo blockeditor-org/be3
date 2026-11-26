@@ -51,8 +51,17 @@ In be-host-desktop, `desktop_host/win32.rs` (`Win32`) is the `DesktopHost`, with
 - `WindowsWatch` is the snapshot's entries; `win32_map::known_window` makes the rest of each
   window's status. A window's name is its Start menu program's (`win32_map::ProgramNames`): the one
   it was launched from, else the shortcut whose AppUserModelID or target matches its program id or
-  command, known once the Apps panel has listed programs. The shell opens a tab for every window
-  and a hidden one for every display.
+  command, known once the Apps panel has listed programs. The Apps panel's programs carry, as
+  `wm-class`, the program id their windows carry: the shortcut's AppUserModelID, else its target
+  (`win32_map::host_program`). So a window from last time, kept as a placeholder with its chip
+  like any other (guides/desktop.md), starts again from its shortcut on Open or Restore, even one
+  the desktop did not launch. Matching by executable misses a launcher whose window belongs to
+  another process (its shortcut targets the launcher, its window the program it starts: Electron's
+  `Update.exe --processStart`, Steam, `cmd /c`) and a
+  path Windows redirects (a 32-bit program's System32 is SysWOW64); without an AppUserModelID
+  such a window's chip cannot start it again. Every entry is listed `opens_hidden`,
+  since showing one captures it: the shell opens a hidden tab for each, nothing is captured or
+  focused until the person shows it from its window chip, and only then is it captured.
 - `WindowSurface` starts a capture when mounted, which happens only for shown entries, and stops it
   when unmounted. `before` hands the newest `Frame` to each surface. A capture `Lost::Failed`
   restarts once, then toasts (`win32_map::recovery`).
@@ -95,14 +104,19 @@ included.
 - On a display entry, the release point on the monitor (`focus::display_point`) is looked up with
   `WindowFromPoint`; if it is one of be-host's own windows (its mirror in the capture) nothing
   happens (`FocusError::OnHost`).
-- The shell's `focus` window action does nothing on Windows (`win32_map::shell_focus`;
-  decisions/windows_shell_focus_does_not_start_focus_mode.md).
+- Nothing else starts it: not a hover, a press that began on a grab handle or space's chrome, a
+  drag, or the shell giving the window the keyboard, which `WindowSurface`'s `focus` reports
+  whenever the dock focuses the tab (a chip, a panel's chrome, be-host coming back to the front).
+  `win32_content::CapturedContent` takes every press on content, popups' too, and only its click
+  reaches `ContentInput::clicked`, the one caller of `Watcher::focus`; its test runs on Linux
+  (decisions/windows_shell_focus_does_not_start_focus_mode.md).
 - XR controller presses (`PointerId::is_controller`) are injected instead, since a laser has no
   physical cursor.
 
-**What the person is told.** The entry's `KnownWindow::note` (the child's `notice`, shown in the
-tab title, never over content; `win32_map::Notes`) says the way back while focused, a refusal until
-next focused, or "Click to use this window" on hover. Each change bumps `revision()`, so
-`WindowsWatch` is sent again. Only what must cover content is drawn on it (`EntryOverlay`): the
-off-screen parts of a frame (`win32_map::off_screen`; the host does not move the window) and the
-secure-desktop notice. Every toast is also a line on stderr.
+**What the person is told.** The entry's `KnownWindow::note` (the child's `notice`, shown in the tab
+title, never over content; `win32_map::Notes`) says the way back while focused, a refusal until next
+focused, or "Click to use this window" on hover. Each change bumps the `changes` signal `listed`
+tracks, so `WindowsWatch` is published again (`desktop_host::publish_windows`). Only what must cover
+content is drawn on it (`EntryOverlay`): the off-screen parts of a frame (`win32_map::off_screen`;
+the host does not move the window) and the secure-desktop notice. Every toast is also a line on
+stderr.

@@ -3,17 +3,17 @@ use std::io::{Read, Write};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use be_block_client::Peer;
+use be_block_client::{Clock, Peer};
 use be_block_content::ObjectId;
 use be_block_content::presence::{ChannelKind, PresenceKind};
+use be_block_protocol::ClientId;
 use be_block_store::ObjectStore;
 use be_type_terminal::{
     Terminal, TerminalContent, TerminalHost, TerminalMessage, TerminalShell, TerminalSize,
 };
 use beui_components_unstyled::datetime::DateTime;
 use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
-use tokio::sync::mpsc;
-use tokio::time::Instant;
+use tokio::sync::{mpsc, watch};
 use uuid::Uuid;
 
 use crate::replica::Session;
@@ -26,11 +26,15 @@ use be_tool_terminal_emulator::Emulator;
 const DEFAULT_SIZE: TerminalSize = TerminalSize { cols: 80, rows: 24 };
 const READ_CHUNK: usize = 16 * 1024;
 const LONGEST_RETRY: Duration = Duration::from_secs(30);
-/// How often a host that isn't writing asks for the session's lease. Ownership
-/// of the live session is the lock between hosts: a host writes only while its
-/// replica owns it. A viewer that owns it seals nothing, so its lease lapses
-/// and the claim is granted.
-const CLAIM_INTERVAL: Duration = Duration::from_secs(3);
+/// How often a host that isn't writing claims the session's lease: holding the lease is the
+/// lock between hosts, and a claim takes it at once, so a host first waits on a new holder's
+/// presence to say whether it is another host before taking the lease from it.
+pub(crate) const CLAIM_INTERVAL: Duration = Duration::from_secs(3);
+/// How long a host waits on a new holder whose presence has not arrived before claiming
+/// anyway: every replica sends its presence to each client it sees join, so this is only for
+/// one that never does. It is also how long it leaves the lease to another host before it by
+/// client that does not take it, one connected but stuck.
+pub(crate) const UNHEARD_HOLDER: Duration = Duration::from_secs(30);
 
 type Hosted<S> = Session<S, TerminalContent>;
 
@@ -70,6 +74,19 @@ impl HostOptions {
     }
 }
 
+/// Where a host stands with the session's lease (`Host::standing`).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Standing {
+    /// Not in the session yet.
+    Starting,
+    /// Another holds the lease, which it claims once it is due (`Claim`).
+    Waiting,
+    /// Another terminal host holds the lease, so it does not claim it.
+    StandingBy,
+    /// It holds the lease and writes the terminal.
+    Writing,
+}
+
 enum Event {
     Output(u64, Vec<u8>),
     Ended(u64),
@@ -92,6 +109,12 @@ pub struct Host {
     dirty: bool,
     sender: mpsc::UnboundedSender<Event>,
     events: mpsc::UnboundedReceiver<Event>,
+    /// What claiming the lease is timed on.
+    clock: Clock,
+    /// Where it stands, sent again on each step it takes.
+    standing: watch::Sender<Standing>,
+    /// How many times it claimed the lease.
+    claims: watch::Sender<u64>,
 }
 
 enum Ended {
@@ -113,7 +136,26 @@ impl Host {
             dirty: false,
             sender,
             events,
+            clock: Clock::real(),
+            standing: watch::Sender::new(Standing::Starting),
+            claims: watch::Sender::new(0),
         })
+    }
+
+    /// Times claiming the lease on `clock` rather than the system's, for a test to move.
+    pub fn on_clock(mut self, clock: Clock) -> Self {
+        self.clock = clock;
+        self
+    }
+
+    /// Where the host stands with the session's lease, sent again each time it steps.
+    pub fn standing(&self) -> watch::Receiver<Standing> {
+        self.standing.subscribe()
+    }
+
+    /// How many times the host claimed the session's lease.
+    pub fn claims(&self) -> watch::Receiver<u64> {
+        self.claims.subscribe()
     }
 
     pub async fn run<S: ObjectStore + 'static>(
@@ -199,26 +241,36 @@ impl Host {
         sources: Vec<be_block_type_host::Source>,
         mut shutdown: std::pin::Pin<&mut impl Future<Output = ()>>,
     ) -> Ended {
-        let mut session = match Hosted::open(peer, block, sources).await {
-            Ok(session) => session,
-            Err(error) => return Ended::Refused(error),
-        };
         let shown = TerminalHost {
             machine: self.options.machine.clone(),
             user: self.options.user.clone(),
         };
         let presence = serde_json::to_vec(&shown).unwrap_or_default();
-        session.show(TerminalHost::ID, Some(presence));
-        session.settle().await;
+        // Shown from the opening on, so whoever hears this session's presence in full
+        // (`Session::heard`) knows at once whether it is a host.
+        let opened = Hosted::open(peer, block, sources, vec![(TerminalHost::ID, presence)]).await;
+        let mut session = match opened {
+            Ok(session) => session,
+            Err(error) => return Ended::Refused(error),
+        };
         eprintln!("be: hosting a terminal for block {block}");
         self.writing = false;
-        let mut claim = Instant::now();
+        let now = self.clock.now();
+        let mut claim = Claim {
+            holder: None,
+            since: now,
+            unheard: None,
+            waits: 0,
+            blocked: None,
+            at: now,
+        };
         let outcome = loop {
             if let Err(error) = self.step(&mut session, &mut claim).await {
                 break Err(error);
             }
-            let claiming = !session.is_owner() && !standing_by(&session);
-            let next = claim.max(Instant::now());
+            let claiming = !session.is_holder() && !standing_by(&session);
+            let next = claim.due().max(self.clock.now());
+            let due = self.clock.sleep_until(next);
             tokio::select! {
                 () = shutdown.as_mut() => break Ok(()),
                 woken = session.next() => {
@@ -235,12 +287,12 @@ impl Host {
                         self.take(event);
                     }
                 }
-                () = tokio::time::sleep_until(next), if claiming => {}
+                () = due, if claiming => {}
             }
         };
         match outcome {
             Ok(()) => {
-                if session.is_owner() && self.writing {
+                if session.is_holder() && self.writing {
                     self.write(&mut session);
                 }
                 session.show(TerminalHost::ID, None);
@@ -255,20 +307,67 @@ impl Host {
     async fn step<S: ObjectStore + 'static>(
         &mut self,
         session: &mut Hosted<S>,
-        claim: &mut Instant,
+        claim: &mut Claim,
     ) -> Result<(), String> {
-        if !session.is_owner() {
+        if !session.is_holder() {
             if self.writing {
                 eprintln!("be: another client took over the terminal; standing by");
                 self.writing = false;
             }
-            let now = Instant::now();
-            if !standing_by(session) && now >= *claim {
-                *claim = now + CLAIM_INTERVAL;
+            let now = self.clock.now();
+            let holder = session.holder();
+            if holder != claim.holder {
+                claim.holder = holder;
+                claim.since = now;
+                claim.unheard = holder.map(|_| now + UNHEARD_HOLDER);
+                claim.blocked = None;
+            }
+            // Hosts that all hear a holder that is none of them would claim at once together and
+            // take the lease from each other. They go in turn by client, among the members that
+            // may hold the lease (`Session::editors`): one a host's claims never move, with view
+            // access only, holds no other off. A host leaves the lease to another host before it
+            // that is there, which claims instead, for `UNHEARD_HOLDER` at most, and waits
+            // `CLAIM_INTERVAL` for each member before it not heard from yet, which may be a host:
+            // a session shows its presence from its opening, so one heard in full that shows no
+            // `TerminalHost` is none. Nor does it claim at once before it has heard every member:
+            // one it has not may hold the lease already by a claim it has yet to hear.
+            let client = session.client();
+            let editors = session.editors();
+            let before = |member: ClientId| {
+                Some(member) != holder
+                    && client.is_some_and(|client| member < client)
+                    && editors.contains(&member)
+            };
+            let host_before = session
+                .presence()
+                .iter()
+                .any(|peer| peer.kind == TerminalHost::ID && before(peer.client));
+            claim.blocked = match host_before {
+                true => claim.blocked.or(Some(now)),
+                false => None,
+            };
+            let unheard = |member: &ClientId| Some(*member) != client && !session.heard(*member);
+            let others = editors
+                .iter()
+                .filter(|member| before(**member) && unheard(member))
+                .count();
+            let all_heard = !editors.iter().any(unheard);
+            claim.waits = others.max(usize::from(!all_heard)) as u32;
+            // Once the new holder's presence arrives it says at once whether to stand by.
+            if holder.is_some_and(|holder| session.heard(holder)) {
+                claim.unheard = None;
+            }
+            if !standing_by(session) && now >= claim.due() {
+                claim.at = now + CLAIM_INTERVAL;
+                self.claims.send_modify(|claims| *claims += 1);
                 session.claim();
                 session.settle().await;
             }
-            if !session.is_owner() {
+            if !session.is_holder() {
+                self.standing.send_replace(match standing_by(session) {
+                    true => Standing::StandingBy,
+                    false => Standing::Waiting,
+                });
                 return Ok(());
             }
         }
@@ -279,6 +378,7 @@ impl Host {
             self.write(session);
         }
         session.settle().await;
+        self.standing.send_replace(Standing::Writing);
         Ok(())
     }
 
@@ -478,11 +578,46 @@ impl Host {
     }
 }
 
-/// Another host owns the session, so this one waits instead of claiming. A
-/// quiet host heartbeats only when it seals, so its lease may lapse; nothing
-/// claims it while it still shows `TerminalHost`.
+/// When a host that isn't writing next claims the lease, and the holder it
+/// last saw: a new holder's presence may not have reached it yet.
+struct Claim {
+    holder: Option<ClientId>,
+    /// When it first saw this holder.
+    since: Duration,
+    /// Until when the host waits on the holder's presence, while it has not arrived: once it
+    /// does it says at once whether the holder is another host.
+    unheard: Option<Duration>,
+    /// How many `CLAIM_INTERVAL`s from `since` it puts off claiming from this holder: one for
+    /// each member before it by client not heard from yet, which may be another host, and at
+    /// least one while any member is unheard.
+    waits: u32,
+    /// Since when another host before it by client has been there under this holder, which
+    /// claims instead: it waits on that one `UNHEARD_HOLDER` at most.
+    blocked: Option<Duration>,
+    /// When the host may claim again after its last claim.
+    at: Duration,
+}
+
+impl Claim {
+    fn due(&self) -> Duration {
+        [
+            Some(self.at),
+            self.unheard,
+            Some(self.since + CLAIM_INTERVAL * self.waits),
+            self.blocked.map(|blocked| blocked + UNHEARD_HOLDER),
+        ]
+        .into_iter()
+        .flatten()
+        .max()
+        .unwrap_or(self.at)
+    }
+}
+
+/// Another host holds the lease, so this one waits instead of claiming: a
+/// claim takes the lease at once, and two hosts claiming in turn would pass
+/// it back and forth.
 fn standing_by<S: ObjectStore + 'static>(session: &Hosted<S>) -> bool {
-    let Some(owner) = session.state().and_then(|state| state.owner) else {
+    let Some(owner) = session.holder() else {
         return false;
     };
     session

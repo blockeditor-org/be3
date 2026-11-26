@@ -16,7 +16,7 @@ fn a_keyed_row_kept_across_a_rerun_still_reads_context() {
         let rows = Rc::new(KeyedItems::new(move |_: u32| {
             let sink = sink.clone();
             create_effect(move || {
-                poke.get();
+                poke.track();
                 sink.borrow_mut().push(use_context::<Theme>());
             });
         }));

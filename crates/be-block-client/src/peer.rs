@@ -4,16 +4,16 @@ use std::{
 };
 
 use be_block::OrganizationPolicies;
-use be_block_commit::{Commit, CommitId, CommitStore, now_milliseconds};
-use be_block_content::{
-    BlockContent, BlockMetadata, Entries, Root, Streamed, derived_metadata, payload_start,
+use be_block_commit::{
+    Commit, CommitId, CommitStore, Descent, MergeBase, MergeBaseWalk, now_milliseconds,
 };
+use be_block_content::{BlockContent, BlockMetadata, Entries, Root, derived_metadata};
 use be_block_graph::{Access, BlockParent};
 use be_block_keys::{RecoveryPublic, RecoverySecret};
 use be_block_protocol::{
     AccessList, BlockSummary, ChangeCursor, ChangedPage, ClientId, ErrorCode, EscrowKey,
-    HistoryEntry, KeyKind, KeySet, Listing, ObjectChange, OrganizationKind, OrganizationRole,
-    PublishOutcome, ReferenceChange, RelayKind, ServerAccount, WrappedBy, client,
+    HistoryEntry, JournalBase, JournalSeal, KeyKind, KeySet, Listing, ObjectChange,
+    OrganizationKind, OrganizationRole, PublishOutcome, ReferenceChange, ServerAccount, WrappedBy,
 };
 use be_block_store::{
     ChunkerConfig, Hash, Keyring, Manifest, ObjectStore, Part, StoreError, Stored, Vault,
@@ -22,10 +22,34 @@ use uuid::Uuid;
 
 use crate::{
     ClientError,
-    connection::{Answer, Connection},
+    connection::{Answer, Connection, Credentials},
     keys::KeyBook,
-    refs::{Creation, Op, Pending, Refs, RefsDb, Scope, Session},
+    refs::{Creation, ListedBlock, Op, Pending, Refs, RefsDb, Scope, Session},
 };
+
+/// Where the creations and moves the server took stood when a listing was asked for
+/// (`Peer::sent_since`): those it took after are laid over its answer (`Peer::with_outbox`).
+#[derive(Clone, Copy, Debug)]
+pub struct SentSince(u64);
+
+/// The creations and moves the drain sent and the server took, numbered in the order it took
+/// them: the last `TAKEN_KEPT` of them, which listings out longer than that many writes no
+/// longer see laid over (their answers then stand as the server gave them).
+#[derive(Default)]
+struct Taken {
+    next: u64,
+    recent: std::collections::VecDeque<(u64, Uuid)>,
+}
+
+const TAKEN_KEPT: usize = 256;
+
+/// A listing's blocks, and the organization's change sequence the server read them at: a block
+/// that changes after it does so at a larger `changed`.
+#[derive(Clone, Debug, Default)]
+pub struct Listed {
+    pub sequence: u64,
+    pub blocks: Vec<BlockSummary>,
+}
 
 /// A block as `Peer::read_contents` read it.
 #[derive(Clone, Debug)]
@@ -44,40 +68,42 @@ const CARRIED_BYTES: usize = be_block_protocol::MAX_FRAME_BYTES / 2;
 /// few blocks each, rather than making hundreds of blocks to cross one.
 pub(crate) const CONTENTS_BLOCKS: usize = if cfg!(test) { 8 } else { 256 };
 
+pub mod account_block;
 mod authorship;
+pub mod forks;
+pub mod hosted;
 mod import;
 mod journal;
+pub use journal::Submitted;
+pub mod log;
 mod notifications;
 mod offline;
 mod prefixes;
+mod reseal;
 mod rotation;
 mod transfers;
+mod update;
 
 pub use notifications::{
     MAX_NOTIFICATION_AGE_MILLISECONDS, MAX_NOTIFICATION_TEXT, Notification, OpenedNotification,
 };
 
-pub use authorship::Signer;
+pub use authorship::by_app;
 pub use import::Imported;
 pub use prefixes::Registry;
+pub use rotation::PendingRotation;
+#[cfg(test)]
+pub(crate) use update::backoff;
+pub use update::{NewContent, UPDATE_ATTEMPTS};
 
-#[derive(Clone)]
-pub enum Credentials {
-    Token(String),
-    Header,
-}
-
-impl Credentials {
-    pub async fn authenticate(
-        self,
-        connection: &Arc<Connection>,
-    ) -> Result<be_block_protocol::Authenticated, ClientError> {
-        let token = match self {
-            Self::Header => None,
-            Self::Token(token) => Some(token),
-        };
-        Ok(client::account::authenticate(connection, token).await??)
-    }
+/// Follows `query`'s topic, answering whether the server took it.
+fn followed<T: be_block_protocol::FromPage + Send + 'static>(
+    connection: &Arc<Connection>,
+    organization: Option<Uuid>,
+    query: be_block_protocol::Query,
+) -> std::pin::Pin<Box<dyn Future<Output = bool> + Send>> {
+    let asked = be_block_protocol::ask::<T, _>(connection, organization, query, true);
+    Box::pin(async move { matches!(asked.await, Ok(Ok(_))) })
 }
 
 pub struct PeerConfig {
@@ -163,6 +189,21 @@ pub struct Write<'a> {
     merging: Option<(Option<CommitId>, CommitId)>,
     bookmark: Option<String>,
     sealed_through: Option<be_block_commit::SealedThrough>,
+    journal: Option<SealsJournal>,
+}
+
+/// A seal of a block's live session, as a write carries it (`Write::seals_journal`): the build
+/// that sealed it, the run of the order (`journal-seal.run`), the last sequence number it holds
+/// and the session state as of it.
+#[derive(Clone, Debug)]
+pub struct SealsJournal {
+    pub tag: Hash,
+    pub run: u64,
+    pub through: u64,
+    pub state: Vec<u8>,
+    /// The objects of the parts `state` names, which the server keeps while the journal's base
+    /// names them (`journal-base.parts`).
+    pub parts: Vec<Hash>,
 }
 
 impl<'a> Write<'a> {
@@ -189,6 +230,7 @@ impl<'a> Write<'a> {
             merging: None,
             bookmark: None,
             sealed_through: None,
+            journal: None,
         }
     }
 
@@ -217,6 +259,14 @@ impl<'a> Write<'a> {
     /// (`Commit::sealed_through`).
     pub fn sealed_through(mut self, sealed: Option<be_block_commit::SealedThrough>) -> Self {
         self.sealed_through = sealed;
+        self
+    }
+
+    /// The commit seals its block's live session: the server's journal starts from it only if
+    /// it wins the head (`publish`'s `journal`). None for a seal made outside the server's
+    /// session.
+    pub fn seals_journal(mut self, journal: Option<SealsJournal>) -> Self {
+        self.journal = journal;
         self
     }
 }
@@ -249,6 +299,25 @@ pub enum Drained {
     Defined {
         block: Uuid,
     },
+    /// Objects held for the block offline were uploaded and held.
+    Held {
+        block: Uuid,
+    },
+    /// The server took an entry this device appended to the block's signed log
+    /// (`Peer::append`): its place and when it arrived.
+    Appended {
+        block: Uuid,
+        id: Uuid,
+        seq: u64,
+        arrival: i64,
+    },
+    /// The server refused an entry for the block's signed log: it is not sent again, and is
+    /// kept, with why, until let go (`Peer::refused_entries`).
+    NotAppended {
+        block: Uuid,
+        id: Uuid,
+        code: ErrorCode,
+    },
     /// The server refused a change. With `restored`, it was a move or a definition, and the
     /// block's summary is the server's again (`unchanged`); otherwise a publish.
     Refused {
@@ -256,11 +325,20 @@ pub enum Drained {
         code: ErrorCode,
         restored: bool,
     },
-    /// The server refused to make the block, or one it was made under: what this device made
-    /// of it is set aside among the unsent (`UnsentBlock::refused`).
+    /// The server refused to make the block, or one it was made under, or what was sealed of
+    /// it offline is under a key its log shows outdated and could not be sealed again
+    /// (`Resealed`): what this device made of it is set aside among the unsent
+    /// (`UnsentBlock::refused`).
     SetAside {
         block: Uuid,
-        code: ErrorCode,
+        why: crate::refs::Aside,
+    },
+    /// What this device sealed of the block offline was sealed again, in its place in the
+    /// outbox (`Peer::resealed_as` names what it replaced), and sent on: under a new epoch, as
+    /// it was under a key its log shows outdated and this account may still write it, or with
+    /// times the server takes, as it was stamped by a clock running fast (`Peer::restamp`).
+    Resealed {
+        block: Uuid,
     },
     Failed {
         block: Uuid,
@@ -277,23 +355,48 @@ pub enum Reconciled {
     },
 }
 
+/// Keys arrived: what was found missing is asked for again, and a search under way as they
+/// did asks once more (`Peer::arrivals`).
+fn keys_arrived(tried: &Mutex<HashSet<Uuid>>, arrived: &std::sync::atomic::AtomicU64) {
+    tried.lock().unwrap().clear();
+    arrived.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+}
+
 pub struct Peer<S: ObjectStore> {
-    connection: Mutex<Arc<Connection>>,
+    connection: Arc<Mutex<Arc<Connection>>>,
     commits: CommitStore<S>,
     token: Mutex<String>,
     account: Uuid,
     organization: Uuid,
     session: Mutex<(OrganizationRole, OrganizationKind)>,
-    refs: Refs,
+    refs: Arc<Refs>,
     resolver: Mutex<Option<Resolver>>,
     keys: KeyBook,
     current: Mutex<HashMap<Uuid, Uuid>>,
     /// Keys looked for and found missing, not asked for again until keys are stored
     /// (`keys_changed`) or a key opens.
-    tried: Mutex<HashSet<Uuid>>,
+    tried: Arc<Mutex<HashSet<Uuid>>>,
+    /// The heads of blocks' signed logs commits named that this device compared with its own
+    /// (`Peer::compare_commit_head`), each compared once a run.
+    compared_heads: Mutex<HashSet<(Uuid, u64, [u8; 32])>>,
+    /// Whether a pass of `trade_account_heads` is under way: one at a time, so two passes never
+    /// compare and share the same heads at once.
+    trading_heads: std::sync::atomic::AtomicBool,
+    /// The members key work last listed as signed into the organization's log by no record
+    /// (`KeyWork::unsigned_members`).
+    unsigned: Mutex<Vec<Uuid>>,
+    /// The trees a demotion outdated whose rotation `tend` owes and has failed, by top
+    /// (`rotate_demoted`, `pending_rotations`).
+    pending_rotations: Mutex<HashMap<Uuid, PendingRotation>>,
     /// How many times keys arrived (`keys_changed`): a search for keys under way as it changes
     /// asks once more, since what arrived may have come after the server answered.
-    keys_arrived: std::sync::atomic::AtomicU64,
+    keys_arrived: Arc<std::sync::atomic::AtomicU64>,
+    /// The newest head the server took on from one this device knew, per block, by whatever read
+    /// learned it, until taken (`take_moved_heads`): one per block, so a peer that never takes
+    /// them holds no more than it knows blocks.
+    moved_heads: Mutex<HashMap<Uuid, CommitId>>,
+    /// The creations and moves the server took, for listings out while it did (`SentSince`).
+    taken: Mutex<Taken>,
     /// How many outbox drains are under way: announcements wait for their end
     /// (`send_announcements`).
     draining: std::sync::atomic::AtomicUsize,
@@ -307,7 +410,76 @@ pub struct Peer<S: ObjectStore> {
     /// The server's clock as measured when the session opened, which commits are stamped by
     /// (`commit_time`, `server_now`).
     server_clock: Mutex<ServerClock>,
+    /// A local account's peer (`Peer::local`), which has no server: what it makes is final as
+    /// it is made.
+    local: bool,
+    /// Whether this peer only reaches the account's own block (`AccountRecords`), whose keys are
+    /// all the account's own: it never reads contacts, which would reach for the block again.
+    account_records: bool,
+    /// The blocks a local account's peer settled since they were last taken
+    /// (`take_settled_here`): with no server to list what changed, this is how its host hears
+    /// of them (a search index catching up, above all).
+    settled_here: Mutex<HashSet<Uuid>>,
+    /// The scope logs read in this run to judge each key (`Peer::outdated`), each asked for
+    /// once.
+    log_reads: Mutex<HashSet<(Uuid, Uuid)>>,
+    /// How many drains in this run found each block's waiting edit outdated while a log its
+    /// keys are judged by stayed short of a lowering this device sent, or unsure of one
+    /// (`ClientError::Withheld` from `Peer::reseal`): past `WITHHELD_DRAINS` the edit is set
+    /// aside rather than tried again forever.
+    withheld_drains: Mutex<HashMap<Uuid, u32>>,
+    /// How far this device's clock reads past `now_milliseconds` (`local_now`): a test's fast
+    /// clock, beside a server in the same process that reads the true one.
+    #[cfg(test)]
+    clock_ahead: std::sync::atomic::AtomicI64,
+    /// Where the next `seal` waits before its commit is queued (`pause_before_queue`).
+    #[cfg(test)]
+    #[allow(clippy::type_complexity)]
+    pause_before_queue: Mutex<Option<(Arc<tokio::sync::Notify>, Arc<tokio::sync::Notify>)>>,
+    /// The whole access logs served in this run, those read last, by log (the organization's
+    /// under its id): a read names the last entry held and is sent only the
+    /// entries after it (`served_access`).
+    served_logs: Mutex<ServedLogs>,
+    /// Logs checked as of the heads records name their authority at, so authority from another
+    /// log is checked once as of each (`be_block_keys::CheckedAsOf`).
+    checked_as_of: Arc<be_block_keys::CheckedAsOf>,
 }
+
+/// The access logs a peer holds for reading again (`Peer::served_access`), weighed by their
+/// entries: at most `SERVED_ENTRIES` in all, the log read longest ago let go first, so a run that
+/// reads many logs holds no more than the ones it reads again.
+pub(crate) type ServedLogs = be_block_keys::lru::Lru<Uuid, HeldLog>;
+
+/// An access log as `Peer::served_access_held` read it: its entries, how many of the first this
+/// device checked before (`trusted`), and the very log it holds for reading again, which only a
+/// check of these entries marks checked (`Peer::served_checked`).
+pub(crate) struct ServedRead {
+    pub(crate) steps: Vec<be_block_keys::Step>,
+    pub(crate) trusted: usize,
+    held: Option<Arc<Vec<be_block_keys::Step>>>,
+}
+
+/// A whole access log as served, and how many of its first entries this device checked: those a
+/// check goes on from without hashing them again (`Checked::resume_trusting`).
+#[derive(Clone)]
+pub(crate) struct HeldLog {
+    steps: Arc<Vec<be_block_keys::Step>>,
+    checked: usize,
+}
+
+/// How many entries of the access logs a peer holds for reading again (`ServedLogs`).
+pub(crate) const SERVED_ENTRIES: usize = 1 << 16;
+
+/// How long a read of an access log before a write may take before what was kept of it is
+/// used instead (`Peer::bounded_read`).
+const LOG_READ_LIMIT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// How many drains in a run try an edit again while the log its keys are judged by stays short
+/// of a lowering this device sent, or unsure of one, before setting it aside
+/// (`Peer::withheld_drains`): a log whose read keeps failing for a reason other than the server
+/// being out of reach (a block deleted or no longer readable, a root this device cannot place)
+/// would otherwise hold the edit back for good, never offered to the person.
+pub(crate) const WITHHELD_DRAINS: u32 = 3;
 
 /// What this device knows of the server's clock (`Peer::server_now`).
 struct ServerClock {
@@ -326,10 +498,63 @@ pub type Resolver = Arc<dyn Fn(Uuid, Vec<Uuid>) -> Vec<Uuid> + Send + Sync>;
 
 impl<S: ObjectStore> Peer<S> {
     pub async fn connect(config: PeerConfig, store: S) -> Result<Self, ClientError> {
-        let connection = Connection::connect(&config.url, &crate::Clock::real()).await?;
-        let be_block_protocol::Authenticated { account, token, .. } =
-            config.credentials.clone().authenticate(&connection).await?;
+        let (connection, be_block_protocol::Authenticated { account, token, .. }) =
+            Connection::connect(&config.url, &crate::Clock::real(), &config.credentials).await?;
         Self::signed_in(connection, account, token, config, store).await
+    }
+
+    /// Publishes the account's name card (`be_block_keys::NameCard`), signed here, when the
+    /// name and email the server greeted this connection with differ from the card the server
+    /// holds: a rename made in the server's portal then reaches the account's contacts, who
+    /// show the newest card its signing key signs (guides/blocks/keys.md, "Contacts"). Once per
+    /// connection; a failed attempt is made again by the next call.
+    pub async fn publish_name(&self) -> Result<(), ClientError> {
+        let connection = self.connection();
+        let Some((display_name, email)) = connection.greeted.lock().unwrap().take() else {
+            return Ok(());
+        };
+        let published = self.publish_greeted(&display_name, &email).await;
+        if published.is_err() {
+            *connection.greeted.lock().unwrap() = Some((display_name, email));
+        }
+        published
+    }
+
+    async fn publish_greeted(&self, display_name: &str, email: &str) -> Result<(), ClientError> {
+        let signing = self.keys.identity().signing();
+        let held = be_block_protocol::read::<Vec<be_block_protocol::SigningKey>, _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Query::SigningKeys(vec![self.account]),
+        )
+        .await??
+        .into_iter()
+        .find(|served| served.account == self.account)
+        .and_then(|served| be_block_keys::NameCard::open(&served.name, &signing));
+        // A greeting with no name names no one: nothing to publish.
+        if display_name.is_empty()
+            || held
+                .as_ref()
+                .is_some_and(|held| held.display_name == display_name && held.email == email)
+        {
+            return Ok(());
+        }
+        let now = Uuid::now_v7()
+            .get_timestamp()
+            .map_or(0, |time| time.to_unix().0 * 1000);
+        let card = be_block_keys::NameCard {
+            account: self.account.into_bytes(),
+            display_name: display_name.to_owned(),
+            email: email.to_owned(),
+            dated: now.max(held.map_or(0, |held| held.dated.saturating_add(1))),
+        };
+        be_block_protocol::write::<(), _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Op::PublishName(card.sign(self.keys.identity())),
+        )
+        .await??;
+        Ok(())
     }
 
     pub async fn signed_in(
@@ -342,11 +567,13 @@ impl<S: ObjectStore> Peer<S> {
         let organization = match config.organization {
             Some(organization) => organization,
             None => {
-                client::organizations::create_organization(
+                crate::contacts::create_organization(
                     &connection,
+                    &config.identity,
+                    account,
                     config.organization_name.clone(),
                 )
-                .await??
+                .await?
                 .id
             }
         };
@@ -370,6 +597,51 @@ impl<S: ObjectStore> Peer<S> {
         Ok(peer)
     }
 
+    /// A local account's peer, which has no server (guides/blocks/client.md, Saving and the
+    /// outbox): its organization is made on this device the first time, with this account its one
+    /// member, and what it makes is final as it is made. A commit is the block's head once it is
+    /// sealed, as the server would take it, compared with the head it went on (`send_pending`), and
+    /// creations, moves and definitions are settled as they are kept (`settle_locally`), so nothing
+    /// waits to be sent. Listings answer from what the device holds (`Refs::local_listing`), and
+    /// everything that needs a server, sharing above all, is refused as offline.
+    pub fn local(
+        config: PeerConfig,
+        account: Uuid,
+        organization: Uuid,
+        store: S,
+    ) -> Result<Self, ClientError> {
+        let config = PeerConfig {
+            url: String::new(),
+            ..config
+        };
+        let mut peer = Self::assemble(Connection::offline(), account, organization, config, store)?;
+        peer.local = true;
+        if peer.refs.session().is_none() {
+            peer.refs.set_session(Session {
+                role: OrganizationRole::Editor,
+                kind: OrganizationKind::Personal,
+                escrows: Vec::new(),
+                pinned: crate::contacts::Pinned::default(),
+                server: None,
+                server_offset: None,
+            })?;
+        }
+        *peer.session.lock().unwrap() = (OrganizationRole::Editor, OrganizationKind::Personal);
+        peer.settle_locally()?;
+        Ok(peer)
+    }
+
+    /// Whether this is a local account's peer, with no server (`Peer::local`).
+    pub fn is_local(&self) -> bool {
+        self.local
+    }
+
+    /// The blocks a local account's peer made, changed, moved or named since this was last
+    /// asked: what a server's `query.tree` would list for it.
+    pub fn take_settled_here(&self) -> HashSet<Uuid> {
+        std::mem::take(&mut *self.settled_here.lock().unwrap())
+    }
+
     fn assemble(
         connection: Arc<Connection>,
         account: Uuid,
@@ -377,31 +649,49 @@ impl<S: ObjectStore> Peer<S> {
         config: PeerConfig,
         store: S,
     ) -> Result<Self, ClientError> {
-        let refs = config.refs.scope(Scope {
+        let scope = Scope {
             server: config.url.clone(),
             account,
             organization,
-        })?;
+        };
+        let owner = scope.owner();
+        let refs = Arc::new(config.refs.scope(scope)?);
         let session = refs.session();
         let ring = Keyring::new();
-        let _ = refs.add_signer(account, config.identity.signing().0, true);
+        let _ = refs.add_signer(account, config.identity.signing().0, true, None);
         let keys = KeyBook::new(account, organization, config.identity, ring.clone());
         keys.set_contacts(
             refs.contacts()
                 .into_iter()
-                .map(|(account, public)| (account, RecoveryPublic(public))),
+                .map(|(account, record)| (account, record.card.public)),
         );
         if let Some(session) = &session {
             keys.set_escrows(session.escrows.clone());
-            keys.set_pinned(session.pinned.clone());
+            keys.set_pinned(Some(session.pinned.clone()));
             if let Some(server) = session.server {
                 keys.set_server(server.account, RecoveryPublic(server.public));
             }
         }
+        keys.set_kept_logs(refs.kept_logs());
+        keys.set_awaited(refs.awaited());
+        keys.set_unsure(refs.unsure());
+        keys.set_unmade(refs.unmade());
+        for (_, op) in refs.outbox() {
+            if let crate::refs::Op::Create(creation) = op
+                && let Some(root) = made_root(&creation)
+            {
+                keys.note_made(creation.block, root);
+            }
+        }
         keys.absorb(refs.keys());
+        let unnamed = config.refs.unnamed(store.identity())?;
         let peer = Self {
-            connection: Mutex::new(connection),
-            commits: CommitStore::new(Vault::new(store, ring).with_chunker(config.chunker)),
+            connection: Arc::new(Mutex::new(connection)),
+            commits: CommitStore::new(
+                Vault::new(store, ring)
+                    .with_chunker(config.chunker)
+                    .with_unnamed(unnamed, owner),
+            ),
             token: Mutex::new(String::new()),
             account,
             organization,
@@ -413,8 +703,16 @@ impl<S: ObjectStore> Peer<S> {
             resolver: Mutex::new(None),
             keys,
             current: Mutex::new(HashMap::new()),
-            tried: Mutex::new(HashSet::new()),
-            keys_arrived: std::sync::atomic::AtomicU64::new(0),
+            tried: Arc::default(),
+            compared_heads: Mutex::new(HashSet::new()),
+            trading_heads: std::sync::atomic::AtomicBool::new(false),
+            unsigned: Mutex::new(Vec::new()),
+            served_logs: Mutex::new(ServedLogs::new(SERVED_ENTRIES)),
+            checked_as_of: Arc::new(be_block_keys::CheckedAsOf::new(SERVED_ENTRIES)),
+            pending_rotations: Mutex::new(HashMap::new()),
+            keys_arrived: Arc::default(),
+            moved_heads: Mutex::new(HashMap::new()),
+            taken: Mutex::new(Taken::default()),
             draining: std::sync::atomic::AtomicUsize::new(0),
             whole: Mutex::new(HashSet::new()),
             forged: Mutex::new(authorship::Forged::default()),
@@ -422,12 +720,33 @@ impl<S: ObjectStore> Peer<S> {
                 anchor: None,
                 offset: session.as_ref().and_then(|session| session.server_offset),
             }),
+            local: false,
+            account_records: false,
+            settled_here: Mutex::new(HashSet::new()),
+            log_reads: Mutex::new(HashSet::new()),
+            withheld_drains: Mutex::new(HashMap::new()),
+            #[cfg(test)]
+            clock_ahead: std::sync::atomic::AtomicI64::new(0),
+            #[cfg(test)]
+            pause_before_queue: Mutex::new(None),
         };
         for summary in peer.refs.summaries() {
             if let Some(key) = summary.key {
                 peer.make_current(summary.id, key);
             }
         }
+        // Every key that opens from here on arrived, by whatever path opened it: it is told as
+        // keys the server says were stored are (`Event::KeysChanged`), and counted alike.
+        let (tried, arrived, connection) = (
+            Arc::clone(&peer.tried),
+            Arc::clone(&peer.keys_arrived),
+            Arc::clone(&peer.connection),
+        );
+        peer.keys.on_opened(move || {
+            keys_arrived(&tried, &arrived);
+            let connection = connection.lock().unwrap().clone();
+            connection.keys_opened();
+        });
         Ok(peer)
     }
 
@@ -446,7 +765,7 @@ impl<S: ObjectStore> Peer<S> {
     /// (`be_block_commit::commit_time`).
     pub fn commit_time(&self, parent: Option<&Commit>) -> i64 {
         be_block_commit::commit_time(
-            now_milliseconds(),
+            self.local_now(),
             self.server_now(),
             parent.map(|parent| parent.time),
         )
@@ -454,7 +773,50 @@ impl<S: ObjectStore> Peer<S> {
 
     /// The latest commit time this device believes (`be_block_commit::latest_believed`).
     pub fn latest_believed(&self) -> i64 {
-        be_block_commit::latest_believed(now_milliseconds(), self.server_now())
+        be_block_commit::latest_believed(self.local_now(), self.server_now())
+    }
+
+    /// This device's clock, which commits are stamped by until the server's is measured.
+    pub(crate) fn local_now(&self) -> i64 {
+        #[cfg(test)]
+        return now_milliseconds()
+            .saturating_add(self.clock_ahead.load(std::sync::atomic::Ordering::Relaxed));
+        #[cfg(not(test))]
+        now_milliseconds()
+    }
+
+    /// Has the next `seal` stop just before its commit is queued, telling `paused` and waiting
+    /// for `resume`: a test's way to rewrite what it goes on in between.
+    #[cfg(test)]
+    pub(crate) fn pause_before_queue(
+        &self,
+        paused: Arc<tokio::sync::Notify>,
+        resume: Arc<tokio::sync::Notify>,
+    ) {
+        *self.pause_before_queue.lock().unwrap() = Some((paused, resume));
+    }
+
+    /// This peer's refs, for a test to change what they hold behind its back.
+    #[cfg(test)]
+    pub(crate) fn kept_refs(&self) -> &Refs {
+        &self.refs
+    }
+
+    #[cfg(test)]
+    async fn paused_before_queue(&self) {
+        let pause = self.pause_before_queue.lock().unwrap().take();
+        if let Some((paused, resume)) = pause {
+            paused.notify_one();
+            resume.notified().await;
+        }
+    }
+
+    /// Makes this device's clock read `ahead` past the true one (`local_now`), as a device
+    /// whose clock runs fast; the server, and every other peer in the process, keep theirs.
+    #[cfg(test)]
+    pub(crate) fn set_clock_ahead(&self, ahead: i64) {
+        self.clock_ahead
+            .store(ahead, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// The server's clock now, as estimated: from when this run's session opened by the
@@ -475,14 +837,14 @@ impl<S: ObjectStore> Peer<S> {
             }
             _ => held
                 .offset
-                .map(|offset| now_milliseconds().saturating_add(offset)),
+                .map(|offset| self.local_now().saturating_add(offset)),
         }
     }
 
     /// Takes the server's clock it answered with as the session opened, unless it would pull
     /// commit times back too far (`be_block_commit::trusts_measurement`).
     fn measured_server(&self, server: i64, clock: &crate::Clock) {
-        let local = now_milliseconds();
+        let local = self.local_now();
         if !be_block_commit::trusts_measurement(local, server) {
             return;
         }
@@ -507,41 +869,64 @@ impl<S: ObjectStore> Peer<S> {
     async fn open_session(&self) -> Result<(), ClientError> {
         let connection = self.connection();
         let organization = self.organization;
-        let be_block_protocol::OrganizationOpened {
+        // Asked together, answered in one round trip.
+        let info = crate::ask(be_block_protocol::read::<be_block_protocol::ServerInfo, _>(
+            &connection,
+            None,
+            be_block_protocol::Query::ServerInfo,
+        ));
+        let listed = crate::ask(be_block_protocol::read::<
+            Vec<be_block_protocol::Organization>,
+            _,
+        >(
+            &connection, None, be_block_protocol::Query::Organizations
+        ));
+        let be_block_protocol::ServerInfo { server, time, .. } = info.await?;
+        let be_block_protocol::Organization {
             role,
             kind,
             escrows,
-            pinned,
-            server,
-            time,
-            client: opened,
             ..
-        } = client::organizations::open_organization(&connection, organization).await??;
-        connection.opened(opened);
+        } = listed
+            .await?
+            .into_iter()
+            .find(|listed| listed.id == organization)
+            .ok_or_else(|| {
+                ClientError::Refused(
+                    ErrorCode::PermissionDenied,
+                    "that account is not a member of this organization".into(),
+                )
+            })?;
         self.measured_server(time, connection.clock());
         *self.session.lock().unwrap() = (role, kind);
         self.keys
             .set_server(server.account, RecoveryPublic(server.public));
-        let verified =
-            crate::contacts::contacts(&connection, self.account, self.keys.identity()).await?;
-        let public = client::keys::get_recovery_key(&connection).await??.public;
-        if public.is_none() {
-            client::keys::set_recovery_key(
-                &connection,
-                self.keys.identity().public().0,
-                self.keys.identity().signing().0,
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-            )
-            .await??;
-        }
-        self.keys.set_pinned(crate::contacts::open_pin(
+        self.follow_topics().await;
+        let pins = self.contact_pins();
+        let (verified, retired) = crate::contacts::contacts_and_retired(
+            &connection,
+            self.account,
             self.keys.identity(),
-            organization,
-            &pinned,
-        ));
+            &pins,
+        )
+        .await?;
+        // Before any key is read: one a contact sealed to a key this account replaced opens
+        // with the secret the account's block keeps of it.
+        self.retire(retired, &verified);
+        crate::contacts::register_identity(&connection, self.keys.identity()).await?;
+        // What this account pinned for the organization, from its block in the personal
+        // organization (an agent's from the letter its maker left).
+        self.keys.set_pinned(
+            crate::contacts::pinned(
+                &connection,
+                self.account,
+                self.keys.identity(),
+                organization,
+            )
+            .await?,
+        );
         let made = escrows.is_empty();
+        self.learn_administrators().await;
         self.keys.set_escrows(escrows);
         self.adopt_contacts(&verified);
         self.persist_session()?;
@@ -556,6 +941,55 @@ impl<S: ObjectStore> Peer<S> {
         self.persist_session()
     }
 
+    /// Follows what this device hears of the organization and the account as it changes
+    /// (`Event`): its keys, its key work and roots, notification modes, and the account's
+    /// mailbox, where its contacts' records arrive, and storage. Each read follows its topic first, answered with what it
+    /// reads, which is left for the readers that want it; one refused (a block's agent follows
+    /// less) is let go.
+    async fn follow_topics(&self) {
+        let connection = self.connection();
+        let organization = Some(self.organization);
+        let follows: Vec<std::pin::Pin<Box<dyn Future<Output = bool> + Send>>> = vec![
+            followed::<be_block_protocol::KeyPage>(
+                &connection,
+                organization,
+                be_block_protocol::Query::Keys {
+                    blocks: Some(Vec::new()),
+                    after: None,
+                },
+            ),
+            followed::<be_block_protocol::KeyWork>(
+                &connection,
+                organization,
+                be_block_protocol::Query::KeyWork,
+            ),
+            followed::<be_block_protocol::Listed>(
+                &connection,
+                organization,
+                be_block_protocol::Query::List {
+                    listing: be_block_protocol::Listing::Children(BlockParent::Root),
+                    after: None,
+                },
+            ),
+            followed::<Vec<be_block_protocol::BlockMute>>(
+                &connection,
+                organization,
+                be_block_protocol::Query::Mutes,
+            ),
+            followed::<Vec<be_block_protocol::Message>>(
+                &connection,
+                None,
+                be_block_protocol::Query::Mailbox,
+            ),
+            followed::<be_block_protocol::AccountStorage>(
+                &connection,
+                None,
+                be_block_protocol::Query::Storage,
+            ),
+        ];
+        futures_util::future::join_all(follows).await;
+    }
+
     pub fn server(&self) -> Option<ServerAccount> {
         self.keys.server().map(|(account, public)| ServerAccount {
             account,
@@ -568,8 +1002,10 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn share_with_server(&self, block: Uuid) -> Result<(), ClientError> {
+        // A standing grant, which takes no record (`signed_grant`).
         let (account, public) = self.keys.server().ok_or(ClientError::Unexpected)?;
-        self.share(block, account, Access::View, &public).await
+        self.share_sealed(block, account, Access::View, &public, None)
+            .await
     }
 
     async fn ensure_organization_settings(&self) -> Result<(), ClientError> {
@@ -577,13 +1013,27 @@ impl<S: ObjectStore> Peer<S> {
         let made = match self.summary(settings).await {
             Ok(summary) => summary,
             Err(ClientError::Refused(ErrorCode::BlockNotFound, _)) => {
-                self.create_with_id::<be_block::SettingsContent>(settings, BlockParent::Root)
-                    .await?;
-                self.share_with_server(settings).await?;
+                match self
+                    .create_with_id::<be_block::SettingsContent>(settings, BlockParent::Root)
+                    .await
+                {
+                    // Another administrator's device made it since.
+                    Ok(_) | Err(ClientError::Refused(ErrorCode::BlockAlreadyExists, _)) => {}
+                    Err(error) => return Err(error),
+                }
                 self.summary(settings).await?
             }
             Err(error) => return Err(error),
         };
+        // Shared each time, as nothing this device reads says whether the server holds it: a
+        // device that stopped between making the settings and sharing them would otherwise leave
+        // the server refusing what the policies govern (`PolicyUnreadable`). Sharing again
+        // changes nothing. A device that cannot open the settings' key yet leaves it to one
+        // that can.
+        match self.share_with_server(settings).await.map_err(locked) {
+            Ok(()) | Err(ClientError::Locked(_)) => {}
+            Err(error) => return Err(error),
+        }
         if made.head.is_none() {
             self.save(settings, &be_block::SettingsContent::default(), None)
                 .await?;
@@ -621,7 +1071,7 @@ impl<S: ObjectStore> Peer<S> {
             role,
             kind,
             escrows: self.keys.escrows(),
-            pinned: self.keys.pinned(),
+            pinned: self.keys.pins(),
             server: self.server(),
             server_offset: self.server_clock.lock().unwrap().offset,
         })?)
@@ -632,28 +1082,201 @@ impl<S: ObjectStore> Peer<S> {
         let _ = self.persist_session();
     }
 
-    pub(crate) fn adopt_pinned(&self, pinned: Option<EscrowKey>) {
-        self.keys.set_pinned(pinned);
+    /// Reads the organization from its log, checked from the root this account pinned: its
+    /// administrators, for the escrow keys they make (`verify_escrow`), and its members, whose
+    /// escrow wraps are opened. None are known when the log does not check, so no newer escrow
+    /// key is taken and no escrow wrap opened.
+    pub(crate) async fn learn_administrators(&self) {
+        match self.checked_organization().await {
+            // A log short of what was kept leaves the organization as this device last held
+            // it, or judged by what was kept (`KeyBook::kept`).
+            Err(ClientError::Withheld(_)) => {}
+            // Nor does a read that did not get through: the last one this run took stands.
+            Err(error) if error.is_unreachable() => {}
+            checked => self.keys.set_organization(checked.ok().flatten().as_ref()),
+        }
+        self.keys.absorb(KeySet::default());
+    }
+
+    /// Takes the keys opened from escrow wraps (`KeyBook::escrowed`) whose sender administers
+    /// the organization (holding the escrow key, they read everything it opens, and pass on a
+    /// root only one they pinned), or whom the block's log names with Edit or above: checked from
+    /// the root this device pinned for the block, or, for one it pinned none for (reached only
+    /// through escrow), from the root the wrap carries, which is then pinned. A member could so
+    /// root a block id an administrator never pinned at themselves (guides/blocks/keys.md,
+    /// "Accepted limits"); the server, which is no member, cannot. Others wait: a grant may come.
+    pub(crate) async fn settle_escrowed(&self) {
+        // Again while a pass takes a key: a root it pinned may settle, or conflict with, a wrap
+        // a pass looked at before.
+        while self.settle_escrowed_once().await > 0 {}
+    }
+
+    async fn settle_escrowed_once(&self) -> usize {
+        let mut taken = 0;
+        for escrowed in self.keys.escrowed() {
+            // An administrator's word stands for escrow wraps alone (it holds the escrow key).
+            let administrator = escrowed.escrow && self.keys.is_administrator(escrowed.sender);
+            let (pinned, weak) = match (self.keys.root_pin(escrowed.block), escrowed.root) {
+                (
+                    crate::keys::RootPin::Pinned(root) | crate::keys::RootPin::Weak(root),
+                    Some(carried),
+                ) if carried != root => {
+                    self.keys.conflicting_escrowed(escrowed.key, carried);
+                    continue;
+                }
+                (crate::keys::RootPin::Pinned(root), _) => (root, false),
+                (crate::keys::RootPin::Weak(root), _) => (root, !administrator),
+                (crate::keys::RootPin::Unknown, Some(carried)) => (carried, !administrator),
+                _ => continue,
+            };
+            if administrator {
+                self.keys.take_escrowed(escrowed.key, pinned, false);
+                taken += 1;
+                continue;
+            }
+            let Ok(read) = self.served_access_held(Some(escrowed.block)).await else {
+                continue;
+            };
+            let Ok(around) = self.logs_around(escrowed.block, &read.steps).await else {
+                continue;
+            };
+            let kept = self
+                .keys
+                .kept_checked(escrowed.block, pinned)
+                .filter(|kept| kept.positions.len() <= read.steps.len());
+            let checked = around.check(
+                self.organization,
+                escrowed.block,
+                pinned,
+                kept,
+                &read.steps,
+                read.trusted,
+            );
+            // Taken as any check of the log is: one short of what an earlier check kept is
+            // withheld, and the key waits.
+            let checked = checked.and_then(|checked| {
+                self.take_checked(escrowed.block, read, checked)
+                    .ok()
+                    .map(|(_, checked)| checked)
+            });
+            let granted = checked
+                .and_then(|checked| checked.grants.get(&escrowed.sender.into_bytes()).copied())
+                .is_some_and(|(level, _)| level >= be_block_keys::Level::Edit);
+            if granted {
+                self.keys.take_escrowed(escrowed.key, pinned, weak);
+                taken += 1;
+            }
+        }
+        if taken > 0 {
+            self.keys.absorb(KeySet::default());
+        }
+        taken
+    }
+
+    pub(crate) fn adopt_pinned(&self, pinned: crate::contacts::Pinned) {
+        self.keys.set_pinned(Some(pinned));
         let _ = self.persist_session();
+    }
+
+    /// The organization's access log, root first, once its root checks against the one this
+    /// account pinned (`KeyBook::organization_root`): from making the organization or the
+    /// invitation it joined by. The personal organization has none. Whole to an administrator,
+    /// else a proof path.
+    pub async fn organization_log(&self) -> Result<Vec<be_block_keys::Step>, ClientError> {
+        Ok(self.organization_log_checked().await?.0)
+    }
+
+    /// `organization_log`, and the log as it checked, none for the personal organization.
+    /// Checked on from what this device kept, without hashing again the prefix it checked
+    /// before (`Checked::resume_trusting`).
+    pub(crate) async fn organization_log_checked(
+        &self,
+    ) -> Result<(Vec<be_block_keys::Step>, Option<be_block_keys::Checked>), ClientError> {
+        let read = self.served_access_held(None).await?;
+        let (served, trusted) = (&read.steps, read.trusted);
+        let organization = self.organization;
+        let Some(pinned) = self.keys.organization_root() else {
+            return match served.is_empty() {
+                true => Ok((Vec::new(), None)),
+                false => Err(ClientError::Locked(organization)),
+            };
+        };
+        let kept = self
+            .keys
+            .kept_checked(organization, pinned)
+            .filter(|kept| kept.positions.len() <= served.len());
+        let checked = kept
+            .unwrap_or_else(|| be_block_keys::Checked::unchecked(pinned))
+            .resume_trusting(
+                be_block_keys::LogKind::Organization,
+                organization.into_bytes(),
+                served,
+                trusted,
+                &|_| None,
+            )
+            .map_err(|_| ClientError::Forged(organization))?;
+        if !checked.partial {
+            self.served_checked(organization, &read, served.len());
+        }
+        Ok((read.steps, Some(checked)))
     }
 
     pub(crate) fn adopt_contacts(&self, contacts: &[crate::Contact]) {
         for contact in contacts {
-            if let Some(signing) = contact.signing {
-                let _ = self.refs.add_signer(contact.account, signing.0, true);
-            }
+            let _ = match contact.signing {
+                Some(signing) => {
+                    self.refs
+                        .add_signer(contact.account, signing.0, true, self.server_now())
+                }
+                // Not confirmed: never verified, or its chain of key changes broke, when every
+                // key it was verified by is no longer its own.
+                None => self
+                    .refs
+                    .supersede_signers(contact.account, self.server_now()),
+            };
         }
         let verified: Vec<(Uuid, RecoveryPublic)> = contacts
             .iter()
             .filter_map(|contact| Some((contact.account, contact.public?)))
             .collect();
-        let _ = self.refs.set_contacts(
-            verified
+        // Pins only move forward: a contact the server stops listing keeps its pin, so it is
+        // not trusted afresh from an older record if it comes back.
+        let mut pinned: HashMap<Uuid, crate::contacts::OwnContact> =
+            self.refs.contacts().into_iter().collect();
+        for record in contacts.iter().filter_map(crate::Contact::record) {
+            let account = Uuid::from_bytes(record.card.account);
+            if pinned
+                .get(&account)
+                .is_none_or(|pin| pin.verified <= record.verified)
+            {
+                pinned.insert(account, record);
+            }
+        }
+        let _ = self.refs.set_contacts(pinned.into_iter().collect());
+        self.keys.set_contacts(verified);
+        let _ = self.refs.set_contact_names(
+            contacts
                 .iter()
-                .map(|(account, public)| (*account, public.0))
+                .map(|contact| (contact.account, contact.display_name.clone()))
                 .collect(),
         );
-        self.keys.set_contacts(verified);
+    }
+
+    /// The contacts' records this device pinned, which `contacts::contacts` checks the server's
+    /// against.
+    pub fn contact_pins(&self) -> HashMap<Uuid, crate::contacts::OwnContact> {
+        self.refs.contacts().into_iter().collect()
+    }
+
+    /// A contact's name as its verified card gives it, kept for when there is no connection.
+    pub fn contact_name(&self, account: Uuid) -> Option<String> {
+        self.refs.contact_name(account)
+    }
+
+    /// The name of `block` as this device last heard it, with no network: from its kept
+    /// summary, opened with the keys kept here.
+    pub fn kept_name(&self, block: Uuid) -> Option<String> {
+        self.metadata(&self.refs.summary(block)?).ok()?.name()
     }
 
     pub fn kind(&self) -> OrganizationKind {
@@ -672,7 +1295,15 @@ impl<S: ObjectStore> Peer<S> {
         let mut keys = KeySet::default();
         let mut after = None;
         loop {
-            let page = client::keys::get_keys(&self.connection(), blocks.clone(), after).await??;
+            let page = be_block_protocol::read::<be_block_protocol::KeyPage, _>(
+                &self.connection(),
+                Some(self.organization),
+                be_block_protocol::Query::Keys {
+                    blocks: blocks.clone(),
+                    after: after,
+                },
+            )
+            .await??;
             keys.keys.extend(page.keys.keys);
             keys.wrapped.extend(page.keys.wrapped);
             match page.next {
@@ -684,14 +1315,151 @@ impl<S: ObjectStore> Peer<S> {
         self.refs.add_keys(&keys)?;
         let unknown = keys.wrapped.iter().any(|wrap| {
             wrap.wrapped_by == WrappedBy::Account(self.account)
-                && self.keys.contact(wrap.sender).is_none()
+                && self.keys.sender(wrap.sender).is_none()
         });
-        if unknown {
-            self.refresh_contacts().await?;
+        if unknown && !self.account_records {
+            // Boxed: contacts reach the account's block through a peer of its own, which reads
+            // its keys here too.
+            Box::pin(self.refresh_contacts()).await?;
         }
-        let opened = self.keys.absorb(keys);
-        if opened > 0 {
-            self.tried.lock().unwrap().clear();
+        if self.keys.escrow_senders_unknown(&keys) {
+            self.learn_administrators().await;
+        }
+        // A contact's seal is checked against the block's log as of the head its epoch names
+        // (`KeyBook::sender_may`), so that log is read first for each block a
+        // contact sealed a key of that is new here, when this device pinned its root. A key from
+        // a sender the log never names is taken only when the sender is found, as it arrives, to
+        // hold Edit or above on a block the signed parent records place the block under
+        // (`KeyBook::vouch`).
+        // A contact's seal of a block this device has not pinned the root of waits until the
+        // rest is taken: this account's own keys pin roots, whose logs are then read first.
+        let block_of_key = |key: Uuid| {
+            keys.keys
+                .iter()
+                .find(|row| row.id == key)
+                .copied()
+                .or_else(|| self.keys.row(key))
+                .map(|row| row.block)
+        };
+        let (held_back, rest): (Vec<_>, Vec<_>) = keys.wrapped.iter().cloned().partition(|wrap| {
+            wrap.wrapped_by == WrappedBy::Account(self.account)
+                && wrap.sender != self.account
+                && self.keys.contact(wrap.sender).is_some()
+                && block_of_key(wrap.key).is_some_and(|block| {
+                    !matches!(self.keys.root_pin(block), crate::keys::RootPin::Pinned(_))
+                })
+        });
+        let mut opened = 0;
+        if !held_back.is_empty() {
+            opened += self.keys.absorb(KeySet {
+                keys: keys.keys.clone(),
+                wrapped: rest,
+            });
+            keys.wrapped = held_back;
+        }
+        let mut sealed_by_contacts: Vec<(Uuid, Uuid, Uuid, Vec<u8>)> = keys
+            .wrapped
+            .iter()
+            .filter(|wrap| {
+                wrap.wrapped_by == WrappedBy::Account(self.account)
+                    && wrap.sender != self.account
+                    && self.keys.contact(wrap.sender).is_some()
+                    && !self.keys.trusted(wrap.key)
+            })
+            .filter_map(|wrap| {
+                let row = keys
+                    .keys
+                    .iter()
+                    .find(|row| row.id == wrap.key)
+                    .copied()
+                    .or_else(|| self.keys.row(wrap.key))?;
+                Some((row, wrap.sender, wrap.sealed.clone()))
+            })
+            .filter(|(row, _, _)| row.kind == KeyKind::Scope)
+            .map(|(row, sender, sealed)| (row.block, sender, row.id, sealed))
+            .filter(|(block, _, _, _)| {
+                matches!(self.keys.root_pin(*block), crate::keys::RootPin::Pinned(_))
+            })
+            .collect();
+        sealed_by_contacts.sort();
+        sealed_by_contacts.dedup();
+        let mut checked_logs: HashMap<Uuid, Option<be_block_keys::Checked>> = HashMap::new();
+        for (block, sender, key, sealed) in sealed_by_contacts {
+            if !checked_logs.contains_key(&block) {
+                let checked = self
+                    .checked_access(block)
+                    .await
+                    .ok()
+                    .map(|(_, checked)| checked);
+                checked_logs.insert(block, checked);
+            }
+            let Some(Some(checked)) = checked_logs.get(&block) else {
+                continue;
+            };
+            if self.keys.names(block, sender) {
+                continue;
+            }
+            let above = self
+                .held_above(checked, sender.into_bytes(), be_block_keys::Level::Edit)
+                .await;
+            if let Ok(Some(_)) = above
+                && let Some(kept) = self.keys.vouch(block, key, sender, &sealed)
+            {
+                let _ = self.refs.keep_log(block, kept);
+            }
+        }
+        // A seal from a sender no contact or organization log vouches for (an editor sealing a
+        // newer epoch to a share link's opener; guides/blocks/keys.md, "Share links") opens by
+        // the keys the block's own log names, so that log is read first, then taken again.
+        let mut named_by_log: Vec<Uuid> = keys
+            .wrapped
+            .iter()
+            .filter(|wrap| {
+                wrap.wrapped_by == WrappedBy::Account(self.account)
+                    && wrap.sender != self.account
+                    && self.keys.sender(wrap.sender).is_none()
+                    && !self.keys.member_named(wrap.sender)
+                    && !self.keys.trusted(wrap.key)
+            })
+            .filter_map(|wrap| {
+                keys.keys
+                    .iter()
+                    .find(|row| row.id == wrap.key)
+                    .copied()
+                    .or_else(|| self.keys.row(wrap.key))
+            })
+            .filter(|row| row.kind == KeyKind::Scope)
+            .map(|row| row.block)
+            .collect();
+        named_by_log.sort();
+        named_by_log.dedup();
+        opened += self.keys.absorb(keys);
+        let mut read = false;
+        for block in named_by_log {
+            if matches!(self.keys.root_pin(block), crate::keys::RootPin::Pinned(_)) {
+                read |= self.checked_access(block).await.is_ok();
+            }
+        }
+        if read {
+            opened += self.keys.absorb(KeySet::default());
+        }
+        self.settle_escrowed().await;
+        self.reseal_retired().await;
+        // Each scope's log, once, so a write offline later is judged by what was kept of it
+        // (`Peer::outdated`) rather than refused.
+        if !self.local {
+            use futures_util::StreamExt;
+            let unkept: Vec<Uuid> = self
+                .keys
+                .unkept_scopes()
+                .into_iter()
+                .filter(|scope| !self.uncreated(*scope))
+                .collect();
+            futures_util::stream::iter(unkept)
+                .map(|scope| async move { self.bounded_read(scope).await })
+                .buffer_unordered(8)
+                .collect::<Vec<_>>()
+                .await;
         }
         Ok(opened)
     }
@@ -701,9 +1469,7 @@ impl<S: ObjectStore> Peer<S> {
             self.make_current(summary.id, key);
         }
         self.observe(std::slice::from_ref(summary));
-        let _ = self
-            .refs
-            .set_listing(Listing::Block(summary.id), std::slice::from_ref(summary));
+        let _ = self.refs.note(summary);
         if !summary.access.can_edit() && self.refs.has_pending(summary.id) {
             let _ = self.move_to_unsent(summary.id, None);
         }
@@ -711,7 +1477,20 @@ impl<S: ObjectStore> Peer<S> {
 
     /// Keeps the server's heads `summaries` name (`behind`).
     fn observe(&self, summaries: &[BlockSummary]) {
-        let _ = self.refs.observe(summaries, self.behind());
+        if let Ok(moved) = self.refs.observe(summaries, self.behind())
+            && !moved.is_empty()
+        {
+            self.moved_heads.lock().unwrap().extend(moved);
+        }
+    }
+
+    /// The heads the server moved on to since this was last asked, from one this device knew
+    /// (`Refs::observe`): read by a listing, a tree or a summary alike. A head this device
+    /// published is known as it publishes, so it is none of them.
+    pub fn take_moved_heads(&self) -> Vec<(Uuid, CommitId)> {
+        std::mem::take(&mut *self.moved_heads.lock().unwrap())
+            .into_iter()
+            .collect()
     }
 
     /// Whether a remote head this device hears of is behind the one it knows. The server's head
@@ -722,7 +1501,7 @@ impl<S: ObjectStore> Peer<S> {
         |head, known| match self.commits.try_get(head) {
             // The common case, a publish or a merge on the known head: the newer, at once.
             Ok(Some(commit)) if commit.parents.contains(&known) => false,
-            Ok(Some(_)) => self.commits.is_ancestor(head, known).unwrap_or(false),
+            Ok(Some(_)) => matches!(self.commits.is_ancestor(head, known), Ok(Descent::Yes)),
             // A head this device does not hold is no ancestor of one it does.
             Ok(None) | Err(_) => false,
         }
@@ -742,9 +1521,7 @@ impl<S: ObjectStore> Peer<S> {
     /// Keys this account may open were stored (`Event::KeysChanged`): a key looked for and
     /// missing is asked for again, by `learn` or a read, rather than taken for locked.
     pub fn keys_changed(&self) {
-        self.tried.lock().unwrap().clear();
-        self.keys_arrived
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        keys_arrived(&self.tried, &self.keys_arrived);
     }
 
     /// How many times keys arrived (`keys_changed`): a read that found a key missing, taken
@@ -815,68 +1592,403 @@ impl<S: ObjectStore> Peer<S> {
         attempt().map_err(locked)
     }
 
+    /// The key `block` is sealed with now. One its scope's log outdates gets the scope a new
+    /// epoch first. When the server refuses that, the write fails as `Locked`: what is sealed
+    /// here may be uploaded at once (a part, a relay, a journal entry). When the server cannot
+    /// be reached, it fails as that (`ClientError::is_unreachable`), to wait for a connection.
     pub async fn sealing_key(&self, block: Uuid) -> Result<Uuid, ClientError> {
+        self.sealing_key_for(block, false).await
+    }
+
+    /// Whether this device holds the key `block` is sealed with now, its keys asked for again
+    /// when it does not: what `sealing_key` finds, read only, never rotating. A server that
+    /// cannot be reached for the block's summary or keys fails as that, not as false.
+    pub async fn holds_key(&self, block: Uuid) -> Result<bool, ClientError> {
+        Ok(self.key_now(block).await?.is_some_and(|(_, usable)| usable))
+    }
+
+    /// The key `block` is sealed with now (`current`, else the one its summary names, offline
+    /// the summary last heard), and whether this device may seal and open with it
+    /// (`usable_key`). One that is not has the block's keys asked for again first; with no
+    /// connection to ask over, that fails as unreachable. None when the summary names no key.
+    async fn key_now(&self, block: Uuid) -> Result<Option<(Uuid, bool)>, ClientError> {
         let known = self.current.lock().unwrap().get(&block).copied();
         let key = match known {
             Some(key) => key,
-            None => {
-                let summary = self.summary(block).await?;
-                summary.key.ok_or(ClientError::Locked(block))?
-            }
+            None => match self.summary(block).await?.key {
+                Some(key) => key,
+                None => return Ok(None),
+            },
         };
-        if !self.keys.trusted(key) {
+        if !self.usable_key(block, key) {
+            if !self.local && !self.is_attached() {
+                return Err(ClientError::Disconnected("offline".into()));
+            }
             self.refresh_keys(Some(vec![block])).await?;
         }
-        if !self.keys.trusted(key) {
-            return Err(ClientError::Locked(key));
+        Ok(Some((key, self.usable_key(block, key))))
+    }
+
+    /// Whether `key` may seal and open `block` here: one this device trusts. A key the server
+    /// holds (the settings' and those opened through them) seals only the settings block
+    /// itself, which the server reads by design: never a block the server's graph places
+    /// there, since the server could place any block there. A key minted with a creation no
+    /// server took (`KeyBook::unmade`) opens what was set aside of it and seals nothing.
+    fn usable_key(&self, block: Uuid, key: Uuid) -> bool {
+        (self.keys.trusted(key) && !self.keys.unmade(key))
+            || (block == self.organization_settings() && self.keys.server_held(key))
+    }
+
+    /// `sealing_key` for what goes only into the outbox (a commit and the content it holds),
+    /// which `send_pending` judges again before it is sent: offline, an outdated key is used
+    /// rather than refuse a person's edit, and the edit is set aside then if it still is.
+    async fn sealing_key_kept(&self, block: Uuid) -> Result<Uuid, ClientError> {
+        self.sealing_key_for(block, true).await
+    }
+
+    async fn sealing_key_for(&self, block: Uuid, outbox: bool) -> Result<Uuid, ClientError> {
+        let key = match self.key_now(block).await? {
+            Some((key, true)) => key,
+            Some((key, false)) => return Err(ClientError::Locked(key)),
+            None => return Err(ClientError::Locked(block)),
+        };
+        let usable = |key: Uuid| self.usable_key(block, key);
+        // The server names the current key; a key of another block would seal this one where
+        // that block's readers read it.
+        if self.keys.block_of(key) != Some(block) {
+            return Err(ClientError::Forged(block));
         }
-        let epoch = self.keys.row(key).map_or(0, |row| row.epoch);
-        let newest = self
-            .keys
-            .keys_of(block, KeyKind::Data)
+        let newest = || {
+            let epoch = self.keys.row(key).map_or(0, |row| row.epoch);
+            self.keys
+                .keys_of(block, KeyKind::Data)
+                .into_iter()
+                .rev()
+                .find(|row| {
+                    row.epoch > epoch && usable(row.id) && self.keys.block_of(row.id) == Some(block)
+                })
+                .map_or(key, |row| row.id)
+        };
+        let chosen = newest();
+        // An epoch its scope's log outdates (named before a revocation, a downgrade or a
+        // closing, whose subject may hold it) is written under no more: the scope gets a new
+        // epoch first.
+        let kept = match self.refs.summary(block) {
+            Some(kept) => Some(kept),
+            None => self.summary(block).await.ok(),
+        };
+        let Some(scope) = kept.and_then(|kept| scope_of(&kept).ok()) else {
+            return Ok(chosen);
+        };
+        let (outdated, unreachable) = self.outdated_reading(chosen, scope).await;
+        if outdated {
+            // A log still short of a lowering this device appended to it, or unsure of one (its
+            // read just failed or was withheld), outdates every epoch it judges, a new one too:
+            // rotating now would only leave an epoch no one can use. Offline, as a rotation that
+            // cannot reach the server below: a person's edit for the outbox is kept, to be judged
+            // again before it is sent. `rotate` refuses the same on its own, as every caller of it
+            // (key work too) must mint nothing then. This check comes first so that a seal whose
+            // log read failed for want of the server (timed out, say, while other calls answer)
+            // keeps an outbox edit rather than go on to the rotation, whose own reads wait with
+            // no `LOG_READ_LIMIT` and whose refusal would answer `Locked`; and so that nothing
+            // else is asked of the server for a seal that cannot succeed. Fully offline the
+            // rotation fails as unreachable first either way.
+            if self.awaiting(chosen, scope) {
+                return match unreachable {
+                    Some(_) if outbox => Ok(chosen),
+                    Some(error) => Err(error),
+                    None => Err(ClientError::Locked(block)),
+                };
+            }
+            // Another editor may have given the scope its new epoch already and sealed it here:
+            // asked for first, so this device rotates only when no one has, and one that may
+            // not rotate (a viewer whose lowering outdated the epoch) seals under theirs.
+            if !self.local && self.refresh_keys(Some(vec![block])).await.is_ok() {
+                let fresh = newest();
+                if fresh != chosen && !self.outdated(fresh, scope).await {
+                    return Ok(fresh);
+                }
+            }
+            match self.rotate_outdated(scope).await {
+                Ok(()) => {}
+                // A person's edit made offline is never refused: it is sealed and kept here,
+                // and judged again before it is sent (`Peer::send_pending`), which sets it aside
+                // rather than send it under an outdated key.
+                Err(error) if outbox && error.is_unreachable() => return Ok(chosen),
+                // Anything else sealed here may be sent at once: it waits for a connection.
+                Err(error) if error.is_unreachable() => return Err(error),
+                Err(_) => return Err(ClientError::Locked(block)),
+            }
+            let rotated = newest();
+            if self.keys.outdated(rotated, scope) {
+                return Err(ClientError::Locked(block));
+            }
+            return Ok(rotated);
+        }
+        Ok(chosen)
+    }
+
+    /// Whether the logs of `scope` and of the scopes above whose keys `key` was opened through
+    /// outdate it (`KeyBook::outdated`): each read first when this device holds none of it (as
+    /// on a new device, or after a restart: logs are kept in memory alone), or when the key
+    /// names a head it does not reach, which may be newer.
+    ///
+    /// A log whose read fails, or that does not reach what this device kept of it, is judged by
+    /// what was kept (`KeyBook::outdated`); each is read once per key in a run that answers, so a
+    /// key naming a head no log the server serves reaches is not read for on every save, while
+    /// one that failed is asked for again at the next. A local
+    /// account has no server to withhold anything.
+    ///
+    /// A scope whose creation still waits in the outbox is not read: the server holds nothing
+    /// of it to withhold, and what this device kept on making it stands. A read that does not
+    /// answer within `LOG_READ_LIMIT` leaves what was kept.
+    async fn outdated(&self, key: Uuid, scope: Uuid) -> bool {
+        self.outdated_reading(key, scope).await.0
+    }
+
+    /// `outdated`, with the first read that failed for want of the server, if any: what a seal
+    /// refused for a log still short of this device's lowering (`awaiting`) answers offline.
+    async fn outdated_reading(&self, key: Uuid, scope: Uuid) -> (bool, Option<ClientError>) {
+        if self.local {
+            return (false, None);
+        }
+        let unreachable = self.read_logs(key, scope).await;
+        (self.keys.outdated(key, scope), unreachable)
+    }
+
+    /// Reads the logs `outdated` judges `key`, of `scope`, by that this device has not checked
+    /// or that fall short of the head the key names (`KeyBook::logs_to_read`), each once per key
+    /// in a run that it answered; one short of a lowering this device appended, or unsure of one
+    /// (`KeyBook::awaiting`), is read every time, as nothing can be sealed under its scope until
+    /// it shows the lowering, or a read answers after the dropped append. Answers the first read
+    /// that failed for want of the server.
+    async fn read_logs(&self, key: Uuid, scope: Uuid) -> Option<ClientError> {
+        let mut unreachable = None;
+        for log in self.keys.logs_to_read(key, scope) {
+            if self.uncreated(log)
+                || !(self.keys.awaiting(log) || self.log_reads.lock().unwrap().insert((key, log)))
+            {
+                continue;
+            }
+            // One that failed is not marked as read: the next seal asks again, rather than judge
+            // by what was kept from before.
+            if let Err(error) = self.bounded_read(log).await {
+                self.log_reads.lock().unwrap().remove(&(key, log));
+                if error.is_unreachable() {
+                    unreachable.get_or_insert(error);
+                }
+            }
+        }
+        unreachable
+    }
+
+    /// Whether a log `outdated` judges `key`, of `scope`, by still falls short of a lowering this
+    /// device appended to it (`KeyBook::awaiting`): every epoch it judges, any minted now too, is
+    /// outdated until a read shows the lowering.
+    fn awaiting(&self, key: Uuid, scope: Uuid) -> bool {
+        self.keys
+            .logs_to_read(key, scope)
             .into_iter()
-            .rev()
-            .find(|row| row.epoch > epoch && self.keys.trusted(row.id));
-        Ok(newest.map_or(key, |row| row.id))
+            .any(|log| self.keys.awaiting(log))
     }
 
-    async fn scope_key(&self, scope: Uuid) -> Result<Uuid, ClientError> {
-        if let Some(key) = self.keys.scope_key(scope) {
-            return Ok(key);
+    /// Whether `commit`, an edit of `block` waiting to be sent, is sealed under a key the logs
+    /// show outdated (`KeyBook::shown_outdated`), each read first as `outdated` reads them.
+    async fn sent_outdated(&self, block: Uuid, commit: CommitId) -> Result<bool, ClientError> {
+        let key = self.commits.vault().sealed_under(commit.hash())?;
+        let kept = match self.refs.summary(block) {
+            Some(kept) => Some(kept),
+            None => self.summary(block).await.ok(),
+        };
+        let Some(scope) = kept.and_then(|kept| scope_of(&kept).ok()) else {
+            return Ok(false);
+        };
+        self.read_logs(key, scope).await;
+        Ok(self.keys.shown_outdated(key, scope))
+    }
+
+    /// The block `hash` is an object of, when it is sealed under a key of it that the logs
+    /// this device holds or kept show outdated (`KeyBook::shown_outdated`): an object not
+    /// sealed, or under a key it cannot place, is none. The block's scope comes from its kept
+    /// summary, else the server's; one whose scope cannot be told counts as outdated.
+    pub(crate) async fn sealed_outdated(&self, hash: Hash) -> Option<Uuid> {
+        let key = self.commits.vault().sealed_under(hash).ok()?;
+        let block = self.keys.block_of(key)?;
+        let summary = match self.refs.summary(block) {
+            Some(kept) => Some(kept),
+            None => self.summary(block).await.ok(),
+        };
+        let Some(scope) = summary.and_then(|summary| scope_of(&summary).ok()) else {
+            return Some(block);
+        };
+        self.keys.shown_outdated(key, scope).then_some(block)
+    }
+
+    /// Gives `scope`, whose key at hand is outdated, a new epoch: from the highest scope above
+    /// it whose newest key is outdated too (`rotation_top`), so one rotation covers them all, or
+    /// from `scope` when that one cannot be rotated from here.
+    async fn rotate_outdated(&self, scope: Uuid) -> Result<(), ClientError> {
+        let top = self.rotation_top(scope).await;
+        match Box::pin(self.rotate(top)).await {
+            Err(error) if top != scope && !error.is_unreachable() => {
+                Box::pin(self.rotate(scope)).await
+            }
+            rotated => rotated,
         }
-        self.refresh_keys(Some(vec![scope])).await?;
-        self.keys.scope_key(scope).ok_or(ClientError::Locked(scope))
     }
 
+    /// `scope`, or the highest scope above it, up the scopes this device holds keys of, whose
+    /// newest key is outdated as `scope`'s is. A demotion outdates every scope under the escrow
+    /// at once, and a scope's new epoch is wrapped under the one above it,
+    /// which must be new too: rotating from below would rotate each scope above again for each
+    /// level, where rotating from the top once rotates every scope under it.
+    pub(super) async fn rotation_top(&self, scope: Uuid) -> Uuid {
+        let mut top = scope;
+        for _ in 0..crate::keys::MAX_PATH {
+            let Some(above) = self.scope_above(top).await else {
+                break;
+            };
+            let Some(key) = self.keys.scope_key(above) else {
+                break;
+            };
+            if above == top || !self.outdated(key, above).await {
+                break;
+            }
+            top = above;
+        }
+        top
+    }
+
+    /// The scope `scope`'s key is wrapped under, from the summaries kept here or the server's:
+    /// none for a block at the top.
+    async fn scope_above(&self, scope: Uuid) -> Option<Uuid> {
+        let summary = match self.refs.summary(scope) {
+            Some(kept) => kept,
+            None => self.summary(scope).await.ok()?,
+        };
+        let BlockParent::Block(parent) = parent_of(&summary).ok()? else {
+            return None;
+        };
+        let summary = match self.refs.summary(parent) {
+            Some(kept) => kept,
+            None => self.summary(parent).await.ok()?,
+        };
+        scope_of(&summary).ok()
+    }
+
+    /// `checked_access`, or for the organization's id `checked_organization`, given up after
+    /// `LOG_READ_LIMIT`: a key judged by a log that does not arrive is judged by what was kept
+    /// of it.
+    async fn bounded_read(&self, block: Uuid) -> Result<(), ClientError> {
+        let clock = self.connection().clock().clone();
+        let read = std::pin::pin!(async {
+            match block == self.organization {
+                true => self.checked_organization().await.map(|_| ()),
+                false => self.checked_access(block).await.map(|_| ()),
+            }
+        });
+        match futures_util::future::select(read, clock.sleep(LOG_READ_LIMIT)).await {
+            futures_util::future::Either::Left((read, _)) => read,
+            futures_util::future::Either::Right(_) => {
+                Err(ClientError::TimedOut("reading an access log"))
+            }
+        }
+    }
+
+    /// The newest scope key of `scope` this device holds; one its log outdates (as
+    /// `sealing_key` finds a data key) is wrapped under no more, so the scope gets a new epoch
+    /// first.
+    async fn scope_key(&self, scope: Uuid) -> Result<Uuid, ClientError> {
+        let key = match self.keys.scope_key(scope) {
+            Some(key) => key,
+            None => {
+                self.refresh_keys(Some(vec![scope])).await?;
+                self.keys
+                    .scope_key(scope)
+                    .ok_or(ClientError::Locked(scope))?
+            }
+        };
+        let (outdated, unreachable) = self.outdated_reading(key, scope).await;
+        if outdated {
+            // As `sealing_key_for`: no epoch minted now would be current.
+            if self.awaiting(key, scope) {
+                return Err(unreachable.unwrap_or(ClientError::Locked(scope)));
+            }
+            self.rotate_outdated(scope)
+                .await
+                .map_err(|error| match error.is_unreachable() {
+                    true => error,
+                    false => ClientError::Locked(scope),
+                })?;
+            return self
+                .keys
+                .scope_key(scope)
+                .filter(|key| !self.keys.outdated(*key, scope))
+                .ok_or(ClientError::Locked(scope));
+        }
+        Ok(key)
+    }
+
+    /// The key a block made or moved under `parent` is wrapped under: its scope's, once the
+    /// signed parent records place `parent` under that scope (`signed_below`).
     async fn scope_key_under(&self, parent: Uuid) -> Result<Uuid, ClientError> {
+        Ok(self.scope_under(parent).await?.1)
+    }
+
+    /// The scope `parent` lies in and its key, once the signed parent records place `parent`
+    /// under it.
+    async fn scope_under(&self, parent: Uuid) -> Result<(Uuid, Uuid), ClientError> {
         let summary = self.summary(parent).await?;
         self.note(&summary);
-        self.scope_key(scope_of(&summary)?).await
+        let scope = scope_of(&summary)?;
+        self.signed_below(parent, scope).await?;
+        Ok((scope, self.scope_key(scope).await?))
     }
 
+    /// `scope_key_under` for a creation, which is never refused offline: where the logs cannot
+    /// be read, the scope the kept summary names is taken, and the creation is marked to be
+    /// checked so before it is sent (`Creation::unchecked`, `Peer::send_creation`). Answers the
+    /// key and whether that is so.
+    pub(crate) async fn scope_key_making(&self, parent: Uuid) -> Result<(Uuid, bool), ClientError> {
+        let summary = self.summary(parent).await?;
+        self.note(&summary);
+        let scope = scope_of(&summary)?;
+        let unchecked = match self.signed_below(parent, scope).await {
+            Err(error) if error.is_unreachable() => true,
+            checked => {
+                checked?;
+                false
+            }
+        };
+        Ok((self.scope_key(scope).await?, unchecked))
+    }
+
+    /// A new block's data key and the rows it makes, and whether the scope it is wrapped under
+    /// was taken unchecked (`scope_key_making`).
     async fn new_keys(
         &self,
         block: Uuid,
         parent: BlockParent,
         owner_only: bool,
-    ) -> Result<(Uuid, KeySet), ClientError> {
+    ) -> Result<(Uuid, KeySet, bool), ClientError> {
         if owner_only {
             let (scope, mut keys) = self.keys.mint_own_scope(block)?;
             let (data, more) = self.keys.mint_data(block, scope)?;
             keys.extend(more);
-            return Ok((data, keys));
+            return Ok((data, keys, false));
         }
-        let under = match parent {
-            BlockParent::Block(parent) => self.scope_key_under(parent).await?,
+        let (under, unchecked) = match parent {
+            BlockParent::Block(parent) => self.scope_key_making(parent).await?,
             BlockParent::Root | BlockParent::Detached => {
                 let (scope, keys) = self.keys.mint_scope(block, None)?;
                 let (data, more) = self.keys.mint_data(block, scope)?;
                 let mut keys = keys;
                 keys.extend(more);
-                return Ok((data, keys));
+                return Ok((data, keys, false));
             }
         };
-        Ok(self.keys.mint_data(block, under)?)
+        let (data, keys) = self.keys.mint_data(block, under)?;
+        Ok((data, keys, unchecked))
     }
 
     pub async fn read_manifest(&self, manifest: &Manifest) -> Result<Vec<u8>, ClientError> {
@@ -893,8 +2005,17 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// The stored form's first part, without the rest (`be_block_content::Loads::FirstPart`).
+    /// It fetches the content's own nodes and the objects on the path to the first part's
+    /// end, never the nodes the vault split a large part over, so opening a large blob costs
+    /// the tree's depth.
     pub async fn load_first_part(&self, manifest: &Manifest) -> Result<Stored, ClientError> {
-        self.fetch_nodes(manifest).await?;
+        loop {
+            let missing = self.commits.vault().missing_outline(manifest)?;
+            if missing.is_empty() {
+                break;
+            }
+            self.fetch(&missing).await?;
+        }
         let end = self
             .commits
             .vault()
@@ -903,6 +2024,42 @@ impl<S: ObjectStore> Peer<S> {
         self.fetch_range(manifest, 0, end).await?;
         self.retrying(|| Ok(self.commits.vault().load_first(manifest)?))
             .await
+    }
+
+    /// Whether `part`'s top object is sealed under a key of `block`, as this device placed that
+    /// key (`KeyBook::block_of`). An object this device does not hold is fetched only if the
+    /// server says `block` holds it, so a part of another block is told apart without fetching
+    /// any of it; one the server does not have for `block` is not of it.
+    pub async fn is_part_of(
+        &self,
+        part: be_block_store::PartRef,
+        block: Uuid,
+    ) -> Result<bool, ClientError> {
+        let hash = part.hash();
+        let store = self.commits.vault().store();
+        if !store.has(hash)? {
+            self.try_fetch_held_by(block, &[hash]).await?;
+            if !store.has(hash)? {
+                return Ok(false);
+            }
+        }
+        Ok(self.block_of_part(part).await? == Some(block))
+    }
+
+    /// The block of the key `part`'s top object is sealed under, as this device placed that
+    /// key (`KeyBook::block_of`), fetching the object if it is not held: none for a key this
+    /// device does not place. To ask whether a part is one block's, `is_part_of` fetches
+    /// nothing of another's.
+    pub async fn block_of_part(
+        &self,
+        part: be_block_store::PartRef,
+    ) -> Result<Option<Uuid>, ClientError> {
+        let hash = part.hash();
+        if !self.commits.vault().store().has(hash)? {
+            self.fetch(&[hash]).await?;
+        }
+        let key = self.commits.vault().sealed_under(hash)?;
+        Ok(self.keys.block_of(key))
     }
 
     /// A range of a saved part's bytes, fetching only the objects under it.
@@ -970,6 +2127,67 @@ impl<S: ObjectStore> Peer<S> {
         Ok(deduplicated(references))
     }
 
+    /// What `summary`'s block references, in its order, as its content says: no summary names
+    /// it. Read from the newest commit this device has of the block (one waiting in the outbox
+    /// first, else the head the summary names) by `references_of`, fetching what it does not
+    /// hold, so offline it answers only for content this device kept; for a block with no
+    /// content yet, from its metadata.
+    pub async fn content_references(
+        &self,
+        summary: &BlockSummary,
+    ) -> Result<Vec<Uuid>, ClientError> {
+        let block = summary.id;
+        match self.local_head(block).or_else(|| self.head_of(summary)) {
+            Some(head) => {
+                let commit = self.load_head(block, head).await?;
+                self.references_of(block, &commit).await
+            }
+            None => {
+                let metadata = self.metadata_of_summary(summary).await?;
+                Ok(deduplicated(self.resolve(block, metadata.references())))
+            }
+        }
+    }
+
+    /// The blocks `block`'s content references that this device knows of, from what it holds:
+    /// a local account's answer to `Listing::References`, and an offline one's when it kept the
+    /// block's content. None when it holds no summary of the block it may view, or cannot read
+    /// its content.
+    async fn references_here(&self, block: Uuid) -> Option<Vec<BlockSummary>> {
+        let summary = self
+            .refs
+            .summary(block)
+            .filter(|summary| summary.access.can_view())?;
+        let references = self.content_references(&summary).await.ok()?;
+        Some(
+            references
+                .into_iter()
+                .filter_map(|reference| self.refs.summary(reference))
+                .filter(|summary| summary.access.can_know_exists())
+                .collect(),
+        )
+    }
+
+    /// The blocks this device holds whose content references `block`: a local account's answer
+    /// to `Listing::Backrefs`, which has no server keeping references. One whose content cannot
+    /// be read is left out. It reads every head the account holds, each from the local store:
+    /// a local account is one person's blocks on one device, and nothing lists its backrefs
+    /// often enough yet to want them kept.
+    async fn backrefs_here(&self, block: Uuid) -> Vec<BlockSummary> {
+        let mut found = Vec::new();
+        for summary in self.refs.summaries() {
+            if summary.access.can_view()
+                && self
+                    .content_references(&summary)
+                    .await
+                    .is_ok_and(|references| references.contains(&block))
+            {
+                found.push(summary);
+            }
+        }
+        found
+    }
+
     /// The objects the server holds for a commit besides the commit itself: its manifest
     /// tree's, and for a merge each other parent and its tree's, as `seal` lists them.
     async fn held_by(&self, commit: &Commit) -> Result<Vec<Hash>, ClientError> {
@@ -977,7 +2195,7 @@ impl<S: ObjectStore> Peer<S> {
         for parent in commit.parents.iter().skip(1) {
             held.push(parent.hash());
             held.extend(
-                self.objects_of(&self.load_commit(*parent).await?.manifest)
+                self.objects_of(&self.load_reached(*parent).await?.manifest)
                     .await?,
             );
         }
@@ -991,6 +2209,28 @@ impl<S: ObjectStore> Peer<S> {
         parts: impl Into<Part<'a>>,
     ) -> Result<Manifest, ClientError> {
         let key = self.sealing_key(block).await?;
+        self.write_content_under(key, content_type, parts).await
+    }
+
+    /// `write_content` for a commit headed for the outbox (`prepare_write`): written here and
+    /// uploaded only with that commit, which is judged before it is sent, so offline it takes
+    /// the key at hand (`sealing_key_kept`).
+    async fn write_content_kept<'a>(
+        &self,
+        block: Uuid,
+        content_type: Uuid,
+        parts: impl Into<Part<'a>>,
+    ) -> Result<Manifest, ClientError> {
+        let key = self.sealing_key_kept(block).await?;
+        self.write_content_under(key, content_type, parts).await
+    }
+
+    async fn write_content_under<'a>(
+        &self,
+        key: Uuid,
+        content_type: Uuid,
+        parts: impl Into<Part<'a>>,
+    ) -> Result<Manifest, ClientError> {
         let parts = parts.into();
         let vault = self.commits.vault();
         // A reused part this device never read (one another device put) names its key in its
@@ -1021,6 +2261,13 @@ impl<S: ObjectStore> Peer<S> {
         self.organization
     }
 
+    /// The members no record in the organization's log signed in yet, as key work last listed
+    /// them: every such member, to an administrator; this account alone, to a member it names,
+    /// whose escrow wraps administrators do not open until one is.
+    pub fn unsigned_members(&self) -> Vec<Uuid> {
+        self.unsigned.lock().unwrap().clone()
+    }
+
     pub fn role(&self) -> OrganizationRole {
         self.session.lock().unwrap().0
     }
@@ -1037,14 +2284,63 @@ impl<S: ObjectStore> Peer<S> {
         self.connection.lock().unwrap().clone()
     }
 
-    /// Whether `descendant` has `ancestor` in its history (a commit is its own ancestor).
+    /// Whether `block`'s local edits were discarded and no join has said since that this
+    /// account may edit it (`refs::Dropped`): nothing typed into it would be kept or sealed.
+    pub fn discarded(&self, block: Uuid) -> bool {
+        self.refs.discarded(block)
+    }
+
+    /// Every block `discarded` answers for, as the refs database keeps them across restarts.
+    pub fn all_discarded(&self) -> Vec<Uuid> {
+        self.refs.all_discarded()
+    }
+
+    /// Joins `block`'s session (`Connection::join_session`). The server answers whether this
+    /// account may edit it: once it may, edits of it are kept again where they were discarded
+    /// (`refs::Dropped`), since a listing this device holds may be older than its access.
+    pub async fn join_session(
+        &self,
+        block: Uuid,
+        tag: Hash,
+    ) -> Result<
+        (
+            ClientId,
+            be_block_protocol::SessionState,
+            Option<be_block_protocol::Journal>,
+        ),
+        ClientError,
+    > {
+        let (client, state, journal, may_edit) = self
+            .connection()
+            .join_session(self.organization, block, tag)
+            .await?;
+        if may_edit {
+            self.refs.may_edit_again(block)?;
+        }
+        Ok((client, state, journal))
+    }
+
+    /// Whether `descendant` has `ancestor` in its history (a commit is its own ancestor). A walk
+    /// stopped by history the server thinned away answers no: it cannot say yes.
     pub async fn descends(
         &self,
         descendant: CommitId,
         ancestor: CommitId,
     ) -> Result<bool, ClientError> {
         self.fetch_history(descendant).await?;
-        Ok(self.commits.is_ancestor(ancestor, descendant)?)
+        Ok(self.commits.is_ancestor(ancestor, descendant)? == Descent::Yes)
+    }
+
+    /// Takes `walk` (`MergeBaseWalk`) to where its two heads meet, fetching only the commits it
+    /// reaches, a level of both sides in one round of requests.
+    pub async fn merge_base(&self, walk: &mut MergeBaseWalk) -> Result<MergeBase, ClientError> {
+        loop {
+            let frontier: Vec<_> = walk.frontier().map(CommitId::hash).collect();
+            self.try_fetch_all(&frontier).await?;
+            if let Some(found) = walk.step(&self.commits)? {
+                return Ok(found);
+            }
+        }
     }
 
     pub fn local_head(&self, block: Uuid) -> Option<CommitId> {
@@ -1066,10 +2362,46 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
-    /// The seal this device made of `block`'s journal since its last rebase, and the last
-    /// sequence it holds: noted with the seal's commit in one write.
-    pub fn sealing(&self, block: Uuid) -> Option<(CommitId, u64)> {
-        self.refs.sealing(block)
+    /// The blocks the search indexer let go after their commit could not be read, kept on this
+    /// device across restarts (guides/blocks/host.md, "Catching up").
+    pub fn let_go_blocks(&self) -> Vec<(Uuid, Option<ListedBlock>)> {
+        self.refs.let_go_blocks()
+    }
+
+    /// Keeps `block` as one the search indexer let go, with what a catch-up listed of it.
+    pub fn let_go(&self, block: Uuid, listed: Option<ListedBlock>) -> Result<(), ClientError> {
+        Ok(self.refs.let_go(block, listed)?)
+    }
+
+    /// Forgets `block` as one the search indexer let go: it was read, or is no longer indexed.
+    pub fn forget_let_go(&self, block: Uuid) -> Result<(), ClientError> {
+        Ok(self.refs.forget_let_go(block)?)
+    }
+
+    /// The head `summary` names, unless this device already knows a newer one the server took
+    /// (`behind`): an answer read before a publish of this device's and taken after it.
+    pub fn head_of(&self, summary: &BlockSummary) -> Option<CommitId> {
+        let head = summary.head?;
+        Some(
+            self.known_remote_head(summary.id)
+                .filter(|known| self.behind()(head, *known))
+                .unwrap_or(head),
+        )
+    }
+
+    /// Whether the server's head of `block`, as this device knows it, has moved on past `head`
+    /// (`behind`): a moved head this device published on top of before it was taken. The host
+    /// skips such a head for an open block's replica on the assumption that only the replica
+    /// publishes on an open, readable block: any path that publishes on one from outside it must
+    /// tell the replica itself.
+    pub fn superseded(&self, block: Uuid, head: CommitId) -> bool {
+        self.known_remote_head(block)
+            .is_some_and(|known| known != head && self.behind()(head, known))
+    }
+
+    /// The newest organization sequence this device knows of, by any summary or listing read.
+    pub fn newest_sequence(&self) -> u64 {
+        self.refs.newest_sequence()
     }
 
     pub fn known_remote_head(&self, block: Uuid) -> Option<CommitId> {
@@ -1111,34 +2443,48 @@ impl<S: ObjectStore> Peer<S> {
         metadata: &BlockMetadata,
         owner_only: bool,
     ) -> Result<BlockSummary, ClientError> {
-        let creation = self
+        // A local account makes the block here (`keep_creation`).
+        if self.local {
+            return self
+                .keep_creation(block, content_type, parent, metadata, owner_only)
+                .await;
+        }
+        let (creation, made) = self
             .creation(block, content_type, parent, metadata, owner_only)
             .await?;
         // A parent whose creation waits in the outbox is not on the server yet: this one waits
-        // behind it.
+        // behind it. One whose scope was taken unchecked goes only through the outbox, which
+        // checks it before sending (`Creation::unchecked`).
         if let BlockParent::Block(above) = parent
-            && self.refs.creating(above)
+            && (self.refs.creating(above) || creation.unchecked)
         {
-            return self.create_locally(creation);
+            return self.create_locally(creation, made);
         }
-        let response = crate::ask(client::blocks::create_block(
+        let response = crate::ask(be_block_protocol::write_all::<
+            be_block_protocol::BlockSummary,
+            _,
+        >(
             &self.connection(),
-            block,
-            content_type,
-            parent,
-            creation.metadata.clone(),
-            creation.references.clone(),
-            creation.key,
-            creation.keys.clone(),
-            owner_only,
+            Some(self.organization),
+            creation.ops(),
         ))
         .await;
+        // Refused, the root made for it is let go as `made` drops; unless another device of this
+        // account made the block under the id first, whose log starts at the same root.
         let response = match response {
-            Err(error) if error.is_unreachable() => return self.create_locally(creation),
+            Err(error) if error.is_unreachable() => return self.create_locally(creation, made),
+            Err(ClientError::Refused(ErrorCode::BlockAlreadyExists, message)) => {
+                if self.made_here(&creation).await? {
+                    made.taken()?;
+                }
+                return Err(ClientError::Refused(ErrorCode::BlockAlreadyExists, message));
+            }
             response => response?,
         };
+        made.taken()?;
         self.recorded(&creation.keys);
         self.note(&response);
+        self.escrow_created(&creation.keys).await;
         Ok(response)
     }
 
@@ -1152,10 +2498,17 @@ impl<S: ObjectStore> Peer<S> {
         metadata: &BlockMetadata,
         owner_only: bool,
     ) -> Result<BlockSummary, ClientError> {
-        let creation = self
+        // A local account refuses a second block under an id it holds, as a server does.
+        if self.local && self.refs.summary(block).is_some() {
+            return Err(ClientError::Refused(
+                ErrorCode::BlockAlreadyExists,
+                format!("block {block} already exists"),
+            ));
+        }
+        let (creation, made) = self
             .creation(block, content_type, parent, metadata, owner_only)
             .await?;
-        self.create_locally(creation)
+        self.create_locally(creation, made)
     }
 
     async fn creation(
@@ -1165,11 +2518,13 @@ impl<S: ObjectStore> Peer<S> {
         parent: BlockParent,
         metadata: &BlockMetadata,
         owner_only: bool,
-    ) -> Result<Creation, ClientError> {
-        let (key, keys) = self.new_keys(block, parent, owner_only).await?;
+    ) -> Result<(Creation, MadeRoot<'_>), ClientError> {
+        // Failing from here on, the root made for it is let go as `made` drops.
+        let (root, placement, made) = self.new_log(block, parent).await?;
+        let (key, keys, unchecked) = self.new_keys(block, parent, owner_only).await?;
         let references = bounded(deduplicated(self.resolve(block, metadata.references())))?;
         let metadata = self.commits.vault().seal(key, &metadata.encode())?;
-        Ok(Creation {
+        let creation = Creation {
             block,
             content_type,
             parent,
@@ -1178,7 +2533,683 @@ impl<S: ObjectStore> Peer<S> {
             key,
             keys,
             owner_only,
+            root,
+            placement,
+            unchecked,
+        };
+        Ok((creation, made))
+    }
+
+    /// The first two entries of a new block's access log, signed by this account: its root,
+    /// pinned here before the block's keys are made, which carry it; and the parent record
+    /// placing it at `parent` (`placement`). The root and the log kept at it stay in memory
+    /// until a server takes the creation or the outbox keeps it, and are let go if neither
+    /// does (`MadeRoot`).
+    pub(crate) async fn new_log(
+        &self,
+        block: Uuid,
+        parent: BlockParent,
+    ) -> Result<(Vec<u8>, Vec<u8>, MadeRoot<'_>), ClientError> {
+        use be_block_keys::{Authority, Entry, LogKind, Parent, Record};
+        // A block whose log this device holds is there already, though its summary may be
+        // gone (forgotten, or its edits discarded): a second root would write over what the
+        // device kept of the real log and set its pin at odds with the root its keys carry,
+        // so their seals stop opening. Refused before anything is kept, as the server would.
+        if self.keys.holds_log(block) {
+            return Err(ClientError::Refused(
+                ErrorCode::BlockAlreadyExists,
+                format!("block {block} already exists"),
+            ));
+        }
+        let placement = self.placement(parent).await?;
+        let me = self.keys.account().into_bytes();
+        let root = Entry::root(self.keys.identity(), me, LogKind::Block, block.into_bytes());
+        let placed = Entry::sign(
+            self.keys.identity(),
+            me,
+            block.into_bytes(),
+            Some(root.hash()),
+            false,
+            Record::Parent(Parent {
+                placement,
+                authority: Authority::Log,
+            }),
+        );
+        self.keys.pin_root(block, root.hash());
+        self.keys.keep_made(block, root.hash());
+        let made = MadeRoot {
+            keys: &self.keys,
+            refs: &self.refs,
+            block,
+            root: root.hash(),
+            armed: true,
+        };
+        Ok((root.encode(), placed.encode(), made))
+    }
+
+    /// Where `parent` is, as a parent record placing a block there names it: under a block,
+    /// with the root of its log this device pinned in full (made here, or carried by a trusted
+    /// key of it), never one the server serves, so the logs above a block are checked from roots
+    /// its own records carry (guides/blocks/keys.md, "Parent records").
+    async fn placement(
+        &self,
+        parent: BlockParent,
+    ) -> Result<be_block_keys::Placement, ClientError> {
+        use be_block_keys::Placement;
+        let above = match parent {
+            BlockParent::Root => return Ok(Placement::Top),
+            BlockParent::Detached => return Ok(Placement::Detached),
+            BlockParent::Block(above) => above,
+        };
+        // A root not pinned here may come with the keys the server holds for `above`: one that
+        // cannot be asked for is not known missing, so the caller waits for a connection
+        // rather than find the block locked.
+        if !matches!(self.keys.root_pin(above), crate::keys::RootPin::Pinned(_)) && !self.local {
+            if !self.is_attached() {
+                return Err(ClientError::Disconnected("offline".into()));
+            }
+            self.refresh_keys(Some(vec![above])).await?;
+        }
+        match self.keys.root_pin(above) {
+            crate::keys::RootPin::Pinned(root) => Ok(Placement::Block {
+                block: above.into_bytes(),
+                root,
+            }),
+            crate::keys::RootPin::Conflicting => Err(ClientError::Forged(above)),
+            crate::keys::RootPin::Weak(_) | crate::keys::RootPin::Unknown => {
+                Err(ClientError::Locked(above))
+            }
+        }
+    }
+
+    /// Refuses (`ClientError::Forged`) unless `block` lies at or under `above` as the signed
+    /// parent records place it now: walking up from `block`'s log, checked from the root this
+    /// device pinned, through each block's last placement, each log checked from the root the
+    /// placement under it names, and `above`'s matching the root this device pinned for it. A
+    /// block whose creation waits in the outbox lies where this device's own record placed it.
+    /// So a key of `block` is never wrapped under a scope key the server only claims is above it
+    /// (guides/blocks/keys.md, "Parent records"). A local account has no server to claim anything.
+    pub(crate) async fn signed_below(&self, block: Uuid, above: Uuid) -> Result<(), ClientError> {
+        use be_block_keys::Placement;
+        if block == above || self.local {
+            return Ok(());
+        }
+        let mut placement = match self.pending_placement(block) {
+            Some(placement) => placement,
+            None => self.checked_access(block).await?.1.placement(),
+        };
+        for _ in 0..be_block_keys::MAX_ANCESTRY {
+            let Some(Placement::Block { block: up, root }) = placement else {
+                break;
+            };
+            let up = Uuid::from_bytes(up);
+            match self.keys.root_pin(up) {
+                crate::keys::RootPin::Pinned(pinned) | crate::keys::RootPin::Weak(pinned)
+                    if pinned != root =>
+                {
+                    return Err(ClientError::Forged(block));
+                }
+                crate::keys::RootPin::Conflicting => return Err(ClientError::Forged(block)),
+                _ => {}
+            }
+            if up == above {
+                return Ok(());
+            }
+            // Nothing in an owner-only block is readable under a scope above it.
+            if self
+                .keys
+                .scope_key(up)
+                .is_some_and(|key| self.keys.owner_only_covers(key))
+            {
+                return Err(ClientError::Forged(block));
+            }
+            placement = match self.pending_placement(up) {
+                Some(placement) => placement,
+                None => self.checked_from(up, root).await?.placement(),
+            };
+        }
+        Err(ClientError::Forged(block))
+    }
+
+    /// Refuses (`ClientError::Forged`) unless `block`'s last placement, as its log checked from
+    /// the root this device pinned (or its pending creation) gives it, is under `parent`: one
+    /// step of `signed_below`, for each block a listing names below one already checked.
+    pub(crate) async fn placed_under(&self, block: Uuid, parent: Uuid) -> Result<(), ClientError> {
+        use be_block_keys::Placement;
+        if self.local {
+            return Ok(());
+        }
+        let placement = match self.pending_placement(block) {
+            Some(placement) => placement,
+            None => self.checked_access(block).await?.1.placement(),
+        };
+        match placement {
+            Some(Placement::Block { block: up, root }) if Uuid::from_bytes(up) == parent => {
+                match self.keys.root_pin(parent) {
+                    crate::keys::RootPin::Pinned(pinned) | crate::keys::RootPin::Weak(pinned)
+                        if pinned != root =>
+                    {
+                        Err(ClientError::Forged(block))
+                    }
+                    crate::keys::RootPin::Conflicting => Err(ClientError::Forged(block)),
+                    _ => Ok(()),
+                }
+            }
+            _ => Err(ClientError::Forged(block)),
+        }
+    }
+
+    /// Where the parent record of `block`'s creation, waiting in the outbox, places it: none
+    /// when no creation of it waits (`Some(None)` for one whose record does not read).
+    fn pending_placement(&self, block: Uuid) -> Option<Option<be_block_keys::Placement>> {
+        let placed = self.refs.creation_placement(block)?;
+        Some(
+            be_block_keys::Entry::decode(&placed)
+                .ok()
+                .and_then(|entry| match entry.record {
+                    be_block_keys::Record::Parent(parent) => Some(parent.placement),
+                    _ => None,
+                }),
+        )
+    }
+
+    /// The log of `block` checked from `root`, which a parent record placing a block under it
+    /// names: refused when this device pinned another root for it, and, as `checked_access`
+    /// does, when it stops short of what this device kept of it, so a server cannot serve a
+    /// device that saw a block move a log cut short before the move.
+    async fn checked_from(
+        &self,
+        block: Uuid,
+        root: be_block_keys::EntryHash,
+    ) -> Result<be_block_keys::Checked, ClientError> {
+        match self.keys.root_pin(block) {
+            crate::keys::RootPin::Pinned(pinned) | crate::keys::RootPin::Weak(pinned)
+                if pinned != root =>
+            {
+                return Err(ClientError::Forged(block));
+            }
+            crate::keys::RootPin::Conflicting => return Err(ClientError::Forged(block)),
+            _ => {}
+        }
+        Ok(self.checked_rooted(block, root).await?.1)
+    }
+
+    /// The chain up to the nearest block above the one `checked` is the log of, as its signed
+    /// placements give it now, where `account` holds `level` or above: each block with the head
+    /// of its log now (`be_block_keys::Authority::Inherited`). None when no block above gives
+    /// it, within `be_block_keys::MAX_ANCESTRY`.
+    async fn held_above(
+        &self,
+        checked: &be_block_keys::Checked,
+        account: [u8; 16],
+        level: be_block_keys::Level,
+    ) -> Result<Option<Vec<be_block_keys::Link>>, ClientError> {
+        use be_block_keys::{Link, LogKind, Placement};
+        let mut chain = Vec::new();
+        let mut placement = checked.placement();
+        while chain.len() < be_block_keys::MAX_ANCESTRY {
+            let Some(Placement::Block { block: up, root }) = placement else {
+                return Ok(None);
+            };
+            let above = self.checked_from(Uuid::from_bytes(up), root).await?;
+            chain.push(Link {
+                block: up,
+                head: above.head,
+            });
+            if above.holding(LogKind::Block, account, level).is_some() {
+                return Ok(Some(chain));
+            }
+            placement = above.placement();
+        }
+        Ok(None)
+    }
+
+    /// Whether this account may write `block` as its signed logs show now: Edit or above in the
+    /// block's own log, or from outside it (`authority_outside`: administering the organization,
+    /// or a block above), never the server's word. The one rule for writing on after the logs
+    /// changed: resealing an outdated edit (`reseal`) and rotating a tree a demotion outdated
+    /// (`rotate_demoted`). A log that does not check, or is not served, shows nothing. Offline,
+    /// the error.
+    pub(super) async fn may_write_signed(&self, block: Uuid) -> Result<bool, ClientError> {
+        use be_block_keys::{Level, LogKind};
+        let checked = match self.checked_access(block).await {
+            Ok((_, checked)) => checked,
+            Err(error) if error.is_unreachable() => return Err(error),
+            Err(_) => return Ok(false),
+        };
+        let me = self.account.into_bytes();
+        if checked.holding(LogKind::Block, me, Level::Edit).is_some() {
+            return Ok(true);
+        }
+        match self.authority_outside(block, &checked, Level::Edit).await {
+            Ok(_) => Ok(true),
+            Err(error) if error.is_unreachable() => Err(error),
+            Err(_) => Ok(false),
+        }
+    }
+
+    /// Where this account's `level` on the block `checked` is the log of comes from outside
+    /// that log: administering the organization, as of its log's head, else the nearest block
+    /// above that gives it (`held_above`).
+    pub(crate) async fn authority_outside(
+        &self,
+        block: Uuid,
+        checked: &be_block_keys::Checked,
+        level: be_block_keys::Level,
+    ) -> Result<be_block_keys::Authority, ClientError> {
+        use be_block_keys::{Authority, LogKind};
+        let me = self.keys.account().into_bytes();
+        if let Some(pinned) = self.keys.organization_root() {
+            let entries = self.organization_log().await?;
+            if let Ok(organization) = be_block_keys::check_log(
+                LogKind::Organization,
+                self.organization.into_bytes(),
+                pinned,
+                &entries,
+                &|_| None,
+            ) && organization
+                .holding(LogKind::Organization, me, level)
+                .is_some()
+            {
+                return Ok(Authority::Organization(organization.head));
+            }
+        }
+        match self.held_above(checked, me, level).await? {
+            Some(chain) => Ok(Authority::Inherited(chain)),
+            None => Err(ClientError::Refused(
+                ErrorCode::PermissionDenied,
+                format!("this account does not hold {level:?} on block {block}"),
+            )),
+        }
+    }
+
+    /// The block's access log, root first, once it checks from the root this device pinned
+    /// (`KeyBook::root`: from making the block, or carried by a trusted key of it) to its head.
+    /// A log rooted anywhere else is the server's, and refused (`ClientError::Forged`). Only the
+    /// entries served whole: a reader below Edit is served a proof path, whose other entries
+    /// `checked_access` has reduced.
+    pub async fn access_log(&self, block: Uuid) -> Result<Vec<be_block_keys::Entry>, ClientError> {
+        Ok(self
+            .checked_access(block)
+            .await?
+            .0
+            .into_iter()
+            .filter_map(|step| match step {
+                be_block_keys::Step::Entry(entry) => Some(entry),
+                be_block_keys::Step::Reduced(_) => None,
+            })
+            .collect())
+    }
+
+    /// The block's log as `access_log` checks it, and what its records give.
+    pub async fn checked_access(
+        &self,
+        block: Uuid,
+    ) -> Result<(Vec<be_block_keys::Step>, be_block_keys::Checked), ClientError> {
+        let pinned = match self.keys.root_pin(block) {
+            // A weak root checks what the member who sent it says; `root_pin` tells which.
+            crate::keys::RootPin::Pinned(root) | crate::keys::RootPin::Weak(root) => root,
+            crate::keys::RootPin::Conflicting => return Err(ClientError::Forged(block)),
+            crate::keys::RootPin::Unknown => return Err(ClientError::Locked(block)),
+        };
+        self.checked_rooted(block, pinned).await
+    }
+
+    /// The log of `block` checked from `root` as `checked_access` checks it: refused when it
+    /// stops short of what this device kept of it (`ClientError::Withheld`), and kept.
+    async fn checked_rooted(
+        &self,
+        block: Uuid,
+        pinned: be_block_keys::EntryHash,
+    ) -> Result<(Vec<be_block_keys::Step>, be_block_keys::Checked), ClientError> {
+        let unsure = self.keys.is_unsure(block);
+        let read = self.served_access_held(Some(block)).await?;
+        let around = match cites(&read.steps) {
+            true => self.logs_around(block, &read.steps).await?,
+            false => Around::default(),
+        };
+        // Checked on from what this device kept, when the log still reaches it: only the
+        // entries after are checked, and those it checked before not hashed again. One cut
+        // short is checked whole, and found withheld below.
+        let kept = self
+            .keys
+            .kept_checked(block, pinned)
+            .filter(|kept| kept.positions.len() <= read.steps.len());
+        let checked = around
+            .check(
+                self.organization,
+                block,
+                pinned,
+                kept,
+                &read.steps,
+                read.trusted,
+            )
+            .ok_or(ClientError::Forged(block))?;
+        let taken = self.take_checked(block, read, checked)?;
+        self.answered(block, unsure);
+        Ok(taken)
+    }
+
+    /// Notes that a read of `log` answered: when it was unsure of a lowering this device sent
+    /// (`KeyBook::sending`) before the read was sent (`unsure`, the mark it held then), the read
+    /// was sent past the lowering, and from now the log is judged by what it serves
+    /// (`KeyBook::answered`). A read sent before the mark, or before a newer one, may have been
+    /// answered before the append landed, so it clears nothing.
+    pub(crate) fn answered(&self, log: Uuid, unsure: Option<u64>) {
+        if let Some(generation) = unsure
+            && self.keys.answered(log, generation)
+        {
+            self.clear_unsure(log);
+        }
+    }
+
+    /// Clears `log`'s unsure mark in the refs, once the key book let it go. One that fails to
+    /// clear stays marked there, which fails closed: a restart reads the log again first.
+    fn clear_unsure(&self, log: Uuid) {
+        if let Err(error) = self.refs.set_unsure(log, false) {
+            tracing::warn!("an access log's unsure mark was not cleared: {error}");
+        }
+    }
+
+    /// `block`'s log as `read` read it, checked as `checked`, taken as `checked_rooted` takes
+    /// one: refused when it stops short of what this device kept of it, and kept, so the next
+    /// check goes on from it.
+    pub(crate) fn take_checked(
+        &self,
+        block: Uuid,
+        read: ServedRead,
+        checked: be_block_keys::Checked,
+    ) -> Result<(Vec<be_block_keys::Step>, be_block_keys::Checked), ClientError> {
+        // A log short of what an earlier check kept is withheld: nothing acts on it, and what
+        // waits on it (a seal to judge, an escrowed key to take) waits for a whole one.
+        match self.keys.served(block, &checked) {
+            crate::keys::Served::Take if !checked.partial => {
+                self.served_checked(block, &read, read.steps.len());
+            }
+            crate::keys::Served::Take => {}
+            // An older answer than one this run already took: that one stands, with its
+            // entries, so a record signed on it names the newer head.
+            crate::keys::Served::Stale(newer) => {
+                let (checked, entries) = *newer;
+                return Ok((entries, checked));
+            }
+            crate::keys::Served::Withheld => return Err(ClientError::Withheld(block)),
+        }
+        if let Some(kept) = self.keys.note_log(block, &checked, &read.steps) {
+            let _ = self.refs.keep_log(block, kept);
+        }
+        self.keep_awaited(block);
+        Ok((read.steps, checked))
+    }
+
+    /// The block's log as the server serves it to this account: whole to a member with Edit or
+    /// above, else a proof path (`be_block_keys::proof_path`).
+    async fn served_log(&self, block: Uuid) -> Result<Vec<be_block_keys::Step>, ClientError> {
+        self.served_access(Some(block)).await
+    }
+
+    /// The access log of `log` (the organization's with none) as the server serves it now, root
+    /// first, not yet checked. A whole log read before in this run is asked for after its last
+    /// entry, and the entries sent after it must name it as the one before: the device keeps the
+    /// prefix, so the server neither sends it again nor can rewrite it unseen. A log sent from its
+    /// root (the server no longer holds that entry there, or serves this reader a proof path)
+    /// replaces what was held, and a check from the kept state (`Checked::resume`) refuses one
+    /// whose prefix was rewritten.
+    async fn served_access(
+        &self,
+        log: Option<Uuid>,
+    ) -> Result<Vec<be_block_keys::Step>, ClientError> {
+        Ok(self.served_access_held(log).await?.steps)
+    }
+
+    /// `served_access`, and how many of the first entries are a prefix this device checked
+    /// before: from this run, or kept with the refs from an earlier one (`KeptLog::steps`), so
+    /// the first read after a restart names its last entry too, and is sent only those after.
+    async fn served_access_held(&self, log: Option<Uuid>) -> Result<ServedRead, ClientError> {
+        let id = log.unwrap_or(self.organization);
+        let cached = self.served_logs.lock().unwrap().get(&id).cloned();
+        let held = cached.or_else(|| {
+            let steps = self.keys.kept_steps(id)?;
+            Some(HeldLog {
+                checked: steps.len(),
+                steps: Arc::new(steps),
+            })
+        });
+        let held_entry = held.as_ref().and_then(|held| {
+            Some(be_block_protocol::HeldEntry {
+                place: held.steps.len().checked_sub(1)? as u64,
+                hash: held.steps.last()?.hash(),
+                root: held.steps.first()?.hash(),
+            })
+        });
+        let page = crate::ask(
+            be_block_protocol::read::<be_block_protocol::AccessLogPage, _>(
+                &self.connection(),
+                Some(self.organization),
+                be_block_protocol::Query::Log {
+                    log,
+                    held: held_entry,
+                },
+            ),
+        )
+        .await?;
+        let sent = page
+            .entries
+            .iter()
+            .map(|step| be_block_keys::Step::decode(step))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| ClientError::Forged(id))?;
+        let steps = extended(
+            held.as_ref().map(|held| held.steps.as_slice()),
+            page.from,
+            sent,
+        )
+        .ok_or(ClientError::Forged(id))?;
+        let trusted = match page.from {
+            0 => 0,
+            _ => held.map_or(0, |held| held.checked),
+        };
+        let mut served = self.served_logs.lock().unwrap();
+        let held = match steps.iter().all(|step| step.entry().is_some()) {
+            true => {
+                let held = Arc::new(steps.clone());
+                served.insert(
+                    id,
+                    HeldLog {
+                        steps: Arc::clone(&held),
+                        checked: trusted,
+                    },
+                    steps.len().max(1),
+                );
+                Some(held)
+            }
+            false => {
+                served.remove(&id);
+                None
+            }
+        };
+        Ok(ServedRead {
+            steps,
+            trusted,
+            held,
         })
+    }
+
+    /// `log`'s whole log, as `read` read it, checked through its first `checked` entries: a
+    /// later read goes on from them without hashing them again. Only the very log `read` holds
+    /// is marked, while it is still the one held: another read of `log` may have put another
+    /// in its place meanwhile, which no check of `read`'s entries vouches for.
+    fn served_checked(&self, log: Uuid, read: &ServedRead, checked: usize) {
+        let Some(checked_log) = &read.held else {
+            return;
+        };
+        let mut served = self.served_logs.lock().unwrap();
+        let Some(held) = served.get(&log).cloned() else {
+            return;
+        };
+        if Arc::ptr_eq(&held.steps, checked_log)
+            && held.checked < checked
+            && checked <= held.steps.len()
+        {
+            let weight = held.steps.len().max(1);
+            served.insert(log, HeldLog { checked, ..held }, weight);
+        }
+    }
+
+    /// The logs a record in `block`'s log may name its authority in, as far as this device is
+    /// served them: the organization's, checked from the root this account pinned, and those of
+    /// the blocks the `Authority::Inherited` chains in `entries` (the block's log, as served),
+    /// and in each log read so, name, at most `be_block_keys::MAX_ANCESTRY` of them. Which block
+    /// is above which, and the root each is checked from, come from the parent records alone
+    /// (`be_block_keys::answer`), never the server's tree; a log not served is left out.
+    async fn logs_around(
+        &self,
+        block: Uuid,
+        entries: &[be_block_keys::Step],
+    ) -> Result<Around, ClientError> {
+        let mut around = Around {
+            kept: Some(Arc::clone(&self.checked_as_of)),
+            ..Around::default()
+        };
+        if let Some(pinned) = self.keys.organization_root() {
+            let entries = self.organization_log().await?;
+            around.organization = Some((pinned, entries));
+        }
+        let mut seen = HashSet::from([block]);
+        let mut level: Vec<Uuid> = named_blocks(entries)
+            .filter(|named| seen.insert(*named))
+            .collect();
+        while !level.is_empty() && around.held.len() < be_block_keys::MAX_ANCESTRY {
+            level.truncate(be_block_keys::MAX_ANCESTRY - around.held.len());
+            let served =
+                futures_util::future::join_all(level.iter().map(|named| self.served_log(*named)))
+                    .await;
+            let mut next = Vec::new();
+            for (named, served) in level.into_iter().zip(served) {
+                let Ok(served) = served else {
+                    continue;
+                };
+                next.extend(named_blocks(&served).filter(|named| seen.insert(*named)));
+                around.held.insert(named, served);
+            }
+            level = next;
+        }
+        Ok(around)
+    }
+
+    /// `account`'s keys as this device verified them: from a contact card or a key change.
+    pub fn verified_identity(&self, account: Uuid) -> Option<be_block_keys::PublicIdentity> {
+        let public = self.keys.contact(account)?;
+        let signing = self
+            .refs
+            .signers(account)
+            .into_iter()
+            .rev()
+            .find(|signer| signer.verified)?;
+        Some(be_block_keys::PublicIdentity {
+            public,
+            signing: be_block_keys::SigningPublic(signing.key),
+        })
+    }
+
+    /// The grant record `grant` sends: `None` for the standing grant to the server and for
+    /// revoking one the log does not name; for anyone inside, an opening (`Record::Opening`).
+    /// It names the keys this device verified for `account`, or those the log already names for
+    /// it, and where this device's Manage comes from: the block's log, the organization's
+    /// (administering it), or a block above.
+    async fn signed_grant(
+        &self,
+        block: Uuid,
+        account: Uuid,
+        access: Access,
+        given: Option<be_block_keys::PublicIdentity>,
+    ) -> Result<Option<Vec<u8>>, ClientError> {
+        use be_block_keys::{Authority, Grant, LogKind, Opening, Record};
+        if self
+            .keys
+            .server()
+            .is_some_and(|(server, _)| server == account)
+        {
+            return Ok(None);
+        }
+        let level = grant_level(access);
+        let (_, checked) = self.checked_access(block).await?;
+        let me = self.keys.account().into_bytes();
+        let manages = checked.manager(LogKind::Block, me).is_some();
+        let checked = &checked;
+        let authority = |own: bool| async move {
+            match own || manages {
+                true => Ok(Authority::Log),
+                false => {
+                    self.authority_outside(block, checked, be_block_keys::Level::Manage)
+                        .await
+                }
+            }
+        };
+        // A proof path (served below Edit) signs only the reader's own grant: it hides what any
+        // other record must follow.
+        let sign = |record: Record| {
+            checked
+                .next(self.keys.identity(), me, block.into_bytes(), record)
+                .map(|entry| entry.encode())
+                .ok_or_else(|| {
+                    ClientError::Refused(
+                        ErrorCode::PermissionDenied,
+                        format!("this account is not served the whole log of block {block}"),
+                    )
+                })
+        };
+        if account == be_block_graph::ANYONE_INSIDE {
+            if level == be_block_keys::Level::None
+                && checked.open_inside == be_block_keys::Level::None
+            {
+                return Ok(None);
+            }
+            let authority = authority(false).await?;
+            return Ok(Some(sign(Record::Opening(Opening { level, authority }))?));
+        }
+        let named = checked.grants.get(&account.into_bytes()).copied();
+        // A revocation of someone the log names nowhere is still recorded while the server holds
+        // a grant for them (a contact link's, applied when it was accepted and not yet finished),
+        // so finishing the link reads the log alone. A server that cannot say (unreachable, or
+        // this device may not list access) is taken as holding none, as before this check.
+        let applied = level == be_block_keys::Level::None
+            && named.is_none()
+            && self.list_access(block).await.is_ok_and(|listed| {
+                listed.entries.iter().any(|entry| {
+                    entry.account == account
+                        && entry.granted.is_some_and(|granted| granted > Access::None)
+                })
+            });
+        if level == be_block_keys::Level::None
+            && named.is_none_or(|(named, _)| named == be_block_keys::Level::None)
+            && !applied
+        {
+            return Ok(None);
+        }
+        let identity = given
+            .or_else(|| self.verified_identity(account))
+            .or(named.map(|(_, identity)| identity));
+        let identity = match identity {
+            Some(identity) => identity,
+            // A link's grantee this device does not know the keys of yet: nothing names them, and
+            // finishing the link finds the server no longer holds the grant.
+            None if applied => return Ok(None),
+            None => {
+                return Err(ClientError::Refused(
+                    ErrorCode::NotAContact,
+                    "share only with your contacts: send them a contact link first".into(),
+                ));
+            }
+        };
+        let own = account.into_bytes() == me && level == be_block_keys::Level::None;
+        let authority = authority(own).await?;
+        Ok(Some(sign(Record::Grant(Grant {
+            grantee: account.into_bytes(),
+            identity,
+            level,
+            authority,
+        }))?))
     }
 
     /// Defines a block's metadata on this device and keeps the change in the outbox: a block
@@ -1190,12 +3221,12 @@ impl<S: ObjectStore> Peer<S> {
         edit: impl Fn(&mut BlockMetadata),
     ) -> Result<BlockSummary, ClientError> {
         let summary = match self.refs.summary(block) {
-            Some(summary) => self.refs.current(vec![summary]).remove(0),
+            Some(summary) => summary,
             None => self.summary(block).await?,
         };
         let head = self.local_head(block).or(summary.head);
         let current = match head {
-            Some(head) => self.metadata_of(head).await?,
+            Some(head) => self.metadata_of(block, head).await?,
             None => self.metadata_of_summary(&summary).await?,
         };
         let mut next = current.clone();
@@ -1209,7 +3240,7 @@ impl<S: ObjectStore> Peer<S> {
             let references = bounded(deduplicated(self.resolve(block, next.references())))?;
             return self.define_locally(summary, sealed, references);
         };
-        let commit = self.load_commit(head).await?;
+        let commit = self.load_head(block, head).await?;
         let described = self.resolve(block, current.references());
         let mut references = commit.references;
         references.retain(|reference| !described.contains(reference));
@@ -1232,7 +3263,7 @@ impl<S: ObjectStore> Peer<S> {
                 false => self.local_head(block).or(summary.head),
             };
             let current = match head {
-                Some(head) => self.metadata_of(head).await?,
+                Some(head) => self.metadata_of(block, head).await?,
                 None => self.metadata_of_summary(&summary).await?,
             };
             let mut next = current.clone();
@@ -1247,23 +3278,33 @@ impl<S: ObjectStore> Peer<S> {
                 if !self.is_attached() || self.refs.has_structural(block) {
                     return self.define_locally(summary, sealed, references);
                 }
-                let response = crate::ask(client::blocks::set_metadata(
+                let response = crate::ask(be_block_protocol::write::<
+                    be_block_protocol::Described,
+                    _,
+                >(
                     &self.connection(),
-                    block,
-                    sealed.clone(),
-                    references.clone(),
+                    Some(self.organization),
+                    be_block_protocol::Op::Publish {
+                        block: block,
+                        expected: None,
+                        commit: None,
+                        references: be_block_protocol::ReferenceChange::between(&[], &references),
+                        metadata: sealed.clone(),
+                        journal: None,
+                    },
                 ))
                 .await;
                 match response {
-                    Ok(block) => return Ok(block),
-                    Err(ClientError::Refused(ErrorCode::BlockHasContent, _)) => continue,
+                    Ok(be_block_protocol::Described::Block(block)) => return Ok(block),
+                    // It has content now: its metadata goes in a commit.
+                    Ok(be_block_protocol::Described::Rejected(_)) => continue,
                     Err(error) if offline::unreachable(&error) => {
                         return self.define_locally(summary, sealed, references);
                     }
                     Err(error) => return Err(error),
                 }
             };
-            let commit = self.load_commit(head).await?;
+            let commit = self.load_head(block, head).await?;
             let described = self.resolve(block, current.references());
             let mut references = commit.references;
             references.retain(|reference| !described.contains(reference));
@@ -1286,9 +3327,14 @@ impl<S: ObjectStore> Peer<S> {
         Err(ClientError::Contended)
     }
 
-    pub async fn metadata_of(&self, commit: CommitId) -> Result<BlockMetadata, ClientError> {
+    /// The metadata of `block`'s head `commit` (`load_head`).
+    pub async fn metadata_of(
+        &self,
+        block: Uuid,
+        commit: CommitId,
+    ) -> Result<BlockMetadata, ClientError> {
         Ok(BlockMetadata::decode(
-            &self.load_commit(commit).await?.metadata,
+            &self.load_head(block, commit).await?.metadata,
         )?)
     }
 
@@ -1321,6 +3367,7 @@ impl<S: ObjectStore> Peer<S> {
         head: CommitId,
     ) -> Result<BlockMetadata, ClientError> {
         if let Some(commit) = self.commits.try_get(head)? {
+            self.sealed_in(block, head)?;
             return Ok(BlockMetadata::decode(&commit.metadata)?);
         }
         if self.pending_commits(block).is_empty()
@@ -1330,18 +3377,20 @@ impl<S: ObjectStore> Peer<S> {
         {
             return Ok(metadata);
         }
-        self.metadata_of(head).await
+        self.metadata_of(block, head).await
     }
 
     pub fn metadata(&self, summary: &BlockSummary) -> Result<BlockMetadata, ClientError> {
         self.open_metadata(summary).map_err(locked)
     }
 
+    /// A summary's metadata, which the server names: refused unless one of the summary's
+    /// block's keys sealed it, as for a head (`load_head`).
     fn open_metadata(&self, summary: &BlockSummary) -> Result<BlockMetadata, ClientError> {
         if summary.metadata.is_empty() {
             return Ok(BlockMetadata::default());
         }
-        let plain = self.commits.vault().open(&summary.metadata)?;
+        let plain = self.open_for(summary.id, &summary.metadata)?;
         Ok(BlockMetadata::decode(&plain)?)
     }
 
@@ -1377,6 +3426,16 @@ impl<S: ObjectStore> Peer<S> {
         {
             return Ok(());
         }
+        // A block this device holds no summary of may still be there (shared with this account,
+        // or its summary forgotten): the server says so before anything is made for it.
+        if self.is_attached() && !self.local && !self.uncreated(block) {
+            match self.server_summary(block).await {
+                Ok(_) => return Ok(()),
+                Err(ClientError::Refused(ErrorCode::BlockNotFound, _)) => {}
+                Err(error) if error.is_unreachable() => {}
+                Err(error) => return Err(error),
+            }
+        }
         match self
             .create_block(
                 block,
@@ -1394,29 +3453,49 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn summary(&self, block: Uuid) -> Result<BlockSummary, ClientError> {
+        // A local account holds every block it has: one it does not hold is not there, as a
+        // server answers of a block it does not know.
+        if self.local {
+            return match self.refs.summary(block) {
+                Some(summary) => Ok(summary),
+                None => Err(ClientError::Refused(
+                    ErrorCode::BlockNotFound,
+                    format!("block {block} is not on this device"),
+                )),
+            };
+        }
         // The server does not know a block whose creation waits in the outbox, or was refused.
         if self.uncreated(block)
             && let Some(summary) = self.refs.summary(block)
         {
-            return Ok(self.refs.current(vec![summary]).remove(0));
+            return Ok(summary);
         }
         self.server_summary(block).await
     }
 
     /// What the server says of a block, or offline what this device last heard.
     pub(super) async fn server_summary(&self, block: Uuid) -> Result<BlockSummary, ClientError> {
-        let response = crate::ask(client::blocks::list_blocks(
+        // A block the caller may not know of reads as none, as one that is not there does.
+        let response = crate::ask(be_block_protocol::read::<
+            Vec<Option<be_block_protocol::BlockSummary>>,
+            _,
+        >(
             &self.connection(),
-            Listing::Block(block),
-            None,
+            Some(self.organization),
+            be_block_protocol::Query::Blocks {
+                blocks: vec![block],
+                contents: false,
+                held: Vec::new(),
+            },
         ))
         .await
-        .and_then(|listed| {
-            listed
-                .blocks
-                .into_iter()
-                .next()
-                .ok_or(ClientError::Unexpected)
+        .and_then(|mut read| match read.pop() {
+            Some(Some(summary)) if read.is_empty() => Ok(summary),
+            Some(None) => Err(ClientError::Refused(
+                ErrorCode::BlockNotFound,
+                format!("block {block} is not there for this account"),
+            )),
+            _ => Err(ClientError::Unexpected),
         });
         match response {
             Ok(block) => {
@@ -1424,7 +3503,7 @@ impl<S: ObjectStore> Peer<S> {
                 Ok(self.summary_with_outbox(block))
             }
             Err(error) if error.is_unreachable() => match self.refs.summary(block) {
-                Some(summary) => Ok(self.refs.current(vec![summary]).remove(0)),
+                Some(summary) => Ok(summary),
                 None => Err(error),
             },
             Err(ClientError::Refused(code, message)) => {
@@ -1441,53 +3520,87 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
-    /// The blocks of `listing`, which this connection follows from then on (`unlist` stops
-    /// it); offline, what this device last heard.
+    /// The blocks of `listing`; offline, what this device last heard, and for a local account
+    /// what it holds.
     pub async fn list(&self, listing: Listing) -> Result<Vec<BlockSummary>, ClientError> {
+        Ok(self.listing(listing).await?.blocks)
+    }
+
+    /// The blocks of `listing`, and the organization's sequence the server read them at
+    /// (`Listed::sequence`); offline, and for a local account, the newest sequence this device
+    /// knows.
+    pub async fn listing(&self, listing: Listing) -> Result<Listed, ClientError> {
+        let here = |blocks| Listed {
+            sequence: self.refs.newest_sequence(),
+            blocks,
+        };
+        if self.local {
+            let mut blocks = match listing {
+                Listing::References(block) => self.references_here(block).await.unwrap_or_default(),
+                Listing::Backrefs(block) => self.backrefs_here(block).await,
+                _ => self.refs.local_listing(listing),
+            };
+            blocks.sort_by_key(|summary| summary.id);
+            blocks.dedup_by_key(|summary| summary.id);
+            return Ok(here(blocks));
+        }
         if let Some(block) = about(listing)
             && self.refs.creating(block)
         {
-            return Ok(self.listed_here(listing, block));
+            return Ok(here(self.listed_here(listing, block)));
         }
+        let since = self.sent_since();
         match self.list_online(listing).await {
-            Ok((revision, blocks)) => {
+            Ok((sequence, blocks)) => {
                 self.observe(&blocks);
                 let blocks = blocks
                     .into_iter()
                     .map(|summary| self.summary_with_outbox(summary))
                     .collect();
-                let blocks = self.with_outbox(listing, blocks);
-                let _ = self.refs.listed(listing, &blocks, revision);
-                Ok(blocks)
+                let blocks = self.with_outbox(listing, blocks, since);
+                let _ = self.refs.listed(listing, &blocks, sequence);
+                Ok(Listed { sequence, blocks })
             }
-            Err(error) if error.is_unreachable() => match self.refs.cached_listing(listing) {
-                Some(blocks) => Ok(self.refs.current(blocks)),
-                None => Err(error),
-            },
+            Err(error) if error.is_unreachable() => {
+                // What a block references, from the content this device kept of it.
+                if let Listing::References(block) = listing
+                    && let Some(mut blocks) = self.references_here(block).await
+                {
+                    blocks.sort_by_key(|summary| summary.id);
+                    blocks.dedup_by_key(|summary| summary.id);
+                    return Ok(here(blocks));
+                }
+                match self.refs.cached_listing(listing) {
+                    Some(blocks) => Ok(here(blocks)),
+                    None => Err(error),
+                }
+            }
             Err(error) => Err(error),
         }
     }
 
     /// The server's answer to `listing`, every page of it (in the order of block ids, each
-    /// after the last), with the summaries of each page's `rest` read after it. Summaries read
-    /// after the first page are newer than the listing's revision, so one the listing would no
-    /// longer hold is left out (`still_in`). A block's references are put in its own order.
+    /// after the last), with the summaries of each page's `rest` read after it, and the sequence
+    /// of the first page. Summaries read after the first page may be newer, so one the listing
+    /// would no longer hold is left out (`still_in`). A block's references come in the order
+    /// of their ids too: their own order is in the block's content (`content_references`).
     async fn list_online(&self, listing: Listing) -> Result<(u64, Vec<BlockSummary>), ClientError> {
-        let mut first_revision = None;
-        let mut last_revision;
+        let mut first_sequence = None;
         let mut after = None;
         // The listing in order: a summary given, or an id whose summary is read below.
         let mut entries: Vec<Result<BlockSummary, Uuid>> = Vec::new();
         loop {
-            let page = crate::ask(client::blocks::list_blocks(
+            let page = crate::ask(be_block_protocol::read::<be_block_protocol::Listed, _>(
                 &self.connection(),
-                listing,
-                after,
+                Some(self.organization),
+                be_block_protocol::Query::List {
+                    listing: listing,
+                    after: after,
+                },
             ))
             .await?;
-            let later = first_revision.is_some();
-            first_revision.get_or_insert(page.revision);
-            last_revision = page.revision;
+            let later = first_sequence.is_some();
+            first_sequence.get_or_insert(page.sequence);
             entries.extend(
                 page.blocks
                     .into_iter()
@@ -1514,7 +3627,7 @@ impl<S: ObjectStore> Peer<S> {
             .map(|summary| (summary.id, summary))
             .collect();
         let mut seen = HashSet::new();
-        let mut blocks: Vec<BlockSummary> = entries
+        let blocks: Vec<BlockSummary> = entries
             .into_iter()
             .filter_map(|entry| match entry {
                 Ok(summary) => Some(summary),
@@ -1522,35 +3635,24 @@ impl<S: ObjectStore> Peer<S> {
             })
             .filter(|summary| seen.insert(summary.id))
             .collect();
-        // A block's references come in the order of their ids; the block's own summary, read
-        // without listing it, gives their order. Read after the pages, it is as new as any of
-        // them, so a block it no longer references has left the listing. (A summary older than
-        // the pages, as one kept offline would be, could miss a reference newly made: such
-        // blocks would go to the end rather than be dropped.)
-        if let Listing::References(referrer) = listing
-            && blocks.len() > 1
-            && let Some(summary) = self.read_summaries(&[referrer]).await?.pop()
-        {
-            let order: HashMap<Uuid, usize> = summary
-                .references
-                .iter()
-                .enumerate()
-                .map(|(index, reference)| (*reference, index))
-                .collect();
-            if summary.revision >= last_revision {
-                blocks.retain(|block| order.contains_key(&block.id));
-            }
-            blocks.sort_by_key(|block| order.get(&block.id).copied().unwrap_or(usize::MAX));
-        }
-        Ok((first_revision.unwrap_or_default(), blocks))
+        Ok((first_sequence.unwrap_or_default(), blocks))
     }
 
     /// The summaries of `blocks` the server still lets this device know of, read
     /// `MAX_SUMMARIES_ASKED` at a time with every group asked at once, and the rest of a group
     /// asked again when an answer holds only its first.
-    async fn read_summaries(&self, blocks: &[Uuid]) -> Result<Vec<BlockSummary>, ClientError> {
-        let ask =
-            |group: &[Uuid]| client::blocks::read_summaries(&self.connection(), group.to_vec());
+    pub async fn read_summaries(&self, blocks: &[Uuid]) -> Result<Vec<BlockSummary>, ClientError> {
+        let ask = |group: &[Uuid]| {
+            be_block_protocol::read::<Vec<Option<be_block_protocol::BlockSummary>>, _>(
+                &self.connection(),
+                Some(self.organization),
+                be_block_protocol::Query::Blocks {
+                    blocks: group.to_vec(),
+                    contents: false,
+                    held: Vec::new(),
+                },
+            )
+        };
         let asked: Vec<_> = blocks
             .chunks(be_block_protocol::MAX_SUMMARIES_ASKED)
             .map(|group| (group, ask(group)))
@@ -1578,7 +3680,7 @@ impl<S: ObjectStore> Peer<S> {
     /// what is in force at its parent.
     fn listed_here(&self, listing: Listing, block: Uuid) -> Vec<BlockSummary> {
         if let Some(cached) = self.refs.cached_listing(listing) {
-            return self.with_outbox(listing, self.refs.current(cached));
+            return self.with_outbox(listing, cached, self.sent_since());
         }
         let parent = self
             .refs
@@ -1586,15 +3688,13 @@ impl<S: ObjectStore> Peer<S> {
             .and_then(|summary| summary.parent)
             .and_then(|parent| parent.block());
         let blocks = match (listing, parent) {
-            (Listing::Block(_), _) => self.refs.summary(block).into_iter().collect(),
             (Listing::OpenSettings(_), Some(parent)) => self
                 .refs
                 .cached_listing(Listing::OpenSettings(parent))
-                .map(|cached| self.refs.current(cached))
                 .unwrap_or_default(),
             _ => Vec::new(),
         };
-        self.with_outbox(listing, blocks)
+        self.with_outbox(listing, blocks, self.sent_since())
     }
 
     /// A summary the server answered, as this device has it: where a move waiting in the
@@ -1604,18 +3704,65 @@ impl<S: ObjectStore> Peer<S> {
         self.refs.with_outbox(summary)
     }
 
+    /// Marks where the creations and moves the server took stand now: taken before a listing
+    /// is asked for, so its answer is laid over with those the drain sends while the request is
+    /// out (`with_outbox`).
+    pub fn sent_since(&self) -> SentSince {
+        SentSince(self.taken.lock().unwrap().next)
+    }
+
+    /// The drain sent `block`'s creation or move and the server took it (`SentSince`).
+    pub(crate) fn taken(&self, block: Uuid) {
+        let mut taken = self.taken.lock().unwrap();
+        let number = taken.next;
+        taken.next += 1;
+        taken.recent.push_back((number, block));
+        if taken.recent.len() > TAKEN_KEPT {
+            taken.recent.pop_front();
+        }
+    }
+
     /// A listing the server answered, as this device has it: what a creation or move waiting in
-    /// the outbox puts in it or takes out.
+    /// the outbox puts in it or takes out, and where this device has each block whose creation
+    /// or move the server took since `since` (`Peer::sent_since`, marked before the listing was
+    /// asked for). Calls on one connection are answered in order, so an answer to a request
+    /// that went before such a write was read before the server took it, and would otherwise
+    /// leave out a block made here or keep one moved away. A creation or move the server
+    /// refused was never taken: the answer stands for its block.
     pub fn with_outbox(
         &self,
         listing: Listing,
         mut blocks: Vec<BlockSummary>,
+        since: SentSince,
     ) -> Vec<BlockSummary> {
+        let sent: HashSet<Uuid> = self
+            .taken
+            .lock()
+            .unwrap()
+            .recent
+            .iter()
+            .filter(|(number, _)| *number >= since.0)
+            .map(|(_, block)| *block)
+            .collect();
+        for block in sent {
+            let Some(summary) = self.refs.summary(block) else {
+                continue;
+            };
+            let here = match (listing, summary.parent) {
+                (Listing::Children(under), Some(parent)) => under == parent,
+                (Listing::Deleted, Some(parent)) => parent == BlockParent::Detached,
+                _ => continue,
+            };
+            blocks.retain(|listed| listed.id != block);
+            if here {
+                blocks.push(summary);
+            }
+        }
         for (_, op) in self.refs.outbox() {
             let (block, parent) = match op {
                 Op::Create(creation) => (creation.block, creation.parent),
                 Op::Move(moving) => (moving.block, moving.parent),
-                Op::Publish(_) | Op::Define(_) => continue,
+                Op::Publish(_) | Op::Define(_) | Op::Hold(_) | Op::Append(_) => continue,
             };
             let here = match listing {
                 Listing::Children(under) => under == parent,
@@ -1662,9 +3809,61 @@ impl<S: ObjectStore> Peer<S> {
         Ok(())
     }
 
-    pub async fn load_commit(&self, commit: CommitId) -> Result<Commit, ClientError> {
+    /// Fetches what this device lacks of `commit` and of its content (every object of its
+    /// manifest tree), as much as the server still has, and answers whether it holds it all
+    /// now: whether it loads as a merge's base. One the server pruned may be held nowhere.
+    pub async fn try_hold(&self, commit: CommitId) -> Result<bool, ClientError> {
+        if !self.try_fetch(commit.hash()).await? {
+            return Ok(false);
+        }
+        // Fetched but gone at once: the store lost it, which is not the server's pruning.
+        let Some(held) = self.commits.try_get(commit)? else {
+            return Err(ClientError::MissingObject(commit.hash()));
+        };
+        let vault = self.commits.vault();
+        loop {
+            // A level of the tree at a time: the nodes fetched name the next.
+            let missing = vault.missing_objects(&held.manifest, 0, u64::MAX)?;
+            if missing.is_empty() {
+                return Ok(true);
+            }
+            self.try_fetch_all(&missing).await?;
+            for hash in missing {
+                if !vault.store().has(hash)? {
+                    return Ok(false);
+                }
+            }
+        }
+    }
+
+    /// A commit reached by hash from one already checked (a parent, a repository's history):
+    /// bound by that hash, whichever key sealed it. A block's head, which the server names,
+    /// goes through `load_head`.
+    pub async fn load_reached(&self, commit: CommitId) -> Result<Commit, ClientError> {
         self.fetch(&[commit.hash()]).await?;
         self.retrying(|| Ok(self.commits.get(commit)?)).await
+    }
+
+    /// `commit` as `block`'s head, which the server names: refused unless one of `block`'s keys
+    /// sealed it (`sealed_in`), since the server could name another block's commit, which a
+    /// device would show as this block's and write back under this block's key.
+    /// A head the commit names of the block's signed log is compared with the one this device
+    /// kept (`compare_commit_head`).
+    pub async fn load_head(&self, block: Uuid, commit: CommitId) -> Result<Commit, ClientError> {
+        let loaded = self.load_reached(commit).await?;
+        self.sealed_in(block, commit)?;
+        self.compare_commit_head(block, &loaded).await;
+        Ok(loaded)
+    }
+
+    /// Whether `commit`, held, was sealed under one of `block`'s keys, as this device placed
+    /// them (`KeyBook::block_of`); a commit's subtree is sealed under its key.
+    pub fn sealed_in(&self, block: Uuid, commit: CommitId) -> Result<(), ClientError> {
+        let key = self.commits.vault().sealed_under(commit.hash())?;
+        match self.keys.block_of(key) == Some(block) {
+            true => Ok(()),
+            false => Err(ClientError::Forged(block)),
+        }
     }
 
     /// Each block's summary, the content of its head and its journal: what its session's owner
@@ -1694,7 +3893,15 @@ impl<S: ObjectStore> Peer<S> {
                 .filter_map(|(_, head)| *head)
                 .filter(|head| self.holds(*head))
                 .collect();
-            client::blocks::read_contents(&self.connection(), ids, held)
+            be_block_protocol::read::<be_block_protocol::Contents, _>(
+                &self.connection(),
+                Some(self.organization),
+                be_block_protocol::Query::Blocks {
+                    blocks: ids,
+                    contents: true,
+                    held: held,
+                },
+            )
         };
         let asked: Vec<_> = blocks
             .chunks(CONTENTS_BLOCKS)
@@ -1742,14 +3949,15 @@ impl<S: ObjectStore> Peer<S> {
             |(summary, journal)| async move {
                 let stored = match summary.head {
                     Some(head) => {
-                        let commit = self.load_commit(head).await?;
+                        let commit = self.load_head(summary.id, head).await?;
                         let stored = self.load_manifest(&commit.manifest).await?;
                         self.read_whole(summary.id, head);
                         Some(stored)
                     }
                     None => None,
                 };
-                let journal = journal.and_then(|journal| self.open_journal(journal).ok());
+                let journal =
+                    journal.and_then(|journal| self.open_journal(summary.id, journal).ok());
                 Ok(BlockRead {
                     summary,
                     stored,
@@ -1798,31 +4006,21 @@ impl<S: ObjectStore> Peer<S> {
         whole
     }
 
+    /// `block`'s content as this device has it newest (`current`); none before its first save.
     pub async fn open<C: BlockContent>(&self, block: Uuid) -> Result<Option<C>, ClientError> {
-        if let Some(head) = self.local_head(block)
-            && !self.pending_commits(block).is_empty()
-        {
-            return Ok(Some(C::from_stored(&self.read_at(head).await?)?));
+        match self.current(block).await?.stored {
+            Some(stored) => Ok(Some(C::from_stored(&stored)?)),
+            None => Ok(None),
         }
-        let read = self
-            .read_contents(&[(block, self.local_head(block))])
-            .await?;
-        let Some(BlockRead {
-            summary,
-            stored: Some(stored),
-            ..
-        }) = read.into_iter().next()
-        else {
-            return Ok(None);
-        };
-        if let Some(head) = summary.head {
-            self.remember(block, head)?;
-        }
-        Ok(Some(C::from_stored(&stored)?))
     }
 
-    pub async fn open_commit<C: BlockContent>(&self, commit: CommitId) -> Result<C, ClientError> {
-        let commit = self.load_commit(commit).await?;
+    /// `block`'s content at `commit`, which the server may have named (`load_head`).
+    pub async fn open_commit<C: BlockContent>(
+        &self,
+        block: Uuid,
+        commit: CommitId,
+    ) -> Result<C, ClientError> {
+        let commit = self.load_head(block, commit).await?;
         Ok(C::from_stored(
             &self.load_manifest(&commit.manifest).await?,
         )?)
@@ -1860,16 +4058,23 @@ impl<S: ObjectStore> Peer<S> {
         )
     }
 
-    /// `seal` then `publish_sealed`: `Kept` when the commit waits in the outbox behind what
-    /// goes first. On `Rejected` it drops the commit from the outbox, since the caller retries
-    /// or merges.
+    /// Seals the write and publishes it, or offline keeps it in the outbox (`Saved::Kept`):
+    /// `seal` then `publish_sealed`. `Kept` when the commit waits in the outbox behind what goes
+    /// first. On `Rejected` it drops the commit from the outbox, since the caller retries or
+    /// merges.
     pub async fn write(&self, block: Uuid, write: Write<'_>) -> Result<Saved, ClientError> {
         let before = self.local_head(block);
         let commit = match self.seal(block, write).await? {
             Sealed::Unchanged(head) => return Ok(Saved::Unchanged(head)),
             Sealed::Sealed(commit) => commit,
         };
-        let saved = self.publish_sealed(block, commit).await?;
+        if !self.is_attached() && !self.local {
+            return Ok(Saved::Kept(commit));
+        }
+        let saved = match self.publish_sealed(block, commit).await {
+            Err(error) if offline::unreachable(&error) => return Ok(Saved::Kept(commit)),
+            saved => saved?,
+        };
         if let Saved::Rejected { .. } = saved {
             self.withdraw(block, commit, before)?;
         }
@@ -1884,13 +4089,13 @@ impl<S: ObjectStore> Peer<S> {
         let content = std::mem::replace(&mut write.content, Content::Written(Manifest::default()));
         let manifest = match content {
             Content::Encoded(content_type, parts) => {
-                self.write_content(block, content_type, parts).await?
+                self.write_content_kept(block, content_type, parts).await?
             }
             Content::Written(manifest) => {
                 let parts = manifest
                     .root
                     .map_or_else(|| Part::from(Vec::new()), Part::Reused);
-                self.write_content(block, manifest.content_type, parts)
+                self.write_content_kept(block, manifest.content_type, parts)
                     .await?
             }
         };
@@ -1899,7 +4104,7 @@ impl<S: ObjectStore> Peer<S> {
             let mut sides = Vec::new();
             for commit in [base, Some(ours), write.expected] {
                 sides.push(match commit {
-                    Some(commit) => self.metadata_of(commit).await?,
+                    Some(commit) => self.metadata_of(block, commit).await?,
                     None => BlockMetadata::default(),
                 });
             }
@@ -1939,18 +4144,33 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn seal(&self, block: Uuid, mut write: Write<'_>) -> Result<Sealed, ClientError> {
+        // Its local edits were discarded: none of them is sealed, so none reaches the server
+        // once this account may edit it again (`refs::Dropped`). Answered as unchanged, so a
+        // replica closing with them lets go of them rather than waiting on a seal.
+        if self.refs.discarded(block) {
+            return match write.expected {
+                Some(head) => Ok(Sealed::Unchanged(head)),
+                None => Err(ClientError::Discarded(block)),
+            };
+        }
+        // A write on a commit sealed again since (`reseal`) goes on the one in its place.
+        write.expected = write.expected.map(|expected| self.refs.replaced(expected));
+        if let Some((_, ours)) = &mut write.merging {
+            *ours = self.refs.replaced(*ours);
+        }
         let (manifest, extra_parents, metadata) = self.prepare_write(block, &mut write).await?;
         let Write {
             references,
             expected,
             bookmark,
             sealed_through,
+            journal,
             ..
         } = write;
         // The commit it goes on, to tell a write that changes nothing: unknown offline when only
         // its summary is held, and then the write is sealed all the same.
         let previous = match expected {
-            Some(head) => match self.load_commit(head).await {
+            Some(head) => match self.load_head(block, head).await {
                 Ok(previous) => Some(previous),
                 Err(error) if offline::unreachable(&error) => None,
                 Err(error) => return Err(error),
@@ -1968,18 +4188,11 @@ impl<S: ObjectStore> Peer<S> {
         {
             return Ok(Sealed::Unchanged(expected.expect("a previous commit")));
         }
+        let mut expected = expected;
         let mut parents: Vec<_> = expected.into_iter().collect();
-        let mut chunks = self.objects_of(&manifest).await?;
         let mut listed = references.clone();
         listed.extend(self.resolve(block, self.commits.vault().references(&manifest)?));
         let listed = deduplicated(listed);
-        for parent in &extra_parents {
-            chunks.push(parent.hash());
-            chunks.extend(
-                self.objects_of(&self.commits.get(*parent)?.manifest)
-                    .await?,
-            );
-        }
         parents.extend(extra_parents);
         let pinned = bookmark.is_some();
         let kind = match bookmark {
@@ -1987,35 +4200,94 @@ impl<S: ObjectStore> Peer<S> {
             Some(label) => be_block_commit::CommitKind::Bookmark(label),
             None => be_block_commit::CommitKind::Autosave,
         };
-        let key = self.sealing_key(block).await?;
-        let commit = Commit::new(manifest, self.account, time)
-            .with_parents(parents.clone())
+        // Into the outbox, judged again before it is sent (`send_pending`).
+        let key = self.sealing_key_kept(block).await?;
+        let made = Commit::new(manifest, self.account, time)
             .with_kind(kind)
             .with_references(references.clone())
             .with_metadata(encoded)
-            .with_sealed_through(sealed_through);
-        let id = self.commits.put(key, &commit)?;
+            .with_sealed_through(sealed_through)
+            .with_log_through(self.signed_log_head(block).map(|signed| {
+                be_block_commit::LogThrough {
+                    size: signed.head.size,
+                    root: *signed.head.root.as_bytes(),
+                    signature: signed.signature,
+                }
+            }));
         let sealed = self.commits.vault().seal(key, &metadata.encode())?;
-        self.commits.vault().store().sync()?;
-        self.refs.push_publish(
-            Pending {
+        // A commit it goes on may be sealed again (`reseal`, `restamp`) while this one is made:
+        // the refs refuse it then, and it goes on the replacement instead.
+        let mut tries = 0;
+        let id = loop {
+            // What it holds besides itself, and below every parent but the one it goes on, as
+            // the parents stand now: one sealed again holds other objects.
+            let mut chunks = self.objects_of(&made.manifest).await?;
+            for parent in parents.iter().skip(usize::from(expected.is_some())) {
+                chunks.push(parent.hash());
+                chunks.extend(
+                    self.objects_of(&self.commits.get(*parent)?.manifest)
+                        .await?,
+                );
+            }
+            let commit = made.clone().with_parents(parents.clone());
+            let id = self.commits.put(key, &commit)?;
+            let journal = journal
+                .as_ref()
+                .map(|seal| {
+                    Ok::<_, ClientError>(JournalSeal {
+                        tag: seal.tag,
+                        run: seal.run,
+                        base: JournalBase {
+                            commit: Some(id),
+                            sequence: seal.through,
+                            state: self.commits.vault().seal(key, &seal.state)?,
+                            parts: seal.parts.clone(),
+                        },
+                    })
+                })
+                .transpose()?;
+            self.commits.vault().store().sync()?;
+            #[cfg(test)]
+            if tries == 0 {
+                self.paused_before_queue().await;
+            }
+            let pushed = self.refs.push_publish(Pending {
                 block,
                 commit: id,
                 expected,
-                parents,
+                parents: parents.clone(),
                 chunks,
                 time,
                 pinned,
                 references: listed.clone(),
                 metadata: sealed.clone(),
-            },
-            sealed_through.map(|sealed| sealed.sequence),
-        )?;
+                journal,
+            })?;
+            match pushed {
+                crate::refs::Pushed::Queued(_) => break id,
+                // Discarded while it was sealed: as if the discard had come first.
+                crate::refs::Pushed::Dropped => {
+                    return match expected {
+                        Some(head) => Ok(Sealed::Unchanged(head)),
+                        None => Err(ClientError::Discarded(block)),
+                    };
+                }
+                crate::refs::Pushed::OnReplaced if tries < 4 => {
+                    tries += 1;
+                    expected = expected.map(|head| self.refs.replaced(head));
+                    for parent in &mut parents {
+                        *parent = self.refs.replaced(*parent);
+                    }
+                }
+                // Replaced again at every try: the caller seals the edit again later (a
+                // replica's next seal, `seal_failed`).
+                crate::refs::Pushed::OnReplaced => return Err(ClientError::Contended),
+            }
+        };
         if !self.is_attached()
             && let Some(mut summary) = self.refs.summary(block)
         {
             summary.metadata = sealed;
-            summary.references = listed;
             self.refs.revise(summary)?;
         }
         Ok(Sealed::Sealed(id))
@@ -2029,6 +4301,17 @@ impl<S: ObjectStore> Peer<S> {
         let Some((sequence, pending)) = self.pending_publish(block, commit) else {
             return Err(ClientError::MissingObject(commit.hash()));
         };
+        // With no server, what waits ahead of it is settled first, in order, and it is taken
+        // if it goes on the head the block has then, or else refused as the server would.
+        if self.local {
+            self.settle_locally()?;
+            return Ok(match self.pending_publish(block, commit) {
+                None => Saved::Published(commit),
+                Some(_) => Saved::Rejected {
+                    head: self.known_remote_head(block),
+                },
+            });
+        }
         // A creation, move or definition of the block waits in the outbox, or a commit of it
         // sealed before this one that this one does not build on (a definition's commit on the
         // same head): the drain sends them in order, and the server refuses this one as stale
@@ -2051,6 +4334,9 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     async fn send_pending(&self, pending: &Pending) -> Result<PublishOutcome, ClientError> {
+        if self.local {
+            return self.publish_locally(pending);
+        }
         let Pending {
             block,
             commit: id,
@@ -2061,12 +4347,28 @@ impl<S: ObjectStore> Peer<S> {
             pinned,
             ref references,
             ref metadata,
+            ref journal,
         } = *pending;
+        // Sealed offline under a key judged then by what was kept, or not at all: judged again
+        // now, and never sent under an epoch the logs show outdated. Refused
+        // as the server would refuse it, so the drain seals the edit again (`reseal`) or sets it
+        // aside, never loses it.
+        if self.sent_outdated(block, id).await? {
+            return Err(ClientError::Outdated(block));
+        }
         let previous = match expected {
             Some(head) => self.commits.try_get(head)?,
             None => None,
         };
-        let manifest = self.commits.get(id)?.manifest;
+        let made = self.commits.get(id)?;
+        let log_through = made
+            .log_through
+            .as_ref()
+            .map(|head| be_block_protocol::LogHead {
+                size: head.size,
+                root: be_block_store::Hash::from_bytes(head.root),
+            });
+        let manifest = made.manifest;
         let merging = parents.len() > usize::from(expected.is_some());
         let (held, listed) = match &previous {
             Some(previous) => (
@@ -2088,18 +4390,28 @@ impl<S: ObjectStore> Peer<S> {
         }
         let response = loop {
             let publish = |objects| {
-                crate::ask(client::blocks::publish(
+                crate::ask(be_block_protocol::write::<
+                    be_block_protocol::PublishOutcome,
+                    _,
+                >(
                     &self.connection(),
-                    block,
-                    id,
-                    expected,
-                    parents.clone(),
-                    held.clone(),
-                    time,
-                    pinned,
-                    listed.clone(),
-                    metadata.clone(),
-                    objects,
+                    Some(self.organization),
+                    be_block_protocol::Op::Publish {
+                        block: block,
+                        expected: expected,
+                        commit: Some(be_block_protocol::NewCommit {
+                            id: id,
+                            parents: parents.clone(),
+                            held: held.clone(),
+                            time: time,
+                            pinned: pinned,
+                            objects: objects,
+                            log_through: log_through,
+                        }),
+                        references: listed.clone(),
+                        metadata: metadata.clone(),
+                        journal: journal.clone(),
+                    },
                 ))
             };
             match carried.take() {
@@ -2137,7 +4449,7 @@ impl<S: ObjectStore> Peer<S> {
         let mut room = CARRIED_BYTES;
         let mut carried = Vec::with_capacity(hashes.len());
         for hash in hashes {
-            // A part another device put (`put_part`) is on the server and maybe not here.
+            // A part another device held (`hold_part`) is on the server and maybe not here.
             let Some(bytes) = store.get(hash)? else {
                 return Ok(None);
             };
@@ -2160,29 +4472,178 @@ impl<S: ObjectStore> Peer<S> {
         if objects.is_empty() {
             return Ok(());
         }
+        if self.is_attached() {
+            match self.send_hold(block, objects, hold).await {
+                Err(error) if offline::unreachable(&error) => {}
+                sent => return sent,
+            }
+        }
+        self.hold_later(block, objects, hold)
+    }
+
+    async fn send_hold(
+        &self,
+        block: Uuid,
+        objects: &[Hash],
+        hold: be_block_protocol::Hold,
+    ) -> Result<(), ClientError> {
         self.push(objects).await?;
-        client::objects::hold_objects(&self.connection(), block, objects.to_vec(), hold).await??;
+        be_block_protocol::write::<(), _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Op::HoldObjects {
+                block: block,
+                objects: objects.to_vec(),
+                hold: hold,
+            },
+        )
+        .await??;
         Ok(())
     }
 
-    /// Seals `bytes` as a part of `block` under its current key and uploads it, held for the
-    /// block until a commit that uses it publishes (`host.put-part` in be-sdk-type-api), so an
-    /// operation can name it by its ref and every replica save a commit that reuses it.
-    pub async fn put_part(
+    /// A writer of a part of `block`, sealed under its current key on this device a chunk at a
+    /// time as it is written (`Vault::part_writer`). The part it answers can go into content
+    /// this device saves as `Part::Reused`, whose drain uploads it; one an operation names is
+    /// held for the block first (`hold_part`).
+    pub async fn part_writer(
         &self,
         block: Uuid,
-        bytes: &[u8],
-    ) -> Result<be_block_store::PartRef, ClientError> {
+    ) -> Result<be_block_store::PartWriter<'_, S>, ClientError> {
         let key = self.sealing_key(block).await?;
-        let vault = self.commits.vault();
-        let manifest = vault.write(key, Uuid::nil(), Part::from(bytes))?;
-        let part = manifest
-            .root
-            .ok_or_else(|| ClientError::Encoding("a part needs at least one byte".to_owned()))?;
-        let objects = vault.objects(&manifest)?;
+        Ok(self.commits.vault().part_writer(key)?)
+    }
+
+    /// Uploads `part`, which this device wrote (`part_writer`), and has the server hold it for
+    /// `block` until a commit that uses it publishes, so an operation can name it by its ref
+    /// and every replica save a commit that reuses it (`host.part-writer` in be-sdk-type-api).
+    pub async fn hold_part(
+        &self,
+        block: Uuid,
+        part: be_block_store::PartRef,
+    ) -> Result<(), ClientError> {
+        let objects = self.part_objects(&[part])?;
         self.hold(block, &objects, be_block_protocol::Hold::UntilCommitted)
-            .await?;
-        Ok(part)
+            .await
+    }
+
+    /// Removes from the vault what this device's part writers sealed that nothing here names
+    /// (guides/blocks/client.md, "Unnamed parts"): a merge let go of, a writer dropped before
+    /// it finished, a part no operation came to name. Kept are the objects of every commit of
+    /// each such block this device holds, from its heads (its own, the server's, its summary's,
+    /// the one read whole) through their parents, and of every outbox or unsent entry and
+    /// journal base, and those an open writer or a part it finished still pins. A block that
+    /// keeps edits here (`Refs::keeps_edits`: kept, set aside, or journaled) is passed over,
+    /// as an edit may name a part no commit does yet, and so is each of `sealing`, the blocks a
+    /// seal may be under way in. Answers how many objects it removed. It runs without
+    /// awaiting, and passes over what a writer pinned or another scope claimed while it walked
+    /// (`Vault::collect`); a host runs it while idle, so no read or other seal is under way that
+    /// has put or found an object and not yet recorded what names it.
+    pub fn collect_unnamed(&self, sealing: &HashSet<Uuid>) -> Result<usize, ClientError> {
+        Ok(self.commits.vault().collect(|candidates| {
+            candidates
+                .retain(|block, _| !sealing.contains(block) && !self.refs.keeps_edits(*block));
+            self.named_among(candidates)
+        })?)
+    }
+
+    /// What names `candidates` (by block) on this device, as `collect_unnamed` keeps it.
+    fn named_among(
+        &self,
+        candidates: &HashMap<Uuid, HashSet<Hash>>,
+    ) -> Result<HashSet<Hash>, be_block_store::StoreError> {
+        let vault = self.commits.vault();
+        let mut marked = HashSet::new();
+        if candidates.is_empty() {
+            return Ok(marked);
+        }
+        let mut commits = Vec::new();
+        let unsent = self
+            .refs
+            .unsent()
+            .into_iter()
+            .flat_map(|(_, unsent)| unsent.ops);
+        for op in self
+            .refs
+            .outbox()
+            .into_iter()
+            .map(|(_, op)| op)
+            .chain(unsent)
+        {
+            match op {
+                // A pending commit of a candidate's block is walked below, which finds what its
+                // `chunks` list of that block: marking them is defence in depth. Its journal
+                // seal's parts and a hold's objects are named by no commit.
+                crate::refs::Op::Publish(pending) => {
+                    marked.extend(pending.chunks);
+                    if let Some(journal) = pending.journal {
+                        marked.extend(journal.base.parts);
+                    }
+                    if candidates.contains_key(&pending.block) {
+                        commits.push(pending.commit);
+                    }
+                }
+                crate::refs::Op::Hold(holding) => marked.extend(holding.objects),
+                _ => {}
+            }
+        }
+        for block in candidates.keys() {
+            commits.extend(
+                [
+                    self.refs.head(*block),
+                    self.refs.remote(*block),
+                    self.refs.summary(*block).and_then(|summary| summary.head),
+                    self.refs.held(*block),
+                ]
+                .into_iter()
+                .flatten(),
+            );
+            if let Some(journal) = self.refs.journal(*block) {
+                marked.extend(journal.base.parts);
+            }
+        }
+        // How many candidates nothing marked yet: the walk ends once none is left.
+        let wanted: HashSet<Hash> = candidates.values().flatten().copied().collect();
+        let mut unmarked = wanted
+            .iter()
+            .filter(|object| !marked.contains(object))
+            .count();
+        let mut seen = HashSet::new();
+        while let Some(commit) = commits.pop() {
+            if unmarked == 0 {
+                break;
+            }
+            if !seen.insert(commit) {
+                continue;
+            }
+            let Some(held) = self.commits.try_get(commit)? else {
+                continue;
+            };
+            let added = vault.mark(&held.manifest, &mut marked)?;
+            unmarked -= added
+                .iter()
+                .filter(|object| wanted.contains(object))
+                .count();
+            commits.extend(held.parents);
+        }
+        Ok(marked)
+    }
+
+    /// Every object of `parts`, which this device wrote (`part_writer`) or holds: what a journal's
+    /// base names so the server keeps them while it names them (`journal-base.parts`).
+    pub fn part_objects(
+        &self,
+        parts: &[be_block_store::PartRef],
+    ) -> Result<Vec<Hash>, ClientError> {
+        let vault = self.commits.vault();
+        let mut objects = Vec::new();
+        for part in parts {
+            let manifest = be_block_store::Manifest {
+                content_type: Uuid::nil(),
+                root: Some(*part),
+            };
+            objects.extend(vault.objects(&manifest)?);
+        }
+        Ok(objects)
     }
 
     pub fn set_resolver(&self, resolver: Resolver) {
@@ -2205,39 +4666,7 @@ impl<S: ObjectStore> Peer<S> {
         let Some(head) = self.remote_head(block).await? else {
             return Ok(None);
         };
-        Ok(Some(self.load_commit(head).await?.manifest))
-    }
-
-    pub async fn stream_header<C: Streamed>(
-        &self,
-        block: Uuid,
-    ) -> Result<Option<C::Header>, ClientError> {
-        let Some(manifest) = self.manifest(block).await? else {
-            return Ok(None);
-        };
-        let prefix = self
-            .read_span(&manifest, 0, be_block_content::HEADER_PREFIX_BYTES as u64)
-            .await?;
-        let start = payload_start(&prefix)?;
-        let header = self.read_span(&manifest, 0, start as u64).await?;
-        let (header, _) = be_block_content::decode_streamed::<C::Header>(&header[..start])?;
-        Ok(Some(header))
-    }
-
-    pub async fn stream_range<C: Streamed>(
-        &self,
-        block: Uuid,
-        offset: u64,
-        length: u64,
-    ) -> Result<Vec<u8>, ClientError> {
-        let Some(manifest) = self.manifest(block).await? else {
-            return Ok(Vec::new());
-        };
-        let prefix = self
-            .read_span(&manifest, 0, be_block_content::HEADER_PREFIX_BYTES as u64)
-            .await?;
-        let start = payload_start(&prefix)? as u64;
-        self.read_span(&manifest, start + offset, length).await
+        Ok(Some(self.load_head(block, head).await?.manifest))
     }
 
     pub async fn read_span(
@@ -2251,28 +4680,58 @@ impl<S: ObjectStore> Peer<S> {
             .await
     }
 
+    /// The block's history the server keeps, or offline the part of it this device holds
+    /// (`history_held`).
     pub async fn history(&self, block: Uuid) -> Result<Vec<HistoryEntry>, ClientError> {
-        Ok(client::blocks::list_history(&self.connection(), block).await??)
+        let listed = match self.is_attached() {
+            true => be_block_protocol::read::<Vec<be_block_protocol::HistoryEntry>, _>(
+                &self.connection(),
+                Some(self.organization),
+                be_block_protocol::Query::History(block),
+            )
+            .await
+            .map_err(ClientError::from)
+            .and_then(|listed| listed.map_err(ClientError::from)),
+            false => Err(ClientError::Disconnected("offline".into())),
+        };
+        match listed {
+            Err(error) if offline::unreachable(&error) => self.history_held(block),
+            listed => listed,
+        }
     }
 
-    /// One page of what changed after the sequence `since` in `root`'s tree, from `after`
-    /// (`ChangeCursor { changed: since, block: Uuid::max() }` starts): see `changed_pages`.
+    /// One page of what changed in the tree of `entry` (`block-summary.entry`) after `after`
+    /// (`ChangeCursor { changed: since, block: Uuid::max() }` starts): see `changed_since`.
+    /// With `follow`, this connection follows the entry from then on: `Event::TreeAdvanced`
+    /// tells as its tree changes, until `unfollow`.
     pub async fn changed_page(
         &self,
-        root: Uuid,
+        entry: Uuid,
         after: ChangeCursor,
         limit: u32,
+        follow: bool,
     ) -> Result<ChangedPage, ClientError> {
-        Ok(client::blocks::changed_since(&self.connection(), root, after, limit).await??)
+        Ok(be_block_protocol::ask::<be_block_protocol::ChangedPage, _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Query::Tree {
+                entry: entry,
+                after: after,
+                limit: limit,
+            },
+            follow,
+        )
+        .await??)
     }
 
-    /// Everything that changed after the sequence `since` in `root`'s tree, every page of it:
-    /// the summaries of the blocks in the tree that changed, the blocks that left it, and the
-    /// sequence to continue from.
+    /// Everything that changed after the sequence `since` in the tree of `entry`, every page of
+    /// it: the summaries of the blocks in the tree that changed, the blocks that left it, and
+    /// the sequence to continue from. With `follow`, the connection follows the entry first.
     pub async fn changed_since(
         &self,
-        root: Uuid,
+        entry: Uuid,
         since: u64,
+        follow: bool,
     ) -> Result<(Vec<BlockSummary>, Vec<Uuid>, u64), ClientError> {
         const PAGE: u32 = 200;
         let (mut summaries, mut removed) = (Vec::new(), Vec::new());
@@ -2280,8 +4739,10 @@ impl<S: ObjectStore> Peer<S> {
             changed: since,
             block: Uuid::max(),
         };
+        let mut follow = follow;
         loop {
-            let page = self.changed_page(root, after, PAGE).await?;
+            let page = self.changed_page(entry, after, PAGE, follow).await?;
+            follow = false;
             self.learn(&page.summaries).await?;
             summaries.extend(page.summaries);
             removed.extend(page.removed);
@@ -2290,6 +4751,48 @@ impl<S: ObjectStore> Peer<S> {
                 None => return Ok((summaries, removed, page.sequence)),
             }
         }
+    }
+
+    /// Reads `block`'s summary and follows it (`topic.known`): a block this device knows of
+    /// without following a tree that holds it, as one known only through a reference, which
+    /// names no entry point. The connection hears `Event::KnownChanged` as it changes, and
+    /// reads it again. None, following nothing, for a block this account may not know of.
+    pub async fn follow_known(&self, block: Uuid) -> Result<Option<BlockSummary>, ClientError> {
+        let read = crate::ask(be_block_protocol::ask::<
+            Vec<Option<be_block_protocol::BlockSummary>>,
+            _,
+        >(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Query::Blocks {
+                blocks: vec![block],
+                contents: false,
+                held: Vec::new(),
+            },
+            true,
+        ))
+        .await?;
+        Ok(read.into_iter().next().flatten())
+    }
+
+    /// Stops following `block` as one this device knows of (`follow_known`).
+    pub async fn unfollow_known(&self, block: Uuid) -> Result<(), ClientError> {
+        Ok(be_block_protocol::client::server::unfollow(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Topic::Known(block),
+        )
+        .await??)
+    }
+
+    /// Stops following `entry` (`changed_page`'s `follow`).
+    pub async fn unfollow(&self, entry: Uuid) -> Result<(), ClientError> {
+        Ok(be_block_protocol::client::server::unfollow(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Topic::Tree(entry),
+        )
+        .await??)
     }
 
     pub async fn set_parent(&self, block: Uuid, parent: BlockParent) -> Result<(), ClientError> {
@@ -2319,9 +4822,69 @@ impl<S: ObjectStore> Peer<S> {
             BlockParent::Detached => KeySet::default(),
             BlockParent::Root | BlockParent::Block(_) => self.rescope(block, parent, false).await?,
         };
-        client::blocks::set_parent(&self.connection(), block, parent, keys.clone()).await??;
+        let placement = self.signed_parent(block, parent).await?;
+        let mut ops = vec![be_block_protocol::Op::Move {
+            block: block,
+            parent: parent,
+            placement: placement,
+        }];
+        if !keys.is_empty() {
+            ops.push(be_block_protocol::Op::PutKeys(
+                be_block_protocol::PutKeys::Rows(keys.clone()),
+            ));
+        }
+        be_block_protocol::write_all::<(), _>(&self.connection(), Some(self.organization), ops)
+            .await??;
         self.recorded(&keys);
         Ok(())
+    }
+
+    /// The parent record moving `block` to `parent`, the next entry of its log: signed on this
+    /// account's Edit or above from the block's own log, else from administering the
+    /// organization, else from the nearest block its signed parent records place it under.
+    async fn signed_parent(
+        &self,
+        block: Uuid,
+        parent: BlockParent,
+    ) -> Result<Vec<u8>, ClientError> {
+        use be_block_keys::{Authority, Level, LogKind, Parent, Record};
+        let placement = self.placement(parent).await?;
+        // A record signed on a log this device never pinned the root of (an administrator's
+        // reach through escrow) chains only to the head it names, so the server cannot append
+        // it anywhere but the log it served.
+        let checked = match self.checked_access(block).await {
+            Err(ClientError::Locked(locked)) if locked == block => {
+                let entries = self.served_log(block).await?;
+                let root = entries
+                    .first()
+                    .map(be_block_keys::Step::hash)
+                    .ok_or(ClientError::Forged(block))?;
+                self.checked_from(block, root).await?
+            }
+            checked => checked?.1,
+        };
+        let me = self.keys.account().into_bytes();
+        let authority = match checked.holding(LogKind::Block, me, Level::Edit) {
+            Some(_) => Authority::Log,
+            None => self.authority_outside(block, &checked, Level::Edit).await?,
+        };
+        checked
+            .next(
+                self.keys.identity(),
+                me,
+                block.into_bytes(),
+                Record::Parent(Parent {
+                    placement,
+                    authority,
+                }),
+            )
+            .map(|entry| entry.encode())
+            .ok_or_else(|| {
+                ClientError::Refused(
+                    ErrorCode::PermissionDenied,
+                    format!("this account is not served the whole log of block {block}"),
+                )
+            })
     }
 
     fn recorded(&self, keys: &KeySet) {
@@ -2332,28 +4895,54 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
+    /// Shares `block` with `account`, whose keys this device verified as `identity`: seals it
+    /// the block's key and grants `access` by a signed record naming those keys.
     pub async fn share(
         &self,
         block: Uuid,
         account: Uuid,
         access: Access,
-        public: &be_block_keys::RecoveryPublic,
+        identity: &be_block_keys::PublicIdentity,
     ) -> Result<(), ClientError> {
+        self.share_sealed(block, account, access, &identity.public, Some(*identity))
+            .await
+    }
+
+    async fn share_sealed(
+        &self,
+        block: Uuid,
+        account: Uuid,
+        access: Access,
+        public: &RecoveryPublic,
+        identity: Option<be_block_keys::PublicIdentity>,
+    ) -> Result<(), ClientError> {
+        let grant = || self.grant_as(block, account, access, identity);
         if !access.can_view() {
-            return self.grant(block, account, access).await;
+            return grant().await;
         }
-        // The key goes first: the grant tells the account's devices at once, and a device that
-        // finds no key for the block then shows it locked until something else opens a key.
+        // The key goes with the grant, in one write: the grant tells the account's devices at
+        // once, and a device that finds no key for the block then shows it locked until
+        // something else opens a key; and a refused grant takes the key with it, as a device
+        // takes a contact's key without a grant (`KeyBook::sender_may` checks the sender).
         // Not when this device thinks the grant will be refused: a refused grant leaves the
         // block as it was, not made a scope of its own, and one it was wrong about is keyed
         // after.
         match self.summary(block).await?.access.can_manage() {
             true => {
-                self.seal_share(block, account, public).await?;
-                self.grant(block, account, access).await
+                let sealed = self.share_key(block, account, public).await?;
+                let grant = self.grant_op(block, account, access, identity).await?;
+                self.write_appending(vec![
+                    be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(
+                        sealed.clone(),
+                    )),
+                    grant,
+                ])
+                .await?;
+                self.recorded(&sealed);
+                Ok(())
             }
             false => {
-                self.grant(block, account, access).await?;
+                grant().await?;
                 self.seal_share(block, account, public).await
             }
         }
@@ -2384,25 +4973,36 @@ impl<S: ObjectStore> Peer<S> {
         account: Uuid,
         public: &be_block_keys::RecoveryPublic,
     ) -> Result<(), ClientError> {
+        let sealed = self.share_key(block, account, public).await?;
+        self.put_keys(sealed).await
+    }
+
+    /// Makes `block` a scope of its own, which the server then holds, and answers its key sealed
+    /// to `account` by `public`, for the caller to send.
+    async fn share_key(
+        &self,
+        block: Uuid,
+        account: Uuid,
+        public: &be_block_keys::RecoveryPublic,
+    ) -> Result<KeySet, ClientError> {
         let keys = self.own_scope(block).await?;
         self.put_keys(keys).await?;
         let scope = self
             .keys
             .scope_key(block)
             .ok_or(ClientError::Locked(block))?;
-        let sealed = self.keys.seal_to(scope, account, public)?;
-        self.put_keys(KeySet {
+        Ok(KeySet {
             keys: Vec::new(),
-            wrapped: vec![sealed],
+            wrapped: vec![self.keys.seal_to(scope, account, public)?],
         })
-        .await
     }
 
-    pub async fn offer(
+    /// Makes `block` a scope of its own and answers its key as a share link hands it over.
+    pub async fn offer_scope(
         &self,
         block: Uuid,
         access: Access,
-    ) -> Result<crate::GrantOffer, ClientError> {
+    ) -> Result<crate::ScopeOffer, ClientError> {
         let keys = self.own_scope(block).await?;
         self.put_keys(keys).await?;
         let key = self
@@ -2411,14 +5011,14 @@ impl<S: ObjectStore> Peer<S> {
             .ok_or(ClientError::Locked(block))?;
         let secret = self
             .keys
-            .trusted_plain(key)
+            .carried_plain(key)
             .map_err(|_| ClientError::Locked(block))?;
-        Ok(crate::GrantOffer {
+        Ok(crate::ScopeOffer {
             organization: self.organization,
             block,
             access,
             key,
-            secret: *secret.as_bytes(),
+            secret,
         })
     }
 
@@ -2427,11 +5027,38 @@ impl<S: ObjectStore> Peer<S> {
         self.rescope(block, parent, true).await
     }
 
+    /// Once the server holds a creation, wraps its scope keys under this device's escrow when
+    /// they were made under an earlier one: an escrow key adopted meanwhile (`make_escrow`) was
+    /// minted after the creation read which escrow to wrap them under. A creation the server
+    /// took before that adoption is in the key work the rotation reads after it; if this fails,
+    /// the key stays in that key work for the next `tend`.
+    pub(crate) async fn escrow_created(&self, keys: &KeySet) {
+        let Some(escrow) = self.keys.escrow() else {
+            return;
+        };
+        let mut late = KeySet::default();
+        for row in keys.keys.iter().filter(|row| row.kind == KeyKind::Scope) {
+            let wrapped = keys
+                .wrapped
+                .iter()
+                .any(|wrap| wrap.key == row.id && wrap.wrapped_by == WrappedBy::Key(escrow.id));
+            if !wrapped && let Ok(Some(wrap)) = self.keys.escrow_wrap_under(row.id, &escrow) {
+                late.wrapped.push(wrap);
+            }
+        }
+        let _ = self.put_keys(late).await;
+    }
+
     async fn put_keys(&self, keys: KeySet) -> Result<(), ClientError> {
         if keys.is_empty() {
             return Ok(());
         }
-        client::keys::put_keys(&self.connection(), keys.clone()).await??;
+        be_block_protocol::write::<(), _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(keys.clone())),
+        )
+        .await??;
         self.recorded(&keys);
         Ok(())
     }
@@ -2443,19 +5070,25 @@ impl<S: ObjectStore> Peer<S> {
         own: bool,
     ) -> Result<KeySet, ClientError> {
         let moved = self.summary(block).await?;
+        // Made a scope where it lies, its key goes under the parent's scope only once the signed
+        // parent records place it there; a move places it by its own record.
+        if own && let BlockParent::Block(above) = parent {
+            self.signed_below(block, above).await?;
+        }
         let shared = own
             || (moved.scope == Some(block) && matches!(moved.parent, Some(BlockParent::Block(_))));
         let parent_scope = match parent {
-            BlockParent::Block(parent) => Some(self.scope_key_under(parent).await?),
+            BlockParent::Block(parent) => Some(self.scope_under(parent).await?),
             BlockParent::Root | BlockParent::Detached => None,
         };
         let mut keys = KeySet::default();
         if moved.owner_only {
             return Ok(keys);
         }
-        let under = match (shared, parent_scope) {
+        let (scope, under) = match (shared, parent_scope) {
             (false, Some(under)) => under,
             (_, parent_scope) => {
+                let parent_scope = parent_scope.map(|(_, key)| key);
                 let own = match self.keys.scope_key(block) {
                     Some(own) => own,
                     None => {
@@ -2473,11 +5106,15 @@ impl<S: ObjectStore> Peer<S> {
                 {
                     keys.wrapped.push(self.keys.wrap(own, parent_scope)?);
                 }
-                own
+                (block, own)
             }
         };
         let wrapped_under = |key: Uuid| self.keys.wrapped_by(key).contains(&WrappedBy::Key(under));
-        if moved.key.is_some_and(wrapped_under) {
+        // Within the scope it was in, what lies below it is wrapped as it was. Into another, each
+        // block below is looked at, though the moved one's key is wrapped there already (it was
+        // there before): one made below it since is not, and the server checks every one
+        // (`keys::Whole::Moved`).
+        if moved.scope == Some(scope) && moved.key.is_some_and(wrapped_under) {
             return Ok(keys);
         }
         let mut level = vec![moved];
@@ -2487,10 +5124,19 @@ impl<S: ObjectStore> Peer<S> {
                 if node.id != block && (!node.access.can_view() || node.owner_only) {
                     continue;
                 }
+                // Listed below the moved block: rewrapped under its new scope only if the signed
+                // parent records place it there.
+                if node.id != block
+                    && let BlockParent::Block(listed) = parent_of(&node)?
+                {
+                    self.placed_under(node.id, listed).await?;
+                }
                 if node.id != block && node.scope == Some(node.id) {
+                    // Not inside a block readable by its author alone, which the walk skips: a
+                    // nested scope's key wrapped under one too (a scope moved out of it) is
+                    // wrapped under the new scope as well, as the server checks.
                     if let Some(nested) = self.keys.scope_key(node.id)
                         && !wrapped_under(nested)
-                        && !self.keys.owner_only(nested)
                     {
                         keys.wrapped.push(self.keys.wrap(nested, under)?);
                     }
@@ -2520,52 +5166,379 @@ impl<S: ObjectStore> Peer<S> {
         self.list(Listing::Children(parent)).await
     }
 
-    pub async fn unlist(&self, listing: Listing) -> Result<(), ClientError> {
-        match crate::ask(client::blocks::unlist(&self.connection(), listing)).await {
-            Ok(_) => Ok(()),
-            Err(error) if offline::unreachable(&error) => Ok(()),
-            Err(error) => Err(error),
-        }
-    }
-
-    pub async fn collect_detached(&self) -> Result<Vec<Uuid>, ClientError> {
-        Ok(client::blocks::collect_detached(&self.connection())
-            .await??
-            .blocks)
-    }
-
     pub async fn grant(
         &self,
         block: Uuid,
         account: Uuid,
         access: Access,
     ) -> Result<(), ClientError> {
-        client::blocks::set_access(&self.connection(), block, account, access).await??;
+        self.grant_as(block, account, access, None).await
+    }
+
+    async fn grant_as(
+        &self,
+        block: Uuid,
+        account: Uuid,
+        access: Access,
+        identity: Option<be_block_keys::PublicIdentity>,
+    ) -> Result<(), ClientError> {
+        let grant = self.grant_op(block, account, access, identity).await?;
+        self.write_appending(vec![grant]).await?;
+        Ok(())
+    }
+
+    /// Writes `ops` in one write, noting the access log records they carry. Each that lowers
+    /// anyone marks its log unsure before the write is sent, in the refs too
+    /// (`KeyBook::sending`), so that however the write ends (with no answer, dropped, or the
+    /// process stopped while it was out) the next seal reads the log again rather than judge
+    /// by one from before the lowering; a mark that cannot be kept sends nothing. Once the
+    /// server took them they are awaited (`appended`) and the mark goes; once it refused them
+    /// nothing landed, and the mark goes too; with no answer it stays until a read answers.
+    pub(crate) async fn write_appending(
+        &self,
+        ops: Vec<be_block_protocol::Op>,
+    ) -> Result<(), ClientError> {
+        let mut marked = Marked {
+            keys: &self.keys,
+            marks: Vec::new(),
+        };
+        for record in ops.iter().flat_map(log_records) {
+            if let Some(mark) = self.keys.sending(record) {
+                marked.marks.push(mark);
+            }
+        }
+        for mark in &marked.marks {
+            self.forget_log_reads(mark.log);
+            self.refs.set_unsure(mark.log, true)?;
+        }
+        let written = be_block_protocol::write_all::<(), _>(
+            &self.connection(),
+            Some(self.organization),
+            ops.clone(),
+        )
+        .await;
+        let unkept = match &written {
+            Ok(Ok(())) => ops.iter().flat_map(|op| self.appended(op)).collect(),
+            _ => HashSet::new(),
+        };
+        let settled = matches!(written, Ok(_));
+        for mark in std::mem::take(&mut marked.marks) {
+            // A lowering awaited only in memory is cleared from the refs by no mark: a restart
+            // must still read its log first.
+            if self.keys.sent(mark, settled) && !unkept.contains(&mark.log) {
+                self.clear_unsure(mark.log);
+            }
+        }
+        Ok(written??)
+    }
+
+    /// Drops this run's marks that `log` was read for each key (`log_reads`), so the next
+    /// `outdated` reads it again.
+    fn forget_log_reads(&self, log: Uuid) {
+        self.log_reads
+            .lock()
+            .unwrap()
+            .retain(|(_, read)| *read != log);
+    }
+
+    /// Notes each access log record `op`, which the server just took, carries
+    /// (`KeyBook::appended`): one that lowered anyone has the epochs before it outdated here at
+    /// once, and its log read again before each seal until it shows it (`read_logs`), rather
+    /// than this device sealing on by the log it read before signing it.
+    /// Answers the logs whose awaited lowering could not be written to the refs.
+    fn appended(&self, op: &be_block_protocol::Op) -> Vec<Uuid> {
+        log_records(op)
+            .into_iter()
+            .filter_map(|record| self.keys.appended(record))
+            .filter(|log| !self.keep_awaited(*log))
+            .collect()
+    }
+
+    /// Writes the lowering this device awaits on `log` (`KeyBook::awaited`) to the refs, or
+    /// clears it once a log checked here holds it, so a restart still withholds a log served
+    /// short of it. A lost append (an honest server restored from a backup made before it)
+    /// leaves the log withheld here until it is appended again, which fails closed. Answers
+    /// whether the refs took it.
+    pub(crate) fn keep_awaited(&self, log: Uuid) -> bool {
+        match self.refs.set_awaited(log, self.keys.awaited(log)) {
+            Ok(()) => true,
+            Err(error) => {
+                tracing::warn!("an awaited access log entry was not kept: {error}");
+                false
+            }
+        }
+    }
+
+    /// The op granting `access` to `account`, by the record `signed_grant` signs.
+    async fn grant_op(
+        &self,
+        block: Uuid,
+        account: Uuid,
+        access: Access,
+        identity: Option<be_block_keys::PublicIdentity>,
+    ) -> Result<be_block_protocol::Op, ClientError> {
+        let signed = self.signed_grant(block, account, access, identity).await?;
+        Ok(be_block_protocol::Op::AppendLog(
+            be_block_protocol::LogRecord::Grant {
+                block,
+                account,
+                access,
+                signed,
+            },
+        ))
+    }
+
+    /// The record granting `access` to `account`, whose keys are `identity`, as `grant` signs
+    /// it: for an account this device made the keys of (an agent), sent with its making.
+    pub async fn grant_record(
+        &self,
+        block: Uuid,
+        account: Uuid,
+        access: Access,
+        identity: be_block_keys::PublicIdentity,
+    ) -> Result<Vec<u8>, ClientError> {
+        self.signed_grant(block, account, access, Some(identity))
+            .await?
+            .ok_or(ClientError::Unexpected)
+    }
+
+    /// Offers ownership of `block`, which this account owns, to `account`, a verified contact
+    /// (guides/blocks/keys.md, "Owner records"): seals them the block's key, then sends an owner
+    /// record naming the keys this device verified for them, which moves nothing until they
+    /// accept it (`accept_ownership`). Offering it to this account withdraws an offer.
+    pub async fn transfer(&self, block: Uuid, account: Uuid) -> Result<(), ClientError> {
+        use be_block_keys::{Owner, Record};
+        let me = self.keys.account().into_bytes();
+        let (_, checked) = self.checked_access(block).await?;
+        let not_owner = || {
+            ClientError::Refused(
+                ErrorCode::PermissionDenied,
+                format!("this account does not own block {block}, so offers it to no one"),
+            )
+        };
+        if checked.owner != Some(me) {
+            return Err(not_owner());
+        }
+        let identity = match account == self.keys.account() {
+            true => self.keys.identity().identity(),
+            false => self.verified_identity(account).ok_or_else(|| {
+                ClientError::Refused(
+                    ErrorCode::NotAContact,
+                    "offer ownership only to your contacts: send them a contact link first".into(),
+                )
+            })?,
+        };
+        // The block's key goes with the offer, so whom it is offered to can see what they
+        // would own before accepting it, and reads it from the moment they do.
+        let checked = match account == self.keys.account() {
+            true => checked,
+            false => {
+                self.seal_share(block, account, &identity.public).await?;
+                self.checked_access(block).await?.1
+            }
+        };
+        let record = checked
+            .next(
+                self.keys.identity(),
+                me,
+                block.into_bytes(),
+                Record::Owner(Owner {
+                    account: account.into_bytes(),
+                    identity,
+                }),
+            )
+            .filter(|_| checked.owner == Some(me))
+            .ok_or_else(not_owner)?
+            .encode();
+        self.append_owner(block, record).await
+    }
+
+    /// The blocks offered to this account in the organization, not yet accepted or withdrawn.
+    pub async fn owner_offers(&self) -> Result<Vec<be_block_protocol::OwnerOffer>, ClientError> {
+        Ok(
+            be_block_protocol::read::<Vec<be_block_protocol::OwnerOffer>, _>(
+                &self.connection(),
+                Some(self.organization),
+                be_block_protocol::Query::OwnerOffers,
+            )
+            .await??,
+        )
+    }
+
+    /// Accepts `block`, which its owner offered this account (`transfer`): an owner record naming
+    /// this account with its keys, signed after the head of the block's log, which the offer
+    /// must name as they are; ownership moves with it. A block this device never pinned the root
+    /// of is checked from the root as served, which the offer then vouches for: it must come from
+    /// the block's owner, a contact signing with the key this device verified for them, as a
+    /// Join member takes a root its verified granter's record vouches for.
+    pub async fn accept_ownership(&self, block: Uuid) -> Result<(), ClientError> {
+        use be_block_keys::{Owner, Record};
+        let me = self.keys.account().into_bytes();
+        let identity = self.keys.identity().identity();
+        let (_, checked) = match self.keys.root_pin(block) {
+            crate::keys::RootPin::Unknown => {
+                let served = self.served_log(block).await?;
+                let root = served.first().ok_or(ClientError::Forged(block))?.hash();
+                self.checked_rooted(block, root).await?
+            }
+            _ => self.checked_access(block).await?,
+        };
+        let vouched = checked.owner.is_some_and(|owner| {
+            self.verified_identity(Uuid::from_bytes(owner))
+                .is_some_and(|verified| checked.signers.get(&owner) == Some(&verified.signing))
+        });
+        let record = checked
+            .offered
+            .filter(|offered| vouched && *offered == (me, identity))
+            .and_then(|_| {
+                checked.next(
+                    self.keys.identity(),
+                    me,
+                    block.into_bytes(),
+                    Record::Owner(Owner {
+                        account: me,
+                        identity,
+                    }),
+                )
+            })
+            .ok_or_else(|| {
+                ClientError::Refused(
+                    ErrorCode::PermissionDenied,
+                    format!("block {block} is not offered to this account"),
+                )
+            })?
+            .encode();
+        self.append_owner(block, record).await
+    }
+
+    async fn append_owner(&self, block: Uuid, signed: Vec<u8>) -> Result<(), ClientError> {
+        let op = be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Owner {
+            block: block,
+            signed: signed,
+        });
+        self.write_appending(vec![op]).await?;
         Ok(())
     }
 
     pub async fn list_access(&self, block: Uuid) -> Result<AccessList, ClientError> {
-        Ok(client::blocks::list_access(&self.connection(), block).await??)
+        Ok(be_block_protocol::read::<be_block_protocol::AccessList, _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Query::Access(block),
+        )
+        .await??)
     }
 
+    /// The accounts that may view `block`, with the names they gave the server: what the
+    /// server says, which only a contact's card can vouch for.
+    pub async fn names(
+        &self,
+        block: Uuid,
+    ) -> Result<Vec<be_block_protocol::AccountName>, ClientError> {
+        Ok(
+            be_block_protocol::read::<Vec<be_block_protocol::AccountName>, _>(
+                &self.connection(),
+                Some(self.organization),
+                be_block_protocol::Query::Names(block),
+            )
+            .await??,
+        )
+    }
+
+    /// Relays `payload`, a message of `block`'s type module, to a participant of its session or
+    /// to all, sealed under the block's key and framed apart from what the stack relays of its
+    /// own (`forks::Relayed`).
     pub async fn relay(
         &self,
         block: Uuid,
         to: Option<ClientId>,
-        kind: RelayKind,
         payload: &[u8],
     ) -> Result<Answer<()>, ClientError> {
-        let key = self.sealing_key(block).await?;
-        let sealed = self.commits.vault().seal(key, payload)?;
-        Ok(self.connection().relay(block, to, kind, sealed))
+        let mut framed = Vec::with_capacity(1 + payload.len());
+        framed.push(forks::MODULE_RELAY);
+        framed.extend_from_slice(payload);
+        self.relay_framed(block, to, &framed).await
     }
 
-    pub fn unseal(&self, payload: &[u8]) -> Result<Vec<u8>, ClientError> {
-        self.commits.vault().open(payload).map_err(locked)
+    async fn relay_framed(
+        &self,
+        block: Uuid,
+        to: Option<ClientId>,
+        framed: &[u8],
+    ) -> Result<Answer<()>, ClientError> {
+        let key = self.sealing_key(block).await?;
+        let sealed = self.commits.vault().seal(key, framed)?;
+        Ok(self.connection().relay(block, to, sealed))
+    }
+
+    /// A relay of `block`'s session (`Peer::open_for`): a message of its type module, or one
+    /// the stack relays of its own.
+    pub fn unseal(&self, block: Uuid, payload: &[u8]) -> Result<forks::Relayed, ClientError> {
+        Ok(forks::Relayed::of(
+            self.open_for(block, payload).map_err(locked)?,
+        ))
+    }
+
+    /// `sealed` bytes the server hands over as `block`'s (its metadata, a relay of its session,
+    /// its journal, a notification about it): refused unless one of `block`'s keys sealed them,
+    /// since the server could hand over another block's, which a device would show as this
+    /// block's.
+    pub fn open_for(&self, block: Uuid, sealed: &[u8]) -> Result<Vec<u8>, ClientError> {
+        let key = be_block_store::sealed_key(sealed)?;
+        if self.keys.has(key) && self.keys.block_of(key) != Some(block) {
+            return Err(ClientError::Forged(block));
+        }
+        Ok(self.commits.vault().open(sealed)?)
     }
 
     pub fn first_search_for(&self, key: Uuid) -> bool {
         self.tried.lock().unwrap().insert(key)
+    }
+}
+
+/// The lowerings `Peer::write_appending` marked before sending (`KeyBook::sending`): a write
+/// dropped before its answer (the task aborted, the app quitting) notes each as ended with no
+/// answer, so its mark stays for a read to answer.
+struct Marked<'a> {
+    keys: &'a KeyBook,
+    marks: Vec<crate::keys::Sending>,
+}
+
+impl Drop for Marked<'_> {
+    fn drop(&mut self) {
+        for mark in self.marks.drain(..) {
+            self.keys.sent(mark, false);
+        }
+    }
+}
+
+/// The access log records `op` carries, each signed here: what `Peer::write_appending` marks as
+/// perhaps appended before it sends them (`KeyBook::sending`), and notes as appended once the
+/// server takes them (`KeyBook::appended`). Every write that may append a lowering goes
+/// through it, a person's removal too (`Peer::remove_member`: `Op::DeleteAgent` for an agent,
+/// a member record for anyone else). A new phrase does not (`contacts::set_recovery_key_in`,
+/// `Op::SetRecoveryKey`): what it changes in the logs goes with a rotation of the account
+/// block's keys in the same write, so nothing is sealed after it under an epoch from before.
+fn log_records(op: &be_block_protocol::Op) -> Vec<&Vec<u8>> {
+    use be_block_protocol::{LogRecord, Op};
+    match op {
+        Op::AppendLog(LogRecord::Grant { signed, .. })
+        | Op::AppendLog(LogRecord::Role { signed, .. })
+        | Op::DeleteLink { signed, .. } => signed.iter().collect(),
+        Op::AppendLog(LogRecord::Ban { signed, .. })
+        | Op::AppendLog(LogRecord::Owner { signed, .. })
+        | Op::RevokeShareLink { signed, .. } => vec![signed],
+        Op::AppendLog(LogRecord::Member {
+            signed,
+            revocations,
+        }) => std::iter::once(signed).chain(revocations).collect(),
+        Op::DeleteAgent {
+            signed,
+            revocations,
+            ..
+        } => signed.iter().chain(revocations).collect(),
+        Op::RemoveContact { revocations, .. } => revocations.iter().collect(),
+        _ => Vec::new(),
     }
 }
 
@@ -2616,27 +5589,200 @@ fn deduplicated(references: Vec<Uuid>) -> Vec<Uuid> {
 }
 
 /// The block a listing is about, which the server must know to answer it.
-/// Whether a summary read after its listing's revision still belongs to it, as far as the
-/// summary tells: a block the reader may only know exists carries no parent or references, so
-/// it is kept.
+/// Whether a summary read after its listing's first page still belongs to it, as far as the
+/// summary tells: a block the reader may only know exists carries no parent, so it is kept, and
+/// no summary names what a block references, so a backref or a reference is kept too.
 fn still_in(listing: Listing, summary: &BlockSummary) -> bool {
     let viewed = summary.access.can_view();
     match listing {
         Listing::Children(parent) => !viewed || summary.parent == Some(parent),
         Listing::Deleted => !viewed || (summary.parent.is_some() && !summary.held),
-        Listing::Backrefs(target) => !viewed || summary.references.contains(&target),
         Listing::Shared | Listing::OpenSettings(_) => viewed,
-        Listing::References(_) | Listing::Block(_) => true,
+        Listing::Backrefs(_) | Listing::References(_) => true,
     }
 }
 
 fn about(listing: Listing) -> Option<Uuid> {
     match listing {
-        Listing::Block(block)
-        | Listing::OpenSettings(block)
+        Listing::OpenSettings(block)
         | Listing::References(block)
         | Listing::Backrefs(block)
         | Listing::Children(BlockParent::Block(block)) => Some(block),
         Listing::Children(_) | Listing::Shared | Listing::Deleted => None,
     }
+}
+
+/// `access` as an access log's level.
+fn grant_level(access: Access) -> be_block_keys::Level {
+    match access {
+        Access::None => be_block_keys::Level::None,
+        Access::KnowExists => be_block_keys::Level::KnowExists,
+        Access::Join => be_block_keys::Level::Join,
+        Access::View => be_block_keys::Level::View,
+        Access::Edit => be_block_keys::Level::Edit,
+        Access::Manage => be_block_keys::Level::Manage,
+    }
+}
+
+/// The logs around a block's (`Peer::logs_around`): the organization's, with the root this
+/// account pinned, and those of the blocks named, as served.
+#[derive(Default)]
+struct Around {
+    organization: Option<(be_block_keys::EntryHash, Vec<be_block_keys::Step>)>,
+    held: HashMap<Uuid, Vec<be_block_keys::Step>>,
+    /// The peer's logs checked as of a head, which the check takes and adds to.
+    kept: Option<Arc<be_block_keys::CheckedAsOf>>,
+}
+
+/// An access log as served (`Peer::served_access`): `sent`, the log from its root when `from` is
+/// 0, else the entries after `held`, the whole log this device holds, which must be `from` long:
+/// every one whole, as only a log served whole is sent so, the first naming its last as the one
+/// before. None for a log the server made up otherwise.
+pub(crate) fn extended(
+    held: Option<&[be_block_keys::Step]>,
+    from: u64,
+    sent: Vec<be_block_keys::Step>,
+) -> Option<Vec<be_block_keys::Step>> {
+    if from == 0 {
+        return Some(sent);
+    }
+    let held = held.filter(|held| held.len() as u64 == from)?;
+    let head = held.last().map(be_block_keys::Step::hash);
+    if sent.iter().any(|step| step.entry().is_none())
+        || sent
+            .first()
+            .is_some_and(|first| first.entry().and_then(|entry| entry.previous) != head)
+    {
+        return None;
+    }
+    Some(held.iter().cloned().chain(sent).collect())
+}
+
+/// Whether a log names its signers' right outside itself: then the logs around it are read to
+/// check it (`Peer::logs_around`).
+fn cites(entries: &[be_block_keys::Step]) -> bool {
+    entries
+        .iter()
+        .filter_map(be_block_keys::Step::entry)
+        .any(|entry| {
+            entry
+                .record
+                .authority()
+                .is_some_and(|authority| *authority != be_block_keys::Authority::Log)
+        })
+}
+
+/// The blocks a log's whole entries name as where their signers' right comes from: every block
+/// on an `Authority::Inherited` chain.
+fn named_blocks(entries: &[be_block_keys::Step]) -> impl Iterator<Item = Uuid> + '_ {
+    entries
+        .iter()
+        .filter_map(be_block_keys::Step::entry)
+        .flat_map(|entry| match entry.record.authority() {
+            Some(be_block_keys::Authority::Inherited(chain)) => chain.clone(),
+            _ => Vec::new(),
+        })
+        .map(|link| Uuid::from_bytes(link.block))
+}
+
+impl Around {
+    fn log(&self, kind: be_block_keys::LogKind, log: [u8; 16]) -> Option<Vec<be_block_keys::Step>> {
+        match kind {
+            be_block_keys::LogKind::Organization => self
+                .organization
+                .as_ref()
+                .map(|(_, entries)| entries.clone()),
+            be_block_keys::LogKind::Block => self.held.get(&Uuid::from_bytes(log)).cloned(),
+        }
+    }
+
+    /// `block`'s log checked from `pinned`, or on from `kept`, what this device checked of it
+    /// before (whose prefix must be what it served then), with the authority its records name
+    /// read from here.
+    fn check(
+        &self,
+        organization: Uuid,
+        block: Uuid,
+        pinned: be_block_keys::EntryHash,
+        kept: Option<be_block_keys::Checked>,
+        entries: &[be_block_keys::Step],
+        trusted: usize,
+    ) -> Option<be_block_keys::Checked> {
+        let log = |kind, log| self.log(kind, log);
+        let mut logs = be_block_keys::Logs::new(
+            organization.into_bytes(),
+            self.organization.as_ref().map(|(root, _)| *root),
+            &log,
+        );
+        if let Some(kept) = &self.kept {
+            logs = logs.keeping(kept);
+        }
+        let outside =
+            |asked: &be_block_keys::Asked| be_block_keys::answer(&logs, block.into_bytes(), asked);
+        kept.unwrap_or_else(|| be_block_keys::Checked::unchecked(pinned))
+            .resume_trusting(
+                be_block_keys::LogKind::Block,
+                block.into_bytes(),
+                entries,
+                trusted,
+                &outside,
+            )
+            .ok()
+    }
+}
+
+/// The root `Peer::new_log` made for a block, held in memory only: let go when this drops
+/// (`KeyBook::forget_made`), unless the outbox keeps the creation (`kept`) or a server takes
+/// it (`taken`), which keep the log made with it on the device. Kept before, a creation the
+/// server refuses (the block is there already, made by someone else) would leave a log at a
+/// root that is not the block's, which the keys its sharer sealed are judged by after a
+/// restart.
+pub(crate) struct MadeRoot<'a> {
+    keys: &'a KeyBook,
+    refs: &'a Refs,
+    block: Uuid,
+    root: be_block_keys::EntryHash,
+    armed: bool,
+}
+
+impl MadeRoot<'_> {
+    /// The outbox keeps the creation: so does the device the log made with it.
+    pub(crate) fn kept(mut self) -> Result<(), ClientError> {
+        self.armed = false;
+        if let Some(kept) = self.keys.kept_log(self.block)
+            && kept.head == self.root
+        {
+            self.refs.keep_log(self.block, kept)?;
+        }
+        Ok(())
+    }
+
+    /// A server took the creation: the root is the block's.
+    pub(crate) fn taken(self) -> Result<(), ClientError> {
+        self.keys.made_taken(self.block);
+        self.kept()
+    }
+
+    /// Held on without keeping anything yet: whoever keeps the creation later keeps its log
+    /// (`Peer::keep_made_log`) or lets it go (`Peer::forget_made`).
+    pub(crate) fn hold(mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for MadeRoot<'_> {
+    fn drop(&mut self) {
+        // Nothing of it was kept on the device: the keys it minted are in memory alone and are
+        // not read again, so only the root and the log made with it go.
+        if self.armed {
+            self.keys.forget_made(self.block, self.root, &[]);
+        }
+    }
+}
+
+/// The root a creation made its block's log at (`Peer::new_log`).
+pub(crate) fn made_root(creation: &Creation) -> Option<be_block_keys::EntryHash> {
+    be_block_keys::Entry::decode(&creation.root)
+        .ok()
+        .map(|root| root.hash())
 }

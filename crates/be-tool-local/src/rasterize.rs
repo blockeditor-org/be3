@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use beui_paint_snapshot::Snapshot;
+use beui_paint_snapshot::Painting;
 
 pub fn main(arguments: Vec<String>) -> std::process::ExitCode {
     let (input, output, wanted) = match arguments.as_slice() {
@@ -15,29 +15,30 @@ pub fn main(arguments: Vec<String>) -> std::process::ExitCode {
 
     let bytes = std::fs::read(input)
         .unwrap_or_else(|error| fail(&format!("could not read {input}: {error}")));
-    if beui_paint_snapshot::BrowserSnapshot::is_browser(&bytes) {
-        if !matches!(wanted, Wanted::Frame(0) | Wanted::All) {
-            fail("a browser painting has only frame 0");
-        }
-        crate::browser::rasterize(Path::new(input), Path::new(output), None)
-            .unwrap_or_else(|error| fail(&error));
-        return std::process::ExitCode::SUCCESS;
-    }
-    let snapshot = Snapshot::decode(&bytes)
+    let painting = Painting::decode(&bytes)
         .unwrap_or_else(|error| fail(&format!("{input} is unreadable: {error}")));
 
-    let kept = snapshot.frames.len();
+    let kept = painting.frames();
     let frames = match wanted {
         Wanted::All => 0..kept,
         Wanted::Frame(index) if index < kept => index..index + 1,
         Wanted::Frame(index) => fail(&format!(
-            "{input} holds {kept} frames, numbered from 0, so there is no frame {index}"
+            "{input} holds {}, numbered from 0, so there is no frame {index}",
+            match kept {
+                1 => "one frame".to_owned(),
+                kept => format!("{kept} frames"),
+            }
         )),
     };
     let numbered = matches!(wanted, Wanted::All) && kept > 1;
     for index in frames {
-        let image = beui_paint_snapshot::render(&snapshot, index)
-            .unwrap_or_else(|error| fail(&format!("frame {index} did not render: {error}")));
+        let image = beui_paint_raster::render_painting(
+            &painting,
+            index,
+            Some(Path::new(input)),
+            Some(&mut crate::browser::renderer(None)),
+        )
+        .unwrap_or_else(|error| fail(&format!("frame {index} did not render: {error}")));
         let path = match numbered {
             true => numbered_path(Path::new(output), index),
             false => PathBuf::from(output),
@@ -62,7 +63,7 @@ fn numbered_path(output: &Path, index: usize) -> PathBuf {
 }
 
 fn usage() -> ! {
-    eprintln!("usage: local-tools rasterize SNAPSHOT.paint OUTPUT.png [FRAME|all]");
+    eprintln!("usage: be-tool-local rasterize SNAPSHOT.paint OUTPUT.png [FRAME|all]");
     std::process::exit(2)
 }
 

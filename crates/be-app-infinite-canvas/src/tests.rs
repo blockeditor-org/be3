@@ -8,6 +8,7 @@ use be_sdk_beui::be_block_content::presence::PresenceKind;
 use be_sdk_beui::beui::Vec2;
 use be_sdk_beui::{BlockInfo, BlockParent, EditorHost, OwnedEditor};
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use be_type_database::database::DatabaseValue;
 use be_type_infinite_canvas::Canvas;
 use be_type_infinite_canvas::{
@@ -27,13 +28,18 @@ use be_type_infinite_canvas::CanvasContent;
 mod a_canvas_copy_names_its_blocks_only_in_refs;
 mod a_canvas_paste_refuses_refs_that_do_not_match_its_blocks;
 mod a_card_on_the_canvas_points_its_dialogs_at_itself;
+mod a_carried_shape_shows_here_and_to_a_peer_and_is_written_once_dropped;
+mod a_childs_first_size_after_another_write_is_a_step_of_its_own;
 mod a_direct_editor_entity_draws_the_frame_it_reserves;
 mod a_dock_too_wide_for_the_canvas_scrolls_to_its_last_tools;
 mod a_drag_in_a_label_being_edited_selects_it_and_leaves_the_shape_in_place;
 mod a_drag_in_text_being_edited_selects_it_and_leaves_the_text_in_place;
 mod a_drawing_tool_returns_to_select_unless_the_tool_is_locked;
 mod a_dropped_block_moves_is_referenced_or_copied_as_the_modifiers_pick;
+mod a_dropped_card_takes_its_childs_size_in_the_step_that_added_it;
+mod a_dropped_child_of_a_fixed_size_takes_it_in_the_step_that_added_it;
 mod a_dropped_slide_takes_its_own_size_rather_than_the_cards;
+mod a_duplicating_move_writes_its_copies_as_it_goes;
 mod a_finger_drags_a_transform_field_in_the_unfolded_inspector;
 mod a_finger_just_outside_a_corner_resizes_the_selection;
 mod a_finger_on_the_pen_tool_draws_before_it_moves;
@@ -41,6 +47,7 @@ mod a_frame_background_is_picked_in_the_sidebar;
 mod a_growing_stroke_writes_only_its_new_points;
 mod a_hand_drawn_shape_is_the_same_for_the_same_seed;
 mod a_held_finger_opens_the_context_menu_in_every_tool;
+mod a_held_resize_relays_one_small_message_a_frame;
 mod a_layer_carried_up_the_panel_parts_the_layers_it_passes;
 mod a_letter_typed_into_a_field_picks_no_tool;
 mod a_line_is_bound_while_it_is_drawn_onto_a_shape;
@@ -50,8 +57,7 @@ mod a_moved_entity_is_drawn_where_it_was_dropped;
 mod a_multiple_selection_outlines_each_selected_entity;
 mod a_new_shape_takes_the_last_style_used;
 mod a_painted_scaled_raster_layer_duplicates_with_its_pixels_and_scale;
-mod a_peer_sees_a_labelled_shape_while_it_is_moved;
-mod a_peer_sees_a_move_called_off_put_back;
+mod a_peer_draws_a_bound_line_following_each_frame_of_a_held_resize;
 mod a_peer_sees_a_shape_while_it_is_dragged;
 mod a_peer_sees_a_stroke_while_it_is_drawn;
 mod a_peer_sees_where_another_is_writing;
@@ -62,6 +68,7 @@ mod a_phone_canvas_keeps_its_tools_in_a_dock_and_zoom_pill;
 mod a_phone_canvas_unfolds_its_inspector_from_the_selection_bar;
 mod a_phone_opens_a_context_submenu_as_a_page_of_its_sheet;
 mod a_png_export_draws_formatted_text_as_the_canvas_does;
+mod a_png_exported_to_the_workspace_follows_the_canvas;
 mod a_preview_with_no_camera_fits_its_frame;
 mod a_raster_layer_copied_into_another_canvas_keeps_its_pixels_and_scale;
 mod a_raster_layer_is_drawn_pixel_sharp_with_its_grid;
@@ -69,11 +76,16 @@ mod a_raster_layer_is_exported_pixel_sharp;
 mod a_raster_layer_scaled_by_its_handles_draws_its_pixels_larger;
 mod a_raster_stroke_is_one_undo_step_and_escape_calls_it_off;
 mod a_resize_handle_follows_the_drag_rather_than_jumping_to_the_pointer;
+mod a_scrubbed_number_previews_and_is_written_once_released;
 mod a_second_finger_calls_off_the_shape_being_drawn;
 mod a_selected_bound_arrow_shows_where_each_end_is_anchored;
+mod a_selection_carried_from_the_keyboard_steps_and_drops_as_one_edit;
 mod a_selection_is_copied_and_exported_as_png;
+mod a_shape_carried_into_the_edge_band_scrolls_the_world_under_it;
 mod a_shape_is_drawn_while_dragged_as_it_lands;
 mod a_short_finger_stroke_keeps_every_point;
+mod a_sidebar_drag_whose_control_goes_lets_go_of_its_hold;
+mod a_size_told_after_an_add_is_undone_and_redone_adds_no_step;
 mod a_stroke_drawn_in_pieces_has_the_outline_of_the_whole_stroke;
 mod a_text_area_keeps_its_box_when_entered_and_typed_into;
 mod a_text_label_draws_its_lists_and_quotes;
@@ -81,13 +93,18 @@ mod a_text_tapped_in_starts_at_the_tap;
 mod a_typed_transform_value_is_one_edit;
 mod a_view_the_host_sets_is_not_fitted_back;
 mod an_arrow_drawn_between_two_shapes_follows_them_when_they_move;
+mod an_artifact_made_again_writes_only_its_content_until_it_is_unlinked;
+mod an_export_draws_in_the_theme_the_host_shows;
 mod an_export_marks_the_list_markers_and_quote_bars_it_cannot_draw;
 mod an_image_still_loading_is_drawn_as_its_thumbhash;
+mod an_image_that_could_not_be_read_is_reported_to_the_host;
+mod an_undo_mid_move_puts_it_back_and_lets_go_of_the_drag;
 mod at_full_size_a_raster_pixel_is_one_screen_point;
 mod attaching_component_fills_only_missing_selected_entities;
 mod choosing_a_pixel_tool_marks_it_in_the_dock;
 mod clearing_a_raster_layer_needs_the_dialog;
 mod clicking_an_entity_selects_it_and_shows_its_handles;
+mod closing_the_canvas_right_after_a_drop_keeps_the_card;
 mod copying_as_svg_writes_every_shape_kind;
 mod double_clicking_a_group_enters_it;
 mod double_clicking_the_empty_canvas_writes_text_there;
@@ -97,11 +114,14 @@ mod dragging_any_transform_field_moves_the_entity;
 mod dragging_one_entity_wakes_only_that_entity;
 mod dragging_the_eraser_dims_what_it_crosses_and_erases_it_on_release;
 mod dragging_the_middle_of_a_line_bends_it_at_a_new_point;
+mod dragging_the_opacity_slider_previews_and_is_written_once_released;
 mod dragging_with_the_frame_tool_adds_a_frame;
 mod dragging_with_the_rectangle_tool_adds_a_rectangle;
 mod drawing_on_the_canvas_paints_a_raster_layer;
 mod drawing_with_a_finger_adds_a_rectangle;
 mod enter_on_a_selected_shape_edits_its_label;
+mod escape_mid_resize_puts_the_size_back_and_writes_nothing;
+mod escape_puts_a_move_back_and_writes_nothing;
 mod every_frame_of_a_drag_draws_a_bound_end_on_the_moved_shape;
 mod every_shape_is_drawn_in_the_clean_look;
 mod every_shape_is_drawn_in_the_hand_drawn_look;
@@ -122,13 +142,12 @@ mod panning_paints_no_selection_handle_again;
 mod pasted_canvas_items_show_the_blocks_their_refs_name;
 mod pasting_blocks_places_those_the_host_allows_as_editors;
 mod pasting_puts_the_objects_under_the_pointer;
+mod pasting_several_blocks_is_one_undo_step_with_their_fits;
 mod pen_strokes_are_smooth_curves_at_any_zoom;
 mod removing_component_deletes_its_values_from_all_selected_entities;
-mod replacing_a_referenced_block_rewrites_the_entity;
 mod resizing_a_raster_layer_opens_a_card_on_its_button;
 mod resizing_an_editor_that_cannot_resize_scales_it;
 mod rotating_with_the_handle_is_drawn;
-mod scrubbing_a_number_is_one_undo_step;
 mod selections_are_shared_with_peers_and_theirs_are_drawn;
 mod setting_component_value_writes_the_same_value_to_all_selected_entities;
 mod simulated_pressure_is_the_same_at_any_sample_rate;
@@ -150,6 +169,7 @@ mod the_dock_ends_with_ignore_touch_after_the_block_button;
 mod the_ellipse_and_diamond_tools_draw_their_shapes;
 mod the_eraser_end_of_a_pen_deletes_what_it_touches;
 mod the_eraser_finds_shapes_where_they_have_moved_to;
+mod the_eraser_writes_one_removal_and_none_of_its_dimming;
 mod the_grid_is_a_setting_of_the_canvas_drawn_behind_it;
 mod the_intrinsic_size_follows_the_first_frame;
 mod the_lasso_selects_only_what_it_encloses;
@@ -158,8 +178,10 @@ mod the_letters_and_numbers_pick_every_tool;
 mod the_mode_dock_switches_the_profile;
 mod the_palette_and_the_shortcuts_run_the_canvas_actions;
 mod the_pen_barrel_button_opens_the_context_menu;
+mod the_pen_tool_asks_for_every_sample_before_its_stroke_begins;
 mod the_pen_tool_draws_a_stylus_stroke_as_wide_as_it_is_pressed;
 mod the_pen_tool_keeps_every_coalesced_sample_and_draws_the_predicted_tail;
+mod the_pencil_asks_for_every_sample_before_its_stroke_begins;
 mod the_pixel_rectangle_previews_and_lands_as_it_is_dragged;
 mod the_preview_fills_the_frame_with_its_background;
 mod the_preview_shows_the_first_frame;
@@ -313,6 +335,9 @@ fn open_sized(
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
+    host.set_block_type(
+        <CanvasContent as be_sdk_beui::be_block_content::BlockContent>::CONTENT_TYPE,
+    );
     let editor = OwnedEditor::new(host.clone(), block);
     let test = match preview {
         true => BeuiTest::preview(editor),
@@ -428,6 +453,39 @@ fn forward_presence(
     to.run();
 }
 
+/// The clients two editors' stores name each other by in one session (`join_session`), and
+/// the origins their submissions go under at the other.
+const FIRST_PEER: u64 = 7;
+const SECOND_PEER: u64 = 8;
+const PEER_ORIGINS: u64 = 0x7000;
+
+/// Joins the two editors' devices into one session, as two devices' replicas share a block's
+/// session: what each holds tentatively is previewed by the other (`relay_session`).
+fn join_session(first: &mut BeuiTest<CanvasRoot>, second: &mut BeuiTest<CanvasRoot>) {
+    first.store().join_peer(None, SECOND_PEER);
+    second.store().join_peer(None, FIRST_PEER);
+    relay_session(first, second, FIRST_PEER);
+    relay_session(second, first, SECOND_PEER);
+}
+
+/// Hands `to` what `from`, which `to` names `client`, sent its session since the last call:
+/// its relayed messages and its submissions. Answers how many edits it submitted.
+fn relay_session(
+    from: &mut BeuiTest<CanvasRoot>,
+    to: &mut BeuiTest<CanvasRoot>,
+    client: u64,
+) -> usize {
+    let relayed = from.store().take_relayed(None);
+    let submitted = relayed
+        .iter()
+        .filter(|relayed| matches!(relayed, be_sdk_test::Relayed::Submission { .. }))
+        .count();
+    to.store()
+        .receive_relayed(None, client, PEER_ORIGINS + client, relayed);
+    to.step(Vec::new());
+    submitted
+}
+
 fn undo(editor: &mut BeuiTest<CanvasRoot>) {
     let block = editor.block_id().expect("the canvas has a block");
     editor.host().undo(block);
@@ -464,8 +522,7 @@ fn raster_canvas(entities: &[CanvasEntity]) -> Canvas {
 fn raster_editor(entities: &[CanvasEntity]) -> BeuiTest<CanvasRoot> {
     let mut editor = open(&raster_canvas(entities), false, &[]);
     let center = editor.rect_of("infinite-canvas.canvas").center();
-    editor.pinch(center, RASTER_ZOOM);
-    editor.run();
+    editor.zoom_view(center, RASTER_ZOOM);
     editor
 }
 
@@ -518,7 +575,6 @@ fn painted_scaled_layer() -> (BeuiTest<CanvasRoot>, Uuid) {
     editor.run();
     let center = editor.rect_of("infinite-canvas.canvas").center();
     editor.click(center + Vec2::new(4.0, 4.0));
-    editor.run();
     (editor, layer.id)
 }
 
@@ -541,3 +597,70 @@ fn pressed(editor: &BeuiTest<CanvasRoot>, test_id: &str) -> bool {
 
 const RED: CanvasPixel = CanvasPixel::new(220, 40, 40, 255);
 const BLACK: CanvasPixel = CanvasPixel::new(0, 0, 0, 255);
+
+/// The Export dialog of the canvas `editor` shows, run as its exporter `name`: the editor's
+/// `editor.export.<name>` asks the host for it, and the host runs it in the canvas's app, here
+/// a test of its own that holds the canvas as it is now, and the blocks it embeds.
+fn export_dialog(editor: &mut BeuiTest<CanvasRoot>, name: &str) -> BeuiTest<CanvasRoot> {
+    editor.app_catalog();
+    editor.run_action(&format!("editor.export.{name}"));
+    let asked = editor.take_export_requests();
+    let [(block, request)] = asked.as_slice() else {
+        panic!("exporting asks the host for one Export dialog, asked {asked:?}");
+    };
+    let host = EditorHost::default();
+    host.set_editable(true);
+    let mut dialog = BeuiTest::export(
+        host,
+        be_sdk_beui::ExportDialogRequest {
+            source: *block,
+            source_type:
+                <CanvasContent as be_sdk_beui::be_block_content::BlockContent>::CONTENT_TYPE,
+            exporter: request.exporter.clone(),
+            settings: request.settings.clone(),
+        },
+    )
+    .with_size(Vec2::new(520.0, 260.0));
+    hold_canvas(editor, &mut dialog, *block);
+    dialog.run();
+    dialog
+}
+
+/// Holds in `test` the canvas `block` that `editor` shows, as it is now, with what the graph
+/// says of the blocks it embeds: as the host holds it for an instance that reads it.
+fn hold_canvas(editor: &BeuiTest<CanvasRoot>, test: &mut BeuiTest<CanvasRoot>, block: Uuid) {
+    test.store().register(be_type_image::registrations());
+    test.store().register(be_type_workspace::registrations());
+    for entity in entities(editor) {
+        if let Some(info) = entity
+            .block
+            .and_then(|embedded| editor.store().block(embedded))
+        {
+            test.store().add_block(info);
+        }
+    }
+    test.store().add_block(BlockInfo::new(
+        block,
+        <CanvasContent as be_sdk_beui::be_block_content::BlockContent>::CONTENT_TYPE,
+        BlockParent::Root,
+    ));
+    test.hold(Some(block), editor.content::<CanvasContent>(None));
+}
+
+/// What the canvas `editor` shows copies as, exported by its exporter `name` with the settings
+/// the open canvas starts from (what is selected): the file the Export dialog's Copy puts on
+/// the clipboard, in `format`.
+fn copied_export(editor: &mut BeuiTest<CanvasRoot>, name: &str, format: &str) -> Vec<u8> {
+    let mut dialog = export_dialog(editor, name);
+    dialog.click("export.copy");
+    dialog.run();
+    let copied = dialog.take_copied(format);
+    let [item] = copied.as_slice() else {
+        panic!(
+            "Copy puts one {format} on the clipboard, put {}; failed with {:?}",
+            copied.len(),
+            dialog.take_reported_failures()
+        );
+    };
+    item.data.clone()
+}

@@ -1,15 +1,15 @@
 use crate::components::overlay::OverlayPresence;
+use crate::reactive::BuildFn;
 use crate::reactive::Callback;
 use crate::reactive::Get;
+use crate::reactive::Memo;
 use crate::reactive::NodeRef;
 use crate::reactive::Prop;
-use crate::reactive::RenderFn;
 use crate::reactive::Scope;
 use crate::reactive::Set;
 use crate::reactive::create_binding;
 use crate::reactive::create_effect;
 use crate::reactive::owner_scope;
-use crate::reactive::provide_context;
 use crate::reactive::store;
 use crate::reactive::untrack;
 use crate::types::Rect;
@@ -27,7 +27,8 @@ use std::cell::RefCell;
 
 struct Mounted {
     content: NodeId,
-    scope: Scope,
+    /// Owns the content while it is shown; dropping it disposes the content.
+    _scope: Scope,
 }
 
 pub(crate) fn overlay(
@@ -40,19 +41,17 @@ pub(crate) fn overlay(
     level: Prop<LayerLevel>,
     traps_focus: Prop<bool>,
     shown_in: Prop<Option<WindowId>>,
-    trigger: Option<NodeRef>,
+    trigger: Prop<Option<NodeRef>>,
     pointer: Option<NodeRef>,
     beak: Prop<f32>,
     window: Prop<Option<WindowSpec>>,
-    keep_alive: bool,
     dismissable: Prop<bool>,
     on_dismiss: Callback<Dismiss>,
     presence: OverlayPresence,
-    content: RenderFn<()>,
+    content: BuildFn<NodeId>,
 ) -> NodeId {
     let overlay = with_document(|document| {
-        let overlay = document.create_overlay(anchor.get_untracked(), Placement::BelowStart);
-        document.set_overlay_trigger(overlay, trigger);
+        let overlay = document.create_overlay(anchor.get_untracked(), Placement::BELOW_START);
         document.set_overlay_pointer(overlay, pointer);
         overlay
     });
@@ -62,6 +61,10 @@ pub(crate) fn overlay(
             false => Callback::empty(),
         };
         with_document(|document| document.set_overlay_on_dismiss(overlay, on_dismiss))
+    });
+    create_binding(move || {
+        let trigger = trigger.get();
+        with_document(|document| document.set_overlay_trigger(overlay, trigger))
     });
     create_binding(move || {
         let anchor = anchor.get();
@@ -108,25 +111,16 @@ pub(crate) fn overlay(
             let mut held = held.borrow_mut();
             if shown {
                 let content = match held.as_ref() {
-                    Some(held) => {
-                        if keep_alive {
-                            held.scope.resume();
-                        }
-                        held.content
-                    }
+                    Some(held) => held.content,
                     None => {
-                        let scope = owner.run(|| match keep_alive {
-                            true => Scope::detached().pausable(),
-                            false => Scope::detached(),
-                        });
+                        let scope = owner.run(Scope::detached);
                         let built = scope.context().run(|| {
-                            provide_context(presence);
-                            provide_context(presence.modality());
-                            content.call(())
+                            presence.provide();
+                            content.call()
                         });
                         *held = Some(Mounted {
                             content: built,
-                            scope,
+                            _scope: scope,
                         });
                         built
                     }
@@ -141,17 +135,11 @@ pub(crate) fn overlay(
                 document.close_overlay(overlay);
                 document.set_overlay_content(overlay, None);
             });
-            match keep_alive {
-                true => {
-                    if let Some(held) = held.as_ref() {
-                        held.scope.pause();
-                    }
-                }
-                false => {
-                    presence.lingering().update(Vec::clear);
-                    drop(held.take());
-                }
-            }
+            drop(held.take());
+            // What content a `Kept` keeps registered goes on lingering each time it closes.
+            presence
+                .lingering()
+                .update(|lingering| lingering.retain(Memo::is_alive));
         });
     });
     overlay.id()

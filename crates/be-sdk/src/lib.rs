@@ -1,6 +1,8 @@
 pub use be_block;
 pub use be_block_content;
 pub use be_lib_geometry as geometry;
+/// Workers: work off the app's thread, in a module of its own (guides/adding_an_app.md, Workers).
+pub use be_sdk_worker as worker;
 
 mod app;
 mod asked;
@@ -25,7 +27,7 @@ mod panes;
 mod preferences;
 #[cfg(target_arch = "wasm32")]
 mod previews;
-pub mod root_settings;
+pub use be_block::root_settings;
 #[cfg(target_arch = "wasm32")]
 mod runtime;
 mod screens;
@@ -44,36 +46,39 @@ pub use asked::{Asked, Task};
 pub use be_lib_geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use be_sdk_api::SearchLocation;
 pub use be_sdk_api::accesskit;
+pub use be_sdk_api::blocks::{ChannelEvent, HostingHere, JoinedMember, MemberEvent, MemberSaid};
+pub use be_sdk_api::blocks::{LogDoubt, LogDoubtKind, LogDoubtSource};
 pub use be_sdk_api::guest::desktop;
 pub use be_sdk_api::{
-    AccessGrant, AccessLevel, AccessListing, AccountStorage, AdministratorWatch, ArtifactAction,
+    AccessGrant, AccessLevel, AccessListing, AccountRole, AccountStorage, ArtifactAction,
     AudioCommand, AudioOutput, AudioSource, AudioStatus, BlockAgent, BlockCommand, BlockFilter,
-    BlockLocation, BlockNotifyMode, BlockPick, BlockTypeDescriptor, CapturedChord, CapturedTrigger,
+    BlockLocation, BlockMute, BlockPick, BlockTypeDescriptor, CapturedChord, CapturedTrigger,
     Catalog, ChildContent, ChildId, ChildLayer, ChildMode, ChildOperations, ChildPlacement,
     ChildPreview, ChildStatus, ConflictSide, ContactsWatch, CreationProgress, CursorIcon,
     DescribedAction, Description, DesktopBarWatch, DialogAnswer, DialogFrame, DialogStatus,
     DisplayMode, DisplaysWatch, DropAction, EditorCapabilities, EditorDescriptor, EditorInstanceId,
-    Edits, EndingAnswer, EpaperWatch, Failure, FileSave, FrameChrome, FrameSpec, HostContact,
-    HostDisplay, HostImage, HostInputDevice, HostNotificationAction, HostPanel, HostProgram,
-    HostTrayItem, HostWindow, HostWindowId, ImeArea, ImportedBlock, IncomingNotification, Input,
-    InputCapture, InputCaptureWatch, InputDevicesWatch, InputReach, InputReachWatch,
-    InteractionMode, Key, KeyChord, KeyboardLayout, KeyboardLayouts, KeyboardLayoutsWatch,
-    LinkBaseWatch, MediaLevel, MediaLevels, MediaRequest, MediaWatch, MenuAsk, MenuCheck,
-    MenuCommand, MenuEntry, MenuPin, MenuSubmenu, Modifiers, NotificationCloseReason,
-    NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal,
-    NotificationUrgency, NotificationsWatch, NotifyMode, NotifyModesWatch, Occluder, OpenProgram,
-    OpenProgramsWatch, PastedBlock, PenPhase, PickedBlock, Picture, PlayerCommand, PointerButton,
-    Pointing, PowerAction, PowerAvailability, PowerWatch, Press, PreviewImage, ProgramAction,
-    ProgramCatalog, ProgramsWatch, PushDevice, PushDeviceWatch, RemapState, RemapsWatch,
-    ResizeMode, Revision, Rotation, ScreenEdge, ScreenEdgeState, ScreenEdgesWatch,
-    ScreenLockedWatch, ScreenPlacement, ScreenSide, ScrollDelta, SessionEnd, ShellDialog, Signer,
-    Stopped, StorageUsageWatch, SuperKeptWatch, SurfaceRect, TemplateCategory, TemplateDescriptor,
-    TerminalHostBe, TerminalHostDownload, TerminalHostSource, TimedInput, TopBar, TouchPhase,
-    TrayClick, TrayMenuEntry, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle, TrayWatch,
-    VersionBranch, VersionChange, VersionChangeKind, VersionCommand, VersionCommit,
-    VersionOperation, VersionStatus, ViewChange, Watched, WebViewCommand, WebViewEvent, WebViewId,
-    WheelTurn, WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowKind,
-    WindowOrigin, WindowRequests, WindowsWatch,
+    Edits, EndingAnswer, EpaperWatch, ExportRequest, ExporterDescriptor, Failure, FileSave,
+    FrameChrome, FrameSpec, HostContact, HostDisplay, HostImage, HostInputDevice,
+    HostNotificationAction, HostPanel, HostProgram, HostTrayItem, HostWindow, HostWindowId,
+    ImeArea, ImportedBlock, IncomingNotification, Input, InputCapture, InputCaptureWatch,
+    InputDevicesWatch, InputReach, InputReachWatch, InteractionMode, Key, KeyChord, KeyboardLayout,
+    KeyboardLayouts, KeyboardLayoutsWatch, LinkAdmits, LinkBaseWatch, MediaLevel, MediaLevels,
+    MediaRequest, MediaWatch, MenuAsk, MenuCheck, MenuCommand, MenuEntry, MenuPin, MenuSubmenu,
+    Modifiers, MutesWatch, NotificationCloseReason, NotificationInbox, NotificationReport,
+    NotificationRequest, NotificationSignal, NotificationUrgency, NotificationsWatch, NotifyMode,
+    Occluder, OfferedLevel, OpenProgram, OpenProgramsWatch, PastedBlock, PenPhase, PickedBlock,
+    Picture, PlayerCommand, PointerButton, Pointing, PowerAction, PowerAvailability, PowerWatch,
+    Press, PreviewImage, ProgramAction, ProgramCatalog, ProgramsWatch, PushDevice, PushDeviceWatch,
+    RemapState, RemapsWatch, ResizeMode, Revision, RoleWatch, Rotation, ScreenInput,
+    ScreenInputState, ScreenInputWatch, ScreenLockedWatch, ScreenPlacement, ScreenRegion,
+    ScreenRegionState, ScreenSide, ScreenWall, ScreenWallState, ScrollDelta, SessionEnd, ShareLink,
+    ShellDialog, Stopped, StorageUsageWatch, SuperKeptWatch, SurfaceRect, TemplateCategory,
+    TemplateDescriptor, TerminalHostBe, TerminalHostDownload, TerminalHostFile, TerminalHostSource,
+    TimedInput, TopBar, TouchPhase, TrayClick, TrayMenuEntry, TrayMenuItem, TrayRequest,
+    TrayStatus, TrayToggle, TrayWatch, VersionBranch, VersionChange, VersionChangeKind,
+    VersionCommand, VersionCommit, VersionOperation, VersionStatus, ViewChange, Watched,
+    WebViewCommand, WebViewEvent, WebViewId, WheelTurn, WifiLink, WifiNetwork, WifiRequest,
+    WifiSecurity, WifiStatus, WifiWatch, WindowKind, WindowOrigin, WindowRequests, WindowsWatch,
 };
 pub use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, HostTransform, HostView, PaletteMode, ParentView, Scrim, View,
@@ -85,7 +90,7 @@ pub use be_sdk_api::{
 pub use be_sdk_type_guest::editor::{EditorOperation, FromEditor, LackingEdit, ToEditor};
 pub use be_sdk_ui;
 pub use clock::{frame_time, instant_at, utc_offset, wall_clock};
-pub use content::{LiveContent, Objects, Projected};
+pub use content::{ContentGesture, LiveContent, Objects, Projected};
 pub use editor_state::{
     ArtifactsCore, ChildState, ChildTarget, ContentCache, CreationCore, Drag, EditorCore, Fit,
     PlacedChild, PointScale, ShownEditor, SubregionContent, fit_content, short_id,
@@ -95,11 +100,11 @@ pub use graph::{
     SearchResults,
 };
 pub use host::{
-    Artifact, ArtifactState, BlockDrag, BlockHistory, ClipRender, EditorHost, FileDrop, FileFilter,
-    FocusedBlock, HeadRead, HistoryRequest, HostContent, OpenRequest, Pasted, PeerMessage,
-    PeerPresence, PerformanceMeasurementGuard, PerformanceReporter, PickedFile, PickerRequest,
-    Pushed, RenameRequest, RevisionPreview, SavedFile, SeededContent, SentToPeers, ShowRequest,
-    ShownPresence, StoredHead, Waker,
+    Artifact, ArtifactState, BlockDrag, BlockHistory, BlockMember, ClipRender, EditorHost,
+    ExportDialogRequest, FileDrop, FileFilter, FocusedBlock, HeadRead, HistoryRequest, HostContent,
+    OpenRequest, Pasted, PeerMessage, PeerPresence, PerformanceMeasurementGuard,
+    PerformanceReporter, PickedFile, PickerRequest, Pushed, RenameRequest, RevisionPreview,
+    SavedFile, SeededContent, SentToPeers, ShowRequest, ShownPresence, StoredHead, Waker,
 };
 pub use layered_settings::{
     KeptEdit, SettingsAnswer, SettingsChangeLog, SettingsLayers, SettingsTarget,
@@ -123,7 +128,7 @@ pub mod __private {
     #[cfg(target_arch = "wasm32")]
     pub struct EditorEntry {
         name: &'static str,
-        open: crate::screens::Opener,
+        open: crate::editor_session::Open,
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -147,23 +152,32 @@ pub mod __private {
             .editors
             .iter()
             .map(|editor| editor.name.as_str())
+            .chain(manifest.hosts.iter().map(|host| host.name.as_str()))
             .collect();
         let mut implemented: Vec<_> = entries.iter().map(|entry| entry.name).collect();
         declared.sort_unstable();
         implemented.sort_unstable();
         assert_eq!(
             declared, implemented,
-            "{name} must implement exactly the editors its manifest declares"
+            "{name} must implement exactly the editors and host components its manifest declares"
         );
         let openers = entries
             .into_iter()
             .map(|entry| {
-                let editor = manifest
+                let (id, capabilities) = manifest
                     .editors
                     .iter()
                     .find(|editor| editor.name == entry.name)
-                    .expect("every entry names a declared editor");
-                (uuid::Uuid::from_bytes(editor.id), entry.open)
+                    .map(|editor| (editor.id, editor.capabilities))
+                    .or_else(|| {
+                        manifest
+                            .hosts
+                            .iter()
+                            .find(|host| host.name == entry.name)
+                            .map(|host| (host.id, crate::EditorCapabilities::default()))
+                    })
+                    .expect("every entry names a declared editor or host component");
+                (uuid::Uuid::from_bytes(id), (entry.open, capabilities))
             })
             .collect();
         let identity = manifest.identity;

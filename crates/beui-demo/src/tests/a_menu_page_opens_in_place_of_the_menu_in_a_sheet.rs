@@ -28,14 +28,14 @@ fn a_menu_page_opens_in_place_of_the_menu_in_a_sheet() {
     tap(&mut test, "demo.new.location");
     test.settle();
     assert!(
-        test.shows("demo.new.location.back") && test.shows("demo.new.folder.1"),
+        test.shown("demo.new.location.back") && test.shown("demo.new.folder.1"),
         "the sheet shows the page of folders"
     );
     test.snapshot("a_menu_page_in_a_sheet");
     tap(&mut test, "demo.new.location.back");
     test.settle();
     assert!(
-        test.shows("demo.new.location"),
+        test.shown("demo.new.location"),
         "the back row returns to the menu"
     );
 }

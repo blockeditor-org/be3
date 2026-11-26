@@ -1,41 +1,33 @@
-#[cfg(all(feature = "window", not(target_arch = "wasm32")))]
-use std::error::Error;
-
+/// The size of the on-screen keyboard's window, which `build` installs.
+pub use crate::keyboard_host::WINDOW_SIZE as KEYBOARD_WINDOW_SIZE;
 pub use beui::native::*;
 #[cfg(not(target_arch = "wasm32"))]
-pub use beui_font_freetype::system::SystemFonts;
-pub use beui_font_freetype::{
-    FontBytes, FontData, FontLibrary, FontSources, FreetypeFonts, ICONS_FONT,
+pub use beui_font_skrifa::system::SystemFonts;
+pub use beui_font_skrifa::{
+    FontBytes, FontData, FontLibrary, FontSources, ICONS_FONT, SkrifaFonts,
 };
 pub use beui_inspector::install as install_inspector;
 pub use beui_layer_drive as drive;
-#[cfg(all(feature = "window", target_os = "android"))]
-pub use beui_platform_android::AndroidApp;
-#[cfg(all(
-    feature = "window",
-    not(any(target_os = "android", target_arch = "wasm32"))
-))]
+#[cfg(not(any(target_os = "android", target_arch = "wasm32")))]
 pub use beui_platform_headless::Headless;
 pub use beui_platform_headless::Simulation;
-pub use beui_platform_headless::testing;
+pub mod testing;
 #[cfg(all(feature = "web", target_arch = "wasm32"))]
 pub use beui_platform_web::accessibility_tree;
-#[cfg(all(feature = "window", not(target_os = "android")))]
-pub use beui_platform_winit::winit;
 #[cfg(not(target_arch = "wasm32"))]
 pub use beui_renderer_wgpu::present::read_texture;
 pub use beui_renderer_wgpu::present::{
     GpuSetup, OpenDevice, OpenGpu, browser_features, open_vulkan_device,
 };
-pub use beui_renderer_wgpu::{Renderer, Repaint, Repainting, Resources, renderer_info, wgpu_color};
+pub use beui_renderer_wgpu::{
+    Lost, Renderer, Repaint, Repainting, Resources, renderer_info, wgpu_color,
+};
 pub use beui_runner::environment;
 pub use beui_runner::{
     Incoming, Launch, Layer, LayerFrame, LayerView, Platform, PlatformServices, RunOptions,
-    Running, Shown, Units, panic_message,
+    Running, Shown, Units,
 };
 
-#[cfg(all(feature = "window", not(target_arch = "wasm32")))]
-pub use crate::runner::{native_platform, run_with};
 #[cfg(all(feature = "web", target_arch = "wasm32"))]
 pub use crate::web::{run_web, web_platform};
 
@@ -47,21 +39,16 @@ pub fn build(f: impl FnOnce() -> beui_view::primitives::Root) -> Document {
 }
 
 pub fn context() -> Context {
-    Context::new(FreetypeFonts::default())
+    Context::new(SkrifaFonts::default())
 }
 
 pub fn system_fonts() -> FontLibrary {
     let fonts = FontLibrary::bundled();
     #[cfg(not(target_arch = "wasm32"))]
-    let fonts = fonts.with_fallback(beui_font_freetype::system::fallback());
+    let fonts = fonts.with_fallback(beui_font_skrifa::system::fallback());
     fonts
 }
 
 pub fn system_context() -> Context {
-    Context::new(FreetypeFonts::new(system_fonts()))
-}
-
-#[cfg(all(feature = "window", not(target_arch = "wasm32")))]
-pub fn run(program: impl Program + 'static) -> Result<(), Box<dyn Error>> {
-    run_with(RunOptions::default(), program)
+    Context::new(SkrifaFonts::new(system_fonts()))
 }

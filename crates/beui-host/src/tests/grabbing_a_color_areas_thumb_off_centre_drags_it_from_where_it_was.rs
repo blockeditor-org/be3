@@ -31,8 +31,8 @@ fn grabbing_a_color_areas_thumb_off_centre_drags_it_from_where_it_was() {
     harness.frame(Vec::new());
 
     let changes = changes.get_untracked();
-    assert_eq!(changes.len(), 1);
-    let picked = Hsva::from_color(changes[0]);
+    assert!(!changes.is_empty(), "the drag writes the value as it goes");
+    let picked = Hsva::from_color(*changes.last().expect("the drag wrote"));
     assert!((picked.saturation - 0.75).abs() < 0.01, "{picked:?}");
     assert!((picked.value - 0.5).abs() < 0.01, "{picked:?}");
 }

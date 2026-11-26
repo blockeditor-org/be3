@@ -5,7 +5,10 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+# A device keeps its RFC 8291 key pair; ring agrees only with keys it made for one use.
+p256 = { version = "0.13", default-features = false, features = ["arithmetic", "ecdh", "std"] }
 ring = "0.17"
+zeroize = "1"
 
 [dev-dependencies]
 base64 = "0.22"

@@ -4,8 +4,10 @@ cargo_package()
 
 cargo_library()
 
-# Most tests paint without a GPU; those that draw (space under drive) go
-# through a real graphics adapter, which on a worker is lavapipe.
+# Most tests paint without a GPU; those that draw go through a real graphics
+# adapter, which on a worker is lavapipe. The space host's tests through a
+# Runner are beui-layer-space's, so an edit to space, XR or winit reruns none of
+# these.
 cargo_test(
     env = {
         "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
@@ -14,7 +16,5 @@ cargo_test(
 )
 
 # The examples: `./scripts/buck run //crates/beui-host:example-<example>`.
-
-cargo_example("survey")
 
 cargo_example("text-bench")

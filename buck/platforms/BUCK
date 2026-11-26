@@ -55,7 +55,8 @@ target_platform(
 
 # Target platforms for WebAssembly. The constraints are the ones
 # prelude//rust:cargo_package.bzl maps to its platform names, "wasi" and
-# "wasm32", which are what buck/cargo's plans are keyed by.
+# "wasm32" (os:none, now only wasm32_bindgen below), which are what buck/cargo's
+# plans are keyed by.
 target_platform(
     name = "wasi",
     constraint_values = [
@@ -64,8 +65,9 @@ target_platform(
     ],
 )
 
-# The same triple as above, and what tells the two apart. An app is built for
-# this one; be-host's web bundle is built for the one above. Its setting is the
+# An app, its libraries and workers: wasm32-wasip1 rather than the threaded
+# triple above (decisions/guests_are_single_threaded.md), which be-host's web
+# bundle is built for. Its setting is the
 # one above's with one more constraint, so select() takes it as the more
 # specific (cross.bzl's PLAN_SETTINGS).
 target_platform(
@@ -99,11 +101,14 @@ target_platform(
     ],
 )
 
+# wasm32-unknown-unknown, for the browser's gpu shim, which wasm-bindgen binds
+# to the page: wasm-bindgen code, not a guest (buck/constraints:bindgen).
 target_platform(
-    name = "wasm32",
+    name = "wasm32_bindgen",
     constraint_values = [
         "prelude//cpu/constraints:cpu[wasm32]",
         "prelude//os/constraints:os[none]",
+        "root//buck/constraints:bindgen",
     ],
 )
 

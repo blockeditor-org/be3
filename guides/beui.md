@@ -29,13 +29,16 @@ those macros' doc comments.
   one `view!`. `view!` builds nodes the moment it runs, so a subtree built into
   a local and used conditionally is in the document either way.
 - Control flow goes in the view: `Show` (builds when true, disposes when
-  false; with `keep_alive`, builds once and pauses while hidden), `Dynamic`,
+  false), `Dynamic`, `Match`,
   `Keyed` and `ForEach` (one keyed child per item). They build no node of their
-  own; they fill a run in their parent's slot.
+  own; they fill a run in their parent's slot. To keep a subtree while it is
+  hidden, build it in a `Kept` under a `KeepAlive`
+  ([beui/core.md](beui/core.md#keeping-a-subtree)).
 - Use a component as a tag: `<Button label="Save" on_click={save} />`. The
   generated builder is not an API; only the macro checks props, routes `@`
   modifiers and keeps render props unbuilt. To pass a component around, pass a
-  `Render`/`RenderFn` closure that writes a `view!`.
+  `Render`/`RenderFn` (or, handed nothing, `Build`/`BuildFn`) closure that
+  writes a `view!`.
 - Bind signals and memos to props rather than reading them while building. Key
   a `ForEach` by item identity, never by content, so rows keep their nodes,
   focus and caret. State a control both shows and changes is one `Binding<T>`
@@ -51,7 +54,10 @@ Program code imports `beui::reactive::*` (the framework and base nodes) and
 (`beui::unstyled::X`, `beui::styled::theme::X`) on its own line.
 `beui::primitives` is for beui's own crates, its tests and beui-demo's base
 pages; the source lint rejects it elsewhere, since primitives take raw colours
-and pixels where styled components take tokens.
+and pixels where styled components take tokens. `#[component]`, `view!` and
+`#[sample]` come with the reactive module (`beui_view::reactive::*` or
+`crate::reactive` in beui's own crates); the lint rejects naming `beui_macros`
+anywhere but beui-tree, which re-exports them.
 
 ## Crates
 
@@ -64,8 +70,18 @@ editing the engine rebuilds no editor
 ([decision](../decisions/beui_facade_excludes_the_engine.md)). `beui-host` is
 beui plus the engine, for whatever runs documents: `beui_host::native` adds
 `build` (a document with the inspector and on-screen keyboard), fonts,
-`testing`, `drive`, `Headless`, renderers and the runners. Its features pick
-the runner: `window` (default) or `web`.
+`testing`, `drive`, `Headless`, renderers and, with its `web` feature, the
+browser's runner. The native windowed runner (winit, Android, and the space and
+XR layers) is `beui-host-window`'s (`main!`, `run`, `run_program`, `native_platform`), which
+also starts a program in a browser on either core.
+
+`beui-documents` is the facade without the components (types, `beui::reactive`,
+views, windows, `beui::native`); the facade re-exports it at the same paths and
+adds the components, the dock and the keyboard. It is not the engine, which is
+what `beui-host` adds. A crate outside beui that runs documents but builds no
+components, the app runtime, depends on `beui-documents` under the name `beui`,
+so it spells every item as other crates do and an edit to a component does not
+rebuild it; `buck/cargo/layers.bzl` holds that spelling.
 
 Inside the family crates name each other directly, and the component crates
 declare `extern crate beui_view as beui;` so the `::beui::reactive` paths the
@@ -80,17 +96,19 @@ macros expand to resolve. From the bottom up:
 | `beui-core` | the native core: `Document`, `Context`, retained nodes, layout, input dispatch, accessibility, paint and damage, fonts and images interfaces, the `Program` contract |
 | `beui-core-html` | the HTML core, built on `beui-html` |
 | `beui-view` | the API both cores share: `beui::reactive`, `beui::primitives`, with a body per core |
+| `beui-documents` | the facade without the components, which `beui` re-exports; the app runtime's `beui` |
 | `beui-html` | HTML elements as components, serialized to strings or mounted as live DOM |
 | `beui-components-unstyled`, `beui-components-styled` | `beui::unstyled` (and `beui::datetime`), `beui::styled` |
 | `beui-dock`, `beui-dock-host`, `beui-dock-state` | docking: what an editor declares, what lays it out and draws it, the layout model |
 | `beui-keyboard` | the on-screen keyboard |
 | `beui-inspector` | the inspector, simulated screen reader, mouse and keyboard |
-| `beui-draw`, `beui-renderer-wgpu` | gpu drawings, and the wgpu renderer |
+| `beui-draw`, `beui-renderer-wgpu`, `beui-vello` | gpu drawings, the wgpu renderer, and each shape's one encoding into Vello, which the renderer and the rasterizer share |
 | `beui-runner` | the `Runner`, `Platform`, `PlatformServices`, `Layer` and `Renderer` contracts, `RunOptions`, the `BEUI_*` environment |
 | `beui-platform-*`, `beui-layer-*` | platforms (winit, android, web, drm, headless) and layers (space, xr, drive) |
-| `beui-font-freetype` | shaping and rasterizing, and the bundled fonts |
+| `beui-host-window` | a program's entry (`main!`, `run`, `run_program`): natively picks a platform and stacks the layers `BEUI_PLATFORM` and `BEUI_LAYERS` ask for; in a browser shows the program in the page's element on either core |
+| `beui-font-skrifa` | shaping and rasterizing, and the bundled fonts |
 | `be-sdk-beui-platform` | the platform an app module's views run on |
-| `beui-paint-format`, `beui-paint-snapshot` | paintings and the snapshot assertions |
+| `beui-paint-format`, `beui-paint-snapshot`, `beui-paint-raster` | paintings, the snapshot assertions, and the rasterizer (vello_cpu, so never in the beui library) |
 | `beui-tests` | screens and scripts that must behave the same on both cores |
 
 ## Two cores
@@ -122,7 +140,7 @@ how to test on both.
 - [beui/programs.md](beui/programs.md): standalone programs, `Root`,
   `RunOptions`, layers, drivers, the inspector and simulation tools, beui in
   an app.
-- [beui/platforms.md](beui/platforms.md): the runner, input, the clipboard,
+- [beui/platforms.md](beui/platforms.md): the runner, input, the clipboard, the share sheet,
   renderers, each platform, displays under drm.
 - [beui/space.md](beui/space.md): the Space VR simulator, XR headsets, the
   on-screen keyboard.

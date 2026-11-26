@@ -72,3 +72,5 @@ fn an_editor_describes_its_actions_to_the_host_and_runs_one_it_asks_for() {
         "the description follows the action's enabled state: {tidy:?}"
     );
 }
+
+test_editor!(ActionsRoot);

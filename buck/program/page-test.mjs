@@ -10,64 +10,24 @@
 // payload is `text` to its service worker, as a push service would (DevTools
 // `ServiceWorker.deliverPushMessage`).
 
-import { execFileSync } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { createServer } from "node:http";
-import { createRequire } from "node:module";
-import { extname, join, normalize, resolve } from "node:path";
+import { mkdtemp, rm } from "node:fs/promises";
+import { resolve } from "node:path";
 
-const TYPES = { ".html": "text/html", ".js": "text/javascript", ".wasm": "application/wasm" };
+import { launch, serve } from "./browser.mjs";
+
 const TIMEOUT = 60_000;
 const directory = resolve(process.argv[2] ?? ".");
 
-function playwright() {
-    const require = createRequire(import.meta.url);
-    const places = [undefined];
-    try {
-        places.push(execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim());
-    } catch {}
-    for (const place of places) {
-        try {
-            return require(place ? join(place, "playwright") : "playwright");
-        } catch {}
-    }
-    console.error("Playwright is missing: install it with `npm install -g playwright`.");
-    process.exit(1);
-}
-
-const server = createServer(async (request, response) => {
-    const path = normalize(decodeURIComponent(new URL(request.url, "http://localhost").pathname));
-    const file = join(directory, path === "/" ? "index.html" : path);
-    try {
-        const body = await readFile(file);
-        response.writeHead(200, {
-            "Content-Type": TYPES[extname(file)] ?? "application/octet-stream",
-            "Cross-Origin-Opener-Policy": "same-origin",
-            "Cross-Origin-Embedder-Policy": "require-corp",
-        });
-        response.end(body);
-    } catch {
-        response.writeHead(404).end();
-    }
-});
-await new Promise((ready) => server.listen(0, "127.0.0.1", ready));
-
-// Chromium's singleton socket lives in TMPDIR, and buck's is too long a path
-// for a Unix socket.
+const server = await serve(directory);
 const temporary = await mkdtemp("/tmp/be3-page-test-");
-const { chromium } = playwright();
-const browser = await chromium.launch({
-    executablePath: process.env.BE3_CHROME || chromium.executablePath(),
-    args: ["--no-sandbox", "--disable-dev-shm-usage"],
-    env: { ...process.env, TMPDIR: temporary },
-});
+const browser = await launch({ temporary });
 let failed = true;
 try {
     const context = await browser.newContext();
     const page = await context.newPage();
     page.on("console", (message) => console.log(`[${message.type()}] ${message.text()}`));
     page.on("pageerror", (error) => console.log(`[pageerror] ${error}`));
-    const origin = `http://127.0.0.1:${server.address().port}`;
+    const { origin } = server;
     const session = await context.newCDPSession(page);
     let registration;
     session.on("ServiceWorker.workerRegistrationUpdated", ({ registrations }) => {

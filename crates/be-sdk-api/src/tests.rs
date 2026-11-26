@@ -140,6 +140,7 @@ mod a_menu_nested_too_deeply_is_refused_while_nesting;
 mod a_paste_over_the_text_limit_arrives_in_pieces;
 mod a_screen_readers_action_round_trips;
 mod a_show_request_already_waiting_moves_to_the_end;
+mod a_spliced_childs_group_is_titled_as_the_tab_it_took;
 mod a_watch_answers_its_next_with_the_latest_change;
 mod an_artifact_settings_child_round_trips;
 mod an_intercepted_key_round_trips;
@@ -152,6 +153,7 @@ mod creation_children_round_trip;
 mod creation_messages_round_trip;
 mod dock_bar_requests_round_trip_and_reach_the_root_through_their_owner;
 mod every_block_id_a_message_carries_is_visited;
+mod every_id_the_wit_maps_onto_an_array_has_its_wire_form;
 mod every_key_round_trips;
 mod frame_round_trips;
 mod frame_screens_and_reports_round_trip;
@@ -216,6 +218,7 @@ fn declared(path: DockTabPath, key: &str) -> DockTab {
         glyph: String::new(),
         closable: true,
         back_closes: true,
+        unread: 0,
         menu: Vec::new(),
     }
 }

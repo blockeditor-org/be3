@@ -1,7 +1,7 @@
 use crate::reactive::Children;
 use crate::reactive::NodeId;
+use crate::reactive::component;
 pub use crate::types::tree::Layer;
-use beui_macros::component;
 
 /// Lays every child over the same box, sized to the largest, later children on top.
 /// Pointer input reaches only the topmost catcher under the pointer (and the catchers

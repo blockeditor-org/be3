@@ -105,6 +105,8 @@ pub enum ServerEvent {
     Menu(WindowId, beui::Vec2),
     Minimized(WindowId),
     Rang(WindowId),
+    /// Something the compositor runs stopped for good, said for the person.
+    Failed(String),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -748,6 +750,25 @@ impl State {
         }
     }
 
+    /// Whether `id` was configured since it last committed what it acknowledged: it has yet to
+    /// draw what it was told (a size, a state). Never for an X11 window, which says nothing of
+    /// a configure it took in.
+    pub fn configure_outstanding(&self, id: WindowId) -> bool {
+        let Some(toplevel) = self.toplevel(id) else {
+            return false;
+        };
+        with_states(toplevel.wl_surface(), |states| {
+            states
+                .data_map
+                .get::<XdgToplevelSurfaceData>()
+                .is_some_and(|data| {
+                    let data = data.lock().unwrap();
+                    !data.pending_configures().is_empty()
+                        || data.configure_serial != data.current_serial
+                })
+        })
+    }
+
     pub fn mapped_size(&self, id: WindowId) -> Option<beui::Vec2> {
         let window = self.find(id)?;
         if self.layers(id).is_empty() {
@@ -1115,6 +1136,11 @@ impl State {
         let focus = id.and_then(|id| self.keyboard_focus(id));
         let keyboard = self.keyboard();
         keyboard.set_focus(self, focus, SERIAL_COUNTER.next_serial());
+        if id.is_none() {
+            // The keys held now reach no window, so their releases will not come here. This runs
+            // after `set_focus(None)`, or the window that had the keyboard would hear them let go.
+            self.release_keys();
+        }
         self.settle_inhibitors();
         self.settle_constraints();
         if let Some(id) = id {
@@ -1159,12 +1185,20 @@ impl State {
         });
     }
 
+    /// Presses or releases a key in the window with the keyboard. xkb counts the presses of a key
+    /// and lets its modifier go only once as many releases came, so a press of a key already held
+    /// (its release went elsewhere) is dropped, as is a release of a key not held: pressing and
+    /// releasing a key always lets it go.
     pub fn key(&mut self, code: u32, pressed: bool) {
         let keyboard = self.keyboard();
+        let keycode = Keycode::new(code + 8);
+        if keyboard.pressed_keys().contains(&keycode) == pressed {
+            return;
+        }
         let time = self.time();
         keyboard.input::<(), _>(
             self,
-            Keycode::new(code + 8),
+            keycode,
             if pressed {
                 smithay::backend::input::KeyState::Pressed
             } else {
@@ -1204,7 +1238,8 @@ impl State {
         self.remove_overlays(id);
         self.forget_icon(id);
         if self.keyboard_window == Some(id) {
-            self.keyboard_window = None;
+            // The keys held in the closed window (the Ctrl of Ctrl+W) are let go with it.
+            self.focus_keyboard(None);
         }
         if self.pointer_window == Some(id) {
             self.pointer_window = None;

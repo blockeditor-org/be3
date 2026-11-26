@@ -84,64 +84,68 @@ fn PaintReview(
         KeyReveal::Focus,
         move |event: KeyEvent| event.press().is_some_and(|press| shortcut(review, press)),
     );
-    let loading = create_memo(move || manifest.with(|manifest| matches!(manifest, Fetch::Loading)));
-    let failure = create_memo(move || match manifest.get() {
-        Fetch::Failed(error) => Some(error),
-        _ => None,
+    let reason = create_memo(move || match manifest.get() {
+        Fetch::Failed(error) => error,
+        _ => String::new(),
     });
-    let failed = create_memo(move || failure.get().is_some());
-    let reason = create_memo(move || failure.get().unwrap_or_default());
-    let ready = create_memo(move || manifest.with(|manifest| matches!(manifest, Fetch::Ready(_))));
-    let opened = create_memo(move || ready.get() && review.open.get().is_some());
-    let browsing = create_memo(move || ready.get() && review.open.get().is_none());
     view! {
         <Frame fill=ColorRole::Background>
             <List spacing=Space::None>
-                <Show condition={loading}>
-                    <ListItem grow=1.0>
-                        <Frame align=Align::Center>
-                            <List
-                                align=Align::Center
-                                spacing=MESSAGE_SPACING
-                                @test_id={"paint_review.loading"}
-                            >
-                                <Progress
-                                    width=INLINE_PROGRESS_WIDTH
-                                    label="Loading the paintings"
-                                />
-                                <Text style=TextStyle::CAPTION>"Loading the paintings"</Text>
-                            </List>
-                        </Frame>
-                    </ListItem>
-                </Show>
-                <Show condition={failed}>
-                    <ListItem grow=1.0>
-                        <Frame align=Align::Center padding=MESSAGE_PADDING>
-                            <List spacing=MESSAGE_SPACING @test_id={"paint_review.failed"}>
-                                <Text
-                                    style=TextStyle::HEADING
-                                    color=TextColor::Danger
-                                    align=beui::TextAlign::Center
+                <Match
+                    value={manifest}
+                    fallback={move || view! {
+                        <ListItem grow=1.0>
+                            <Frame align=Align::Center padding=MESSAGE_PADDING>
+                                <List spacing=MESSAGE_SPACING @test_id={"paint_review.failed"}>
+                                    <Text
+                                        style=TextStyle::HEADING
+                                        color=TextColor::Danger
+                                        align=beui::TextAlign::Center
+                                    >
+                                        "The paintings could not be loaded"
+                                    </Text>
+                                    <Text style=TextStyle::CAPTION align=beui::TextAlign::Center>
+                                        {reason}
+                                    </Text>
+                                </List>
+                            </Frame>
+                        </ListItem>
+                    }}
+                >
+                    <Case is={Fetch::Loading}>
+                        <ListItem grow=1.0>
+                            <Frame align=Align::Center>
+                                <List
+                                    align=Align::Center
+                                    spacing=MESSAGE_SPACING
+                                    @test_id={"paint_review.loading"}
                                 >
-                                    "The paintings could not be loaded"
-                                </Text>
-                                <Text style=TextStyle::CAPTION align=beui::TextAlign::Center>
-                                    {reason}
-                                </Text>
-                            </List>
-                        </Frame>
-                    </ListItem>
-                </Show>
-                <Show condition={browsing}>
-                    <ListItem grow=1.0>
-                        <Gallery review={review} />
-                    </ListItem>
-                </Show>
-                <Show condition={opened}>
-                    <ListItem grow=1.0>
-                        <Viewer review={review} />
-                    </ListItem>
-                </Show>
+                                    <Progress
+                                        width=INLINE_PROGRESS_WIDTH
+                                        label="Loading the paintings"
+                                    />
+                                    <Text style=TextStyle::CAPTION>"Loading the paintings"</Text>
+                                </List>
+                            </Frame>
+                        </ListItem>
+                    </Case>
+                    <Case
+                        when={|manifest: &Fetch<Rc<Manifest>>| matches!(manifest, Fetch::Ready(_))}
+                    >
+                        <Show
+                            value={move || review.open.with(Option::is_some)}
+                            fallback={move || view! {
+                                <ListItem grow=1.0>
+                                    <Gallery review={review} />
+                                </ListItem>
+                            }}
+                        >
+                            <ListItem grow=1.0>
+                                <Viewer review={review} />
+                            </ListItem>
+                        </Show>
+                    </Case>
+                </Match>
             </List>
         </Frame>
     }

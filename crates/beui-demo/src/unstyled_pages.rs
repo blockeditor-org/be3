@@ -1,19 +1,20 @@
 use super::*;
 use beui::Align;
 use beui::Rect;
+use beui::drag;
 use beui::unstyled::{
     AnchoredSheetHandle, AnchoredStyle, ButtonHandle, ChoiceKind, ChoiceOptionHandle,
-    DisclosureHandle, DragHandle, DragPoint, DropHandle, MenuRowHandle, PopupTriggerHandle,
-    ScrollHandle, ScrollbarHandle, ScrollbarStyle, SliderHandle, TextInputHandle, TextInputStyle,
-    ToggleHandle, TooltipHandle,
+    DisclosureHandle, Dropdown, MenuRowHandle, PopupTriggerHandle, ScrollHandle, ScrollStyle,
+    ScrollbarHandle, SliderHandle, TextInputHandle, TextInputStyle, ToggleHandle, TooltipHandle,
 };
 use beui::unstyled::{ColorAreaHandle, ColorPickerArea, HueSlider, SwatchHandle, Swatches};
 use beui::unstyled::{
     ColorPickerState, CompletionMenu, CompletionRowHandle, DateSegmentHandle, DateTimeBoxHandle,
     DateTimeCalendarHandle, DateTimePanelHandle, DateTimeTriggerHandle, HexText, MenuStyle,
-    NumberFaceHandle, NumberFieldHandle, SheetGripHandle, TreeRevealHandle, TreeRowHandle,
-    TreeToggleHandle, emoji_completer,
+    NumberFaceHandle, NumberFieldHandle, SheetGripHandle, SlideCurves, TreeRevealHandle,
+    TreeRowHandle, TreeToggleHandle, emoji_completer,
 };
+use beui::{PointerPress, Pos2, TouchDrags, Vec2};
 
 const FACE_PADDING_HORIZONTAL: Space = Space::Xl;
 const FACE_PADDING_VERTICAL: Space = Space::Md;
@@ -27,6 +28,15 @@ const BIN_HEIGHT: Size = Size::Custom(180.0);
 const SCROLL_HEIGHT: f32 = 200.0;
 const SCROLL_LINES: usize = 40;
 const BAR_WIDTH: f32 = 6.0;
+/// The unstyled layer has no curves of its own, so this page gives its motions
+/// theirs: `styled::Movement`'s.
+const RUBBER: beui::reactive::Spring = beui::styled::Movement::Rubber.spring();
+const SETTLE: beui::reactive::Spring = beui::styled::Movement::Settle.spring();
+const SLIDE_CURVES: SlideCurves = SlideCurves {
+    enter: SETTLE,
+    leave: SETTLE,
+    settle: SETTLE,
+};
 const NUMBER_WIDTH: Size = Size::Custom(120.0);
 const SWATCH_SIZE: Size = Size::Lg;
 const TREE_HEIGHT: Size = Size::Custom(180.0);
@@ -159,24 +169,24 @@ fn SquareCheckboxFace(handle: ToggleHandle, label: &'static str) -> NodeId {
         focused,
         ..
     } = handle;
-    let border = create_memo(move || match hovered.get() {
-        true => ColorRole::Accent,
-        false => ColorRole::TextMuted,
-    });
     view! {
         <Frame focus={focused} focus_offset=Stroke::Focus radius=Radius::Md>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Frame
                     width=BOX_SIZE
                     height=BOX_SIZE
-                    border={create_memo(move || Some(Border::new(border.get()).width(Stroke::Focus)))}
+                    border={move || {
+                        let color = match hovered.get() {
+                            true => ColorRole::Accent,
+                            false => ColorRole::TextMuted,
+                        };
+                        Some(Border::new(color).width(Stroke::Focus))
+                    }}
                     align=Align::Center
                 >
-                    <Layers>
-                        <Show condition={checked}>
-                            <Frame width=MARK_SIZE height=MARK_SIZE fill=ColorRole::Accent />
-                        </Show>
-                    </Layers>
+                    <Show value={checked}>
+                        <Frame width=MARK_SIZE height=MARK_SIZE fill=ColorRole::Accent />
+                    </Show>
                 </Frame>
                 <Text>{label.to_owned()}</Text>
             </List>
@@ -288,6 +298,7 @@ fn UnderlinedInput() -> NodeId {
                     prose: Prop::Static(None),
                     geometry: Prop::Static(text_area_geometry()),
                     menu: None,
+                    scroll: ScrollStyle::new(RUBBER),
                 }}
                 on_submit={move |value: String| submitted.set(format!("Searched for {value}"))}
             >|handle: TextInputHandle|
@@ -329,6 +340,7 @@ fn ProseInput() -> NodeId {
                     })),
                     geometry: Prop::Static(text_area_geometry()),
                     menu: None,
+                    scroll: ScrollStyle::new(RUBBER),
                 }}
             />
         </Frame>
@@ -406,15 +418,15 @@ fn SegmentedControl() -> NodeId {
             <Frame fill=ColorRole::Control radius=PILL_RADIUS padding=Space::Xs>
                 <unstyled::Choice
                     options={view! {
-                        <ChoiceOption label="List" />
-                        <ChoiceOption label="Board" />
-                        <ChoiceOption label="Calendar" />
+                        <ChoiceOption value="list" label="List" />
+                        <ChoiceOption value="board" label="Board" />
+                        <ChoiceOption value="calendar" label="Calendar" />
                     }}
-                    selected=Some(0)
+                    selected=Some("list")
                     kind=ChoiceKind::Tabs
                     direction=Direction::Horizontal
                     spacing=6.0
-                >|handle: ChoiceOptionHandle|
+                >|handle: ChoiceOptionHandle<&'static str>|
                     <SegmentFace handle />
                 </unstyled::Choice>
             </Frame>
@@ -424,7 +436,7 @@ fn SegmentedControl() -> NodeId {
 
 #[sample]
 #[component]
-fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
+fn SegmentFace(handle: ChoiceOptionHandle<&'static str>) -> NodeId {
     let ChoiceOptionHandle {
         label,
         selected,
@@ -456,24 +468,20 @@ fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
 #[sample]
 #[component]
 fn SizeRadios() -> NodeId {
-    let sizes = ["Small", "Medium", "Large"];
-    let size = create_signal(Some(1));
-    let chosen = create_memo(move || {
-        size.get()
-            .map_or_else(String::new, |index| sizes[index].to_owned())
-    });
+    let size = create_signal(Some("Medium"));
+    let chosen = create_memo(move || size.get().unwrap_or_default().to_owned());
     view! {
         <List spacing=SECTION_SPACING>
             <unstyled::Choice
                 options={view! {
-                    <ChoiceOption label="Small" />
-                    <ChoiceOption label="Medium" />
-                    <ChoiceOption label="Large" />
+                    <ChoiceOption value="Small" label="Small" />
+                    <ChoiceOption value="Medium" label="Medium" />
+                    <ChoiceOption value="Large" label="Large" />
                 }}
                 selected={size}
                 kind=ChoiceKind::Radio
                 spacing=6.0
-            >|handle: ChoiceOptionHandle|
+            >|handle: ChoiceOptionHandle<&'static str>|
                 <RadioFace handle />
             </unstyled::Choice>
             <Text color=TextColor::Muted>{chosen}</Text>
@@ -483,7 +491,7 @@ fn SizeRadios() -> NodeId {
 
 #[sample]
 #[component]
-fn RadioFace(handle: ChoiceOptionHandle) -> NodeId {
+fn RadioFace(handle: ChoiceOptionHandle<&'static str>) -> NodeId {
     let ChoiceOptionHandle {
         label,
         selected,
@@ -500,16 +508,14 @@ fn RadioFace(handle: ChoiceOptionHandle) -> NodeId {
                     border={Border::new(ColorRole::TextMuted).width(Stroke::Focus)}
                     align=Align::Center
                 >
-                    <Layers>
-                        <Show condition={selected}>
-                            <Frame
-                                width=MARK_SIZE
-                                height=MARK_SIZE
-                                radius=Radius::Sm
-                                fill=ColorRole::Accent
-                            />
-                        </Show>
-                    </Layers>
+                    <Show value={selected}>
+                        <Frame
+                            width=MARK_SIZE
+                            height=MARK_SIZE
+                            radius=Radius::Sm
+                            fill=ColorRole::Accent
+                        />
+                    </Show>
                 </Frame>
                 <Text>{label}</Text>
             </List>
@@ -601,9 +607,9 @@ pub(crate) fn PopupsPage() -> NodeId {
 
 fn popup_surface() -> AnchoredStyle {
     AnchoredStyle::new(
-        |content: Child| {
+        |dropdown: Dropdown| {
             view! {
-                <PopupPanel>{content}</PopupPanel>
+                <PopupPanel>{dropdown.content}</PopupPanel>
             }
         },
         |handle: AnchoredSheetHandle| {
@@ -614,7 +620,7 @@ fn popup_surface() -> AnchoredStyle {
             } = handle;
             view! {
                 <beui::styled::ModalSheet open={open} fit=true on_close={on_close}>||
-                    <Frame padding=Space::Lg>{content.call(())}</Frame>
+                    <Frame padding=Space::Lg>{content.call()}</Frame>
                 </beui::styled::ModalSheet>
             }
         },
@@ -703,7 +709,7 @@ fn ExportMenu() -> NodeId {
             <List direction=Direction::Horizontal spacing=Space::None>
                 <unstyled::MenuButton
                     items={view! {
-                        <ForEach keys={(0..formats.len()).collect::<Vec<_>>()}>|index: usize|
+                        <ForEach value={(0..formats.len()).collect::<Vec<_>>()}>|index: usize|
                             <unstyled::MenuItem
                                 label={formats[index]}
                                 on_click={move || exported.set(format!("Exported as {}", formats[index]))}
@@ -718,7 +724,7 @@ fn ExportMenu() -> NodeId {
                                         |handle: MenuRowHandle| view! {
                                             <MenuRow handle />
                                         },
-                                        |menu: Child| view! {
+                                        |menu: NodeId| view! {
                                             <PopupPanel>{menu}</PopupPanel>
                                         },
                                     )}
@@ -754,7 +760,7 @@ fn RunSplit() -> NodeId {
                                         |handle: MenuRowHandle| view! {
                                             <MenuRow handle />
                                         },
-                                        |menu: Child| view! {
+                                        |menu: NodeId| view! {
                                             <PopupPanel>{menu}</PopupPanel>
                                         },
                                     )}
@@ -797,14 +803,43 @@ pub(crate) fn DraggingPage() -> NodeId {
     view! {
         <ScrollPage>
             <Sample
-                title="Draggable and drop target"
+                title="Fruit carried between two bins"
                 code={vec![FruitBins::SOURCE, FruitBin::SOURCE, FruitChip::SOURCE]}
             >
                 <FruitBins />
             </Sample>
+            <Sample
+                title="A list whose rows are dragged to places"
+                code={vec![PlacesList::SOURCE, FruitChip::SOURCE]}
+            >
+                <PlacesList />
+            </Sample>
+            <Sample
+                title="Free placing that snaps to slots"
+                code={vec![SnapArea::SOURCE, SnapSlot::SOURCE]}
+            >
+                <SnapArea />
+            </Sample>
+            <Sample title="A switch dragged between its states" code={vec![DragSwitch::SOURCE]}>
+                <DragSwitch />
+            </Sample>
+            <Sample
+                title="Thumbs lifted at the press, two at once"
+                code={vec![PressedThumbs::SOURCE, PressedThumb::SOURCE]}
+            >
+                <PressedThumbs />
+            </Sample>
         </ScrollPage>
     }
 }
+
+/// What a bin fruit's carry holds: its own type, so no other site takes or lifts it.
+#[derive(Clone, Copy, PartialEq)]
+struct BinFruit(usize);
+
+/// What a list row's carry holds: its own type, apart from the bins' fruit.
+#[derive(Clone, Copy, PartialEq)]
+struct PlaceFruit(usize);
 
 #[sample]
 #[component]
@@ -822,6 +857,9 @@ fn FruitBins() -> NodeId {
     }
 }
 
+/// A bin as a drop site: the whole bin is its one place for a fruit from the other bin, its
+/// edge lit while one is carried over it. Its fruit scrolls inside it, and a chip carried out
+/// floats as its own face, which the bin's scroll does not clip.
 #[sample]
 #[component]
 fn FruitBin(bin: usize, bins: Signal<Vec<usize>>) -> NodeId {
@@ -830,38 +868,309 @@ fn FruitBin(bin: usize, bins: Signal<Vec<usize>>) -> NodeId {
             .filter(|fruit| bins.get()[*fruit] == bin)
             .collect::<Vec<usize>>()
     });
+    let area = NodeRef::new();
+    let site = unstyled::use_drop_site(
+        Func::new(move |BinFruit(fruit): BinFruit| bins.with_untracked(|bins| bins[fruit] != bin)),
+        Func::new(move |_: BinFruit| {
+            unstyled::place_on(area, ()).map_or(drag::floating(), drag::fixed)
+        }),
+        Callback::new(move |(BinFruit(fruit), ()): (BinFruit, ())| {
+            bins.update(|bins| bins[fruit] = bin)
+        }),
+    );
+    let edge = create_memo(move || match site.over.get() {
+        Some(()) => ColorRole::Accent,
+        None => ColorRole::Border,
+    });
     view! {
-        <unstyled::DropTarget
-            on_drop={move |(fruit, _): (usize, DragPoint)| bins.update(|bins| bins[fruit] = bin)}
-        >|handle: DropHandle| {
-            let DropHandle { over, .. } = handle;
-            let edge = create_memo(move || match over.get() {
-                true => ColorRole::Accent,
-                false => ColorRole::Border,
-            });
-            view! {
-                <Frame
-                    height=BIN_HEIGHT
-                    border={create_memo(move || Some(Border::new(edge.get()).width(Stroke::Focus)))}
-                    radius=Radius::Lg
-                    padding=Space::Lg
-                >
+        <Frame
+            @node_ref=&area
+            height=BIN_HEIGHT
+            border={move || Some(Border::new(edge.get()).width(Stroke::Focus))}
+            radius=Radius::Lg
+        >
+            <Scroll>
+                <Frame padding=Space::Lg>
                     <List spacing=Space::Md>
                         <Text color=TextColor::Muted>{BINS[bin].to_owned()}</Text>
-                        <ForEach keys={fruits}>|fruit: usize|
-                            <unstyled::Draggable
-                                payload={Some(fruit)}
-                                preview={move |fruit: usize| view! {
-                                    <FruitChip fruit lifted=true />
-                                }}
-                            >|handle: DragHandle|
-                                <FruitChip fruit lifted={handle.dragging} />
-                            </unstyled::Draggable>
-                        </ForEach>
+                        <ForEach value={fruits}>|fruit: usize| {
+                            let lifted = unstyled::is_carried(BinFruit(fruit));
+                            view! {
+                                <Interactive
+                                    @test_id={format!("demo.bin.{fruit}")}
+                                    drag={Func::new(move |_: PointerPress| Some(drag::Carry::new(BinFruit(fruit))))}
+                                >
+                                    <FruitChip fruit lifted />
+                                </Interactive>
+                            }
+                        }</ForEach>
                     </List>
                 </Frame>
-            }
-        }</unstyled::DropTarget>
+            </Scroll>
+        </Frame>
+    }
+}
+
+/// A list as a drop site: its places are read from where its rows are laid out
+/// (`slots_in`), the rows draw the order with the carried row moved to the place chosen, and
+/// only the release writes it. Rows lift by dragging, or from the keyboard: focus one and
+/// press Space, then the arrows and Enter.
+#[sample]
+#[component]
+fn PlacesList() -> NodeId {
+    let fruits = create_signal((0..PRODUCE.len()).collect::<Vec<usize>>());
+    let rows = ForEachRef::<usize, NodeId>::new();
+    let list = NodeRef::new();
+    let site = unstyled::use_drop_site(
+        Func::new(|_: PlaceFruit| true),
+        Func::new(move |PlaceFruit(fruit): PlaceFruit| {
+            drag::closest(unstyled::slots_in(
+                list,
+                rows,
+                Some(&fruit),
+                Direction::Vertical,
+            ))
+            .when_far(drag::floating())
+        }),
+        Callback::new(
+            move |(PlaceFruit(fruit), drag::After(after)): (PlaceFruit, drag::After<usize>)| {
+                fruits.update(|fruits| drag::move_after(fruits, fruit, after))
+            },
+        ),
+    );
+    let order = create_memo(move || {
+        let mut order = fruits.get();
+        if let (Some(fruit), Some(drag::After(after))) = (
+            unstyled::carrying::<PlaceFruit>()
+                .first()
+                .map(|PlaceFruit(fruit)| *fruit),
+            site.over.get(),
+        ) {
+            drag::move_after(&mut order, fruit, after);
+        }
+        order
+    });
+    view! {
+        <List @node_ref=&list spacing=Space::Sm>
+            <ForEach value={order} handle={rows}>|fruit: usize| {
+                let carried = unstyled::is_carried(PlaceFruit(fruit));
+                view! {
+                    <Interactive
+                        @test_id={format!("demo.places.{fruit}")}
+                        focusable=true
+                        drag={Func::new(move |_: PointerPress| Some(drag::Carry::new(PlaceFruit(fruit))))}
+                    >
+                        <FruitChip fruit lifted={carried} />
+                    </Interactive>
+                }
+            }</ForEach>
+        </List>
+    }
+}
+
+/// Where a chip lands in the area: in a slot, or anywhere else, where it was let go.
+#[derive(Clone, Copy, PartialEq)]
+enum Placed {
+    Slot(usize),
+    Free(Rect),
+}
+
+const SNAP_SLOTS: [Pos2; 3] = [
+    Pos2::new(16.0, 16.0),
+    Pos2::new(136.0, 16.0),
+    Pos2::new(256.0, 16.0),
+];
+const SNAP_CHIP: Vec2 = Vec2::new(96.0, 40.0);
+
+/// A chip placed anywhere in an area, snapping into a slot within reach of one:
+/// `closest(slots).when_far(free(area))`.
+#[sample]
+#[component]
+fn SnapArea() -> NodeId {
+    let at = create_signal(Pos2::new(136.0, 100.0));
+    let area = NodeRef::new();
+    let site = unstyled::use_drop_site(
+        Func::new(|_: ()| true),
+        Func::new(move |_: ()| {
+            let slots = SNAP_SLOTS.iter().enumerate().map(|(slot, min)| {
+                drag::Candidate::new(
+                    Placed::Slot(slot),
+                    Rect::from_min_size(*min, SNAP_CHIP),
+                    area,
+                )
+            });
+            drag::closest(slots).when_far(drag::free(area, Placed::Free))
+        }),
+        Callback::new(move |((), placed_at): ((), Placed)| {
+            at.set(match placed_at {
+                Placed::Slot(slot) => SNAP_SLOTS[slot],
+                Placed::Free(rect) => rect.min,
+            });
+        }),
+    );
+    let snapped = create_memo(move || matches!(site.over.get(), Some(Placed::Slot(_))));
+    view! {
+        <Frame
+            @node_ref=&area
+            height=Size::Custom(180.0)
+            fill=ColorRole::Surface
+            border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
+            radius=Radius::Lg
+        >
+            <Layers>
+                <SnapSlot at={SNAP_SLOTS[0]} />
+                <SnapSlot at={SNAP_SLOTS[1]} />
+                <SnapSlot at={SNAP_SLOTS[2]} />
+                <List spacing=Space::None align=Align::Start>
+                    <Frame translate={move || at.get().to_vec2()}>
+                        <Interactive
+                            @test_id="demo.snap.chip"
+                            focusable=true
+                            drag={Func::new(|_: PointerPress| Some(drag::Carry::new(())))}
+                        >
+                            <Frame
+                                width=Size::Custom(SNAP_CHIP.x)
+                                height=Size::Custom(SNAP_CHIP.y)
+                                fill={move || match snapped.get() {
+                                    true => ColorRole::AccentSoft,
+                                    false => ColorRole::Control,
+                                }}
+                                radius=Radius::Md
+                            />
+                        </Interactive>
+                    </Frame>
+                </List>
+            </Layers>
+        </Frame>
+    }
+}
+
+/// The outline of a slot in `SnapArea`, at `at` in the area.
+#[sample]
+#[component]
+fn SnapSlot(at: Pos2) -> NodeId {
+    view! {
+        <List spacing=Space::None align=Align::Start>
+            <Frame
+                translate={at.to_vec2()}
+                width=Size::Custom(SNAP_CHIP.x)
+                height=Size::Custom(SNAP_CHIP.y)
+                border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
+                radius=Radius::Md
+            />
+        </List>
+    }
+}
+
+/// A switch whose knob is dragged to either end: two places, the nearer chosen, and a fast
+/// flick lands at the end it heads for (`thrown`).
+#[sample]
+#[component]
+fn DragSwitch() -> NodeId {
+    let on = create_signal(false);
+    let track = NodeRef::new();
+    let knob = |at: f32| Rect::from_min_size(Pos2::new(at, 2.0), Vec2::new(28.0, 28.0));
+    unstyled::use_drop_site(
+        Func::new(|_: ()| true),
+        Func::new(move |_: ()| {
+            drag::closest([
+                drag::Candidate::new(false, knob(2.0), track),
+                drag::Candidate::new(true, knob(30.0), track),
+            ])
+            .thrown()
+        }),
+        Callback::new(move |((), state): ((), bool)| on.set(state)),
+    );
+    view! {
+        <Frame
+            @node_ref=&track
+            width=Size::Custom(60.0)
+            height=Size::Custom(32.0)
+            radius=Radius::Full
+            fill={move || match on.get() {
+                true => ColorRole::Accent,
+                false => ColorRole::Control,
+            }}
+        >
+            <List spacing=Space::None align=Align::Start>
+                <Frame translate={move || Vec2::new(if on.get() { 30.0 } else { 2.0 }, 2.0)}>
+                    <Interactive drag={Func::new(|_: PointerPress| Some(drag::Carry::new(())))}>
+                        <Frame
+                            width=Size::Custom(28.0)
+                            height=Size::Custom(28.0)
+                            radius=Radius::Full
+                            fill=ColorRole::Surface
+                        />
+                    </Interactive>
+                </Frame>
+            </List>
+        </Frame>
+    }
+}
+
+/// Two thumbs on tracks, each a `free` place lifted at a mouse's press (a finger lifts it
+/// past the threshold, telling it from a scroll), scrolling nothing however near the page's
+/// edge it is held; the mouse and a finger, or two controllers, carry one each at once.
+#[sample]
+#[component]
+fn PressedThumbs() -> NodeId {
+    view! {
+        <List spacing=Space::Md>
+            <PressedThumb thumb=0 />
+            <PressedThumb thumb=1 />
+        </List>
+    }
+}
+
+const THUMB: Vec2 = Vec2::new(24.0, 24.0);
+
+/// What a thumb's carry holds: its own type, so no other site takes it.
+#[derive(Clone, Copy, PartialEq)]
+struct CarriedThumb(usize);
+
+#[sample]
+#[component]
+fn PressedThumb(thumb: usize) -> NodeId {
+    let at = create_signal(0.0_f32);
+    let track = NodeRef::new();
+    let site = unstyled::use_drop_site(
+        Func::new(move |carried: CarriedThumb| carried == CarriedThumb(thumb)),
+        Func::new(move |_: CarriedThumb| drag::free(track, |rect: Rect| rect.min.x)),
+        Callback::new(move |(_, x): (CarriedThumb, f32)| at.set(x)),
+    );
+    // The thumb is drawn where the carry is over, and stays where it was if put down.
+    let shown = create_memo(move || site.over.get().unwrap_or(at.get()));
+    view! {
+        <Frame
+            @node_ref=&track
+            height=Size::Custom(THUMB.y)
+            fill=ColorRole::Control
+            radius=Radius::Full
+        >
+            <List spacing=Space::None align=Align::Start>
+                <Frame translate={move || Vec2::new(shown.get(), 0.0)}>
+                    <Interactive
+                        @test_id={format!("demo.thumb.{thumb}")}
+                        lifts_on_press=true
+                        touch_drags={TouchDrags::Along(Direction::Horizontal)}
+                        drag={Func::new(move |_: PointerPress| {
+                            Some(
+                                drag::Carry::new(CarriedThumb(thumb))
+                                    .drawn_by_site()
+                                    .scrolls_nothing(),
+                            )
+                        })}
+                    >
+                        <Frame
+                            width=Size::Custom(THUMB.x)
+                            height=Size::Custom(THUMB.y)
+                            radius=Radius::Full
+                            fill=ColorRole::Accent
+                        />
+                    </Interactive>
+                </Frame>
+            </List>
+        </Frame>
     }
 }
 
@@ -900,11 +1209,11 @@ fn ThinScroll() -> NodeId {
         <Frame border={Border::new(ColorRole::Border).width(Stroke::Hairline)} radius=Radius::Lg>
             <List spacing=Space::None>
                 <ListItem length=SCROLL_HEIGHT>
-                    <unstyled::Scroll scrollbar={thin_scrollbar()}>
+                    <unstyled::Scroll style={thin_scrollbar()}>
                         <Frame padding=Space::Lg>
                             <List spacing=Space::Sm>
                                 <ForEach
-                                    keys={(1..=SCROLL_LINES).collect::<Vec<usize>>()}
+                                    value={(1..=SCROLL_LINES).collect::<Vec<usize>>()}
                                 >|line: usize|
                                     <Text>{format!("Line {line}")}</Text>
                                 </ForEach>
@@ -918,27 +1227,30 @@ fn ThinScroll() -> NodeId {
 }
 
 #[sample]
-fn thin_scrollbar() -> ScrollbarStyle {
-    ScrollbarStyle::new(BAR_WIDTH, |handle: ScrollHandle| {
-        let ScrollHandle {
-            position,
-            direction,
-            scroll_to,
-            visibility,
-            on_engage,
-        } = handle;
-        view! {
-            <unstyled::Scrollbar
-                position
-                direction
-                shown={create_memo(move || visibility.get() > 0.0)}
-                on_scroll_to={move |offset: f32| scroll_to.call(offset)}
-                on_engage={move |engaged: bool| on_engage.call(engaged)}
-            >|bar: ScrollbarHandle|
-                <ThinThumb bar visibility />
-            </unstyled::Scrollbar>
-        }
-    })
+fn thin_scrollbar() -> ScrollStyle {
+    ScrollStyle::new(RUBBER).bar(
+        BAR_WIDTH,
+        RenderFn::new(|handle: ScrollHandle| {
+            let ScrollHandle {
+                position,
+                direction,
+                scroll_to,
+                visibility,
+                on_engage,
+            } = handle;
+            view! {
+                <unstyled::Scrollbar
+                    position
+                    direction
+                    shown={create_memo(move || visibility.get() > 0.0)}
+                    on_scroll_to={move |offset: f32| scroll_to.call(offset)}
+                    on_engage={move |engaged: bool| on_engage.call(engaged)}
+                >|bar: ScrollbarHandle|
+                    <ThinThumb bar visibility />
+                </unstyled::Scrollbar>
+            }
+        }),
+    )
 }
 
 #[sample]
@@ -1108,6 +1420,7 @@ fn underlined_style() -> TextInputStyle {
         prose: Prop::Static(None),
         geometry: Prop::Static(text_area_geometry()),
         menu: None,
+        scroll: ScrollStyle::new(RUBBER),
     }
 }
 
@@ -1195,7 +1508,7 @@ fn SwatchDot(handle: SwatchHandle) -> NodeId {
             height=DOT_SIZE
             fill={ColorRole::custom(color)}
             radius=PILL_RADIUS
-            border={create_memo(move || ring.get().then_some(Border::new(ColorRole::Text).width(Stroke::Focus).offset(Stroke::Focus)))}
+            border={move || ring.get().then_some(Border::new(ColorRole::Text).width(Stroke::Focus).offset(Stroke::Focus))}
         />
     }
 }
@@ -1235,7 +1548,7 @@ fn FolderTree() -> NodeId {
         <Frame width=PANEL_WIDTH height=TREE_HEIGHT>
             <List spacing=Space::None>
                 <ListItem grow=1.0>
-                    <unstyled::Scroll @node_ref={&viewport}>
+                    <unstyled::Scroll @node_ref={&viewport} style={ScrollStyle::new(RUBBER)}>
                         <unstyled::Tree
                             api=tree
                             keys
@@ -1386,7 +1699,7 @@ fn PlainNote() -> NodeId {
                                 |handle: MenuRowHandle| view! {
                                     <MenuRow handle />
                                 },
-                                |menu: Child| view! {
+                                |menu: NodeId| view! {
                                     <PopupPanel>{menu}</PopupPanel>
                                 },
                             )
@@ -1394,7 +1707,7 @@ fn PlainNote() -> NodeId {
                                 |handle: ButtonHandle| view! {
                                     <ToolbarKey handle />
                                 },
-                                |keys: Child| view! {
+                                |keys: NodeId| view! {
                                     <ToolbarStrip>{keys}</ToolbarStrip>
                                 },
                             ))}
@@ -1402,16 +1715,17 @@ fn PlainNote() -> NodeId {
             >|open_menu: Callback<Option<Rect>>|
                 <unstyled::TextArea
                     state
-                    colors={create_memo(move || beui::styled::text_area_colors(&theme.get()))}
+                    colors={move || beui::styled::text_area_colors(&theme.get())}
                     look={beui::styled::text_area_look()}
                     font_size=14.0
+                    scroll={ScrollStyle::new(RUBBER)}
                     padding={beui::Sides::symmetric(12.0, 8.0)}
                     completer={emoji_completer()}
                     completion_menu={CompletionMenu::new(
                         |handle: CompletionRowHandle| view! {
                             <CompletionRow handle />
                         },
-                        |rows: Child| view! {
+                        |rows: NodeId| view! {
                             <PopupPanel>{rows}</PopupPanel>
                         },
                     )}
@@ -1430,12 +1744,7 @@ fn CompletionRow(handle: CompletionRowHandle) -> NodeId {
         highlighted,
         ..
     } = handle;
-    let label = create_memo(move || {
-        completion
-            .get()
-            .map(|item| format!("{} {}", item.insert, item.label))
-            .unwrap_or_default()
-    });
+    let label = format!("{} {}", completion.insert, completion.label);
     let fill = create_memo(move || match highlighted.get() {
         true => ColorRole::Hover,
         false => ColorRole::None,
@@ -1462,11 +1771,12 @@ fn PullUpSheet() -> NodeId {
                 fit=true
                 rest=0.9
                 stops={vec![0.9]}
+                style={thin_scrollbar()}
                 scrim={Color32::from_rgba_unmultiplied(0, 0, 0, 120)}
                 grip={move |_: SheetGripHandle| view! {
                     <SheetGrip />
                 }}
-                panel={move |content: Child| view! {
+                panel={move |content: NodeId| view! {
                     <Frame fill=ColorRole::Surface radius=Radius::Lg>{content}</Frame>
                 }}
                 on_close={move || open.set(false)}
@@ -1513,6 +1823,7 @@ fn FolderPages() -> NodeId {
     let label = create_memo(move || folder_label(depth.get()));
     view! {
         <unstyled::BackSlide
+            curves=SLIDE_CURVES
             enabled={nested}
             on_back={move || depth.set(depth.get_untracked().saturating_sub(1))}
             behind={above}
@@ -1570,7 +1881,7 @@ fn DeadlinePicker() -> NodeId {
                     literal={move |text: String| view! {
                         <Text color=TextColor::Muted>{text}</Text>
                     }}
-                    segments={move |segments: Child| view! {
+                    segments={move |segments: NodeId| view! {
                         <Frame padding={Padding::symmetric(Space::Md, Space::Sm)}>{segments}</Frame>
                     }}
                     field={move |handle: DateTimeBoxHandle| view! {
@@ -1628,7 +1939,7 @@ fn DateBox(handle: DateTimeBoxHandle) -> NodeId {
     });
     view! {
         <Frame
-            border={create_memo(move || Some(Border::new(line.get()).width(Stroke::Hairline)))}
+            border={move || Some(Border::new(line.get()).width(Stroke::Hairline))}
             radius=Radius::Md
             padding={Padding::vertical(Space::Xs).right(Space::Xs)}
         >

@@ -14,7 +14,7 @@ fn SharedTools(id: u64, tools: usize, pressed: Signal<Vec<u64>>) -> NodeId {
                 <Frame @test_id={format!("grip.{id}")}>
                     <dock::styled::DockBarGrip />
                 </Frame>
-                <ForEach keys={(0..tools).collect::<Vec<_>>()}>|tool: usize|
+                <ForEach value={(0..tools).collect::<Vec<_>>()}>|tool: usize|
                     <Interactive
                         on_press={move |_: PointerPress| pressed.update(|pressed| pressed.push(id))}
                     >
@@ -51,7 +51,8 @@ fn pick(harness: &mut Harness, grip: &str, row: &str) {
     harness.click(harness.center(harness.find(grip)));
     harness.frame(Vec::new());
     let root = harness.document().root().expect("the document has a root");
-    let row = text_within(harness.document(), root, row).expect("the grip opens its menu");
+    let row =
+        find_text(harness.document(), root, row, Match::Exact).expect("the grip opens its menu");
     harness.click(harness.center(row));
     harness.frame(Vec::new());
     harness.frame(Vec::new());

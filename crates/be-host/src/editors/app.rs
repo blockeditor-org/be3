@@ -23,13 +23,14 @@ use be_host_runtime::{
 };
 
 /// What one instance's events left for the host object that runs it, until it takes them.
-struct Inbox<T> {
+pub(crate) struct Inbox<T> {
     held: Rc<RefCell<Vec<T>>>,
     _mailbox: host::Mailbox,
 }
 
 impl<T: 'static> Inbox<T> {
-    fn new(
+    /// Holds what `pick` takes of the events the editor `instance` of the app `app_id` sends.
+    pub(crate) fn new(
         app_id: &str,
         instance: EditorInstanceId,
         pick: impl Fn(InstanceEvent) -> Option<T> + 'static,
@@ -49,14 +50,14 @@ impl<T: 'static> Inbox<T> {
     }
 
     /// The latest it holds, forgetting the rest.
-    fn take_latest(&self) -> Option<T> {
+    pub(crate) fn take_latest(&self) -> Option<T> {
         std::mem::take(&mut *self.held.borrow_mut()).pop()
     }
 }
 
 static NEXT_INSTANCE: AtomicU64 = AtomicU64::new(1);
 
-fn next_instance() -> EditorInstanceId {
+pub(crate) fn next_instance() -> EditorInstanceId {
     EditorInstanceId(NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed))
 }
 
@@ -147,6 +148,22 @@ impl AppPicker {
         }
     }
 
+    /// The Export dialog of `block`, in the app of its editor `editor`, running `request`.
+    pub(crate) fn export(
+        app: Arc<AppManifest>,
+        editor: Uuid,
+        block: EditorBlock,
+        request: be_sdk_api::ExportRequest,
+    ) -> Self {
+        let instance = next_instance();
+        be_host_runtime::ask_export(instance, request);
+        Self {
+            app,
+            role: InstanceRole::Export(editor, block),
+            instance,
+        }
+    }
+
     pub(crate) fn region(&self, registry: &EditorRegistry, client_id: Uuid) -> HostedView {
         HostedView {
             editor: ViewEditor {
@@ -173,7 +190,14 @@ impl AppPicker {
     }
 
     pub(crate) fn intrinsic(&self) -> Option<Vec2> {
-        be_host_runtime::intrinsic_size(&self.app.identity.id, self.instance)
+        match self.role {
+            // The Export dialog is as tall as it lays itself out, as a creation dialog is.
+            InstanceRole::Export(..) => {
+                be_host_runtime::view_size(&self.app.identity.id, self.instance, ViewId::MAIN)
+                    .map(|size| Vec2::new(0.0, size.y.max(1.0)))
+            }
+            _ => be_host_runtime::intrinsic_size(&self.app.identity.id, self.instance),
+        }
     }
 
     pub(crate) fn card(&self) -> bool {
@@ -189,6 +213,7 @@ impl Drop for AppPicker {
     fn drop(&mut self) {
         be_host_runtime::close(&self.app.identity.id, self.instance);
         be_host_runtime::forget_picker(self.instance);
+        be_host_runtime::forget_export(self.instance);
     }
 }
 
@@ -254,15 +279,14 @@ impl PendingCreation for AppCreation {
         })
     }
 
+    fn name(&self) -> &'static str {
+        self.target.name
+    }
+
     fn create(&mut self) -> Result<Option<Uuid>, String> {
         match &self.state {
             CreationState::Starting => return Ok(None),
-            CreationState::Failed(error) => {
-                return Err(format!(
-                    "{} could not be created: {error}",
-                    self.target.name
-                ));
-            }
+            CreationState::Failed(error) => return Err(error.clone()),
             CreationState::Ready => {}
         }
         if !self.committed {
@@ -274,10 +298,7 @@ impl PendingCreation for AppCreation {
             Some(Ok(block_id)) => Ok(Some(block_id)),
             Some(Err(error)) => {
                 self.committed = false;
-                Err(format!(
-                    "{} could not be created: {error}",
-                    self.target.name
-                ))
+                Err(error)
             }
         }
     }
@@ -285,6 +306,19 @@ impl PendingCreation for AppCreation {
 
 const CREATION_DIALOG_HEIGHT: f32 = 96.0;
 const UNSUPPORTED_EDITOR_SIZE: Vec2 = vec2(400.0, 120.0);
+
+/// The size an editor that tells none is taken to want, and the one an empty canvas tells
+/// (be-app-infinite-canvas's `EMPTY_SIZE`).
+const DEFAULT_EDITOR_SIZE: Vec2 = vec2(420.0, 240.0);
+
+/// The intrinsic size an app's editor told, or, once it has reported a frame without telling
+/// one, the default; `None` until then, so a placer fits a child to what it tells rather than
+/// to a default it replaces a frame later.
+pub(crate) fn told_intrinsic_size(app_id: &str, instance: EditorInstanceId) -> Option<Vec2> {
+    be_host_runtime::intrinsic_size(app_id, instance).or_else(|| {
+        be_host_runtime::reported_a_frame(app_id, instance).then_some(DEFAULT_EDITOR_SIZE)
+    })
+}
 
 pub(crate) struct AppEditor {
     app: Option<(Arc<AppManifest>, Uuid)>,
@@ -439,37 +473,53 @@ impl AppEditor {
         self.block_type
     }
 
-    pub(crate) fn add_child(&self, child: Uuid) -> Option<bool> {
+    /// Adds `child` to the block's content through its type: none while the type is not known
+    /// yet, otherwise what the type answers (`be_host_stack::ChildChanged`). So do
+    /// `delete_child`, `copy_in_place` and `reorder_child`.
+    pub(crate) fn add_child(&self, child: Uuid) -> Option<be_host_stack::ChildChanged> {
         self.change_child(be_block_content::ChildChange::Add(child))
     }
 
-    pub(crate) fn delete_child(&self, child: Uuid) -> Option<bool> {
+    pub(crate) fn delete_child(&self, child: Uuid) -> Option<be_host_stack::ChildChanged> {
         self.change_child(be_block_content::ChildChange::Delete(child))
     }
 
-    pub(crate) fn replace_child(&self, old: Uuid, new: Uuid) -> Option<bool> {
-        let replace = be_block_content::ChildChange::Replace { old, new };
-        let Some(app) = self.app() else {
-            return self.change_child(replace);
-        };
-        if !be_host_stack::discovery::block_type(self.block_type)
-            .is_some_and(|block_type| block_type.children.replace)
-        {
-            return None;
-        }
-        match be_host_runtime::replace_child(&app.identity.id, self.instance, old, new) {
-            Some(true) => Some(true),
-            Some(false) => self.change_child(replace),
-            None => None,
-        }
+    /// Whether the block's type takes `ChildChange::Replace` (its manifest's `children.replace`),
+    /// or none while the type is not known yet.
+    pub(crate) fn takes_replace(&self) -> Option<bool> {
+        Some(
+            be_host_stack::discovery::block_type(self.block_type)?
+                .children
+                .replace,
+        )
     }
 
-    pub(crate) fn reorder_child(&self, child: Uuid, after: Option<Uuid>) -> Option<bool> {
+    /// Puts a new copy of the child `source` in its place (Unlink), answering the copy's id and
+    /// what the type did (`be_host_stack::replace_with_copy`): refused at once by a type whose
+    /// manifest does not take it, none while the type or the source is not known yet.
+    pub(crate) fn copy_in_place(
+        &self,
+        source: Uuid,
+    ) -> Option<(Uuid, be_host_stack::ChildChanged)> {
+        if !self.takes_replace()? {
+            return Some((Uuid::nil(), be_host_stack::ChildChanged::refused()));
+        }
+        let copy = Uuid::now_v7();
+        be_host_stack::replace_with_copy(self.id, self.block_type, source, copy)
+            .map(|answer| (copy, answer))
+    }
+
+    /// Moves `child` after `after`, refused at once by a type whose manifest keeps no order.
+    pub(crate) fn reorder_child(
+        &self,
+        child: Uuid,
+        after: Option<Uuid>,
+    ) -> Option<be_host_stack::ChildChanged> {
         if !be_host_stack::discovery::block_type(self.block_type)?
             .children
             .reorder
         {
-            return Some(false);
+            return Some(be_host_stack::ChildChanged::refused());
         }
         self.change_child(be_block_content::ChildChange::Reorder {
             block: child,
@@ -477,7 +527,10 @@ impl AppEditor {
         })
     }
 
-    fn change_child(&self, change: be_block_content::ChildChange) -> Option<bool> {
+    fn change_child(
+        &self,
+        change: be_block_content::ChildChange,
+    ) -> Option<be_host_stack::ChildChanged> {
         be_host_stack::change_child(self.id, self.block_type, change)
     }
 
@@ -519,10 +572,7 @@ impl AppEditor {
         let Some(app) = self.app() else {
             return Some(UNSUPPORTED_EDITOR_SIZE);
         };
-        Some(
-            be_host_runtime::intrinsic_size(&app.identity.id, self.instance)
-                .unwrap_or_else(|| vec2(420.0, 240.0)),
-        )
+        told_intrinsic_size(&app.identity.id, self.instance)
     }
 
     pub(crate) fn show_block(&self, open: be_host_runtime::BlockOpen) {
@@ -577,13 +627,6 @@ impl AppEditor {
         }
     }
 
-    pub(crate) fn set_artifact_states(&self, states: Vec<be_sdk_api::ArtifactState>) {
-        let Some(app) = self.app() else {
-            return;
-        };
-        be_host_runtime::set_artifact_states(&app.identity.id, self.instance, states);
-    }
-
     pub(crate) fn tab_closed(&mut self) {
         self.sync_active_presence(false);
         self.stop_presenting();
@@ -603,6 +646,7 @@ pub(super) struct AppArtifact {
     editor: Uuid,
     block: EditorBlock,
     source: Uuid,
+    exporter: String,
     client_id: Uuid,
     instance: EditorInstanceId,
     opened: bool,
@@ -611,6 +655,8 @@ pub(super) struct AppArtifact {
     outcome: Option<Result<(), String>>,
     outcomes: Inbox<Result<(), String>>,
     regenerating: bool,
+    /// Why the instance last said it could not make the artifact again.
+    failure: Option<String>,
 }
 
 impl AppArtifact {
@@ -618,6 +664,7 @@ impl AppArtifact {
         app: Arc<AppManifest>,
         editor: Uuid,
         source: Uuid,
+        exporter: String,
         target_id: Uuid,
         target_type: Uuid,
         client_id: Uuid,
@@ -631,6 +678,7 @@ impl AppArtifact {
             app,
             editor,
             source,
+            exporter,
             client_id,
             block: EditorBlock {
                 id: target_id,
@@ -644,6 +692,7 @@ impl AppArtifact {
             outcome: None,
             outcomes,
             regenerating: false,
+            failure: None,
         }
     }
 }
@@ -667,9 +716,17 @@ impl ArtifactSession for AppArtifact {
             editor: self.editor,
             block: self.block,
             source: self.source,
+            exporter: &self.exporter,
             data,
             resync: std::mem::take(&mut self.resync),
         });
+        // A remake that failed as the source changed, which no one asked for, or the next
+        // that worked, reads as an outcome too.
+        let failure = be_host_runtime::artifact_failure(&self.app.identity.id, self.instance);
+        if failure != self.failure {
+            self.failure.clone_from(&failure);
+            self.outcome = Some(failure.map_or(Ok(()), Err));
+        }
         if let Some(outcome) = self.outcomes.take_latest() {
             self.regenerating = false;
             self.outcome = Some(outcome);

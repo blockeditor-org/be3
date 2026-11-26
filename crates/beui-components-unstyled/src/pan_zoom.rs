@@ -1,6 +1,5 @@
 use crate::gestures;
 use accesskit::{Node, Role};
-use beui_macros::{component, view};
 
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
@@ -14,7 +13,8 @@ pub const MAX_SCALE: f32 = 32.0;
 
 const ZOOM_PER_SCROLL_POINT: f32 = 0.004;
 const KEY_STEP: f32 = 40.0;
-const KEY_ZOOM_STEP: f32 = 1.25;
+/// One step of zooming in or out: a `+` or `-` key, a zoom button, `editor.zoom-in`.
+pub const ZOOM_STEP: f32 = 1.25;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct PanZoomView {
@@ -32,6 +32,9 @@ impl PanZoomView {
         Self { center, scale }
     }
 
+    /// The camera that centres `center` in `rect`, in the points `rect` is in: a rect at
+    /// the origin gives the content-local view `PanZoomHandle::view` hands a `local_view`
+    /// canvas; `PanZoom`'s own gestures use its window rect, with anchors in window points.
     pub fn canvas(self, rect: Rect) -> CanvasView {
         let middle = rect.center();
         CanvasView::new(
@@ -43,6 +46,7 @@ impl PanZoomView {
         )
     }
 
+    /// Where `point`, in the same points as `rect`, is in the world.
     pub fn to_world(self, rect: Rect, point: Pos2) -> Pos2 {
         self.canvas(rect).to_canvas(point)
     }
@@ -66,6 +70,7 @@ impl PanZoomView {
 }
 
 pub struct PanZoomHandle {
+    /// The camera in the content's own points: hand it to a `Canvas` with `local_view`.
     pub view: Memo<Option<CanvasView>>,
     pub scale: Memo<f32>,
     pub panning: ReadSignal<bool>,
@@ -101,8 +106,8 @@ impl Camera {
             _ => None,
         };
         let zoom = match press.key {
-            Key::Plus => Some(KEY_ZOOM_STEP),
-            Key::Minus => Some(KEY_ZOOM_STEP.recip()),
+            Key::Plus => Some(ZOOM_STEP),
+            Key::Minus => Some(ZOOM_STEP.recip()),
             _ => None,
         };
         if pan.is_none() && zoom.is_none() && press.key != Key::Zero {
@@ -150,15 +155,14 @@ pub fn PanZoom(
     #[prop(default = MIN_SCALE)] min_scale: Prop<f32>,
     #[prop(default = MAX_SCALE)] max_scale: Prop<f32>,
     accessibility: Option<Prop<Node>>,
-    #[prop(children)] content: Render<PanZoomHandle>,
+    #[prop(children)] content: Render<PanZoomHandle, NodeId>,
 ) -> NodeId {
-    let rect_held = create_signal(Rect::ZERO);
-    let rect = rect_held.read_only();
+    let rect = create_signal(Rect::ZERO);
     let current = view;
 
     let camera = Camera {
         view: current,
-        rect,
+        rect: rect.read_only(),
         min_scale: create_memo(move || min_scale.get()),
         max_scale: create_memo(move || max_scale.get()),
     };
@@ -180,7 +184,10 @@ pub fn PanZoom(
         }
     });
     let content_node = content.call(PanZoomHandle {
-        view: create_memo(move || Some(current.get().canvas(rect.get()))),
+        view: create_memo(move || {
+            let size = rect.get().size();
+            Some(current.get().canvas(Rect::from_min_size(Pos2::ZERO, size)))
+        }),
         scale: create_memo(move || current.get().scale),
         panning,
         focused: focused.read_only(),
@@ -212,7 +219,7 @@ pub fn PanZoom(
     let rect_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = rect_measured.get() {
-            rect_held.set(measured.rect);
+            rect.set(measured.rect);
         }
     });
     built

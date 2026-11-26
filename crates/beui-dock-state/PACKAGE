@@ -17,8 +17,8 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
-                "//crates/beui-types:beui-types",
             ],
             "examples": {},
             "features": [],
@@ -28,8 +28,8 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
-                "//crates/beui-types:beui-types",
             ],
             "examples": {},
             "features": [],
@@ -39,8 +39,8 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
-                "//crates/beui-types:beui-types",
             ],
             "examples": {},
             "features": [],
@@ -50,8 +50,8 @@ write_package_value("be3.cargo", {
         "linux-x86_64-html": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
-                "//crates/beui-types:beui-types",
             ],
             "examples": {},
             "features": [],
@@ -61,8 +61,8 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
-                "//crates/beui-types:beui-types",
             ],
             "examples": {},
             "features": [],
@@ -72,8 +72,8 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
-                "//crates/beui-types:beui-types",
             ],
             "examples": {},
             "features": [],
@@ -83,8 +83,8 @@ write_package_value("be3.cargo", {
         "wasi": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
-                "//crates/beui-types:beui-types",
             ],
             "examples": {},
             "features": [],
@@ -94,8 +94,8 @@ write_package_value("be3.cargo", {
         "wasi-guest": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
-                "//crates/beui-types:beui-types",
             ],
             "examples": {},
             "features": [],
@@ -105,8 +105,8 @@ write_package_value("be3.cargo", {
         "wasi-html": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
-                "//crates/beui-types:beui-types",
             ],
             "examples": {},
             "features": [],
@@ -116,8 +116,8 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
-                "//crates/beui-types:beui-types",
             ],
             "examples": {},
             "features": [],
@@ -127,8 +127,8 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
-                "//crates/beui-types:beui-types",
             ],
             "examples": {},
             "features": [],

@@ -91,6 +91,7 @@ impl Screens {
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
                 force_fallback_adapter: false,
+                apply_limit_buckets: false,
                 compatible_surface: Some(&surface),
             })
             .await
@@ -456,7 +457,7 @@ impl Screens {
         }?;
         self.queue.submit(Some(encoder.finish()));
         if let Some(frame) = frame {
-            frame.present();
+            self.queue.present(frame);
         }
         if let (Target::Copied { canvas, context }, Some(atlas)) = (target, &self.atlas) {
             copy(&atlas.canvas, canvas, context, size)?;
@@ -613,6 +614,7 @@ impl Layers {
         buffer
             .slice(..)
             .get_mapped_range_mut()
+            .expect("a buffer mapped at creation maps whole")
             .copy_from_slice(&values);
         buffer.unmap();
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -739,6 +741,7 @@ impl Painted {
             present_mode: wgpu::PresentMode::Fifo,
             desired_maximum_frame_latency: 1,
             alpha_mode: self.alpha,
+            color_space: wgpu::SurfaceColorSpace::Auto,
             view_formats: match view == format {
                 true => Vec::new(),
                 false => vec![view],

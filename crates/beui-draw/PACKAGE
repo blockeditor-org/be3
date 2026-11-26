@@ -17,9 +17,10 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-layers:be-lib-layers",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-types:beui-types",
-                "//third-party/rust:wgpu-29.0.3",
+                "//third-party/rust:wgpu-30.0.2",
             ],
             "examples": {},
             "features": [],
@@ -29,9 +30,10 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-layers:be-lib-layers",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-types:beui-types",
-                "//third-party/rust:wgpu-29.0.3",
+                "//third-party/rust:wgpu-30.0.2",
             ],
             "examples": {},
             "features": [],
@@ -41,9 +43,10 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-layers:be-lib-layers",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-types:beui-types",
-                "//third-party/rust:wgpu-29.0.3",
+                "//third-party/rust:wgpu-30.0.2",
             ],
             "examples": {},
             "features": [],
@@ -53,9 +56,10 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-layers:be-lib-layers",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-types:beui-types",
-                "//third-party/rust:wgpu-29.0.3",
+                "//third-party/rust:wgpu-30.0.2",
             ],
             "examples": {},
             "features": [],
@@ -65,9 +69,10 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-layers:be-lib-layers",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-types:beui-types",
-                "//third-party/rust:wgpu-29.0.3",
+                "//third-party/rust:wgpu-30.0.2",
             ],
             "examples": {},
             "features": [],
@@ -77,9 +82,10 @@ write_package_value("be3.cargo", {
         "wasi": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-layers:be-lib-layers",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-types:beui-types",
-                "//third-party/rust:wgpu-29.0.3",
+                "//third-party/rust:wgpu-30.0.2",
             ],
             "examples": {},
             "features": [],
@@ -89,9 +95,10 @@ write_package_value("be3.cargo", {
         "wasi-guest": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-layers:be-lib-layers",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-types:beui-types",
-                "//third-party/rust:wgpu-29.0.3",
+                "//third-party/rust:wgpu-30.0.2",
             ],
             "examples": {},
             "features": [],
@@ -101,9 +108,10 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-layers:be-lib-layers",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-types:beui-types",
-                "//third-party/rust:wgpu-29.0.3",
+                "//third-party/rust:wgpu-30.0.2",
             ],
             "examples": {},
             "features": [],
@@ -113,9 +121,10 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-layers:be-lib-layers",
                 "//crates/beui-core:beui-core",
                 "//crates/beui-types:beui-types",
-                "//third-party/rust:wgpu-29.0.3",
+                "//third-party/rust:wgpu-30.0.2",
             ],
             "examples": {},
             "features": [],

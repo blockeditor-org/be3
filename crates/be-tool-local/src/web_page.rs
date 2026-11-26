@@ -1,22 +1,24 @@
 use beui_html::elements as html;
 use beui_html::{Children, Node, Script, Stylesheet, render, view};
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) enum Page {
     Host,
-    Demo,
     PaintReview,
+    /// A program whose main is beui_host_window::main!, by its module's name.
+    Program(String),
 }
 
 pub fn main(args: Vec<String>) -> std::process::ExitCode {
-    let kind = match args.first().map(String::as_str) {
-        Some("host") => Page::Host,
-        Some("demo") => Page::Demo,
-        Some("paint-review") => Page::PaintReview,
-        _ => panic!("usage: web-page host|demo|paint-review OUTPUT"),
+    let usage = "usage: web-page host|paint-review|program MODULE OUTPUT";
+    let (kind, rest) = match args.first().map(String::as_str) {
+        Some("host") => (Page::Host, &args[1..]),
+        Some("paint-review") => (Page::PaintReview, &args[1..]),
+        Some("program") => (Page::Program(args.get(1).expect(usage).clone()), &args[2..]),
+        _ => panic!("{usage}"),
     };
     let html = page(kind, None);
-    std::fs::write(args.get(1).expect("output path"), html).expect("write HTML");
+    std::fs::write(rest.first().expect(usage), html).expect("write HTML");
     std::process::ExitCode::SUCCESS
 }
 
@@ -29,7 +31,7 @@ html, body {
     color: #d0d0d0;
     font-family: system-ui, sans-serif;
 }
-#demo, #review {
+#app, #review {
     width: 100%;
     height: 100%;
 }
@@ -94,15 +96,19 @@ pub(crate) fn page(kind: Page, base: Option<String>) -> String {
             .into(),
             None => view! {},
         };
-        let (title, imports, js, content) = match kind {
-            Page::Demo => (
-                "beui demo",
-                include_str!("web_page/demo.json"),
-                include_str!("web_page/demo.js"),
-                Children::<Node>::from(view! {
-                    <html::Div id="demo" />
-                }),
-            ),
+        let program_js;
+        let (title, imports, js, content) = match &kind {
+            Page::Program(module) => {
+                program_js = include_str!("web_page/program.js").replace("__MODULE__", module);
+                (
+                    module.as_str(),
+                    include_str!("web_page/program.json"),
+                    program_js.as_str(),
+                    Children::<Node>::from(view! {
+                        <html::Div id="app" />
+                    }),
+                )
+            }
             Page::PaintReview => (
                 "Paintings",
                 include_str!("web_page/paint_review.json"),

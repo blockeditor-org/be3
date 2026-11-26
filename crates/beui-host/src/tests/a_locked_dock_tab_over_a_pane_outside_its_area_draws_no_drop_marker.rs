@@ -13,7 +13,7 @@ fn shown(harness: &Harness, test_id: &str) -> bool {
 fn a_locked_dock_tab_over_a_pane_outside_its_area_draws_no_drop_marker() {
     let _root = crate::reactive::RootScope::new();
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost>
                 <dock::Docking layout focus=10u64>

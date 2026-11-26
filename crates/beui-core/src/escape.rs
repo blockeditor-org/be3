@@ -286,7 +286,10 @@ impl Document {
                 painted,
                 floating,
                 scrims,
+                // One that dims (a confirmation) blocks only its own frame, inside which the
+                // document shuts presses out itself: a press in a sibling frame leaves it open.
                 dismiss_on_outside_press: layer.dismissable
+                    && !layer.modal
                     && matches!(layer.policy, LayerPolicy::BlocksAll | LayerPolicy::Pass),
                 trigger: self
                     .overlay_trigger_rect(overlay)

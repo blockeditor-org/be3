@@ -87,6 +87,8 @@ struct Inner {
     parent: Cell<Option<OpId>>,
     request: Cell<Option<OpId>>,
     dispatch: RefCell<Option<Dispatch>>,
+    /// Which executor this is, unique in the process (`executor`).
+    id: u64,
 }
 
 thread_local! {
@@ -136,6 +138,11 @@ impl Executor {
                 parent: Cell::new(None),
                 request: Cell::new(None),
                 dispatch: RefCell::new(Some(dispatch)),
+                id: {
+                    static NEXT: std::sync::atomic::AtomicU64 =
+                        std::sync::atomic::AtomicU64::new(1);
+                    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                },
             }),
         }
     }
@@ -392,6 +399,13 @@ pub fn request() -> Option<OpId> {
     current().request.get()
 }
 
+/// The executor whose step is running, by an id no other executor in the process has, so state
+/// kept for one (such as the worker an app's editors share) is never found by the next, as when
+/// one test's app ends and another's starts on the same thread.
+pub fn executor() -> u64 {
+    current().id
+}
+
 pub fn spawn(future: impl Future<Output = ()> + 'static) {
     current().spawn(Box::pin(future));
 }
@@ -415,6 +429,9 @@ pub fn end(resource: OpId) {
     }
 }
 
+/// Starts a call of `method` with `args` at once: its `Start` frame is queued as this is called,
+/// before the answer is first awaited, so calls go out in the order they were made, whenever
+/// each is awaited or spawned.
 pub fn call<T, S: Decode<T>, A: Serialize>(method: MethodId, args: &A) -> Pending<T, S> {
     let inner = current();
     let op = inner.start(method, encode(args));
@@ -426,6 +443,9 @@ pub fn call<T, S: Decode<T>, A: Serialize>(method: MethodId, args: &A) -> Pendin
     }
 }
 
+/// Starts a stream of `method` with `args` at once: its `Start` frame is queued as this is
+/// called, before its first item is awaited, so it goes out in order with the calls made around
+/// it.
 pub fn stream<T, S: Decode<T>, A: Serialize>(method: MethodId, args: &A) -> Stream<T, S> {
     let inner = current();
     let op = inner.start(method, encode(args));
@@ -438,6 +458,8 @@ pub fn stream<T, S: Decode<T>, A: Serialize>(method: MethodId, args: &A) -> Stre
     }
 }
 
+/// Opens a resource with `method` and `args` at once: its `Start` frame is queued as this is
+/// called, so it goes out in order with the calls made around it.
 pub fn open<A: Serialize>(method: MethodId, args: &A) -> Resource {
     let inner = current();
     let op = inner.start(method, encode(args));

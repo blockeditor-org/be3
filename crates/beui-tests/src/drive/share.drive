@@ -1,0 +1,8 @@
+# Share shows only where the platform has a share sheet, and a press hands the clip to it:
+# headless and Chromium on Linux have none, so the browser run gives the page one.
+wait 'value="No share sheet"'
+wait not '#share.button'
+#web share-sheet
+#web wait 'value="A share sheet"'
+#web click '#share.button'
+#web shared https://be3.example/invite

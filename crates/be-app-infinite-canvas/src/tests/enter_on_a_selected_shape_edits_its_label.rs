@@ -7,16 +7,12 @@ fn enter_on_a_selected_shape_edits_its_label() {
     let id = card().id;
 
     editor.click(format!("infinite-canvas.entity.{id}"));
-    editor.run();
     editor.key(Key::Enter, Modifiers::NONE);
-    editor.run();
     editor.type_text("Plan ");
     editor.key(Key::B, Modifiers::CTRL);
     editor.type_text("now");
-    editor.run();
     editor.snapshot("a_label_is_edited_in_its_shape");
     editor.key(Key::Escape, Modifiers::NONE);
-    editor.run();
 
     let label = &entities(&editor)[0];
     assert_eq!(
@@ -32,11 +28,9 @@ fn enter_on_a_selected_shape_edits_its_label() {
     editor.snapshot("a_shape_draws_its_rich_label");
 
     editor.double_click(format!("infinite-canvas.entity.{id}"));
-    editor.run();
     editor.key(Key::A, Modifiers::CTRL);
     editor.type_text("Again");
     editor.key(Key::Escape, Modifiers::NONE);
-    editor.run();
     assert_eq!(
         entities(&editor)[0].text.to_str_lossy(),
         "Again",

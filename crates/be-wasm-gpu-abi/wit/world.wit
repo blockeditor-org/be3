@@ -1,9 +1,11 @@
 package be3:gpu@0.1.0;
 
 /// The gpu an app draws with. It is answered inside the app's own worker
-/// or thread on every platform (wasmtime host functions natively,
+/// or thread on every platform (V8 fast-API host functions natively,
 /// be-wasm-gpu-shim in a browser), so its funcs are direct wasm calls that
-/// return their results.
+/// return their results: wasi:webgpu, and `host` for what it leaves out
+/// (decisions/be3_gpu_is_wasi_webgpu.md).
 world gpu {
-    import device;
+    import wasi:webgpu/webgpu@0.3.0-rc.2;
+    import host;
 }

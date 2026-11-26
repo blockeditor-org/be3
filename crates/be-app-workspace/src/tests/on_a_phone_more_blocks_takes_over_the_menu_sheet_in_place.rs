@@ -13,7 +13,6 @@ fn on_a_phone_more_blocks_takes_over_the_menu_sheet_in_place() {
     let menu = fixture.test.rect_of("sheet.handle");
 
     fixture.test.click("picker.more");
-    fixture.test.advance(Duration::from_millis(16));
     let more = fixture.test.rect_of("sheet.handle");
     assert!(
         (more.top() - menu.top()).abs() < 0.5,
@@ -24,6 +23,7 @@ fn on_a_phone_more_blocks_takes_over_the_menu_sheet_in_place() {
         "showing its own content at once"
     );
     fixture.test.advance(Duration::from_millis(48));
+    fixture.test.run();
     let moving = fixture.test.rect_of("sheet.handle");
     fixture.test.record();
 
@@ -32,7 +32,7 @@ fn on_a_phone_more_blocks_takes_over_the_menu_sheet_in_place() {
     assert!(
         (moving.top() - more.top()) * (settled.top() - moving.top()) >= 0.0
             && (settled.top() - more.top()).abs() > (moving.top() - more.top()).abs(),
-        "then eases to its own height, part way at {moving:?} from {more:?} to {settled:?}"
+        "then springs to its own height, part way at {moving:?} from {more:?} to {settled:?}"
     );
     fixture.test.record();
     fixture

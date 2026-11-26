@@ -25,5 +25,5 @@ fn a_joined_docks_bar_moves_to_the_edge_of_another_of_its_panes() {
             && (history.right() - side.right()).abs() < side.width() / 2.0,
         "dropped by the side pane's right edge, the bar moves to that pane: {history:?} by {side:?}"
     );
-    test.snapshot("a_joined_docks_bar_moved_to_the_edge_of_its_side_pane");
+    test.snapshot("a_joined_docks_bar_docked_along_the_edge_of_its_side_pane");
 }

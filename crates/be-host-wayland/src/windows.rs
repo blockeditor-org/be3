@@ -5,6 +5,7 @@ use std::rc::Rc;
 use beui::reactive::*;
 use beui::{CursorIcon, CursorImage, ForwardedInput, Image, NodeId, Rect, Vec2, native::Drawing};
 
+use crate::render::WindowPicture;
 use crate::state::{Grab, WindowId};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -53,6 +54,15 @@ pub struct Popups {
     pub drawing: Drawing,
 }
 
+/// What a window's surfaces drew last (`Compositor::drawing`): its view's drawing, its popups',
+/// and the whole of it for a host that composites it itself (`Windows::picture`).
+#[derive(Default)]
+pub(crate) struct Drawn {
+    pub(crate) drawing: Option<Drawing>,
+    pub(crate) popups: Option<Popups>,
+    pub(crate) picture: Option<Rc<WindowPicture>>,
+}
+
 #[derive(Clone)]
 pub struct WindowSignals {
     pub drawing: Signal<Option<Drawing>>,
@@ -63,6 +73,7 @@ pub struct WindowSignals {
     pub(crate) typing: Signal<Option<u32>>,
     pub(crate) answered: Rc<Cell<u64>>,
     pub(crate) painted: Rc<Cell<bool>>,
+    pub(crate) picture: Rc<RefCell<Option<Rc<WindowPicture>>>>,
     pub(crate) owner: Rc<Scope>,
 }
 
@@ -72,6 +83,9 @@ struct View {
     catchers: Vec<NodeId>,
     popups: Vec<NodeId>,
     mounts: u32,
+    /// Placed by a host that composites it itself (`place`), with no view: it keeps a picture
+    /// of the whole window (`picture`).
+    composited: bool,
 }
 
 struct Inner {
@@ -301,12 +315,8 @@ impl Windows {
 
     pub(crate) fn set_cursor(&self, cursor: CursorIcon, image: Option<CursorImage>) {
         let inner = self.0.value();
-        if inner.cursor.get_untracked() != cursor {
-            inner.cursor.set(cursor);
-        }
-        if inner.cursor_image.with_untracked(|shown| *shown != image) {
-            inner.cursor_image.set(image);
-        }
+        inner.cursor.set(cursor);
+        inner.cursor_image.set(image);
     }
 
     pub(crate) fn open(&self, id: WindowId) {
@@ -324,6 +334,7 @@ impl Windows {
             typing: create_signal(None),
             answered: Rc::new(Cell::new(0)),
             painted: Rc::new(Cell::new(false)),
+            picture: Rc::default(),
             owner: owner.clone(),
         });
         inner.windows.borrow_mut().insert(id, signals);
@@ -335,9 +346,7 @@ impl Windows {
             let asks = typing
                 .filter(|(window, _)| window == id)
                 .map(|(_, asks)| asks as u32);
-            if signals.typing.get_untracked() != asks {
-                signals.typing.set(asks);
-            }
+            signals.typing.set(asks);
         }
     }
 
@@ -358,6 +367,12 @@ impl Windows {
         }
     }
 
+    /// Lists `list` as the windows the compositor has, for a test of what reads them with no
+    /// program running.
+    pub fn list_for_testing(&self, list: Vec<WindowInfo>) {
+        self.set_list(list);
+    }
+
     pub(crate) fn set_list(&self, list: Vec<WindowInfo>) {
         let inner = self.0.value();
         if inner.list.get_untracked() != list {
@@ -375,11 +390,85 @@ impl Windows {
         })
     }
 
-    pub(crate) fn draw(&self, id: WindowId, drawing: Option<Drawing>, popups: Option<Popups>) {
+    pub(crate) fn draw(&self, id: WindowId, drawn: Drawn) {
         if let Some(signals) = self.signals(id) {
-            signals.drawing.set(drawing);
-            signals.popups.set(popups);
+            signals.drawing.set(drawn.drawing);
+            signals.popups.set(drawn.popups);
+            *signals.picture.borrow_mut() = drawn.picture;
         }
+    }
+
+    /// What `id` shows, its own surfaces and then its popups', where each is in the window: what
+    /// a host that composites the window itself draws, as its `WindowView` draws it, kept while
+    /// it is placed so (`place`). A new picture each time it draws anew.
+    pub fn picture(&self, id: WindowId) -> Option<Rc<WindowPicture>> {
+        self.signals(id)?.picture.borrow().clone()
+    }
+
+    /// Shows `id` at `rect`, in the host window's points, as a host that composites it itself
+    /// places it, with no `WindowView`: configured to its size as a view laid out there would
+    /// be. `None` lets go of it, as a view's going does. A window is placed this way or by its
+    /// views, never both: the mount this places is its own.
+    pub fn place(&self, id: WindowId, rect: Option<Rect>) {
+        let placed = {
+            let inner = self.0.value();
+            let views = inner.views.borrow();
+            let view = views.get(&id);
+            debug_assert!(
+                view.is_none_or(|view| view.composited || view.mounts == 0),
+                "a window placed without a view has no view placing it"
+            );
+            view.is_some_and(|view| view.composited)
+        };
+        match (rect, placed) {
+            (Some(rect), placed) => {
+                if !placed {
+                    self.mounted(id);
+                    let inner = self.0.value();
+                    inner.views.borrow_mut().entry(id).or_default().composited = true;
+                }
+                self.placed(id, rect);
+            }
+            // Let go of, it lets go of the keyboard too, as a view going does
+            // (`unmounted_focused`): the host's router tells a layer that went nothing. Placed
+            // again, it starts with no focus, until that router gives it one.
+            (None, true) => {
+                if self.focused() == Some(id) {
+                    self.focus(id, false);
+                }
+                self.unplaced(id, [None, None]);
+                if let Some(signals) = self.signals(id) {
+                    signals.picture.borrow_mut().take();
+                }
+            }
+            (None, false) => {}
+        }
+    }
+
+    /// Hands `id`, placed by a host that composites it itself (`place`), what that host's
+    /// router delivered to it, as its view's catcher hands it what it catches: a focus it got
+    /// or lost, then the rest of the input.
+    pub fn deliver(&self, id: WindowId, mut input: ForwardedInput) {
+        input.events.retain(|event| match event {
+            beui::Forwarded::Focus(focused) => {
+                self.focus(id, *focused);
+                false
+            }
+            _ => true,
+        });
+        if !input.events.is_empty() {
+            self.forward(id, input);
+        }
+    }
+
+    /// Whether a host that composites `id` itself placed it (`place`).
+    pub(crate) fn composited(&self, id: WindowId) -> bool {
+        let inner = self.0.value();
+        inner
+            .views
+            .borrow()
+            .get(&id)
+            .is_some_and(|view| view.composited)
     }
 
     pub(crate) fn take_painted(&self) -> Vec<WindowId> {
@@ -489,9 +578,7 @@ impl Windows {
         if focused && let Some(dialog) = self.blocked_by(id) {
             self.raise(dialog);
         }
-        if let Some(signals) = self.signals(id)
-            && signals.focused.get_untracked() != focused
-        {
+        if let Some(signals) = self.signals(id) {
             signals.focused.set(focused);
         }
         let was = inner.focused.get();

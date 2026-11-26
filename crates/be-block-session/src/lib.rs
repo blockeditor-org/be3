@@ -1,13 +1,13 @@
-pub mod lease;
+pub mod membership;
 pub mod resume;
 pub mod sequencer;
 
-pub use lease::{Claim, LEASE_MILLISECONDS, Lease};
+pub use membership::Membership;
+pub use resume::Resume;
 #[cfg(feature = "store")]
 pub use resume::resume;
-pub use resume::{Resume, takeover_needs_merge};
 pub use sequencer::{
-    Follower, Inherited, OpId, Payload, Sequencer, SessionMessage, SessionOp, reaches_seal,
+    OpId, Payload, Sequencer, SessionMessage, SessionOp, Submission, reaches_seal,
 };
 
 #[cfg(test)]

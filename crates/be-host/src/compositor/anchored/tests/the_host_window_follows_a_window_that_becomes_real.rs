@@ -1,7 +1,7 @@
 use beui::native::{Context, WindowHosting, WindowSize};
 use beui::{Window, WindowHandle};
 use beui_host::native::testing::{Showing, Stepped};
-use beui_host::native::{FreetypeFonts, build};
+use beui_host::native::{SkrifaFonts, build};
 
 use super::*;
 
@@ -32,7 +32,7 @@ fn the_host_window_follows_a_window_that_becomes_real() {
         scale: 1.0,
     };
     let mut stepped = Stepped::new(
-        Context::new(FreetypeFonts::default()),
+        Context::new(SkrifaFonts::default()),
         Showing(document),
         window,
         None,

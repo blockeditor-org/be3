@@ -22,10 +22,10 @@ fn dragging_a_tab_along_its_bar_parts_the_tabs_it_passes() {
 
     let parted = dock_tab_extent(&harness, dock, "Tab 2", 2);
     assert!(
-        (parted.left() - third.left()).abs() < 1.0,
-        "the tab passed glides aside into the place the carried one left, at {}, not {}",
-        third.left(),
-        parted.left()
+        (parted.right() - third.right()).abs() < 1.0,
+        "the tab passed glides aside into the place the carried one left, ending at {}, not {}",
+        third.right(),
+        parted.right()
     );
     let carried = dock_tab_extent(&harness, dock, "Tab 3", 3);
     assert!(

@@ -1,2 +1,3 @@
 use super::*;
 mod a_repeated_notice_carries_the_latest_report;
+mod account_notices_show_once_and_stay_hidden_where_dismissed;

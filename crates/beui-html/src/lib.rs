@@ -154,6 +154,11 @@ impl Node {
         let _ = method;
     }
 
+    /// A key no other live node shares, for indexing nodes by identity (as `is` compares them).
+    pub fn key(&self) -> usize {
+        Rc::as_ptr(&self.0) as usize
+    }
+
     pub fn is(&self, other: &Node) -> bool {
         Rc::ptr_eq(&self.0, &other.0)
     }
@@ -167,13 +172,25 @@ impl Node {
     }
 
     pub fn to_html(&self) -> String {
+        self.to_html_with(&|_, _| {})
+    }
+
+    /// The markup with each element's attributes as `attributes` changes them, told whether
+    /// the element is this node (a copy that drops ids, say).
+    pub fn to_html_with(&self, attributes: &dyn Fn(bool, &mut Vec<(String, String)>)) -> String {
         reactive::flush();
         let mut output = String::new();
-        self.write(&mut output, None);
+        self.write(&mut output, None, attributes, true);
         output
     }
 
-    fn write(&self, output: &mut String, raw_text_of: Option<&str>) {
+    fn write(
+        &self,
+        output: &mut String,
+        raw_text_of: Option<&str>,
+        attributes: &dyn Fn(bool, &mut Vec<(String, String)>),
+        root: bool,
+    ) {
         match &self.0.kind {
             Kind::Text(value) => match raw_text_of {
                 Some(tag) => raw_text_into(&value.borrow(), tag, output),
@@ -183,15 +200,20 @@ impl Node {
             Kind::Element(tag) => {
                 output.push('<');
                 output.push_str(tag);
-                let attrs = self.0.attrs.borrow();
-                for (name, value) in attrs.iter() {
-                    if let Some(value) = value {
-                        output.push(' ');
-                        output.push_str(name);
-                        output.push_str("=\"");
-                        escape_into(value, output);
-                        output.push('"');
-                    }
+                let mut written: Vec<(String, String)> = self
+                    .0
+                    .attrs
+                    .borrow()
+                    .iter()
+                    .filter_map(|(name, value)| Some((name.clone(), value.clone()?)))
+                    .collect();
+                attributes(root, &mut written);
+                for (name, value) in &written {
+                    output.push(' ');
+                    output.push_str(name);
+                    output.push_str("=\"");
+                    escape_into(value, output);
+                    output.push('"');
                 }
                 output.push('>');
                 if let Some(markup) = self.0.markup.borrow().as_deref() {
@@ -204,17 +226,23 @@ impl Node {
                         .iter()
                         .find(|raw| tag.eq_ignore_ascii_case(raw))
                         .copied();
-                    self.write_children(output, raw_text_of);
+                    self.write_children(output, raw_text_of, attributes, false);
                     output.push_str("</");
                     output.push_str(tag);
                     output.push('>');
                 }
             }
-            Kind::Fragment => self.write_children(output, raw_text_of),
+            Kind::Fragment => self.write_children(output, raw_text_of, attributes, root),
         }
     }
 
-    fn write_children(&self, output: &mut String, raw_text_of: Option<&str>) {
+    fn write_children(
+        &self,
+        output: &mut String,
+        raw_text_of: Option<&str>,
+        attributes: &dyn Fn(bool, &mut Vec<(String, String)>),
+        root: bool,
+    ) {
         let markers = !self.holds_raw_text();
         for (dynamic, items) in self.0.children.borrow().slots() {
             let marked = markers && dynamic.is_some();
@@ -222,7 +250,7 @@ impl Node {
                 output.push_str(START_MARKER_HTML);
             }
             for child in items {
-                child.write(output, raw_text_of);
+                child.write(output, raw_text_of, attributes, root);
             }
             if marked {
                 output.push_str(END_MARKER_HTML);
@@ -326,8 +354,12 @@ impl ChildValue for Node {}
 beui_tree::child_type!(Node);
 impl SlotChild for Node {
     type Stored = Node;
+    type Node = Node;
     fn store(self) -> Node {
         self
+    }
+    fn node(stored: &Node) -> Node {
+        stored.clone()
     }
 }
 impl IntoChild<Node> for String {
@@ -475,20 +507,29 @@ fn bind_flag(node: &Node, name: &'static str, value: Prop<bool>) {
     }
 }
 
-pub fn attr(node: Node, (name, value): (&'static str, impl IntoProp<Option<String>>)) -> Node {
-    bind_attribute(&node, name, value.into_prop());
+pub fn attr<M>(
+    node: Node,
+    (name, value): (&'static str, impl IntoPropValue<Prop<Option<String>>, M>),
+) -> Node {
+    bind_attribute(&node, name, value.into_prop_value());
     node
 }
 
-pub fn data(node: Node, (name, value): (&'static str, impl IntoProp<Option<String>>)) -> Node {
+pub fn data<M>(
+    node: Node,
+    (name, value): (&'static str, impl IntoPropValue<Prop<Option<String>>, M>),
+) -> Node {
     assert!(valid_name(name), "invalid data attribute name");
-    bind_attribute(&node, format!("data-{name}"), value.into_prop());
+    bind_attribute(&node, format!("data-{name}"), value.into_prop_value());
     node
 }
 
-pub fn aria(node: Node, (name, value): (&'static str, impl IntoProp<Option<String>>)) -> Node {
+pub fn aria<M>(
+    node: Node,
+    (name, value): (&'static str, impl IntoPropValue<Prop<Option<String>>, M>),
+) -> Node {
     assert!(valid_name(name), "invalid ARIA attribute name");
-    bind_attribute(&node, format!("aria-{name}"), value.into_prop());
+    bind_attribute(&node, format!("aria-{name}"), value.into_prop_value());
     node
 }
 
@@ -519,14 +560,20 @@ pub fn Script(kind: &'static str, source: String) -> Node {
     }
 }
 
-pub fn flag(node: Node, (name, value): (&'static str, impl IntoProp<bool>)) -> Node {
-    bind_flag(&node, name, value.into_prop());
+pub fn flag<M>(
+    node: Node,
+    (name, value): (&'static str, impl IntoPropValue<Prop<bool>, M>),
+) -> Node {
+    bind_flag(&node, name, value.into_prop_value());
     node
 }
 
-pub fn on(node: Node, (name, handler): (&'static str, impl IntoCallback<Event, ()>)) -> Node {
+pub fn on<M>(
+    node: Node,
+    (name, handler): (&'static str, impl IntoPropValue<Callback<Event>, M>),
+) -> Node {
     assert!(valid_name(name), "invalid event name");
-    listen(&node, name, handler.into_callback());
+    listen(&node, name, handler.into_prop_value());
     node
 }
 

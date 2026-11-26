@@ -11,7 +11,6 @@ fn tabbing_through_the_dock_shows_each_focus_ring_whole() {
         let mut shown = false;
         for _ in 0..MOST_STOPS {
             editor.key(Key::Tab, Modifiers::NONE);
-            editor.run();
             let Some(focused) = editor.document().focused_node() else {
                 break;
             };

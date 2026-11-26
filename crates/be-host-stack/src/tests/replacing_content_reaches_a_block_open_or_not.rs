@@ -1,4 +1,5 @@
 use super::*;
+use be_type_image::BlobFile as _;
 use be_type_image::{ImageContent, ImageFile};
 
 fn holds(shared: &Shared, block: Uuid, name: &str) -> bool {

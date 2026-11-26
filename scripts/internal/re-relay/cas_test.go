@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -194,11 +196,11 @@ func TestUploadsAreReadFromTheirRequestsAndAnswers(t *testing.T) {
 		"main/uploads/1f2e/compressed-blobs/zstd/abc/12":    "abc/12",
 		"uploads/1f2e/blobs/abc/12/some/metadata/afterward": "abc/12",
 	} {
-		if key, err := writeKey(appendBytesField(nil, 1, []byte(name))); err != nil || key != want {
+		if key, _, err := writeKey(appendBytesField(nil, 1, []byte(name))); err != nil || key != want {
 			t.Errorf("%s: %q %v, want %q", name, key, err, want)
 		}
 	}
-	if _, err := writeKey(appendBytesField(nil, 1, []byte("uploads/x/other/abc"))); err == nil {
+	if _, _, err := writeKey(appendBytesField(nil, 1, []byte("uploads/x/other/abc"))); err == nil {
 		t.Error("a resource name without a blob was read")
 	}
 }
@@ -241,5 +243,248 @@ func TestHandleAnswersFindMissingBlobsOverGRPC(t *testing.T) {
 	}
 	if cache.handle(httptest.NewRecorder(), httptest.NewRequest("POST", "/build.bazel.remote.execution.v2.Execution/Execute", nil), nil, send) {
 		t.Fatal("Execute was taken by the cache")
+	}
+}
+
+// A google.rpc.Status of FAILED_PRECONDITION whose PreconditionFailure names these blobs MISSING, as NativeLink sends.
+func missingStatus(keys ...string) []byte {
+	var failure []byte
+	for _, key := range keys {
+		violation := appendBytesField(nil, 1, []byte("MISSING"))
+		violation = appendBytesField(violation, 2, []byte("blobs/"+key))
+		failure = appendBytesField(failure, 1, violation)
+	}
+	detail := appendBytesField(nil, 1, []byte("type.googleapis.com/google.rpc.PreconditionFailure"))
+	detail = appendBytesField(detail, 2, failure)
+	status := append(appendVarint(nil, 1<<3|0), codeFailedPrecondition)
+	status = appendBytesField(status, 2, []byte("Action is missing from CAS; client should re-upload it and retry"))
+	if len(keys) > 0 {
+		status = appendBytesField(status, 3, detail)
+	}
+	return status
+}
+
+func executeRequest(action []byte) []byte {
+	return frame(appendBytesField(appendBytesField(nil, 1, []byte("main")), 6, action))
+}
+
+// A transport that answers every call with respond, as the server would.
+type answering func(r *http.Request) *http.Response
+
+func (f answering) RoundTrip(r *http.Request) (*http.Response, error) { return f(r), nil }
+
+func grpcResponse(header, trailer http.Header, messages ...[]byte) *http.Response {
+	header.Set("Content-Type", "application/grpc")
+	var body []byte
+	for _, message := range messages {
+		body = append(body, frame(message)...)
+	}
+	return &http.Response{StatusCode: 200, Header: header, Body: io.NopCloser(bytes.NewReader(body)), Trailer: trailer}
+}
+
+// A cache that remembers the server holding these, and a log of what it says.
+func cacheHolding(keys ...blobKey) (*casCache, *[]string) {
+	cache := newCASCache()
+	var log []string
+	cache.logf = func(format string, args ...any) { log = append(log, fmt.Sprintf(format, args...)) }
+	cache.markPresent(keys...)
+	return cache, &log
+}
+
+func through(cache *casCache, path string, body []byte, respond answering) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	relay(respond, "http", "server", cache, w, httptest.NewRequest("POST", path, bytes.NewReader(body)))
+	return w
+}
+
+// After the answer, a FindMissingBlobs about every blob reaches the server, which says which it lacks.
+func askedAfter(t *testing.T, cache *casCache, keys ...string) []string {
+	t.Helper()
+	server := &fakeServer{held: map[string]bool{}}
+	var digests [][]byte
+	for _, key := range keys {
+		hash, size, _ := strings.Cut(key, "/")
+		var n uint64
+		fmt.Sscan(size, &n)
+		digests = append(digests, digest(hash, n))
+	}
+	if _, err := cache.findMissing(nil, findMissingRequest(digests...), server.ask(t)); err != nil {
+		t.Fatal(err)
+	}
+	sort.Strings(server.asked)
+	return server.asked
+}
+
+func TestAnExecuteRefusedForAMissingActionForgetsIt(t *testing.T) {
+	cache, log := cacheHolding("act/142", "in/7", "other/3")
+	status := missingStatus("act/142", "in/7")
+	w := through(cache, executePath, executeRequest(digest("act", 142)), func(r *http.Request) *http.Response {
+		return grpcResponse(http.Header{
+			"Grpc-Status":             {"9"},
+			"Grpc-Message":            {"Action act-142 is missing from CAS; client should re-upload it and retry"},
+			"Grpc-Status-Details-Bin": {base64.RawStdEncoding.EncodeToString(status)},
+		}, nil)
+	})
+	if w.Result().Header.Get("Grpc-Status") != "9" {
+		t.Fatalf("buck2 was not told FAILED_PRECONDITION: %v", w.Result().Header)
+	}
+	if got := strings.Join(askedAfter(t, cache, "act/142", "in/7", "other/3"), ","); got != "act/142,in/7" {
+		t.Fatalf("the server was asked about %s, want act/142,in/7 (and other/3 answered from the cache)", got)
+	}
+	if len(*log) != 1 || !strings.Contains((*log)[0], "act/142") || !strings.Contains((*log)[0], "in/7") ||
+		!strings.Contains((*log)[0], "FAILED_PRECONDITION") {
+		t.Fatalf("log %q: want one line naming both blobs and why", *log)
+	}
+}
+
+func TestAnExecuteRefusedWithoutNamingBlobsForgetsAll(t *testing.T) {
+	cache, log := cacheHolding("a/1", "b/2")
+	through(cache, executePath, executeRequest(digest("act", 142)), func(r *http.Request) *http.Response {
+		return grpcResponse(http.Header{}, http.Header{"Grpc-Status": {"9"}, "Grpc-Message": {"missing"}},
+			appendBytesField(nil, 1, []byte("operations/1")))
+	})
+	if got := strings.Join(askedAfter(t, cache, "a/1", "b/2"), ","); got != "a/1,b/2" {
+		t.Fatalf("the server was asked about %s, want a/1,b/2", got)
+	}
+	if len(*log) != 1 || !strings.Contains((*log)[0], "forgot all 2") {
+		t.Fatalf("log %q", *log)
+	}
+}
+
+// A worker that found an input missing answers in the Operation: done, its ExecuteResponse's status
+// FAILED_PRECONDITION, and the call itself OK.
+func TestAnOperationThatFoundAnInputMissingForgetsIt(t *testing.T) {
+	cache, _ := cacheHolding("dir/40", "act/142", "other/3")
+	executeResponse := appendBytesField(nil, 3, missingStatus("dir/40"))
+	any := appendBytesField(appendBytesField(nil, 1, []byte("type.googleapis.com/build.bazel.remote.execution.v2.ExecuteResponse")), 2, executeResponse)
+	operation := appendBytesField(nil, 1, []byte("operations/1"))
+	operation = append(appendVarint(operation, 3<<3|0), 1)
+	operation = appendBytesField(operation, 5, any)
+	w := through(cache, executePath, executeRequest(digest("act", 142)), func(r *http.Request) *http.Response {
+		return grpcResponse(http.Header{}, http.Header{"Grpc-Status": {"0"}}, operation)
+	})
+	if messages, _ := splitMessages(w.Body.Bytes()); len(messages) != 1 || !bytes.Equal(messages[0], operation) {
+		t.Fatalf("the Operation was not passed on as it was: %q", w.Body.Bytes())
+	}
+	if got := strings.Join(askedAfter(t, cache, "dir/40", "act/142", "other/3"), ","); got != "act/142,dir/40" {
+		t.Fatalf("the server was asked about %s, want act/142,dir/40", got)
+	}
+}
+
+func TestAReadOfABlobTheServerLacksForgetsIt(t *testing.T) {
+	cache, _ := cacheHolding("out/9", "other/3")
+	request := frame(appendBytesField(nil, 1, []byte("main/blobs/out/9")))
+	through(cache, readPath, request, func(r *http.Request) *http.Response {
+		return grpcResponse(http.Header{"Grpc-Status": {"5"}, "Grpc-Message": {"not found"}}, nil)
+	})
+	batch := appendBytesField(nil, 1, appendBytesField(appendBytesField(nil, 1, digest("other", 3)), 3, append(appendVarint(nil, 1<<3|0), codeNotFound)))
+	through(cache, batchReadPath, frame(appendBytesField(nil, 2, digest("other", 3))), func(r *http.Request) *http.Response {
+		return grpcResponse(http.Header{}, http.Header{"Grpc-Status": {"0"}}, batch)
+	})
+	if got := strings.Join(askedAfter(t, cache, "out/9", "other/3"), ","); got != "other/3,out/9" {
+		t.Fatalf("the server was asked about %s, want both", got)
+	}
+}
+
+// Answers that do not say a blob is missing leave the cache as it was.
+func TestOtherFailuresForgetNothing(t *testing.T) {
+	cache, log := cacheHolding("a/1")
+	through(cache, executePath, executeRequest(digest("act", 142)), func(r *http.Request) *http.Response {
+		return grpcResponse(http.Header{"Grpc-Status": {"14"}, "Grpc-Message": {"unavailable"}}, nil)
+	})
+	through(cache, "/build.bazel.remote.execution.v2.ActionCache/GetActionResult", frame(nil), func(r *http.Request) *http.Response {
+		return grpcResponse(http.Header{"Grpc-Status": {"5"}}, nil)
+	})
+	if got := askedAfter(t, cache, "a/1"); len(got) != 0 || len(*log) != 0 {
+		t.Fatalf("asked %v, log %q: want nothing forgotten", got, *log)
+	}
+}
+
+// An upload only marks a blob present when the server says it took all of it.
+func TestOnlyWholeUploadsAreRemembered(t *testing.T) {
+	cache, _ := cacheHolding()
+	write := func(name string, committed int64, data string) bool {
+		request := appendBytesField(nil, 1, []byte(name))
+		request = append(appendVarint(request, 3<<3|0), 1)
+		request = appendBytesField(request, 4, []byte(data))
+		answer := appendVarint(appendVarint(nil, 1<<3|0), uint64(committed))
+		w := httptest.NewRecorder()
+		cache.handle(w, httptest.NewRequest("POST", writePath, nil), frame(request), func([]byte) (*http.Response, string) {
+			return grpcResponse(http.Header{}, http.Header{"Grpc-Status": {"0"}}, answer), ""
+		})
+		key, _, _ := writeKey(request)
+		cache.mu.Lock()
+		defer cache.mu.Unlock()
+		return cache.isPresent(key)
+	}
+	if !write("uploads/u/blobs/whole/4", 4, "abcd") {
+		t.Error("a whole Write was not remembered")
+	}
+	if write("uploads/u/blobs/short/4", 2, "abcd") {
+		t.Error("a Write the server committed two bytes of was remembered")
+	}
+	if !write("uploads/u/compressed-blobs/zstd/z/100", 3, "xyz") || !write("uploads/u/compressed-blobs/zstd/y/100", -1, "x") {
+		t.Error("a whole compressed Write was not remembered")
+	}
+	if write("uploads/u/compressed-blobs/zstd/x/100", 1, "xyz") {
+		t.Error("a short compressed Write was remembered")
+	}
+
+	// BatchUpdateBlobs: a blob refused, or left out of the answer, is not remembered.
+	var request []byte
+	for _, key := range []string{"a", "b", "c"} {
+		request = appendBytesField(request, 2, appendBytesField(appendBytesField(nil, 1, digest(key, 1)), 2, []byte("x")))
+	}
+	answer := appendBytesField(nil, 1, appendBytesField(nil, 1, digest("a", 1)))
+	answer = appendBytesField(answer, 1, appendBytesField(appendBytesField(nil, 1, digest("b", 1)), 2, append(appendVarint(nil, 1<<3|0), 13)))
+	cache.claim([]blobKey{"c/1"})
+	cache.handle(httptest.NewRecorder(), httptest.NewRequest("POST", batchUpdatePath, nil), frame(request), func([]byte) (*http.Response, string) {
+		return grpcResponse(http.Header{}, http.Header{"Grpc-Status": {"0"}}, answer), ""
+	})
+	if got := strings.Join(askedAfter(t, cache, "a/1", "b/1", "c/1"), ","); got != "b/1,c/1" {
+		t.Fatalf("asked about %s, want b/1,c/1: c/1 left out of the answer must not hold its waiters back either", got)
+	}
+}
+
+// Details that cannot be read do not stop the relay forgetting: it forgets everything.
+func TestUnreadableDetailsForgetAll(t *testing.T) {
+	for name, details := range map[string]string{
+		"not base64":      "%%% not base64 %%%",
+		"not a Status":    base64.RawStdEncoding.EncodeToString([]byte{0xff, 0xff, 0xff}),
+		"a bad Any":       base64.RawStdEncoding.EncodeToString(appendBytesField(nil, 3, []byte{0x0a, 0x7f})),
+		"a bad violation": base64.RawStdEncoding.EncodeToString(appendBytesField(nil, 3, appendBytesField(appendBytesField(nil, 1, []byte("type.googleapis.com/google.rpc.PreconditionFailure")), 2, []byte{0x0a, 0x03, 0x12, 0x7f}))),
+	} {
+		cache, log := cacheHolding("a/1", "b/2")
+		through(cache, executePath, executeRequest(digest("act", 142)), func(r *http.Request) *http.Response {
+			return grpcResponse(http.Header{"Grpc-Status": {"9"}, "Grpc-Status-Details-Bin": {details}}, nil)
+		})
+		if got := strings.Join(askedAfter(t, cache, "a/1", "b/2"), ","); got != "a/1,b/2" || len(*log) != 1 {
+			t.Errorf("%s: asked about %s, log %q: want everything forgotten, once", name, got, *log)
+		}
+	}
+}
+
+// An Operation that named what was missing, then a call ending FAILED_PRECONDITION: the second forgets nothing more.
+func TestATargetedForgetIsNotFollowedByForgettingAll(t *testing.T) {
+	cache, log := cacheHolding("dir/40", "other/3")
+	operation := appendBytesField(nil, 4, missingStatus("dir/40"))
+	through(cache, executePath, executeRequest(digest("act", 142)), func(r *http.Request) *http.Response {
+		return grpcResponse(http.Header{}, http.Header{"Grpc-Status": {"9"}}, operation)
+	})
+	if got := strings.Join(askedAfter(t, cache, "dir/40", "other/3"), ","); got != "dir/40" || len(*log) != 1 {
+		t.Fatalf("asked about %s, log %q: want only dir/40 forgotten", got, *log)
+	}
+}
+
+// A Read that began answering, then ended NOT_FOUND in its trailers.
+func TestAReadEndingNotFoundInItsTrailersForgetsIt(t *testing.T) {
+	cache, _ := cacheHolding("out/9", "other/3")
+	request := frame(appendBytesField(nil, 1, []byte("main/blobs/out/9")))
+	through(cache, readPath, request, func(r *http.Request) *http.Response {
+		return grpcResponse(http.Header{}, http.Header{"Grpc-Status": {"5"}, "Grpc-Message": {"not found"}},
+			appendBytesField(nil, 10, []byte("part")))
+	})
+	if got := strings.Join(askedAfter(t, cache, "out/9", "other/3"), ","); got != "out/9" {
+		t.Fatalf("asked about %s, want out/9", got)
 	}
 }

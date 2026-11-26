@@ -24,7 +24,6 @@ pub(crate) fn TagsMenu(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
     let keys = create_memo(move || {
         block.map_or_else(Vec::new, |block| editor.available_tags(block).get())
     });
-    let unchangeable = create_memo(move || !row.get().is_some_and(|row| row.can_edit));
     let manage = move || {
         let Some(block) = block else {
             return;
@@ -37,20 +36,20 @@ pub(crate) fn TagsMenu(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
         }
     };
     view! {
-        <MenuItem label="Tags" glyph=ICON_TAG row_test_id={"file-tree.tags".to_owned()}>
-            <ForEach keys={keys}>|tag: Uuid| {
+        <MenuItem label="Tags" glyph=ICON_TAG @test_id={"file-tree.tags".to_owned()}>
+            <ForEach value={keys}>|tag: Uuid| {
                 let found = editor.watch_blocks(BlockQuery::Block(tag));
                 let colors = use_choice_colors();
                 let info = create_memo(move || found.get().ok().and_then(|found| found.into_iter().next()));
-                let label = create_memo(move || {
+                let label = move || {
                     info.get()
                         .and_then(|info| info.name())
                         .unwrap_or_else(|| "Tag".to_owned())
-                });
-                let color = create_memo(move || {
+                };
+                let color = move || {
                     let held = info.get().and_then(|info| info.metadata.get(&TAG_COLOR)).unwrap_or_default();
                     Some(tag_color(colors, held))
-                });
+                };
                 let on = create_memo(move || {
                     block.is_some_and(|block| {
                         editor
@@ -59,15 +58,15 @@ pub(crate) fn TagsMenu(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
                             .is_some_and(|info| tags_of(&info.metadata).contains(&tag))
                     })
                 });
-                let checked = create_memo(move || Some(on.get()));
+                let checked = move || Some(on.get());
                 view! {
                     <MenuItem
                         label={label}
                         glyph=ICON_TAG
                         glyph_color={color}
                         checked={checked}
-                        disabled={unchangeable}
-                        row_test_id={format!("file-tree.tags.{tag}")}
+                        disabled={move || !row.with(|row| row.as_ref().is_some_and(|row| row.can_edit))}
+                        @test_id={format!("file-tree.tags.{tag}")}
                         on_click={move || {
                             if let Some(block) = block {
                                 editor.set_tagged(block, tag, !on.get_untracked());
@@ -80,7 +79,7 @@ pub(crate) fn TagsMenu(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
                 label="Manage tags…"
                 glyph=ICON_SETTINGS
                 separated=true
-                row_test_id={"file-tree.tags.manage".to_owned()}
+                @test_id={"file-tree.tags.manage".to_owned()}
                 on_click={manage}
             />
         </MenuItem>
@@ -110,13 +109,9 @@ pub(crate) fn OpensIn(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
         block.and_then(|(id, _)| editor.blocks().info(id)?.metadata.get(&PREFERRED_EDITOR))
     });
     view! {
-        <MenuItem
-            label="Opens in"
-            glyph=ICON_APP_WINDOW
-            row_test_id={"file-tree.opens-in".to_owned()}
-        >
-            <ForEach keys={keys}>|chosen: Uuid| {
-                let label = create_memo(move || match chosen.is_nil() {
+        <MenuItem label="Opens in" glyph=ICON_APP_WINDOW @test_id={"file-tree.opens-in".to_owned()}>
+            <ForEach value={keys}>|chosen: Uuid| {
+                let label = move || match chosen.is_nil() {
                     true => "Your default editor".to_owned(),
                     false => editors.with(|editors| {
                         editors
@@ -125,16 +120,16 @@ pub(crate) fn OpensIn(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
                             .map(|(_, name)| name.clone())
                             .unwrap_or_default()
                     }),
-                });
-                let checked = create_memo(move || {
+                };
+                let checked = move || {
                     Some(preferred.get().unwrap_or_default() == chosen)
-                });
+                };
                 view! {
                     <MenuItem
                         label={label}
                         checked={checked}
                         radio=true
-                        row_test_id={format!("file-tree.opens-in.{chosen}")}
+                        @test_id={format!("file-tree.opens-in.{chosen}")}
                         on_click={move || {
                             if let Some((id, _)) = block {
                                 let editor_id = (!chosen.is_nil()).then_some(chosen);
@@ -179,24 +174,24 @@ pub(crate) fn HomeItems(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
             editor.change_block_kind::<Home>(workspace, edit);
         }
     };
-    let pin_label = create_memo(move || match pinned.get() {
+    let pin_label = move || match pinned.get() {
         true => "Unpin from the workspace".to_owned(),
         false => "Pin to the workspace".to_owned(),
-    });
-    let landing_label = create_memo(move || match landing.get() {
+    };
+    let landing_label = move || match landing.get() {
         true => "Stop opening it first".to_owned(),
         false => "Open it first in the workspace".to_owned(),
-    });
-    let template_label = create_memo(move || match template.get() {
+    };
+    let template_label = move || match template.get() {
         true => "Stop using it as a template".to_owned(),
         false => "Use it as a template".to_owned(),
-    });
+    };
     view! {
-        <MenuItem label="Workspace home" glyph=ICON_HOUSE row_test_id={"file-tree.home".to_owned()}>
+        <MenuItem label="Workspace home" glyph=ICON_HOUSE @test_id={"file-tree.home".to_owned()}>
             <MenuItem
                 label={pin_label}
                 glyph=ICON_PIN
-                row_test_id={"file-tree.home.pin".to_owned()}
+                @test_id={"file-tree.home.pin".to_owned()}
                 on_click={move || {
                     if let Some(block) = block {
                         change(Home::pin(block, !pinned.get_untracked()));
@@ -206,7 +201,7 @@ pub(crate) fn HomeItems(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
             <MenuItem
                 label={landing_label}
                 glyph=ICON_HOUSE
-                row_test_id={"file-tree.home.landing".to_owned()}
+                @test_id={"file-tree.home.landing".to_owned()}
                 on_click={move || {
                     change(Home::set_landing(match landing.get_untracked() {
                         true => None,
@@ -217,7 +212,7 @@ pub(crate) fn HomeItems(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
             <MenuItem
                 label={template_label}
                 glyph=ICON_LAYOUT_TEMPLATE
-                row_test_id={"file-tree.home.template".to_owned()}
+                @test_id={"file-tree.home.template".to_owned()}
                 on_click={move || {
                     if let Some(block) = block {
                         change(Home::keep_template(block, !template.get_untracked()));

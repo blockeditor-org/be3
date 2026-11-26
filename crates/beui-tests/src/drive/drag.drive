@@ -1,8 +1,22 @@
-# A draggable dropped on a target hands it its payload.
+# An item carried onto a place that takes it is dropped there.
 clock stop
 wait 'value="Dropped nothing"'
 drag '#drag.apple' '#drag.basket' 4
 wait 'value="Dropped apple"'
+# Carried out of its scroll, the pear is drawn whole over the page as its own face, a copy
+# of its elements in the browser, which follows the pear as it changes (it says when it is
+# over a place), gone once it is let go.
+down '#drag.pear'
+move '#drag.apple'
+#web elements '.beui-replica *' 4
+move '#drag.basket'
+#web elements '[data-beui-lent]' 1
+#web elements '.beui-replica' 1
+#web elements '.beui-replica > *' 1
+#web elements '.beui-replica *' 5
+up '#drag.basket'
+wait 'value="Dropped pear"'
+#web elements '.beui-replica' 0
 # A drag between two places in one scroll that cannot both show at once: the
 # box the scroll cuts is revealed, which cuts the pear, so the pear is
 # revealed in turn and the drag starts on what shows of it, not where it was.

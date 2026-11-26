@@ -10,12 +10,11 @@ pub(crate) fn DesktopToasts(
     area: Memo<Rect>,
     corner: Memo<Edge>,
 ) -> NodeId {
-    let anchor = create_memo(move || OverlayAnchor::Rect(area.get()));
     let toasts = notifications.toasts();
     let browsing = notifications.browsing();
     view! {
         <Toasts
-            anchor={anchor}
+            anchor={move || OverlayAnchor::Rect(area.get())}
             edge={corner}
             toasts={toasts}
             on_dismiss={move |toast: u64| {

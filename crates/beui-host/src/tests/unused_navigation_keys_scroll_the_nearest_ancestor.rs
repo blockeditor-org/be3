@@ -10,17 +10,17 @@ fn unused_navigation_keys_scroll_the_nearest_ancestor() {
     let (scroll, tabs, slider) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build_node(move || {
         view! {
-            <Scroll @node_ref=&scroll>
+            <Scroll @node_ref=&scroll style={plain_scroll()}>
                 <Tabs
                     @node_ref=&tabs
                     options={view! {
-                        <unstyled::ChoiceOption label="One" />
-                        <unstyled::ChoiceOption label="Two" />
+                        <unstyled::ChoiceOption value="One" label="One" />
+                        <unstyled::ChoiceOption value="Two" label="Two" />
                     }}
-                    selected=0
+                    selected="One"
                 />
                 <Slider @node_ref=&slider value=0.5 />
-                <ForEach keys={indices(20)}>|_: usize|
+                <ForEach value={indices(20)}>|_: usize|
                     <Text color=Color32::WHITE>"Content"</Text>
                 </ForEach>
             </Scroll>
@@ -33,10 +33,9 @@ fn unused_navigation_keys_scroll_the_nearest_ancestor() {
     assert_eq!(
         harness
             .document()
-            .api::<styled::ChoiceApi>(tabs)
-            .selected()
-            .unwrap_or(0),
-        0
+            .api::<styled::ChoiceApi<&str>>(tabs)
+            .selected(),
+        Some("One")
     );
     assert_eq!(harness.document().scroll_offset(scroll), 40.0);
     harness.key(Key::PageUp, Modifiers::NONE);

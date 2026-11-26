@@ -26,15 +26,18 @@ fn a_closed_overlay_leaves_its_content_out_of_the_tree() {
                         }
                     }}
                 />
-                <Overlay
-                    @node_ref=&kept
-                    anchor=OverlayAnchor::Point(pos2(60.0, 10.0))
-                    placement=Placement::At
-                    open={open}
-                    keep_alive=true
-                >
-                    <Frame @node_ref=&kept_content width=40.0 height=30.0 />
-                </Overlay>
+                <KeepAlive>
+                    <Overlay
+                        @node_ref=&kept
+                        anchor=OverlayAnchor::Point(pos2(60.0, 10.0))
+                        placement=Placement::At
+                        open={open}
+                    >
+                        <Kept>
+                            <Frame @node_ref=&kept_content width=40.0 height=30.0 />
+                        </Kept>
+                    </Overlay>
+                </KeepAlive>
             </List>
         }
     });
@@ -46,6 +49,10 @@ fn a_closed_overlay_leaves_its_content_out_of_the_tree() {
             .document()
             .overlay_content(kind_of::<OverlayNode>(harness.document(), overlay))
     };
+    let kept_shown = |harness: &Harness| {
+        content(harness, kept)
+            .and_then(|portal| harness.document().children(portal).first().copied())
+    };
     assert_eq!(builds.get_untracked(), 0, "a closed overlay builds nothing");
     assert!(fresh_content.try_get().is_none() && kept_content.try_get().is_none());
 
@@ -54,7 +61,7 @@ fn a_closed_overlay_leaves_its_content_out_of_the_tree() {
     assert_eq!(builds.get_untracked(), 1, "opening builds its content");
     assert_eq!(content(&harness, fresh), fresh_content.try_get());
     let first = kept_content.get();
-    assert_eq!(content(&harness, kept), Some(first));
+    assert_eq!(kept_shown(&harness), Some(first));
 
     open.set(false);
     harness.frame(Vec::new());
@@ -66,14 +73,14 @@ fn a_closed_overlay_leaves_its_content_out_of_the_tree() {
     assert_eq!(content(&harness, kept), None);
     assert!(
         harness.document().contains(first),
-        "one that keeps it alive holds on to it out of the tree"
+        "what a `Kept` in it keeps is held on to out of the tree"
     );
 
     open.set(true);
     harness.frame(Vec::new());
     assert_eq!(builds.get_untracked(), 2, "opening again builds afresh");
     assert_eq!(
-        content(&harness, kept),
+        kept_shown(&harness),
         Some(first),
         "while the kept one shows what it built the first time"
     );

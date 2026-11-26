@@ -1,5 +1,5 @@
 use super::*;
-use beui_components_unstyled::{Scroll, ScrollbarStyle};
+use beui_components_unstyled::Scroll;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
@@ -17,11 +17,8 @@ fn scrolling() -> Document {
                     <List spacing=0.0>
                         <Frame height=12.0 fill=Color32::WHITE radius=0.0 />
                         <Frame height=40.0 fill={Color32::from_rgb(20, 20, 20)} radius=0.0>
-                            <Scroll
-                                @test_id="scroll"
-                                scrollbar={ScrollbarStyle::default().fading(12.0)}
-                            >
-                                <ForEach keys={(0..20).collect::<Vec<usize>>()}>|row: usize|
+                            <Scroll @test_id="scroll" style={plain_scroll().fading(12.0)}>
+                                <ForEach value={(0..20).collect::<Vec<usize>>()}>|row: usize|
                                     <Frame
                                         height=10.0
                                         radius=0.0
@@ -44,7 +41,7 @@ fn copying_a_faded_scroll_paints_what_a_full_repaint_would() {
     let scroll = document
         .find_test_id("scroll")
         .expect("the scroll is built");
-    let context = Context::new(beui_font_freetype::FreetypeFonts::default());
+    let context = Context::new(beui_font_skrifa::SkrifaFonts::default());
     let mut target = Target::new();
     let everything = everything();
     target.draw_moving(&context, Color32::BLACK, |painter| {
@@ -61,7 +58,7 @@ fn copying_a_faded_scroll_paints_what_a_full_repaint_would() {
         let mut fresh = scrolling();
         let fresh_scroll = fresh.find_test_id("scroll").expect("the scroll is built");
         let mut whole = Target::new();
-        let fresh_context = Context::new(beui_font_freetype::FreetypeFonts::default());
+        let fresh_context = Context::new(beui_font_skrifa::SkrifaFonts::default());
         whole.draw_moving(&fresh_context, Color32::BLACK, |painter| {
             fresh.show(painter.ctx(), everything)
         });

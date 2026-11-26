@@ -2,17 +2,17 @@ use be_lib_stable_hash::HashMap;
 use std::rc::Rc;
 
 use accesskit::{Node, Role, Toggled};
-use beui_macros::{component, view};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Color;
 use beui_view::types::Image;
 use beui_view::types::icons::Glyph;
 
-use crate::modal::{Modal, ModalHandle, ModalMotion};
-use crate::scroll::ScrollbarStyle;
+use crate::scroll::ScrollStyle;
 use crate::search_list::{SearchList, SearchListApi, SearchRowHandle, fuzzy_score, rank};
 use crate::text_input::{TextInputHandle, TextInputStyle};
+use beui_view::types::{Dismiss, Vec2};
+use beui_view::window::{Window, WindowAnchor, WindowHandle};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PaletteItem {
@@ -61,8 +61,8 @@ pub enum PaletteItems {
 }
 
 impl PaletteItems {
-    pub fn list(items: impl IntoProp<Vec<PaletteItem>>) -> Self {
-        Self::List(items.into_prop())
+    pub fn list<M1>(items: impl IntoPropValue<Prop<Vec<PaletteItem>>, M1>) -> Self {
+        Self::List(items.into_prop_value())
     }
 }
 
@@ -116,11 +116,11 @@ pub fn CommandPalette(
     spacing: f32,
     scrim: Prop<Color>,
     search_placeholder: Prop<String>,
-    search_content: RenderFn<TextInputHandle>,
+    search_content: RenderFn<TextInputHandle, NodeId>,
     search_style: TextInputStyle,
-    #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
-    row: RenderFn<CommandRowHandle>,
-    #[prop(children)] panel: Option<RenderFn<Child>>,
+    scroll: ScrollStyle,
+    row: RenderFn<CommandRowHandle, NodeId>,
+    #[prop(children)] panel: Option<RenderFn<NodeId, NodeId>>,
 ) -> NodeId {
     let panel = panel.unwrap_or_else(|| RenderFn::new(|content| content));
     let lists_actions = matches!(items, PaletteItems::Actions);
@@ -217,13 +217,16 @@ pub fn CommandPalette(
         })
     };
     view! {
-        <Modal
-            open={create_memo(move || open.get())}
+        <Window
+            size=Vec2::ZERO
+            own_window=false
+            anchor={Some(WindowAnchor::Top)}
+            blocks=true
             scrim
-            motion=ModalMotion::Still
             shown_in
-            on_dismiss={move || dismiss(state)}
-        >|_: ModalHandle| {
+            open={move || open.get()}
+            on_dismiss={move |_: Dismiss| dismiss(state)}
+        >|_: WindowHandle| {
             panel.call(view! {
                 <SearchList
                     api={state.list}
@@ -239,12 +242,12 @@ pub fn CommandPalette(
                     field={search_content}
                     list_height
                     spacing
-                    scrollbar
+                    scroll
                     accessibility={row_accessibility}
                     row={palette_row}
                 />
             })
-        }</Modal>
+        }</Window>
     }
 }
 

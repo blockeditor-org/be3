@@ -232,9 +232,9 @@ fn StyleControls(state: CanvasState) -> NodeId {
     };
     view! {
         <List spacing=SECTION_SPACING @test_id={"infinite-canvas.style.panel"}>
-            <Show condition={shows(stroke)}>
+            <Show value={shows(stroke)}>
                 <StyleRow label="Stroke">
-                    <ForEach keys={(0..STROKES.len()).collect::<Vec<usize>>()}>|index: usize| {
+                    <ForEach value={(0..STROKES.len()).collect::<Vec<usize>>()}>|index: usize| {
                         let (name, color) = STROKES[index];
                         view! {
                             <Swatch
@@ -250,7 +250,7 @@ fn StyleControls(state: CanvasState) -> NodeId {
                     }</ForEach>
                 </StyleRow>
             </Show>
-            <Show condition={filled_shown}>
+            <Show value={filled_shown}>
                 <List spacing=SECTION_SPACING>
                     <StyleRow label="Background">
                         <ToggleButton
@@ -261,7 +261,7 @@ fn StyleControls(state: CanvasState) -> NodeId {
                             @test_id={"infinite-canvas.background.none"}
                         />
                         <ForEach
-                            keys={(0..BACKGROUNDS.len()).collect::<Vec<usize>>()}
+                            value={(0..BACKGROUNDS.len()).collect::<Vec<usize>>()}
                         >|index: usize| {
                             let (name, color) = BACKGROUNDS[index];
                             view! {
@@ -276,7 +276,7 @@ fn StyleControls(state: CanvasState) -> NodeId {
                         }</ForEach>
                     </StyleRow>
                     <StyleRow label="Fill">
-                        <ForEach keys={(0..FILLS.len()).collect::<Vec<usize>>()}>|index: usize| {
+                        <ForEach value={(0..FILLS.len()).collect::<Vec<usize>>()}>|index: usize| {
                             let (name, choice) = FILLS[index];
                             view! {
                                 <StyleChoice
@@ -290,11 +290,11 @@ fn StyleControls(state: CanvasState) -> NodeId {
                     </StyleRow>
                 </List>
             </Show>
-            <Show condition={stroked_shown}>
+            <Show value={stroked_shown}>
                 <List spacing=SECTION_SPACING>
                     <StyleRow label="Width">
                         <ForEach
-                            keys={(0..STROKE_WIDTHS.len()).collect::<Vec<usize>>()}
+                            value={(0..STROKE_WIDTHS.len()).collect::<Vec<usize>>()}
                         >|index: usize| {
                             let (name, choice) = STROKE_WIDTHS[index];
                             view! {
@@ -309,7 +309,7 @@ fn StyleControls(state: CanvasState) -> NodeId {
                     </StyleRow>
                     <StyleRow label="Line">
                         <ForEach
-                            keys={(0..STROKE_STYLES.len()).collect::<Vec<usize>>()}
+                            value={(0..STROKE_STYLES.len()).collect::<Vec<usize>>()}
                         >|index: usize| {
                             let (name, choice) = STROKE_STYLES[index];
                             view! {
@@ -324,7 +324,7 @@ fn StyleControls(state: CanvasState) -> NodeId {
                     </StyleRow>
                     <StyleRow label="Roughness">
                         <ForEach
-                            keys={(0..ROUGHNESSES.len()).collect::<Vec<usize>>()}
+                            value={(0..ROUGHNESSES.len()).collect::<Vec<usize>>()}
                         >|index: usize| {
                             let (name, choice) = ROUGHNESSES[index];
                             view! {
@@ -339,9 +339,9 @@ fn StyleControls(state: CanvasState) -> NodeId {
                     </StyleRow>
                 </List>
             </Show>
-            <Show condition={sized_shown}>
+            <Show value={sized_shown}>
                 <StyleRow label="Text size">
-                    <ForEach keys={(0..TEXT_SIZES.len()).collect::<Vec<usize>>()}>|index: usize| {
+                    <ForEach value={(0..TEXT_SIZES.len()).collect::<Vec<usize>>()}>|index: usize| {
                         let (name, choice) = TEXT_SIZES[index];
                         view! {
                             <StyleChoice
@@ -354,10 +354,11 @@ fn StyleControls(state: CanvasState) -> NodeId {
                     }</ForEach>
                 </StyleRow>
             </Show>
-            <Show condition={shows(stroke)}>
+            <Show value={shows(stroke)}>
                 <StyleRow label="Opacity">
                     <ListItem grow=1.0>
                         <Slider
+                            on_drag_change={move |dragging| state.drag_value(dragging)}
                             label="Opacity"
                             value={Binding::new(opacity_value, opacity_set)}
                             @test_id={"infinite-canvas.style.opacity"}

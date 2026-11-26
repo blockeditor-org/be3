@@ -20,7 +20,7 @@ use crate::document::{Acted, Document};
 use crate::node::Rects;
 use beui_types::NodeId;
 
-const WHEEL_LATCH_SLOP: f32 = 2.0;
+use be_lib_input_router::WHEEL_LATCH_SLOP;
 pub const TOUCH_REACH: f32 = 12.0;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

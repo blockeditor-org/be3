@@ -1,12 +1,12 @@
 use super::*;
-use crate::reactive::{Loading, Pending, Ready};
+use crate::reactive::{Loading, Pending, create_source};
 
 #[test]
 fn a_mock_dom_loading_shows_its_fallback_until_what_its_content_holds_arrives() {
     let _root = ::beui_reactive::RootScope::new();
     fresh_ids();
     let scope = Scope::new();
-    let name = create_signal::<Ready<String>>(Err(Pending::Loading));
+    let name = create_source::<String>();
     let effects = store(Cell::new(0));
     let page = scope.run(|| {
         let fallback = |pending: Pending| match pending {

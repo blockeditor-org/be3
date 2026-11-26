@@ -5,7 +5,10 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+be-block-repository = { path = "../be-block-repository" }
+be-block-input = { path = "../be-block-input" }
 be-block = { path = "../be-block" }
+be-block-search-index = { path = "../be-block-search-index" }
 be-sdk-type-guest = { path = "../be-sdk-type-guest" }
 
 [lints]

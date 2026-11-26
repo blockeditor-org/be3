@@ -10,7 +10,7 @@ fn the_context_menu_key_opens_the_context_menu_around_the_focused_control() {
     let _root = crate::reactive::RootScope::new();
     let document = build_node(move || {
         let items = view! {
-            <unstyled::MenuItem row_test_id={"hide".to_owned()} label="Hide" />
+            <unstyled::MenuItem @test_id={"hide".to_owned()} label="Hide" />
             <unstyled::MenuItem label="Close" />
         };
         view! {

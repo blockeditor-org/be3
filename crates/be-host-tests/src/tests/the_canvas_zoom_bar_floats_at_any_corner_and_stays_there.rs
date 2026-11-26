@@ -1,14 +1,14 @@
 use super::*;
 
 const TOOL_BAR: &str = "GenericContainer #infinite-canvas.dock at";
-const ZOOM_BAR: &str = "GenericContainer #infinite-canvas.zoom-pill at";
+const ZOOM_BAR: &str = "GenericContainer #editor.zoom_bar at";
 const MODE_BAR: &str = "GenericContainer #infinite-canvas.mode at";
 
 #[test]
 fn the_canvas_zoom_bar_floats_at_any_corner_and_stays_there() {
     let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Canvas");
-    host.wait("#infinite-canvas.zoom-pill");
+    host.wait("#editor.zoom_bar");
     host.run(&["settle"]);
     let pane = host.place("Pane \"Canvas\"");
     let right = pane.0 + pane.2;
@@ -21,7 +21,7 @@ fn the_canvas_zoom_bar_floats_at_any_corner_and_stays_there() {
 
     drag_bar(
         &mut host,
-        "#infinite-canvas.zoom.grip",
+        "#editor.zoom_bar.grip",
         (pane.0 + 90.0, bottom - 80.0),
     );
     let zoom = host.place(ZOOM_BAR);
@@ -43,7 +43,7 @@ fn the_canvas_zoom_bar_floats_at_any_corner_and_stays_there() {
     );
     drag_bar(
         &mut host,
-        "#infinite-canvas.zoom.grip",
+        "#editor.zoom_bar.grip",
         (right - 150.0, pane.1 + 60.0),
     );
     let tools = host.place(TOOL_BAR);
@@ -66,7 +66,7 @@ fn the_canvas_zoom_bar_floats_at_any_corner_and_stays_there() {
     host.click("Button \"Close tab\"");
     host.gone("#infinite-canvas.dock");
     host.click("TreeItem \"Canvas\"");
-    host.wait("#infinite-canvas.zoom-pill");
+    host.wait("#editor.zoom_bar");
     host.run(&["settle"]);
     assert_eq!(
         (host.place(TOOL_BAR), host.place(ZOOM_BAR)),

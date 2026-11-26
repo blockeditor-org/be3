@@ -6,8 +6,10 @@ use uuid::Uuid;
 
 use crate::{
     BlockContent, BlockMetadata, ContentError, LiveEdit, Loads, Merge, Part, PartRef, Stored,
-    streamed::{Streamed, decode_streamed, encode_streamed},
 };
+
+/// The stored form's prefix: the header's length, as a little-endian `u32`.
+const HEADER_PREFIX_BYTES: usize = 4;
 
 pub trait BlobKind: Send + Sync + 'static {
     const CONTENT_TYPE: Uuid;
@@ -41,6 +43,12 @@ pub struct Blob<K: BlobKind> {
     data: Vec<u8>,
     saved: Option<PartRef>,
     unloaded: bool,
+    /// Where the payload starts in the stored form this blob was decoded from, while its header
+    /// is the one decoded: `payload_offset` then reads it rather than encoding the header again.
+    stored_start: Option<u64>,
+    /// Where the payload started in the stored form this blob was decoded from, kept as its
+    /// header changes: the payload's length in that form (`payload_range`).
+    decoded_start: Option<u64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -55,6 +63,8 @@ impl<K: BlobKind> Blob<K> {
             data,
             saved: None,
             unloaded: false,
+            stored_start: None,
+            decoded_start: None,
         }
     }
 
@@ -73,6 +83,23 @@ impl<K: BlobKind> Blob<K> {
         !self.unloaded
     }
 
+    /// Where the payload starts in the stored form, after the encoded header: a reader of a
+    /// blob loaded without its payload reads the payload's bytes from here on.
+    pub fn payload_offset(&self) -> u64 {
+        self.stored_start
+            .unwrap_or_else(|| encode_streamed(&self.header, &[]).len() as u64)
+    }
+
+    /// Where the payload starts now (`payload_offset`), and how long it is, of a blob decoded
+    /// from the start of a stored form `stored_length` long: what a reader of a blob loaded
+    /// without its payload asks of its replica, whose content has the same header. A header
+    /// edited since it was decoded moves where the payload starts but keeps its length.
+    pub fn payload_range(&self, stored_length: u64) -> (u64, u64) {
+        let start = self.payload_offset();
+        let decoded = self.decoded_start.unwrap_or(start);
+        (start, stored_length.saturating_sub(decoded))
+    }
+
     pub fn payload_length(&self) -> u64 {
         match self.unloaded {
             true => self.saved.map_or(0, PartRef::length),
@@ -82,6 +109,7 @@ impl<K: BlobKind> Blob<K> {
 
     pub fn set_header(&mut self, header: K::Header) {
         self.header = header;
+        self.stored_start = None;
     }
 }
 
@@ -92,6 +120,8 @@ impl<K: BlobKind> Clone for Blob<K> {
             data: self.data.clone(),
             saved: self.saved,
             unloaded: self.unloaded,
+            stored_start: self.stored_start,
+            decoded_start: self.decoded_start,
         }
     }
 }
@@ -103,6 +133,8 @@ impl<K: BlobKind> Default for Blob<K> {
             data: Vec::new(),
             saved: None,
             unloaded: false,
+            stored_start: None,
+            decoded_start: None,
         }
     }
 }
@@ -147,7 +179,12 @@ impl<K: BlobKind> BlockContent for Blob<K> {
 
     fn decode(bytes: &[u8]) -> Result<Self, ContentError> {
         let (header, data) = decode_streamed(bytes)?;
-        Ok(Self::new(header, data))
+        let start = (bytes.len() - data.len()) as u64;
+        Ok(Self {
+            stored_start: Some(start),
+            decoded_start: Some(start),
+            ..Self::new(header, data)
+        })
     }
 
     fn parts(&self) -> Part<'_> {
@@ -186,28 +223,15 @@ impl<K: BlobKind> BlockContent for Blob<K> {
     }
 }
 
-impl<K: BlobKind> Streamed for Blob<K> {
-    type Header = K::Header;
-
-    fn header(&self) -> Self::Header {
-        self.header.clone()
-    }
-
-    fn payload(&self) -> &[u8] {
-        &self.data
-    }
-
-    fn from_parts(header: Self::Header, payload: Vec<u8>) -> Self {
-        Self::new(header, payload)
-    }
-}
-
 impl<K: BlobKind> LiveEdit for Blob<K> {
     type Op = BlobOp<K::Header>;
 
     fn apply(&mut self, operation: &Self::Op) {
         match operation {
-            BlobOp::SetHeader(header) => self.header.clone_from(header),
+            BlobOp::SetHeader(header) => {
+                self.header.clone_from(header);
+                self.stored_start = None;
+            }
         }
     }
 }
@@ -225,4 +249,35 @@ impl<K: BlobKind> Merge for Blob<K> {
             conflicts: 1,
         }
     }
+}
+
+/// `[u32 header length][header][payload]`, so a reader takes the header from the start.
+fn encode_streamed<H: Serialize>(header: &H, payload: &[u8]) -> Vec<u8> {
+    let encoded = postcard::to_stdvec(header).unwrap_or_default();
+    let length = u32::try_from(encoded.len()).unwrap_or(u32::MAX);
+    let mut bytes = Vec::with_capacity(HEADER_PREFIX_BYTES + encoded.len() + payload.len());
+    bytes.extend_from_slice(&length.to_le_bytes());
+    bytes.extend_from_slice(&encoded);
+    bytes.extend_from_slice(payload);
+    bytes
+}
+
+fn decode_streamed<H: DeserializeOwned>(bytes: &[u8]) -> Result<(H, Vec<u8>), ContentError> {
+    let start = payload_start(bytes)?;
+    if bytes.len() < start {
+        return Err(ContentError::Truncated);
+    }
+    let header = postcard::from_bytes(&bytes[HEADER_PREFIX_BYTES..start])
+        .map_err(|_| ContentError::Malformed("header"))?;
+    Ok((header, bytes[start..].to_vec()))
+}
+
+fn payload_start(prefix: &[u8]) -> Result<usize, ContentError> {
+    let length = prefix
+        .get(..HEADER_PREFIX_BYTES)
+        .ok_or(ContentError::Truncated)?;
+    let length = u32::from_le_bytes(length.try_into().expect("four bytes")) as usize;
+    HEADER_PREFIX_BYTES
+        .checked_add(length)
+        .ok_or(ContentError::Malformed("header length"))
 }

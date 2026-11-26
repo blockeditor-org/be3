@@ -8,7 +8,7 @@ use be_sdk_beui::beui::styled::popover::PANEL_PADDING;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_database::{ChoiceMark, DatabaseBlockPickRequest, DatabaseValueEditor};
 use be_sdk_ui_database::{DatabaseValueChange, ValueLabels, database_value_text};
-use be_type_database::database::{DatabaseColor, DatabaseValue};
+use be_type_database::database::{DatabaseColor, DatabaseValue, RowRef};
 use be_type_database::database_schema::{DatabaseEnumOption, DatabaseField, DatabaseFieldType};
 use be_type_database::database_view::{DatabaseView, FilterCondition, ViewFilter};
 use uuid::Uuid;
@@ -23,7 +23,7 @@ const EDITOR_WIDTH: f32 = 300.0;
 const EDITOR_POPOVER_WIDTH: Size = Size::Custom(EDITOR_WIDTH + PANEL_PADDING.px() * 2.0);
 const CHOICES_HEIGHT: Size = Size::Custom(280.0);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Kind {
     AnyOf,
     NoneOf,
@@ -191,7 +191,7 @@ pub fn FilterBar(data: Data) -> NodeId {
     });
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING wrap=true>
-            <ForEach keys={keys}>|id: ObjectId|
+            <ForEach value={keys}>|id: ObjectId|
                 <FilterChip data={data} id={id} />
             </ForEach>
             <AddFilter data={data} />
@@ -246,9 +246,6 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
 #[component]
 fn AddFilter(data: Data) -> NodeId {
     let adding = create_signal(None::<ObjectId>);
-    let choosing = create_memo(move || adding.get().is_none());
-    let editing = create_memo(move || adding.get());
-    let has_editing = create_memo(move || adding.get().is_some());
     let open = create_signal(false);
     let open = Binding::new(open, move |next: bool| {
         open.set(next);
@@ -269,20 +266,17 @@ fn AddFilter(data: Data) -> NodeId {
             open
         >|_: PopoverHandle|
             <List spacing=Space::None>
-                <Show condition={choosing}>
-                    <FieldChoices data={data} on_pick={move |id: ObjectId| adding.set(Some(id))} />
-                </Show>
-                <Show condition={has_editing}>|| {
-                    let id = editing.get_untracked();
-                    match id {
-                        Some(id) => view! {
-                            <FilterEditor data={data} id={id} />
-                        },
-                        None => view! {
-                            <Frame />
-                        },
-                    }
-                }</Show>
+                <Dynamic
+                    value={adding}
+                    fallback={move || view! {
+                        <FieldChoices
+                            data={data}
+                            on_pick={move |id: ObjectId| adding.set(Some(id))}
+                        />
+                    }}
+                >|id: ObjectId|
+                    <FilterEditor data={data} id={id} />
+                </Dynamic>
             </List>
         </Popover>
     }
@@ -302,7 +296,7 @@ fn FieldChoices(data: Data, on_pick: be_sdk_beui::beui::reactive::Callback<Objec
     view! {
         <List spacing=Space::Xs2>
             <Text style=TextStyle::CAPTION>"Filter by"</Text>
-            <ForEach keys={keys}>|field: Uuid| {
+            <ForEach value={keys}>|field: Uuid| {
                 let name = create_memo(move || {
                     data.fields.with(|fields| {
                         fields
@@ -361,15 +355,9 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
     let kinds =
         create_memo(move || field.with(|field| field.as_ref().map(kinds_for).unwrap_or_default()));
     let kind = create_memo(move || filter.with(|filter| Kind::of(&filter.condition)));
-    let selected = create_memo(move || {
-        let kind = kind.get();
-        kinds.with(|kinds| kinds.iter().position(|held| *held == kind))
-    });
-    let kind_keys = create_memo(move || (0..kinds.with(Vec::len)).collect::<Vec<usize>>());
-    let recondition = move |index: Option<usize>| {
-        let Some(kind) =
-            index.and_then(|index| kinds.with_untracked(|kinds| kinds.get(index).copied()))
-        else {
+    let selected = create_memo(move || Some(kind.get()));
+    let recondition = move |chosen: Option<Kind>| {
+        let Some(kind) = chosen else {
             return;
         };
         let Some(field) = field.get_untracked() else {
@@ -381,9 +369,6 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
             .with_untracked(|labels| converted(kind, &current, &field, labels));
         data.operate_view(DatabaseView::set_filter_condition(id, &next));
     };
-    let choosing = create_memo(move || matches!(kind.get(), Kind::AnyOf | Kind::NoneOf));
-    let comparing = create_memo(move || matches!(kind.get(), Kind::Is | Kind::IsNot));
-    let searching = create_memo(move || kind.get() == Kind::Contains);
     let needle = create_memo(move || match filter.get().condition {
         FilterCondition::Contains(text) => text,
         _ => String::new(),
@@ -394,7 +379,6 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
             &FilterCondition::Contains(text),
         ));
     };
-    let value_fields = create_memo(move || field.get().into_iter().collect::<Vec<_>>());
     let values = create_memo(move || {
         let filter = filter.get();
         match (filter.field, filter.condition) {
@@ -426,16 +410,9 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                         <Frame>
                             <Select
                                 options={view! {
-                                    <ForEach keys={kind_keys}>|index: usize| {
-                                        let label = create_memo(move || {
-                                            kinds.with(|kinds| {
-                                                kinds.get(index).map(|kind| kind.label()).unwrap_or_default().to_owned()
-                                            })
-                                        });
-                                        view! {
-                                            <ChoiceOption label={label} />
-                                        }
-                                    }</ForEach>
+                                    <ForEach value={kinds}>|kind: Kind|
+                                        <ChoiceOption value=kind label={kind.label()} />
+                                    </ForEach>
                                 }}
                                 selected={Binding::new(selected, recondition)}
                                 label="Condition"
@@ -445,30 +422,32 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                         </Frame>
                     </ListItem>
                 </List>
-                <Show condition={choosing}>
-                    <ValueChoices data={data} id={id} filter={filter} field={field} />
-                </Show>
-                <Show condition={comparing}>
-                    <DatabaseValueEditor
-                        fields={value_fields}
-                        values={values}
-                        labels={labels}
-                        disabled={value_off}
-                        prefix={format!("database-view.filter.{}", id.as_uuid())}
-                        headings=false
-                        on_change={revalue}
-                        on_pick={picked}
-                    />
-                </Show>
-                <Show condition={searching}>
-                    <TextInput
-                        value={Binding::new(needle, searched_for)}
-                        placeholder="Text"
-                        disabled={text_off}
-                        focused=true
-                        @test_id={format!("database-view.filter.{}.text", id.as_uuid())}
-                    />
-                </Show>
+                <Match value={kind}>
+                    <Case when={|kind: &Kind| matches!(kind, Kind::AnyOf | Kind::NoneOf)}>
+                        <ValueChoices data={data} id={id} filter={filter} field={field} />
+                    </Case>
+                    <Case when={|kind: &Kind| matches!(kind, Kind::Is | Kind::IsNot)}>
+                        <DatabaseValueEditor
+                            fields={move || field.get().into_iter().collect::<Vec<_>>()}
+                            values={values}
+                            labels={labels}
+                            disabled={value_off}
+                            prefix={format!("database-view.filter.{}", id.as_uuid())}
+                            headings=false
+                            on_change={revalue}
+                            on_pick={picked}
+                        />
+                    </Case>
+                    <Case is={Kind::Contains}>
+                        <TextInput
+                            value={Binding::new(needle, searched_for)}
+                            placeholder="Text"
+                            disabled={text_off}
+                            focused=true
+                            @test_id={format!("database-view.filter.{}.text", id.as_uuid())}
+                        />
+                    </Case>
+                </Match>
             </List>
         </Frame>
     }
@@ -480,6 +459,17 @@ struct Choice {
     label: String,
     option: Option<DatabaseEnumOption>,
     count: usize,
+}
+
+impl Choice {
+    /// What tells choices apart: an option's id, or the row it links to.
+    fn key(&self) -> (Option<Uuid>, Option<RowRef>) {
+        match self.value {
+            DatabaseValue::Enum(option) => (Some(option), None),
+            DatabaseValue::Relation(row) => (None, Some(row)),
+            _ => (None, None),
+        }
+    }
 }
 
 #[component]
@@ -502,7 +492,7 @@ fn ValueChoices(
                 .collect()
         });
         let query = query.get().trim().to_lowercase();
-        let _ = filter.get();
+        filter.track();
         data.rows.with(|rows| {
             data.fields.with(|fields| {
                 data.labels.with(|labels| {
@@ -565,13 +555,11 @@ fn ValueChoices(
                 .is_some_and(|field| field.field_type == DatabaseFieldType::Relation)
         })
     });
-    let keys =
-        create_memo(move || choices.with(|choices| (0..choices.len()).collect::<Vec<usize>>()));
     let read_only = data.read_only;
     let typed = move |text: String| query.set(text);
     view! {
         <List spacing=SPACING>
-            <Show condition={many}>
+            <Show value={many}>
                 <TextInput
                     value={Binding::new(query, typed)}
                     placeholder="Search"
@@ -580,22 +568,20 @@ fn ValueChoices(
             </Show>
             <Scroll max_length=CHOICES_HEIGHT>
                 <List spacing=Space::Xs2>
-                    <ForEach keys={keys}>|index: usize| {
-                        let choice = create_memo(move || choices.with(|choices| choices.get(index).cloned()));
-                        let label = create_memo(move || choice.with(|choice| choice.as_ref().map(|choice| choice.label.clone()).unwrap_or_default()));
-                        let count = create_memo(move || choice.with(|choice| choice.as_ref().map_or(0, |choice| choice.count)).to_string());
-                        let option = create_memo(move || choice.with(|choice| choice.as_ref().and_then(|choice| choice.option.clone())));
+                    <ForEach
+                        value={choices}
+                        key={Choice::key}
+                    >|choice: ReadSignal<Choice>, index: ReadSignal<usize>| {
+                        let label = create_memo(move || choice.with(|choice| choice.label.clone()));
+                        let count = create_memo(move || choice.with(|choice| choice.count.to_string()));
+                        let option = create_memo(move || choice.with(|choice| choice.option.clone()));
                         let marked = create_memo(move || option.with(Option::is_some));
                         let checked = create_memo(move || {
-                            let Some(choice) = choice.get() else {
-                                return false;
-                            };
-                            values_of(&filter.get().condition).contains(&choice.value)
+                            let value = choice.with(|choice| choice.value.clone());
+                            values_of(&filter.get().condition).contains(&value)
                         });
                         let toggle = move |on: bool| {
-                            let Some(choice) = choice.get_untracked() else {
-                                return;
-                            };
+                            let choice = choice.get_untracked();
                             let current = filter.get_untracked().condition;
                             let mut values = values_of(&current);
                             values.retain(|held| *held != choice.value);
@@ -608,14 +594,14 @@ fn ValueChoices(
                             };
                             data.operate_view(DatabaseView::set_filter_condition(id, &next));
                         };
-                        let element_test_id = format!("database-view.filter.{}.choice.{index}", id.as_uuid());
+                        let element_test_id = move || format!("database-view.filter.{}.choice.{}", id.as_uuid(), index.get());
                         view! {
                             <List
                                 direction=Direction::Horizontal
                                 align=Align::Center
                                 spacing=SPACING
                             >
-                                <Show condition={marked}>
+                                <Show value={marked}>
                                     <ChoiceMark option={option} size=MARK />
                                 </Show>
                                 <ListItem grow=1.0 shrink=1.0>
@@ -642,14 +628,11 @@ pub fn FilterList(data: Data) -> NodeId {
         data.filter_items
             .with(|items| items.iter().map(|(id, _)| *id).collect::<Vec<ObjectId>>())
     });
-    let none = create_memo(move || keys.with(Vec::is_empty));
     let names = data.fields;
-    let field_keys =
-        create_memo(move || names.with(|fields| (0..fields.len()).collect::<Vec<usize>>()));
-    let add = move |index: Option<usize>| {
-        let Some(field) = index.and_then(|index| {
+    let add = move |chosen: Option<Uuid>| {
+        let Some(field) = chosen.and_then(|chosen| {
             data.fields
-                .with_untracked(|fields| fields.get(index).cloned())
+                .with_untracked(|fields| fields.iter().find(|field| field.id == chosen).cloned())
         }) else {
             return;
         };
@@ -658,10 +641,12 @@ pub fn FilterList(data: Data) -> NodeId {
     let read_only = data.read_only;
     view! {
         <List spacing=Space::Lg>
-            <Show condition={none}>
-                <Text style=TextStyle::CAPTION>"Every row is shown."</Text>
-            </Show>
-            <ForEach keys={keys}>|id: ObjectId| {
+            <ForEach
+                value={keys}
+                fallback={|| view! {
+                    <Text style=TextStyle::CAPTION>"Every row is shown."</Text>
+                }}
+            >|id: ObjectId| {
                 let remove = move || data.operate_view(DatabaseView::remove_filter(id));
                 let read_only = data.read_only;
                 view! {
@@ -689,14 +674,15 @@ pub fn FilterList(data: Data) -> NodeId {
                     <Frame>
                         <Select
                             options={view! {
-                                <ForEach keys={field_keys}>|index: usize| {
-                                    let label = create_memo(move || {
-                                        names.with(|fields| fields.get(index).map(|field| field.name.clone()).unwrap_or_default())
-                                    });
-                                    view! {
-                                        <ChoiceOption label={label} />
-                                    }
-                                }</ForEach>
+                                <ForEach
+                                    value={names}
+                                    key={|field: &DatabaseField| field.id}
+                                >|field: ReadSignal<DatabaseField>|
+                                    <ChoiceOption
+                                        value={field.with_untracked(|field| field.id)}
+                                        label={move || field.with(|field| field.name.clone())}
+                                    />
+                                </ForEach>
                             }}
                             selected={Binding::new(None, add)}
                             label="Add a filter"

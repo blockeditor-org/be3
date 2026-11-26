@@ -1,4 +1,4 @@
-use crate::{Pos2, Rect, Vec2};
+use crate::{Pos2, Rect, Side, Vec2};
 
 const SHARED: f32 = 64.0;
 const NEAR: f32 = 0.01;
@@ -43,6 +43,69 @@ pub fn settle(rect: Rect, placed: &[Rect]) -> Rect {
             let right = placed.iter().map(Rect::right).fold(f32::MIN, f32::max);
             Rect::from_min_size(Pos2::new(right, rect.min.y), size)
         })
+}
+
+/// Where along a side a touching place lines up with it.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Line {
+    Start,
+    Middle,
+    End,
+}
+
+/// A place a rect touches another: the rect, which of the placed ones it is beside, on which
+/// of that one's sides, and lined up with which part of the side.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Touching {
+    pub rect: Rect,
+    pub beside: usize,
+    pub side: Side,
+    pub line: Line,
+}
+
+/// Every place a rect of `size` touches one of `placed` and overlaps none: beside each side
+/// of each, lined up with the side's start, middle and end. A place two of these name is
+/// listed once.
+pub fn places(size: Vec2, placed: &[Rect]) -> Vec<Touching> {
+    let mut places: Vec<Touching> = Vec::with_capacity(placed.len() * 12);
+    for (beside, other) in placed.iter().enumerate() {
+        let lined = |low: f32, high: f32, length: f32| {
+            [
+                (Line::Start, low),
+                (Line::Middle, (low + high - length) / 2.0),
+                (Line::End, high - length),
+            ]
+        };
+        let across = lined(other.top(), other.bottom(), size.y);
+        let along = lined(other.left(), other.right(), size.x);
+        let sides = across
+            .iter()
+            .flat_map(|(line, y)| {
+                [
+                    (Side::Right, *line, Pos2::new(other.right(), *y)),
+                    (Side::Left, *line, Pos2::new(other.left() - size.x, *y)),
+                ]
+            })
+            .chain(along.iter().flat_map(|(line, x)| {
+                [
+                    (Side::Below, *line, Pos2::new(*x, other.bottom())),
+                    (Side::Above, *line, Pos2::new(*x, other.top() - size.y)),
+                ]
+            }));
+        for (side, line, min) in sides {
+            let rect = Rect::from_min_size(min, size);
+            if overlaps_any(rect, placed) || places.iter().any(|place| place.rect == rect) {
+                continue;
+            }
+            places.push(Touching {
+                rect,
+                beside,
+                side,
+                line,
+            });
+        }
+    }
+    places
 }
 
 fn beside(rect: Rect, other: Rect) -> [Pos2; 4] {

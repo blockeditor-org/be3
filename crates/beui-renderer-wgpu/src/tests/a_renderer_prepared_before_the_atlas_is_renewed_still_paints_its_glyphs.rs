@@ -12,7 +12,7 @@ fn a_renderer_prepared_before_the_atlas_is_renewed_still_paints_its_glyphs() {
     });
     let mut first = Target::new();
     let mut second = Target::sharing(&first);
-    let context = Context::new(beui_font_freetype::FreetypeFonts::default());
+    let context = Context::new(beui_font_skrifa::SkrifaFonts::default());
     let output = context.run(|context| {
         context.painter().text(
             pos2(4.0, 4.0),

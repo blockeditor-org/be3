@@ -41,11 +41,17 @@ pub fn ChildBlock(
     #[prop(default = 0.0)] rotation: Prop<f32>,
     #[prop(default = 1.0)] opacity: Prop<f32>,
     #[prop(default = None)] intrinsic: Prop<Option<beui::Vec2>>,
+    /// How many times the editor asked that the child take the keyboard, a count that only grows:
+    /// each time it grows above the highest it reached, the host moves the keyboard to the child
+    /// at the layout commit that carries it, if the keyboard is within this editor's views and
+    /// no view that takes the keyboard is open.
+    #[prop(default = 0)]
+    keyboard: Prop<u64>,
     on_state: Callback<ChildState>,
     on_details: Callback<()>,
     on_focus: Callback<()>,
     docked_tab: Option<RenderFn<ChildDockTab, NodeId>>,
-    #[prop(children)] content: Option<Render<ChildBlockHandle>>,
+    #[prop(children)] content: Option<Render<ChildBlockHandle, NodeId>>,
 ) -> NodeId {
     let placed = create_memo(move || block.get().map(SubregionContent::Block));
     let placing = Placing {
@@ -63,6 +69,7 @@ pub fn ChildBlock(
         fit: Prop::Static(None),
         dialog: Prop::Static(None),
         fullscreen: Prop::Static(false),
+        keyboard,
         on_state,
         on_details,
         on_focus,
@@ -89,10 +96,13 @@ pub fn Subregion(
     #[prop(default = None)] fit: Prop<Option<beui::Vec2>>,
     #[prop(default = false)] dialog: bool,
     #[prop(default = false)] fullscreen: Prop<bool>,
+    /// How many times the editor asked that the child take the keyboard (`ChildBlock`'s).
+    #[prop(default = 0)]
+    keyboard: Prop<u64>,
     on_state: Callback<ChildState>,
     on_details: Callback<()>,
     on_focus: Callback<()>,
-    #[prop(children)] content: Option<Render<ChildBlockHandle>>,
+    #[prop(children)] content: Option<Render<ChildBlockHandle, NodeId>>,
 ) -> NodeId {
     let layout = use_context::<DialogLayout>();
     let modal = use_modal();
@@ -121,6 +131,7 @@ pub fn Subregion(
         fit,
         dialog,
         fullscreen,
+        keyboard,
         on_state,
         on_details,
         on_focus,
@@ -146,10 +157,11 @@ struct Placing {
     fit: Prop<Option<beui::Vec2>>,
     dialog: Prop<Option<DialogFrame>>,
     fullscreen: Prop<bool>,
+    keyboard: Prop<u64>,
     on_state: Callback<ChildState>,
     on_details: Callback<()>,
     on_focus: Callback<()>,
-    content: Option<Render<ChildBlockHandle>>,
+    content: Option<Render<ChildBlockHandle, NodeId>>,
 }
 
 #[component]
@@ -173,6 +185,7 @@ fn SubregionView(
         fit,
         dialog,
         fullscreen,
+        keyboard,
         on_state,
         on_details,
         on_focus,
@@ -215,6 +228,15 @@ fn SubregionView(
         }
         on_focus.call(());
     });
+    // The editor's own asks, and one each time the dock gives this child's tab the keyboard.
+    let tab_asks = match tab {
+        Some(tab) => tab_keyboard_asks(editor, tab, placed, mode),
+        None => create_memo(|| 0),
+    };
+    // Both counts only grow, so their sum does: the editor's own count is taken as how many
+    // times it grew, so neither can hide the other's growth.
+    let own_asks = growths(keyboard);
+    let keyboard = Prop::dynamic(move || own_asks.get() + tab_asks.get());
     let state = editor.register_child(
         slot,
         placed.into_prop(),
@@ -228,6 +250,7 @@ fn SubregionView(
         fit,
         dialog,
         fullscreen,
+        keyboard,
         on_state,
         on_details,
         on_focus,
@@ -238,12 +261,13 @@ fn SubregionView(
     if let Some(link) = link {
         crate::docked::bridge_child_dock(editor, link, state, docked_tab);
     }
-    if let Some(tab) = tab {
-        follow_tab_keyboard(editor, tab, state, placed, mode);
-    }
     let preview = create_memo(move || state.with(|state| state.preview));
-    let pictured = create_memo(move || {
-        mode.get() == ChildMode::Preview || preview.get() != ChildPreview::Hosted
+    // A preview the host composites in place (a root's, `ChildPreview::Composited`) takes a
+    // hole as any child does; one it hands over as a picture, or not yet, is drawn here.
+    let pictured = create_memo(move || match preview.get() {
+        ChildPreview::Composited => false,
+        ChildPreview::Hosted => mode.get() == ChildMode::Preview,
+        ChildPreview::Waiting | ChildPreview::Label | ChildPreview::Image(_) => true,
     });
     let punch = create_memo(move || below.get() && punch.get() && !pictured.get());
     let entries = create_memo(move || state.with(|state| (state.child, state.menu.clone())));
@@ -283,19 +307,36 @@ fn SubregionView(
     }
 }
 
-fn follow_tab_keyboard(
+/// How many times `count` grew above the highest it reached.
+fn growths(count: Prop<u64>) -> ReadSignal<u64> {
+    let grown = create_signal(0_u64);
+    let highest = StoredCell::new(0_u64);
+    create_effect(move || {
+        let now = count.get();
+        if now > highest.get() {
+            highest.set(now);
+            untrack(|| grown.update(|grown| *grown += 1));
+        }
+    });
+    grown.read_only()
+}
+
+/// Counts the times the dock gives `tab` the keyboard, or brings its window forward, while the
+/// child it shows takes input (an active or live block, a dock tab's body, a program window, a
+/// host panel) and
+/// no popover or keyboard-taking layer of the editor's is open: each is an ask that the child
+/// take the keyboard, which the child's placement carries (`keyboard-asks`).
+fn tab_keyboard_asks(
     editor: Editor,
     tab: beui::dock::DockTabControl,
-    state: ReadSignal<ChildState>,
     placed: Memo<Option<SubregionContent>>,
     mode: Memo<ChildMode>,
-) {
+) -> Memo<u64> {
     let given = create_memo(move || {
         let given = tab.keyboard().map(|count| (false, count));
         let forward = tab.brought_forward().map(|count| (true, count));
         given.into_iter().chain(forward).collect::<Vec<_>>()
     });
-    let child = create_memo(move || state.with(|state| state.child));
     let interactive = create_memo(move || {
         matches!(mode.get(), ChildMode::Active | ChildMode::Live)
             && placed.with(|placed| {
@@ -305,24 +346,27 @@ fn follow_tab_keyboard(
                         SubregionContent::Block(_)
                             | SubregionContent::DockTab(_)
                             | SubregionContent::Window(_)
+                            | SubregionContent::Host(_)
                     )
                 )
             })
     });
+    let asks = create_signal(0_u64);
     let asked = StoredCell::new(Vec::<(bool, u64)>::new());
     create_effect(move || {
         let given = given.get();
-        let (Some(child), true) = (child.get(), interactive.get()) else {
+        if !interactive.get() {
             return;
-        };
+        }
         let held = asked.replace(given.clone());
         let trapped = editor.popped().with_untracked(Option::is_some)
             || beui::native::try_with_document(|document| document.layers().takes_keyboard())
                 .unwrap_or(false);
         if !trapped && given.iter().any(|given| !held.contains(given)) {
-            untrack(|| editor.host().focus_child(child));
+            untrack(|| asks.update(|asks| *asks += 1));
         }
     });
+    create_memo(move || asks.get())
 }
 
 #[component]
@@ -335,17 +379,19 @@ fn PreviewPicture(
 ) -> NodeId {
     let drawing = create_memo(move || match preview.get() {
         ChildPreview::Image(image) => Some(crate::preview::picture(image, turn.get(), fade.get())),
-        ChildPreview::Hosted | ChildPreview::Waiting | ChildPreview::Label => None,
+        ChildPreview::Hosted
+        | ChildPreview::Composited
+        | ChildPreview::Waiting
+        | ChildPreview::Label => None,
     });
-    let labelled = create_memo(move || preview.get() == ChildPreview::Label);
     let target = create_memo(move || match placed.get() {
         Some(SubregionContent::Block(target)) => Some(target),
         _ => None,
     });
     view! {
         <Layers>
-            <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
-            <Show condition={labelled}>
+            <Drawing draw={move || draw_gpu(drawing.get())} />
+            <Show value={move || preview.get() == ChildPreview::Label}>
                 <PreviewLabel editor={editor} target={target} />
             </Show>
         </Layers>
@@ -358,7 +404,6 @@ fn PreviewLabel(editor: Editor, target: Memo<Option<ChildTarget>>) -> NodeId {
     let name = create_memo(move || shown.with(|shown| shown.name.clone()));
     let italic = create_memo(move || shown.with(|shown| shown.automatic));
     let glyph = create_memo(move || shown.with(|shown| shown.glyph));
-    let has_glyph = create_memo(move || glyph.get().is_some());
     view! {
         <Frame
             fill=ColorRole::Surface
@@ -368,7 +413,7 @@ fn PreviewLabel(editor: Editor, target: Memo<Option<ChildTarget>>) -> NodeId {
             align=Align2::CENTER
         >
             <List spacing=Space::Md align=Align::Center>
-                <Show condition={has_glyph}>
+                <Show value={move || glyph.with(Option::is_some)}>
                     <Text size=TextSize::Xl color=TextColor::Muted align=beui::TextAlign::Center>
                         <Icon glyph={glyph} />
                     </Text>
@@ -477,15 +522,9 @@ impl MenuMirror {
                         mirrored.enabled.handle(),
                         mirrored.checked.handle(),
                     );
-                    if label.get_untracked() != command.label {
-                        label.set(command.label.clone());
-                    }
-                    if enabled.get_untracked() != command.enabled {
-                        enabled.set(command.enabled);
-                    }
-                    if ticked.get_untracked() != checked {
-                        ticked.set(checked);
-                    }
+                    label.set(command.label.clone());
+                    enabled.set(command.enabled);
+                    ticked.set(checked);
                     Shape::Command {
                         id: command.id.clone(),
                         label: None,

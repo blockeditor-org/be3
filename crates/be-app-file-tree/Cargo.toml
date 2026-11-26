@@ -15,6 +15,7 @@ serde = { version = "1", features = ["derive"] }
 uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
+be-type-chat = { path = "../be-type-chat" }
 be-type-workspace = { path = "../be-type-workspace" }
 be-sdk-test = { path = "../be-sdk-test" }
 

@@ -9,10 +9,11 @@ fn a_peer_edit_beneath_the_hosts_unsettled_edits_runs_only_what_either_touched()
     fixture
         .host
         .push_content_operations(vec![crate::EditorOperation {
-            operation: ChecklistContent::encode_operation(&done),
+            landed: be_block_content::Landed::On {
+                operation: ChecklistContent::encode_operation(&done),
+                unsettled: 1,
+            },
             mine: true,
-            unsettled: 1,
-            beneath: None,
         }]);
     fixture.projection.pump();
     let renamed = Checklist::set_text(fixture.first, "oat milk");
@@ -24,10 +25,12 @@ fn a_peer_edit_beneath_the_hosts_unsettled_edits_runs_only_what_either_touched()
     fixture
         .host
         .push_content_operations(vec![crate::EditorOperation {
-            operation: ChecklistContent::encode_operation(&peer),
+            landed: be_block_content::Landed::Beneath {
+                operation: ChecklistContent::encode_operation(&peer),
+                unsettled: 1,
+                local: vec![ChecklistContent::encode_operation(&done)],
+            },
             mine: false,
-            unsettled: 1,
-            beneath: Some(vec![ChecklistContent::encode_operation(&done)]),
         }]);
     fixture.projection.pump();
 

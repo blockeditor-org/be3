@@ -11,9 +11,10 @@ fn a_seal_the_connection_loses_is_kept_and_published_after_reconnect() {
     wait_for_count(block, 4);
     flush();
 
-    harness.relay().stall();
     add(block, 3);
+    // Owed once the server ordered it; the connection hangs only then, as the seal goes out.
     wait_until("owes a seal for the edit", |shared| shared.owing > 0);
+    harness.relay().stall();
     harness
         .clock
         .advance(Duration::from_millis(be_sdk_type_guest::QUIET_INTERVAL));

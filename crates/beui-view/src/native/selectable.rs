@@ -21,7 +21,6 @@ use crate::types::{Area, Claim};
 use crate::types::{KeyPress, PointerPress};
 use crate::types::{Pos2, Rect, Vec2};
 use crate::types::{handle_center, toolbar_anchor};
-use beui_macros::view;
 
 const HANDLE_HIT_RADIUS: f32 = 24.0;
 const END: usize = usize::MAX;
@@ -845,9 +844,7 @@ fn drag(state: State, autoscroll: Signal<bool>, press: PointerPress) {
     let pos = match state.0.value().region.try_get() {
         Some(region) => {
             let beyond = scroll_toward(region, press.pos, AUTOSCROLL_RATE);
-            if autoscroll.get_untracked() != beyond.scrolled {
-                autoscroll.set(beyond.scrolled);
-            }
+            autoscroll.set(beyond.scrolled);
             beyond.inside
         }
         None => press.pos,

@@ -46,3 +46,5 @@ fn a_pick_from_a_childs_menu_points_at_the_child_in_the_host() {
         "the pick carries the child's rect in host coordinates, worked out when it was made"
     );
 }
+
+test_editor!(PickRoot);

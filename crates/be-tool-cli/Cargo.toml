@@ -9,7 +9,6 @@ name = "be"
 path = "src/main.rs"
 
 [dependencies]
-be-wasm-threads = { path = "../be-wasm-threads" }
 be-block = { path = "../be-block" }
 be-block-content = { path = "../be-block-content" }
 be-block-client = { path = "../be-block-client" }
@@ -20,6 +19,11 @@ be-block-protocol = { path = "../be-block-protocol" }
 be-block-store = { path = "../be-block-store" }
 be-block-sync = { path = "../be-block-sync" }
 be-block-type-host = { path = "../be-block-type-host" }
+be-host-base = { path = "../be-host-base" }
+# Runs apps' host components headless (guides/apps/runtime.md, "Headless").
+be-host-runtime = { path = "../be-host-runtime" }
+be-host-stack = { path = "../be-host-stack" }
+be-sdk-api = { path = "../be-sdk-api" }
 beui-components-unstyled = { path = "../beui-components-unstyled" }
 be-sdk-manifest = { path = "../be-sdk-manifest" }
 be-sdk-type-api = { path = "../be-sdk-type-api" }
@@ -31,13 +35,21 @@ futures-util = "0.3"
 portable-pty = "0.9"
 be-tool-terminal-emulator = { path = "../be-tool-terminal-emulator" }
 serde_json = "1"
+be-lib-sha256 = { path = "../be-lib-sha256" }
 be-type-terminal = { path = "../be-type-terminal" }
 be-type-text = { path = "../be-type-text" }
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "signal", "sync", "time"] }
 uuid = { version = "1", features = ["v4", "v7"] }
+# Downloads the apps' manifests, type modules and host apps from be's release (release.rs).
+ureq = "2"
 
 [dev-dependencies]
+be-block-fault-relay = { path = "../be-block-fault-relay" }
+be-host-testing = { path = "../be-host-testing" }
+be-lib-test-pause = { path = "../be-lib-test-pause" }
+be-type-example-counter = { path = "../be-type-example-counter" }
 be-type-bundle = { path = "../be-type-bundle" }
+be-type-chat = { path = "../be-type-chat" }
 be-server = { path = "../be-server" }
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync"] }
 be-type-workspace = { path = "../be-type-workspace" }

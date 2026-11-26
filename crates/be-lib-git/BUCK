@@ -1,0 +1,4 @@
+load("@root//buck/cargo:defs.bzl", "cargo_crate")
+
+# git run for its output, by be-tool-local and be-tool-verify.
+cargo_crate(test = False)

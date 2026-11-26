@@ -14,7 +14,7 @@ fn a_window_opened_over_another_sits_where_that_window_would_show_it_a_little_in
             at,
         },
     );
-    let main = main(&space).clone();
+    let main = *main(&space);
     let panel = space.panel(window).unwrap();
     assert!(
         panel.pose.rotation.angle_between(main.pose.rotation) < 1e-4,

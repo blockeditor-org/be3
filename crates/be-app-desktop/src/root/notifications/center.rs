@@ -116,13 +116,11 @@ impl Notification {
 pub(crate) struct Center {
     kept: Vec<Notification>,
     signals: Vec<NotificationSignal>,
-    revision: u64,
 }
 
 impl Center {
     pub(crate) fn notify(&mut self, id: u32, incoming: Incoming, now: Duration, received: u64) {
         let toast = toast_for(&incoming, now);
-        self.revision += 1;
         if let Some(kept) = self.kept.iter_mut().find(|kept| kept.id == id) {
             kept.incoming = incoming;
             kept.received = received;
@@ -152,7 +150,6 @@ impl Center {
         };
         self.kept.remove(at);
         self.signals.push(NotificationSignal::Closed { id, reason });
-        self.revision += 1;
         true
     }
 
@@ -174,7 +171,6 @@ impl Center {
         match kept.incoming.resident {
             true => {
                 kept.toast = Toast::Hidden;
-                self.revision += 1;
             }
             false => {
                 self.close(id, NotificationCloseReason::Dismissed);
@@ -196,7 +192,6 @@ impl Center {
                 continue;
             }
             kept.toast = Toast::Hidden;
-            self.revision += 1;
             if kept.incoming.transient {
                 expired.push(kept.id);
             }
@@ -225,12 +220,8 @@ impl Center {
     }
 
     pub(crate) fn see(&mut self) {
-        let mut changed = false;
         for kept in &mut self.kept {
-            changed |= !std::mem::replace(&mut kept.seen, true);
-        }
-        if changed {
-            self.revision += 1;
+            kept.seen = true;
         }
     }
 
@@ -240,10 +231,6 @@ impl Center {
 
     pub(crate) fn take_signals(&mut self) -> Vec<NotificationSignal> {
         std::mem::take(&mut self.signals)
-    }
-
-    pub(crate) fn revision(&self) -> u64 {
-        self.revision
     }
 }
 

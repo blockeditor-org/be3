@@ -22,7 +22,7 @@ fn the_tree_sample_opens_on_the_left_of_a_row_and_its_menu_from_its_button() {
     test.click(pos2(toggle.left() + 2.0, row.center().y));
     test.frame(Vec::new());
     assert!(
-        !test.shows("demo.tree.2.row"),
+        !test.shown("demo.tree.2.row"),
         "tapping the left of a folder closes it"
     );
 

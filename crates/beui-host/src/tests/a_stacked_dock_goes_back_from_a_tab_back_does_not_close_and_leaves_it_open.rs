@@ -24,7 +24,7 @@ fn a_stacked_dock_goes_back_from_a_tab_back_does_not_close_and_leaves_it_open() 
     let closed = create_signal(Vec::new());
     let open = create_signal(Vec::<u64>::new());
     let document = build_node(move || {
-        let layout = DockingLayout::new();
+        let layout = DockingLayout::<u64>::new();
         view! {
             <dock_host::styled::DockHost>
                 <dock::Docking layout focus=FILES>
@@ -32,7 +32,7 @@ fn a_stacked_dock_goes_back_from_a_tab_back_does_not_close_and_leaves_it_open() 
                         <DockTab id=FILES title="Files">
                             <Frame @test_id="content.1" />
                         </DockTab>
-                        <ForEach keys={open}>|id: u64|
+                        <ForEach value={open}>|id: u64|
                             <DockTab
                                 id
                                 title={format!("Window {id}")}

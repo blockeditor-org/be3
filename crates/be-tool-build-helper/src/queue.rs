@@ -10,7 +10,7 @@ use std::{
 use serde::Deserialize;
 use tokio::sync::Notify;
 
-use crate::products::{Product, State, Status, manifest_url};
+use be_tool_build_helper_protocol::{Product, State, Status, manifest_url};
 
 pub trait Backend: Send + Sync + 'static {
     fn published(&self, product: &str, commit: &str) -> bool;

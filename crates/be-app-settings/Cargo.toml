@@ -8,6 +8,7 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+be-block-input = { path = "../be-block-input" }
 be-lib-remap = { path = "../be-lib-remap", features = ["text"] }
 beui = { path = "../beui" }
 be-sdk-beui = { path = "../be-sdk-beui" }

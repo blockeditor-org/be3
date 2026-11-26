@@ -2,7 +2,7 @@ use std::cell::RefCell;
 
 use be_sdk_beui::be_block_content::Edit;
 use be_sdk_beui::beui::reactive::*;
-use be_sdk_beui::{ContentProjection, Editor, WebViewEvent, WebViewId};
+use be_sdk_beui::{ContentProjection, Editor, Pushed, WebViewEvent, WebViewId};
 use be_type_browser_tab::{BrowserTab, BrowserTabContent, HistoryItem};
 
 pub(crate) const PAGE: WebViewId = WebViewId(0);
@@ -42,9 +42,9 @@ impl Session {
                 navigation: RefCell::default(),
             }),
         };
-        let events = editor.web_view_events();
+        let events = editor.pushed(Pushed::WebView);
         create_effect(move || {
-            events.get();
+            events.track();
             untrack(|| session.process_events());
         });
         create_effect(move || session.open());

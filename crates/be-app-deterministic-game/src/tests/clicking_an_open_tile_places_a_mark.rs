@@ -6,7 +6,6 @@ fn clicking_an_open_tile_places_a_mark() {
     editor.record();
 
     editor.click("game.tile.1.1");
-    editor.run();
 
     let played = moves(&editor);
     assert_eq!(played.len(), 1);

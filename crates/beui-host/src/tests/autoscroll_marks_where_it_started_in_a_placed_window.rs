@@ -25,8 +25,8 @@ fn autoscroll_marks_where_it_started_in_a_placed_window() {
             >|_: WindowHandle|
                 <List spacing=0.0>
                     <ListItem grow=1.0>
-                        <Scroll marker={marker}>
-                            <ForEach keys={indices(100)}>|index: usize|
+                        <Scroll style={plain_scroll().marker(RenderFn::new(marker))}>
+                            <ForEach value={indices(100)}>|index: usize|
                                 <LabelledButton label={format!("Row {index}")} />
                             </ForEach>
                         </Scroll>

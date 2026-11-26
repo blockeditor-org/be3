@@ -24,7 +24,7 @@ fn a_small_dialog_points_at_the_tab_it_is_handed_or_when_its_control_is_gone() {
                 <Dialog
                     open={handed}
                     title="Text settings"
-                    anchor={create_memo(move || DialogAnchor::Rect(tab.get()))}
+                    anchor={move || DialogAnchor::Rect(tab.get())}
                     width={Size::Custom(200.0)}
                     on_dismiss={move || handed.set(false)}
                 >

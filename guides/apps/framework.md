@@ -156,8 +156,9 @@ has none to offer. Tests use only beui's bundled fonts
 ## Where the pixels live
 
 An app never learns where its pixels live. It is handed an opaque texture:
-under wasmtime a texture in be-host's own device (nothing exported or
-imported), in the browser one on the app worker's device, drawn into a canvas
+natively a texture in be-host's own device (nothing exported or
+imported), drawn in the host's UI and listed in the window's layer list
+(guides/apps/runtime.md, The layer list), in the browser one on the app worker's device, drawn into a canvas
 the page keeps behind the host's canvas, showing through a transparent hole.
 Its wgpu calls reach the device over the `be3:gpu` world
 (guides/app_libraries.md, The gpu).

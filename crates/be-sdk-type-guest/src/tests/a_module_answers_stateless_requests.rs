@@ -15,7 +15,7 @@ fn a_module_answers_stateless_requests() {
             .unwrap();
     assert!(outbound.is_empty());
     let mut host = Connection::new(Side::Host);
-    let started = replicas::start(&mut host, vec![5; 32]);
+    let started = replicas::start(&mut host);
     assert_eq!(
         crate::abi::Guest::step(&mut guest, host.take_outbound(), false, &mut outbound),
         Ok(crate::abi::Flow::Running)

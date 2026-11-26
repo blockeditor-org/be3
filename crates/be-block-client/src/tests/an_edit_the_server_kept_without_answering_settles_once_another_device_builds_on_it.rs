@@ -27,7 +27,7 @@ async fn an_edit_the_server_kept_without_answering_settles_once_another_device_b
         offline
             .save(note, &TextBlock::of("two"), Some(base))
             .await
-            .is_err()
+            .is_ok_and(|saved| matches!(saved, Saved::Kept(_)))
     );
     let two = offline.local_head(note).unwrap();
     let answered = harness.offline(&owner, &refs, &store);

@@ -131,5 +131,6 @@
     }
   },
   "extensions": ["be3:desktop"],
+  "sharing": true,
   "entry_point": "settings.wasm"
 }

@@ -9,7 +9,10 @@ fn an_edit_left_unsent_when_a_switch_reads_its_block_is_sent_and_written_over_on
     let harness = Harness::start();
     harness.connect();
     let versioned = start_versioning("hello\n");
-    show_version(versioned.checkout, be_block::CheckoutContent::CONTENT_TYPE);
+    show_version(
+        versioned.checkout,
+        be_block_repository::CheckoutContent::CONTENT_TYPE,
+    );
     hold(versioned.note, be_type_text::TextContent::CONTENT_TYPE);
     wait_until("opened the note", |shared| {
         text_of(shared, versioned.note).is_some()
@@ -43,7 +46,7 @@ fn an_edit_left_unsent_when_a_switch_reads_its_block_is_sent_and_written_over_on
     crate::hold_drains(true);
     type_text(versioned.note, 0, "Oh\n");
     flush();
-    let unsent = crate::wait_until(|shared| {
+    let unsent = crate::wait_until("sealed the typed line into the outbox", |shared| {
         let peer = shared.peer.as_ref()?;
         peer.pending_commits(versioned.note).last().copied()
     });
@@ -54,7 +57,7 @@ fn an_edit_left_unsent_when_a_switch_reads_its_block_is_sent_and_written_over_on
     version(
         versioned.checkout,
         VersionCommand::Switch {
-            branch: be_block::MAIN_BRANCH.to_owned(),
+            branch: be_block_repository::MAIN_BRANCH.to_owned(),
         },
     );
     assert_eq!(

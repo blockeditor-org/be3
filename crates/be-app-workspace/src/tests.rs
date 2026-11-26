@@ -1,4 +1,7 @@
-use be_sdk_beui::be_block_content::{EditorView, EditorViewContent, ViewState};
+use be_sdk_beui::be_block_content::{EditorView, EditorViewContent, ViewState, ViewStateKind};
+use be_sdk_shell::{ClosedViews, SavedLayout};
+
+use crate::root::FilesView;
 use be_type_workspace::{FolderContent, WorkspaceContent};
 
 use be_sdk_beui::beui::{NodeId, Rect, ScrollDelta, Vec2};
@@ -9,6 +12,7 @@ use be_sdk_beui::{
     WindowsWatch,
 };
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -21,9 +25,11 @@ mod a_block_opened_while_another_is_shown_gets_its_own_tab;
 mod a_block_opens_in_the_editor_it_keeps_for_itself;
 mod a_block_tab_asks_its_editor_for_the_top_bar;
 mod a_block_tab_dragged_onto_the_sidebar_stays_with_the_blocks;
+mod a_block_tab_shows_what_is_unread_in_its_block;
 mod a_block_tab_unlocked_from_its_grip_moves_into_the_sidebar;
 mod a_block_tabs_menu_mutes_its_notifications;
 mod a_block_tabs_menu_previews_its_access_and_comes_back;
+mod a_block_whose_history_another_device_was_shown_differently_says_so_above_it;
 mod a_deleted_block_says_so_above_it_and_can_be_restored;
 mod a_dialog_of_a_programs_dialog_points_at_the_dialog_it_came_from;
 mod a_failed_creation_is_shown_and_dismissing_it_cancels_the_pick;
@@ -57,10 +63,12 @@ mod a_window_the_host_makes_fullscreen_covers_the_workspace_until_it_leaves;
 mod a_window_the_host_runs_gets_a_tab_until_its_program_closes_it;
 mod a_window_with_a_parent_hangs_from_its_tab_and_hides_with_it;
 mod a_workspace_opens_on_its_landing_page;
+mod an_acceptance_the_host_refuses_says_why_in_the_share_dialog;
 mod an_editor_cannot_swap_the_block_of_an_open_share_dialog;
 mod an_import_into_a_folder_is_made_inside_it;
 mod an_import_keeps_the_location_it_started_with;
 mod an_import_with_no_place_is_made_in_unfiled;
+mod an_offer_of_ownership_is_withdrawn_by_its_owner_and_accepted_by_whom_it_was_made_to;
 mod an_open_menu_is_withheld_from_the_block_under_it;
 mod an_unlocked_tab_moved_into_the_sidebar_is_still_there_when_the_workspace_reopens;
 mod an_unreadable_layout_is_kept_until_the_person_resets_it;
@@ -97,11 +105,16 @@ mod the_blocks_area_splits_into_two_with_block_tabs_in_each;
 mod the_editors_pane_with_no_file_open_keeps_its_grip;
 mod the_link_card_shows_where_the_chosen_block_lives_and_links_it;
 mod the_location_page_shows_the_folders_as_a_tree_with_the_chosen_one_checked;
+mod the_owner_offers_a_block_from_the_share_dialog_once_confirmed;
 mod the_picker_never_offers_a_deleted_block_to_link;
+mod the_pickers_rows_show_what_is_unread_in_each_block;
 mod the_rename_card_sets_a_blocks_name_icon_and_color;
 mod the_rename_form_opens_with_its_name_selected;
 mod the_rename_form_saves_a_typed_name_and_closes_on_enter;
+mod the_share_dialog_grants_no_knows_it_exists_but_shows_one_held;
 mod the_share_dialog_lists_again_when_a_contact_is_made;
+mod the_share_dialog_makes_a_join_link_on_a_hosted_block;
+mod the_share_dialog_makes_copies_and_revokes_share_links;
 mod the_share_dialog_says_where_each_persons_access_comes_from;
 mod widening_the_phone_with_its_switcher_open_keeps_the_workspace;
 
@@ -109,7 +122,7 @@ const SHOWN_TYPE: Uuid = Uuid::from_u128(0x7368_6f77_6e2d_7479_7065_2d74_6573_74
 const TEMPLATE_EDITOR: Uuid = Uuid::from_u128(0x7465_6d70_6c61_7465_2d65_6469_746f_7231);
 const TEMPLATE_TYPE: Uuid = Uuid::from_u128(0x7465_6d70_6c61_7465_2d74_7970_6531_0000);
 
-struct Fixture<A: be_sdk_beui::BeuiRoot = WorkspaceUiRoot> {
+struct Fixture<A: be_sdk_beui::BeuiRoot + be_sdk_beui::AppEditor = WorkspaceUiRoot> {
     test: BeuiTest<A>,
     host: EditorHost,
     windows: Vec<TestWindow>,
@@ -159,11 +172,12 @@ impl TestWindow {
             origin: Default::default(),
             size: (self.size.x >= 1.0 && self.size.y >= 1.0).then_some(self.size),
             maximized: false,
+            opens_hidden: false,
         }
     }
 }
 
-impl<A: be_sdk_beui::BeuiRoot> Fixture<A> {
+impl<A: be_sdk_beui::BeuiRoot + be_sdk_beui::AppEditor> Fixture<A> {
     fn new(test: BeuiTest<A>, host: EditorHost) -> Self {
         Self {
             test,
@@ -230,7 +244,7 @@ impl<A: be_sdk_beui::BeuiRoot> Fixture<A> {
     }
 
     fn focused_windows(&mut self) -> Vec<u64> {
-        let given = self.test.take_child_focus();
+        let given = self.test.take_keyboard_asks();
         given
             .into_iter()
             .filter_map(|child| self.reported.get(&child).map(|window| window.id))
@@ -262,7 +276,7 @@ impl<A: be_sdk_beui::BeuiRoot> Fixture<A> {
         let document = self.test.document();
         document
             .root()
-            .is_some_and(|root| text_within(&document, root, words).is_some())
+            .is_some_and(|root| find_text(&document, root, words, Match::Contains).is_some())
     }
 
     fn click_text(&mut self, words: &str) {
@@ -275,7 +289,7 @@ impl<A: be_sdk_beui::BeuiRoot> Fixture<A> {
         let document = self.test.document();
         let node = document
             .root()
-            .and_then(|root| text_within(&document, root, words))
+            .and_then(|root| find_text(&document, root, words, Match::Contains))
             .unwrap_or_else(|| panic!("{words:?} is on screen"));
         document.node_rect(node).expect("the text is laid out")
     }
@@ -291,7 +305,7 @@ impl<A: be_sdk_beui::BeuiRoot> Fixture<A> {
         let document = self.test.document();
         let settings = document
             .root()
-            .and_then(|root| text_within(&document, root, "Settings"))
+            .and_then(|root| find_text(&document, root, "Settings", Match::Contains))
             .expect("the sidebar has a Settings tab");
         let at = document
             .node_rect(settings)
@@ -338,20 +352,6 @@ impl<A: be_sdk_beui::BeuiRoot> Fixture<A> {
             .filter_map(|close| document.node_rect(close))
             .collect()
     }
-}
-
-fn text_within(document: &Document, id: NodeId, words: &str) -> Option<NodeId> {
-    if document
-        .arena
-        .kind_of(id)
-        .is_some_and(|node| document.text(node).contains(words))
-    {
-        return Some(id);
-    }
-    document
-        .children(id)
-        .into_iter()
-        .find_map(|child| text_within(&document, child, words))
 }
 
 const PROGRAMS: [(&str, &str); 5] = [
@@ -413,7 +413,7 @@ fn profiled_sized(size: Option<Vec2>, layout: Option<ViewState>) -> (Fixture, Uu
     if let Some(layout) = layout {
         let edit = profile
             .root()
-            .set_state("layout", Some(&layout), 1, Uuid::nil());
+            .put_stored(SavedLayout::ID, Some(&layout), 1, Uuid::nil());
         profile.apply(&edit);
     }
     open_editor(size, Some(profile))
@@ -470,6 +470,38 @@ fn filter() -> be_sdk_beui::BlockFilter {
         templates: false,
         place: None,
     }
+}
+
+/// A chat named `name` in `parent` with `messages` from someone else that this account has
+/// not read, so its `BlockInfo::unread` counts them, as be-host counts a chat's.
+fn unread_chat(fixture: &mut Fixture, parent: BlockParent, name: &str, messages: i64) -> Uuid {
+    use be_sdk_beui::be_block_content::BlockContent;
+    use be_type_chat::{ChatContent, ChatEntry, ChatReadsContent};
+    let store = fixture.test.store();
+    store.register(be_type_chat::registrations());
+    let chat = Uuid::new_v4();
+    let mut info = be_sdk_beui::BlockInfo::new(chat, ChatContent::CONTENT_TYPE, parent);
+    info.set_name(name);
+    store.add_block(info);
+    fixture.test.hold(Some(chat), ChatContent::default());
+    let rosa = Uuid::from_u128(0x7e1a_0000_0000_4000_8000_0000_0000_0002);
+    for at in 1..=messages {
+        let message = ChatEntry::Message {
+            time: at,
+            body: format!("Message {at}"),
+            reply_to: None,
+            attachments: Vec::new(),
+        };
+        fixture
+            .test
+            .store()
+            .log_entry(Some(chat), rosa, message.encode(), Some(at));
+    }
+    // Where this account read its chats up to: nothing yet.
+    fixture
+        .test
+        .hold(Some(Uuid::new_v4()), ChatReadsContent::default());
+    chat
 }
 
 fn picking(
@@ -618,7 +650,7 @@ struct Places {
     budget: Uuid,
 }
 
-fn places<A: be_sdk_beui::BeuiRoot>(fixture: &mut Fixture<A>) -> Places {
+fn places<A: be_sdk_beui::BeuiRoot + be_sdk_beui::AppEditor>(fixture: &mut Fixture<A>) -> Places {
     use be_sdk_beui::BlockInfo;
     use be_sdk_beui::be_block_content::BlockContent;
     let places = PLACES;
@@ -676,14 +708,14 @@ fn places<A: be_sdk_beui::BeuiRoot>(fixture: &mut Fixture<A>) -> Places {
     places
 }
 
-fn report_creation<A: be_sdk_beui::BeuiRoot>(
+fn report_creation<A: be_sdk_beui::BeuiRoot + be_sdk_beui::AppEditor>(
     fixture: &mut Fixture<A>,
     progress: be_sdk_beui::CreationProgress,
 ) {
     report_creation_dialog(fixture, progress, be_sdk_beui::DialogStatus::default());
 }
 
-fn report_creation_dialog<A: be_sdk_beui::BeuiRoot>(
+fn report_creation_dialog<A: be_sdk_beui::BeuiRoot + be_sdk_beui::AppEditor>(
     fixture: &mut Fixture<A>,
     progress: be_sdk_beui::CreationProgress,
     dialog: be_sdk_beui::DialogStatus,

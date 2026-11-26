@@ -6,7 +6,8 @@ use be_block_content::BlockContent;
 use be_tool_drive::Driven;
 use be_type_infinite_canvas::{CanvasContent, CanvasEntity, CanvasShape};
 use beui_layer_drive::Reply;
-use beui_paint_snapshot::{Painting, Snapshot};
+use beui_paint_format::Painting;
+use beui_paint_snapshot::Snapshot;
 
 mod cores;
 mod server;
@@ -177,6 +178,7 @@ fn first_device(
     let canvas = host.reopen(
         "TreeItem \"Canvas\"",
         "Canvas",
+        "#infinite-canvas.canvas",
         "first.reopened.canvas",
         &settings.out.join("first-reopened-canvas.paint"),
         &[],
@@ -184,6 +186,7 @@ fn first_device(
     let text = host.reopen(
         "TreeItem \"The quick brown fox",
         "Text",
+        "#text.surface",
         "first.reopened.text",
         &settings.out.join("first-reopened-text.paint"),
         TEXT_START,
@@ -291,6 +294,7 @@ fn second_device(
     let canvas = host.reopen(
         "TreeItem \"Canvas\"",
         "Canvas",
+        "#infinite-canvas.canvas",
         "second.reopened.canvas",
         &settings.out.join("second-reopened-canvas.paint"),
         &[],
@@ -298,6 +302,7 @@ fn second_device(
     let text = host.reopen(
         "TreeItem \"The quick brown fox",
         "Text",
+        "#text.surface",
         "second.reopened.text",
         &settings.out.join("second-reopened-text.paint"),
         TEXT_START,
@@ -593,6 +598,7 @@ impl Host {
         &mut self,
         row: &str,
         label: &str,
+        shown: &str,
         metric: &str,
         painting: &Path,
         to_start: &[&[&str]],
@@ -601,6 +607,9 @@ impl Host {
         let started = Instant::now();
         self.run(&["--no-settle", "click", row])?;
         self.wait(&format!("Pane \"{label}\""))?;
+        // The editor shows `shown` once its block's content reached it: `#editor.loading` may
+        // not have shown yet when the pane opens, so its absence says nothing.
+        self.within(LONG, &["wait", shown])?;
         self.run(&["wait", "not", "#editor.loading"])?;
         be_tool_bench::time(&format!("{metric}-open"), started.elapsed());
         for words in to_start {

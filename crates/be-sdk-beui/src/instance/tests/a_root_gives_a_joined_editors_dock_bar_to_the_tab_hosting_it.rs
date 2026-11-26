@@ -38,6 +38,7 @@ fn declared() -> DockDeclaration {
             glyph: String::new(),
             closable: false,
             back_closes: true,
+            unread: 0,
             menu: Vec::new(),
         }],
         dialogs: Vec::new(),
@@ -100,7 +101,7 @@ fn a_root_gives_a_joined_editors_dock_bar_to_the_tab_hosting_it() {
             },
             _ => None,
         })
-        .last()
+        .next_back()
         .expect("the root hosts its child");
     assert_eq!(hosted.layout.bars.len(), 1);
     assert_eq!(hosted.layout.bars[0].bar, DockTabPath::own(9));

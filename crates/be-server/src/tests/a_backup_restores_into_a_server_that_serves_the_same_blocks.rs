@@ -5,8 +5,8 @@ use crate::backup::{self, BackupKey, Directory};
 #[tokio::test]
 async fn a_backup_restores_into_a_server_that_serves_the_same_blocks() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("keeper@example.com").await;
+    let mut client = harness.member("keeper@example.com").await;
+    let account = client.id();
     let organization = client.organization("notes").await;
     let author = Author::new(account);
     let block = client.create_block(BlockParent::Root).await;

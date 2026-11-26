@@ -15,12 +15,12 @@ fn with_a_second_window_open_each_windows_scroll_is_copied_in_that_window_alone(
             <List spacing=0.0>
                 <Frame height=60.0 fill=Color32::WHITE radius=0.0 />
                 <Frame height=150.0>
-                    <Scroll @test_id="main scroll">
+                    <Scroll @test_id="main scroll" style={plain_scroll()}>
                         <Bands count=20 />
                     </Scroll>
                 </Frame>
                 <Window id={window} size={vec2(160.0, 120.0)}>|_: WindowHandle|
-                    <Scroll @test_id="window scroll">
+                    <Scroll @test_id="window scroll" style={plain_scroll()}>
                         <Bands count=20 />
                     </Scroll>
                 </Window>
@@ -79,7 +79,7 @@ fn with_a_second_window_open_each_windows_scroll_is_copied_in_that_window_alone(
 #[component]
 fn Bands(count: usize) -> DynamicSegment<ListItem> {
     view! {
-        <ForEach keys={indices(count)}>|index: usize|
+        <ForEach value={indices(count)}>|index: usize|
             <Frame height=40.0 fill={Color32::from_gray((index * 10) as u8)} radius=0.0 />
         </ForEach>
     }

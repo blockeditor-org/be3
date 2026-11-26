@@ -1,6 +1,6 @@
 use super::*;
 use crate::DockSpecBar;
-use beui_types::Pos2;
+use be_lib_geometry::Pos2;
 
 fn key(bar: TabId) -> String {
     match bar.value() {
@@ -18,6 +18,7 @@ fn bars_of_one_key_share_one_window_that_follows_the_tab_shown_last() {
         placement: DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center),
         hidden: false,
         pane: None,
+        slot: None,
     };
     let declared = DockSpec {
         bars: vec![bar(20, 1), bar(21, 2), bar(22, 1)],

@@ -12,7 +12,7 @@ fn the_grid_shows_every_painting() {
         "text-block.typing_a_paragraph",
         "map.broken",
     ] {
-        assert!(review.test.shows(&format!("paint_review.painting.{name}")));
+        assert!(review.test.shown(&format!("paint_review.painting.{name}")));
     }
     let x = |name: &str| {
         review
@@ -25,6 +25,6 @@ fn the_grid_shows_every_painting() {
         x("beui-demo.a_new_page") < x("checklist.an_old_list"),
         "the paintings stay in the order of the list, largest changes first"
     );
-    assert!(!review.test.shows("paint_review.preview"));
+    assert!(!review.test.shown("paint_review.preview"));
     review.test.snapshot("the_grid_shows_every_painting");
 }

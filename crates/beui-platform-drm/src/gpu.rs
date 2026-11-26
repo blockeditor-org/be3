@@ -51,10 +51,16 @@ pub struct Gpu {
     quads: Pipelines,
     format: wgpu::TextureFormat,
     resources: beui_host::native::Resources,
+    lost: beui_host::native::Lost,
 }
 
 impl Gpu {
-    pub fn new(device: wgpu::Device, queue: wgpu::Queue, format: wgpu::TextureFormat) -> Self {
+    pub fn new(
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+        format: wgpu::TextureFormat,
+        lost: &beui_host::native::Lost,
+    ) -> Self {
         let vulkan = Vulkan::of(&device);
         let sync = vulkan.as_ref().and_then(Vulkan::sync_files);
         if sync.is_none() {
@@ -63,12 +69,17 @@ impl Gpu {
         Self {
             sync: RefCell::new(sync),
             quads: Pipelines::new(&device),
-            resources: beui_host::native::Resources::new(&device, format),
+            resources: beui_host::native::Resources::new(&device, format, lost),
+            lost: lost.clone(),
             device,
             queue,
             vulkan,
             format,
         }
+    }
+
+    pub fn lost(&self) -> &beui_host::native::Lost {
+        &self.lost
     }
 
     pub fn resources(&self) -> &beui_host::native::Resources {

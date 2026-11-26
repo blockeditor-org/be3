@@ -10,7 +10,7 @@ fn an_unreadable_layout_is_kept_until_the_person_resets_it() {
         "the person is asked what to do with the layout"
     );
     assert_eq!(
-        profile(&fixture).state("layout"),
+        profile(&fixture).stored(SavedLayout::ID),
         Some(&unreadable_layout()),
         "the saved layout is not replaced while the notice is open"
     );
@@ -38,7 +38,7 @@ fn an_unreadable_layout_is_kept_until_the_person_resets_it() {
         "exiting asks the host to close the session itself"
     );
     assert_eq!(
-        profile(&fixture).state("layout"),
+        profile(&fixture).stored(SavedLayout::ID),
         Some(&unreadable_layout()),
         "exiting leaves the saved layout as it was"
     );

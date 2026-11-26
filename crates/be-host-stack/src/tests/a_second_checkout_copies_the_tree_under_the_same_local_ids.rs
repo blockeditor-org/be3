@@ -12,7 +12,14 @@ fn a_second_checkout_copies_the_tree_under_the_same_local_ids() {
         copy_of(versioned.folder, second),
         copy_of(versioned.note, second),
     );
-    let copied = node(folder).expect("the folder was copied");
+    // No summary names what the folder holds: it is read from the copy's content.
+    let copied = crate::wait_until("read what the copied folder holds", |shared| {
+        shared
+            .graph
+            .get(folder)
+            .filter(|node| node.references.is_some())
+            .cloned()
+    });
     assert_eq!(
         copied.parent,
         Some(be_block_graph::BlockParent::Block(second))
@@ -21,7 +28,7 @@ fn a_second_checkout_copies_the_tree_under_the_same_local_ids() {
         copied.metadata.get(&be_block_content::LOCAL_ID),
         Some(versioned.folder)
     );
-    assert_eq!(copied.references, vec![note]);
+    assert_eq!(copied.references, Some(vec![note]));
     assert_eq!(
         node(note).and_then(|node| node.parent),
         Some(be_block_graph::BlockParent::Block(folder))

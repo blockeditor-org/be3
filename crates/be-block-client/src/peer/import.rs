@@ -2,7 +2,7 @@ use std::{collections::HashMap, future::Future, pin::Pin};
 
 use be_block_commit::{Commit, CommitKind};
 use be_block_graph::BlockParent;
-use be_block_protocol::{BlockSummary, ErrorCode, KeySet, PublishOutcome, client};
+use be_block_protocol::{BlockSummary, ErrorCode, KeySet, PublishOutcome};
 use be_block_store::{Hash, ObjectStore};
 use uuid::Uuid;
 
@@ -10,7 +10,7 @@ use super::{Peer, deduplicated};
 use crate::{
     ClientError,
     refs::{Creation, Op, Pending},
-    transfer::Saved,
+    transfer::SavedBlock,
 };
 
 const BATCH_BLOCKS: usize = 64;
@@ -25,6 +25,8 @@ struct Prepared {
     publish: Option<Pending>,
     objects: Vec<Hash>,
     queued: Vec<u64>,
+    /// The block's signed log as the file carried it: history from the block it was written in.
+    log: Vec<crate::ExportedEntry>,
 }
 
 pub struct Queued {
@@ -42,7 +44,7 @@ type Sent<'a> = Pin<Box<dyn Future<Output = Result<Vec<(Uuid, Imported)>, Client
 impl<S: ObjectStore> Peer<S> {
     pub async fn import_blocks(
         &self,
-        blocks: &[(Saved, BlockParent)],
+        blocks: &[(SavedBlock, BlockParent)],
         mut done: impl FnMut(Uuid, Imported),
     ) {
         let queued = self.queue_import(blocks, &mut done).await;
@@ -51,10 +53,10 @@ impl<S: ObjectStore> Peer<S> {
 
     pub async fn queue_import(
         &self,
-        blocks: &[(Saved, BlockParent)],
+        blocks: &[(SavedBlock, BlockParent)],
         mut done: impl FnMut(Uuid, Imported),
     ) -> Queued {
-        let mut scopes: HashMap<Uuid, Uuid> = HashMap::new();
+        let mut scopes: HashMap<Uuid, (Uuid, bool)> = HashMap::new();
         let mut prepared = Vec::with_capacity(blocks.len());
         for (block, parent) in blocks {
             match self.prepare(block, *parent, &mut scopes).await {
@@ -64,6 +66,7 @@ impl<S: ObjectStore> Peer<S> {
         }
         if let Err(error) = self.commits.vault().store().sync() {
             for ready in &prepared {
+                let _ = self.forget_made(&ready.creation);
                 done(ready.id, Err(ClientError::Disconnected(error.to_string())));
             }
             return Queued {
@@ -74,7 +77,10 @@ impl<S: ObjectStore> Peer<S> {
         for mut ready in prepared {
             match self.keep(&mut ready) {
                 Ok(()) => kept.push(ready),
-                Err(error) => done(ready.id, Err(error)),
+                Err(error) => {
+                    let _ = self.forget_made(&ready.creation);
+                    done(ready.id, Err(error));
+                }
             }
         }
         Queued { prepared: kept }
@@ -87,14 +93,68 @@ impl<S: ObjectStore> Peer<S> {
             ops.push(Op::Publish(pending.clone()));
         }
         ready.queued = self.refs.push_all(ops)?;
+        // Its log's history from the block it was written in goes after it, each entry as it
+        // was written there, which it still verifies against; its new entries follow.
+        // The new block's log is empty, and its history goes first: each entry lands at its
+        // place in it, which its importer signs (`verify_imported`).
+        let count = ready.log.len() as u64;
+        for (place, original) in ready.log.iter().enumerate() {
+            self.push_imported(
+                ready.id,
+                ready.creation.key,
+                (place as u64, count),
+                original,
+            )?;
+        }
+        // The outbox keeps the creation: so does the device the log made with it.
+        self.keep_made_log(&ready.creation)?;
         if let Some(pending) = &ready.publish {
             self.refs.set_head(ready.id, pending.commit)?;
         }
         Ok(())
     }
 
+    /// Puts `original`, an entry an export carried, in `block`'s outbox as imported history,
+    /// sealed under `key` with its place in the log and the history's length, and signed by
+    /// this account as importing it (`verify_imported`).
+    pub(crate) fn push_imported(
+        &self,
+        block: Uuid,
+        key: Uuid,
+        (place, count): (u64, u64),
+        original: &crate::ExportedEntry,
+    ) -> Result<(), ClientError> {
+        let id = Uuid::new_v4();
+        let plain = original.sealed(place, count);
+        let payload = self.commits.vault().seal(key, &plain)?;
+        let signature =
+            self.sign_authored(block, &be_block_protocol::log_signed(id, Hash::of(&plain)));
+        self.refs.push(Op::Append(crate::refs::Appending {
+            block,
+            id,
+            payload,
+            signature,
+            announces: None,
+            redacts: None,
+        }))?;
+        Ok(())
+    }
+
     pub async fn upload_import(&self, queued: Queued, mut done: impl FnMut(Uuid, Imported)) {
-        let prepared = queued.prepared;
+        // One whose scope was taken unchecked goes up only through the outbox, which checks it
+        // first (`Creation::unchecked`), with what was made under it.
+        let (prepared, unchecked): (Vec<Prepared>, Vec<Prepared>) = queued
+            .prepared
+            .into_iter()
+            .partition(|ready| !ready.creation.unchecked);
+        for ready in unchecked {
+            done(
+                ready.id,
+                Err(ClientError::Disconnected(
+                    "kept on this device until its place is checked".into(),
+                )),
+            );
+        }
         if !self.is_attached() {
             for ready in prepared {
                 done(
@@ -148,22 +208,28 @@ impl<S: ObjectStore> Peer<S> {
 
     async fn prepare(
         &self,
-        block: &Saved,
+        block: &SavedBlock,
         parent: BlockParent,
-        scopes: &mut HashMap<Uuid, Uuid>,
+        scopes: &mut HashMap<Uuid, (Uuid, bool)>,
     ) -> Result<Prepared, ClientError> {
+        // Each block's scope key, and whether it was taken unchecked (`scope_key_making`), as
+        // is everything below it.
         let under = match parent {
             BlockParent::Block(parent) => match scopes.get(&parent) {
                 Some(scope) => Some(*scope),
                 None => {
-                    let scope = self.scope_key_under(parent).await?;
+                    let scope = self.scope_key_making(parent).await?;
                     scopes.insert(parent, scope);
                     Some(scope)
                 }
             },
             BlockParent::Root | BlockParent::Detached => None,
         };
-        let (key, keys, children) = match under {
+        let unchecked = under.is_some_and(|(_, unchecked)| unchecked);
+        // Failing before it is prepared, the root made for it is let go as `made` drops; once
+        // prepared, `queue_import` keeps its log with the creation or lets it go.
+        let (root, placement, made) = self.new_log(block.id, parent).await?;
+        let (key, keys, children) = match under.map(|(under, _)| under) {
             Some(under) => {
                 let (key, keys) = self.keys.mint_data(block.id, under)?;
                 (key, keys, under)
@@ -175,7 +241,7 @@ impl<S: ObjectStore> Peer<S> {
                 (key, keys, scope)
             }
         };
-        scopes.insert(block.id, children);
+        scopes.insert(block.id, (children, unchecked));
         let vault = self.commits.vault();
         let creation = Creation {
             block: block.id,
@@ -187,8 +253,12 @@ impl<S: ObjectStore> Peer<S> {
             keys: keys.clone(),
             // Block files hold no owner-only block: exporting leaves them out.
             owner_only: false,
+            root,
+            placement,
+            unchecked,
         };
         let Some(content) = &block.content else {
+            made.hold();
             return Ok(Prepared {
                 id: block.id,
                 keys,
@@ -196,6 +266,7 @@ impl<S: ObjectStore> Peer<S> {
                 publish: None,
                 objects: Vec::new(),
                 queued: Vec::new(),
+                log: block.log.clone(),
             });
         };
         let manifest = vault.write(key, block.block_type, content)?;
@@ -212,6 +283,7 @@ impl<S: ObjectStore> Peer<S> {
         let chunks = vault.objects(&manifest)?;
         let mut objects = vec![id.hash()];
         objects.extend(chunks.iter().copied());
+        made.hold();
         Ok(Prepared {
             id: block.id,
             keys,
@@ -226,49 +298,45 @@ impl<S: ObjectStore> Peer<S> {
                 pinned: false,
                 references,
                 metadata: vault.seal(key, &encoded)?,
+                journal: None,
             }),
             objects,
             queued: Vec::new(),
+            log: block.log.clone(),
         })
     }
 
     fn send_batch(&self, group: Vec<Prepared>) -> Sent<'_> {
         let mut sent = Vec::with_capacity(group.len());
         for ready in group {
-            let Creation {
-                block,
-                content_type,
-                parent,
-                metadata,
-                references,
-                key,
-                keys,
-                owner_only,
-            } = ready.creation.clone();
-            let created = client::blocks::create_block(
+            let created = be_block_protocol::write_all::<be_block_protocol::BlockSummary, _>(
                 &self.connection(),
-                block,
-                content_type,
-                parent,
-                metadata,
-                references,
-                key,
-                keys,
-                owner_only,
+                Some(self.organization),
+                ready.creation.ops(),
             );
             let published = ready.publish.clone().map(|pending| {
-                client::blocks::publish(
+                be_block_protocol::write::<be_block_protocol::PublishOutcome, _>(
                     &self.connection(),
-                    pending.block,
-                    pending.commit,
-                    None,
-                    Vec::new(),
-                    be_block_protocol::ObjectChange::between(&[], &pending.chunks),
-                    pending.time,
-                    false,
-                    be_block_protocol::ReferenceChange::between(&[], &pending.references),
-                    pending.metadata,
-                    Vec::new(),
+                    Some(self.organization),
+                    be_block_protocol::Op::Publish {
+                        block: pending.block,
+                        expected: None,
+                        commit: Some(be_block_protocol::NewCommit {
+                            id: pending.commit,
+                            parents: Vec::new(),
+                            held: be_block_protocol::ObjectChange::between(&[], &pending.chunks),
+                            time: pending.time,
+                            pinned: false,
+                            objects: Vec::new(),
+                            log_through: None,
+                        }),
+                        references: be_block_protocol::ReferenceChange::between(
+                            &[],
+                            &pending.references,
+                        ),
+                        metadata: pending.metadata,
+                        journal: None,
+                    },
                 )
             });
             sent.push((ready, created, published));
@@ -281,13 +349,13 @@ impl<S: ObjectStore> Peer<S> {
                     Some(published) => Some(published.await?),
                     None => None,
                 };
-                results.push((ready.id, self.imported(&ready, created, published)));
+                results.push((ready.id, self.imported(&ready, created, published).await));
             }
             Ok(results)
         })
     }
 
-    fn imported(
+    async fn imported(
         &self,
         ready: &Prepared,
         created: Result<BlockSummary, be_block_protocol::Error>,
@@ -295,13 +363,31 @@ impl<S: ObjectStore> Peer<S> {
     ) -> Imported {
         let block = ready.id;
         let summary = match created {
-            Ok(block) => Some(block),
+            Ok(block) => {
+                self.keys.made_taken(block.id);
+                Some(block)
+            }
+            // Imported here already, its answer lost; or made by someone else under the id,
+            // which this import is not: set aside, its root let go, as the drain does.
             Err(be_block_protocol::Error {
                 code: ErrorCode::BlockAlreadyExists,
                 ..
-            }) => None,
+            }) => {
+                if !self.made_here(&ready.creation).await? {
+                    let why = crate::refs::Aside::Refused(ErrorCode::BlockAlreadyExists);
+                    self.forget_made(&ready.creation)?;
+                    self.move_to_unsent(block, Some(why))?;
+                    return Err(ClientError::Refused(
+                        ErrorCode::BlockAlreadyExists,
+                        format!("block {block} is someone else's already"),
+                    ));
+                }
+                self.keys.made_taken(block);
+                None
+            }
             Err(error) => {
                 self.refs.remove(&ready.queued)?;
+                self.forget_made(&ready.creation)?;
                 return Err(error.into());
             }
         };

@@ -1,16 +1,20 @@
 use super::*;
 use uuid::Uuid;
 
+mod a_blob_decoded_without_its_payload_keeps_its_payloads_range_as_its_header_grows;
+mod a_blob_puts_its_header_before_its_payload;
 mod a_blob_saves_its_header_and_payload_as_separate_parts;
 mod a_block_link_is_found_by_its_fragment_whatever_its_host;
-mod a_deleted_child_of_a_view_is_blanked_in_the_state_that_referenced_it;
+mod a_decoded_blob_reads_its_payload_from_where_it_was_stored;
+mod a_set_absorbed_drops_an_earlier_set_only_when_nothing_else_reads_it;
+mod a_view_state_is_written_read_and_skipped_when_unchanged;
+mod a_view_states_refs_are_repointed_and_blanked_by_its_children;
 mod an_icon_saved_as_a_material_codepoint_reads_as_its_lucide_name;
 mod block_metadata_keeps_keys_it_does_not_know_and_reads_each_key_alone;
 mod block_urls_include_organization_and_reject_malformed_paths;
 mod defined_metadata_merges_key_by_key;
 mod icon_overrides_round_trip_and_merge_independently;
 mod metadata_that_points_to_a_block_lists_it_as_a_reference;
-mod streamed_content_separates_its_header_from_its_payload;
 
 #[derive(Clone, Debug, Default, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
 struct Header {

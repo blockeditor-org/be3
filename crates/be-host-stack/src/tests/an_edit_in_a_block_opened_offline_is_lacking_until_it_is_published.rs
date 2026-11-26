@@ -7,7 +7,6 @@ fn an_edit_in_a_block_opened_offline_is_lacking_until_it_is_published() {
     let mut harness = Harness::start();
     harness.connect();
     let block = Uuid::new_v4();
-    let address = harness.address();
     open(block, CounterContent::CONTENT_TYPE);
     add(block, 2);
     wait_for_count(block, 2);
@@ -31,7 +30,7 @@ fn an_edit_in_a_block_opened_offline_is_lacking_until_it_is_published() {
     );
     flush();
 
-    harness.start_server(&address);
+    harness.start_server();
     retry_now();
     wait_until("reconnected and sent what waited", |shared| {
         shared.connected && shared.waiting == 0 && !shared.draining

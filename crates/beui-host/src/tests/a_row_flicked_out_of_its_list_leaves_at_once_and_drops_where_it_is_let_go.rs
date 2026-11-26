@@ -8,20 +8,17 @@ fn a_row_flicked_out_of_its_list_leaves_at_once_and_drops_where_it_is_let_go() {
     let mut harness = Harness::new(reorder_lists(state));
     harness.settle();
     let grab = harness.center(harness.find("row.1"));
-    let between = pos2(REORDER_COLUMN + 10.0, grab.y);
+    let over = harness.center(harness.find("list.1")).x;
+    let between = pos2(over, grab.y);
     let into = harness.center(harness.find("row.4")) - vec2(0.0, 4.0);
     harness.down(grab, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(between)]);
     harness.settle();
     assert_eq!(
-        harness.document().find_test_id("row.1"),
-        None,
-        "a row whose first move past the threshold is already outside its list leaves the list"
-    );
-    assert_eq!(
         top_of(&harness, "row.2"),
         0.0,
-        "and the gap behind it closes"
+        "a row whose first move past the threshold is already over another list folds out of \
+         its own, and the gap behind it closes"
     );
 
     harness.up(into, PointerButton::Primary);

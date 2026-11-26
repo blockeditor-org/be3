@@ -101,8 +101,9 @@ pub async fn read<S: ObjectStore>(
 
 pub async fn at_commit<S: ObjectStore>(
     peer: &Peer<S>,
+    block: Uuid,
     commit: CommitId,
 ) -> Result<Vec<u8>, ClientError> {
-    let commit = peer.load_commit(commit).await?;
+    let commit = peer.load_head(block, commit).await?;
     peer.read_manifest(&commit.manifest).await
 }

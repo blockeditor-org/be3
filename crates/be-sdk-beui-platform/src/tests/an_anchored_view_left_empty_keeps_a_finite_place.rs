@@ -12,7 +12,6 @@ fn an_anchored_view_left_empty_keeps_a_finite_place() {
     let mut surface = launched(
         &EditorHost::default(),
         Windowed::new(move |_| {
-            let shown = create_memo(move || filled.get());
             view! {
                 <styled::Overlay
                     anchor={OverlayAnchor::Point(pos2(30.0, 20.0))}
@@ -21,7 +20,7 @@ fn an_anchored_view_left_empty_keeps_a_finite_place() {
                     open=true
                 >
                     <styled::Layers>
-                        <Show condition={shown}>||
+                        <Show value={filled}>||
                             <styled::Button label="Row" on_click={|| {}} />
                         </Show>
                     </styled::Layers>

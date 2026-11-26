@@ -13,13 +13,15 @@ path = "src/main.rs"
 
 [dependencies]
 be-block-content = { path = "../be-block-content" }
+be-tool-build-helper-protocol = { path = "../be-tool-build-helper-protocol" }
 beui = { path = "../beui" }
 beui-host = { path = "../beui-host" }
+beui-host-window = { path = "../beui-host-window" }
 comrak = { version = "0.55", default-features = false }
 image = { version = "0.25", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sha2 = "0.10"
+be-lib-sha256 = { path = "../be-lib-sha256" }
 be-tool-terminal-emulator = { path = "../be-tool-terminal-emulator" }
 be-type-terminal = { path = "../be-type-terminal" }
 be-sdk-terminal = { path = "../be-sdk-terminal" }

@@ -1,0 +1,27 @@
+# Control flow held by a host node is placed as its child would be: a third and two thirds of
+# a 300 wide row less 10 of spacing, an even share of a row of two 200 wide children shrunk
+# to fit, and two of three grid columns. It swaps while its child is pressed (and so holds
+# the pointer and focus), while it is dragged and while it is hovered, and the child swapped
+# in is placed the same way.
+clock stop
+wait 'Row 97x20 193x20 Shrunk 145x20 145x20 Grid 100x20 200x20 Swaps 0'
+down '#host.first'
+wait 'Swaps 1'
+up '#host.second'
+wait 'Row 97x20 193x20 Shrunk 145x20 145x20 Grid 100x20 200x20 Swaps 1'
+drag '#host.second' '#host.second+60,0' 6
+wait 'Swaps 2'
+find '#host.first'
+move '#host.cell'
+find '#host.hovered'
+wait 'Grid 100x20 200x20 Swaps 2'
+find '#host.named'
+wait 'Named host not focused'
+# Focusing a host node through its node ref focuses the child it holds: the browser hands
+# focus to the child's element, as the HTML core resolves hosts.
+click '#host.focus'
+wait 'Named host focused'
+# An Interactive around a host keeps a box of its own, the size of what the host holds.
+wait 'Wrapped 40x20'
+click '#host.wrapped'
+wait 'Wrapped 60x20'

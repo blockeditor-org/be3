@@ -5,10 +5,9 @@ guide is for what that does not cover.
 
 ## be-host's flags
 
-- `--dev-workspace`: sign in to the first local account, making a local profile named Dev on
-  the embedded server if there is none, save a recovery phrase without asking, and open the last
-  organization, or the first one (the server's personal organization, which a new account
-  joins), on the account's My files workspace. `:dev` passes it.
+- `--dev-workspace`: sign in to the first local account, making one named Dev if there is none
+  (a local account has no server: guides/hosting.md, Local accounts and the default server),
+  and open its organization on its My files workspace. `:dev` passes it.
 - `--dev-workspace=URL`: the same on the server at URL: the first account saved for it, or else
   a sign-in with the token in `BE_DEV_TOKEN`, or through the browser without one. A device whose
   account already has a phrase waits on the unlock screen. As without a URL, it saves the first
@@ -73,7 +72,7 @@ after each step to see every frame. `WINIT_X11_SCALE_FACTOR=1.5` gives the windo
 scale.
 
 To skip building every app, run the be-host that `:dev` unpacked
-(`target/programs/dev-app-*/be-host`) in place of `:native`, with the variables above and the
+(`target/apps/dev-app-*/be-host`) in place of `:native`, with the variables above and the
 `LD_LIBRARY_PATH` and `XDG_DATA_HOME` that `:dev` gives it (read them from `/proc/PID/environ`
 of the headless copy, then stop that copy).
 

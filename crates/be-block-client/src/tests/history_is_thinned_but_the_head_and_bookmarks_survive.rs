@@ -30,7 +30,7 @@ async fn history_is_thinned_but_the_head_and_bookmarks_survive() {
         .published()
         .unwrap();
     assert_eq!(
-        author.load_commit(marked).await.unwrap().kind,
+        author.load_reached(marked).await.unwrap().kind,
         be_block_commit::CommitKind::Bookmark("before the cut".to_owned())
     );
     head = Some(marked);
