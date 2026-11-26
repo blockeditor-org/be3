@@ -75,7 +75,8 @@ fn a_rewrite_of_waiting_commits_gives_way_to_a_seal_and_turns_later_seals_onto_i
 
     // A seal that read the old head before the rewrite and is queued after it is refused.
     assert_eq!(
-        refs.push_publish(pending(block, id("late"), second)).unwrap(),
+        refs.push_publish(pending(block, id("late"), second))
+            .unwrap(),
         Pushed::OnReplaced
     );
     assert_eq!(refs.head(block), Some(second_again));

@@ -870,7 +870,11 @@ impl State {
                 self.log_forks.insert(uuid_key(&row.key)?, decode(value)?);
             }
             Table::Replaced => {
-                let old: [u8; 32] = row.key.as_slice().try_into().map_err(|_| StoreError::Corrupt)?;
+                let old: [u8; 32] = row
+                    .key
+                    .as_slice()
+                    .try_into()
+                    .map_err(|_| StoreError::Corrupt)?;
                 self.replaced
                     .insert(CommitId::from_hash(Hash::from_bytes(old)), decode(value)?);
             }

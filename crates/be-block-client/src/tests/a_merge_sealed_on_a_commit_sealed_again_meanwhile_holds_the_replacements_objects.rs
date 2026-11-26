@@ -121,7 +121,10 @@ async fn a_merge_sealed_on_a_commit_sealed_again_meanwhile_holds_the_replacement
         held.iter().all(|object| merge.chunks.contains(object)),
         "the merge leaves out the replacement's objects"
     );
-    assert!(!merge.chunks.contains(&ours.hash()), "the merge still holds ours");
+    assert!(
+        !merge.chunks.contains(&ours.hash()),
+        "the merge still holds ours"
+    );
     let old = offline
         .objects_of(&offline.commits().get(ours).unwrap().manifest)
         .await

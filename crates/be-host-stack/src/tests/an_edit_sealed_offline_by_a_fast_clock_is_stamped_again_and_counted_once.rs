@@ -36,7 +36,10 @@ fn an_edit_sealed_offline_by_a_fast_clock_is_stamped_again_and_counted_once() {
     let sealed = peer.pending_commits(block);
     assert!(
         sealed.iter().any(|commit| {
-            peer.commits().get(*commit).expect("the commit is kept").time
+            peer.commits()
+                .get(*commit)
+                .expect("the commit is kept")
+                .time
                 > be_block_commit::now_milliseconds() + be_block_commit::MAX_COMMIT_AHEAD
         }),
         "the edit was not stamped by the fast clock"

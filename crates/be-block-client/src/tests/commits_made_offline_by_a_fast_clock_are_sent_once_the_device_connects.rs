@@ -64,7 +64,11 @@ async fn commits_made_offline_by_a_fast_clock_are_sent_once_the_device_connects(
     );
     // The one within the limit was sent as it was, before the late one was refused: it stays
     // put, and the late one is stamped again on it.
-    assert_eq!(last.parents, [one], "the late commit left the one it was made on");
+    assert_eq!(
+        last.parents,
+        [one],
+        "the late commit left the one it was made on"
+    );
     let first = offline.commits().get(one).unwrap();
     assert_eq!(first.time, one_time, "the commit within the limit moved");
     assert!(first.time <= last.time, "the commits lost their order");
