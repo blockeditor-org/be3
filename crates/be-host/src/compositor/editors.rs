@@ -1911,9 +1911,12 @@ fn HostedChild(
                                     <Frame />
                                 },
                             },
-                            Kind::Panel(panel) => view! {
-                                <HostPanelSurface panel={panel} />
-                            },
+                            Kind::Panel(panel) => {
+                                super::app_view::asks_end_at_drawn_child();
+                                view! {
+                                    <HostPanelSurface panel={panel} />
+                                }
+                            }
                             Kind::Window(window) => view! {
                                 <PlacedWindow window={window} focus={window_focus} />
                             },

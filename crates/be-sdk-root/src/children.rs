@@ -2066,6 +2066,14 @@ impl Children {
             if focused.is_some_and(|focused| !self.within(ask.editor, focused)) {
                 continue;
             }
+            // A host panel the root draws takes it in the layer of its own surface, once drawn.
+            if let Some(panel) = self.panel_layer(ask.editor, ask.child) {
+                match panel.filter(|layer| drawn(*layer)) {
+                    Some(layer) => moved = moved.or(Some(KeyboardMove::Into(layer))),
+                    None => self.asks.push(ask),
+                }
+                continue;
+            }
             let Some(child) = self
                 .shown
                 .iter()
@@ -2108,6 +2116,9 @@ impl Children {
         self.placers
             .iter()
             .any(|(placer, shows, _)| *shows == editor && *placer == layer)
+            || self.panels.iter().any(|(place, _, shown)| {
+                place.editor == editor && shown.as_ref().is_some_and(|shown| shown.id == layer)
+            })
             || self
                 .shown
                 .iter()
@@ -2117,13 +2128,34 @@ impl Children {
     /// Whether `layer` shows a view of the app these are the children of, or of a child of it.
     fn holds(&self, layer: LayerId) -> bool {
         self.placers.iter().any(|(placer, ..)| *placer == layer)
+            || self.panel_of(layer).is_some()
             || self.shown.iter().any(|child| child.holds(layer))
+    }
+
+    /// Of the host panel `editor` placed as `child`, at this level: the layer of the root's
+    /// surface showing it, once handed one (`show_panels`). None for a child that is no panel.
+    fn panel_layer(&self, editor: EditorInstanceId, child: ChildId) -> Option<Option<LayerId>> {
+        self.panels
+            .iter()
+            .find(|(place, ..)| place.editor == editor && place.child == child)
+            .map(|(.., shown)| shown.as_ref().map(|shown| shown.id))
+    }
+
+    /// The host panel at this level that the root's surface shows in `layer`.
+    fn panel_of(&self, layer: LayerId) -> Option<&PanelPlace> {
+        self.panels
+            .iter()
+            .find(|(.., shown)| shown.as_ref().is_some_and(|shown| shown.id == layer))
+            .map(|(place, ..)| place)
     }
 
     /// The children the keyboard went into when it went to the layer `layer`: for each placer
     /// from the innermost out, the handle of its app, the editor and the child of it that holds
     /// the layer. Empty for a layer that shows none of these children.
     pub fn focused_into(&self, layer: LayerId) -> Vec<(u64, EditorInstanceId, ChildId)> {
+        if let Some(place) = self.panel_of(layer) {
+            return vec![(self.instance, place.editor, place.child)];
+        }
         for child in &self.shown {
             let mut into = match child.shows(layer) {
                 true => Vec::new(),
