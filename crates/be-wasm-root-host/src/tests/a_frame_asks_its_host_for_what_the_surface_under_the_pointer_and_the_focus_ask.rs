@@ -13,6 +13,7 @@ fn a_frame_asks_its_host_for_what_the_surface_under_the_pointer_and_the_focus_as
                 time,
                 wall_clock: 0,
                 utc_offset: 0,
+                preferences: Default::default(),
                 window: window(),
                 describe: false,
                 phone: false,
