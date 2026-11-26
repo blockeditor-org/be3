@@ -50,7 +50,7 @@ fn authority_from_a_path_that_hides_a_retirement_is_refused() {
         Level::Manage,
         Authority::Log,
     );
-    let bob_retires = Entry::retirement(&bob, &bob_new, bob_id, folder, bob_manages.hash());
+    let bob_retires = Entry::retirement(&bob, &bob_new, bob_id, folder, bob_manages.hash(), false);
     let erin_edits = grant(
         &alice,
         alice_id,

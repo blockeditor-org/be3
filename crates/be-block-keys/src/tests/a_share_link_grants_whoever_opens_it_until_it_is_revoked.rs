@@ -132,7 +132,7 @@ fn a_share_link_grants_whoever_opens_it_until_it_is_revoked() {
 
     // A grantee who took a new phrase opens a link with its new keys, never its retired ones.
     let renewed = RecoveryPhrase::generate().secret();
-    let retired = Entry::retirement(&viewer, &renewed, viewer_id, block, granted.hash());
+    let retired = Entry::retirement(&viewer, &renewed, viewer_id, block, granted.hash(), false);
     let with_new = Entry::opened(
         &code,
         block,

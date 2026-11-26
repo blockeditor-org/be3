@@ -426,8 +426,8 @@ served whole to a member with Edit or above (on the block or a block below it;
 the organization's, only to an administrator), who seals, and to anyone else as
 a proof path (`be_block_keys::proof_path`): `Step`s, each an
 entry whole or reduced (`Reduced`: the hash of the entry before it, whether it
-lowered anyone, whether it is a parent, owner or retirement record, and the
-digest of the rest), which hashes as the whole entry does. Whole on a path: the root; every entry naming the reader or an account
+lowered anyone, whether it is a parent, owner or retirement record, whether
+it retires an administrator, and the digest of the rest), which hashes as the whole entry does. Whole on a path: the root; every entry naming the reader or an account
 that sealed it a key of the block (of any block, in the organization's log),
 and so on for each whole entry's signer, so each checks at its place; what the
 reader signed (its agents); every opening and parent record (a parent record
@@ -447,7 +447,17 @@ is a retirement, `Reduced::retires`), which could be the signer's own
 revocation or the retirement of the key they signed with
 (decisions/authority_rests_only_on_paths_that_hide_no_lowering.md). The price,
 accepted: a reader learns every revocation, downgrade and retirement on such a
-block, and the level history of whom they name.
+block, and the level history of whom they name. In the organization's log a
+retirement says whether its account administers the organization as of the
+entry before it (`Retirement::administrator`, which `check_log` refuses unless
+it is so), and its reduced step carries that (`Reduced::retires_administrator`):
+`answer` takes no authority from an organization path that reduces an
+administrator's retirement, while a path may still reduce a member's, whose
+old key signs nothing on the organization's authority. The device taking a new
+phrase learns whether it administers from the organization's log as served,
+checked to the head its retirement follows (`contacts::administered`): a log
+that reaches that head is the real one, so the server cannot pass an
+administrator off as a member.
 Otherwise a reader learns no other member's grant. Every entry says whether it
 lowered anyone (`Entry::lowers`, covered by its hash outside the digest),
 which `check_log` refuses unless it is so and devices set by signing through
@@ -1163,13 +1173,6 @@ who lost access. Cited from code by these names.
   entry from before, and devices take it. A record resting on a block no
   longer above anything the reader views does not check for that reader until
   a manager signs it again from where it lies.
-- **A retired administrator's key.** A reader served a partial path of the
-  organization's log cannot tell an administrator's retirement from a member's,
-  since both reduce to `retires`, so `answer` refuses no organization path for
-  reducing one. A server that reduces an administrator's retirement, where that
-  administrator signs nothing after it in the organization's log, keeps the old
-  key among the signers, and a stolen retired key then signs records below that
-  devices take on the organization's authority.
 - **What a parent record proves on a device**: that its signer held Edit or
   above on the moved block. Edit on the destination, and Manage where
   `BlockGraph::move_refusal` asks for it, are the server's checks alone, so an

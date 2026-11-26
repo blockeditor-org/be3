@@ -87,20 +87,10 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
         .unwrap()
         .logs;
     assert_eq!(logs.len(), 2, "the organization's log and the workspace's");
-    let retirement = |log: be_block_protocol::SignedLog| be_block_protocol::Retirement {
-        organization: log.organization,
-        kind: log.kind,
-        log: log.log,
-        entry: be_block_keys::Entry::retirement(
-            &first,
-            &second,
-            account.into_bytes(),
-            log.log.into_bytes(),
-            log.head.try_into().unwrap(),
-        )
-        .encode(),
-    };
-    let mut retirements: Vec<_> = logs.into_iter().map(retirement).collect();
+    let mut retirements = Vec::new();
+    for log in logs {
+        retirements.push(owner.retirement(&first, &second, account, log).await);
+    }
     let kept = retirements.pop().unwrap();
     let response = owner
         .call(|peer| {

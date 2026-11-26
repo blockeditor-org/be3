@@ -361,6 +361,12 @@ pub struct Named {
 /// An account's move to new keys, endorsed by the key it retires and signed (as an entry) by
 /// the new one: the server cannot retire an account to keys of its own, and the old key signs
 /// nothing in the log after it.
+///
+/// `administrator` says whether the account administers the organization as of the entry
+/// before it (always false in a block's log), as `check_log` finds it must. A reduced entry
+/// carries it (`Reduced::retires_administrator`), so a reader of a partial organization path
+/// knows whether a retirement it cannot see retired a key that signs on the organization's
+/// authority.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Retirement {
     pub account: [u8; 16],
@@ -368,6 +374,7 @@ pub struct Retirement {
     pub new: PublicIdentity,
     #[serde(with = "serde_bytes")]
     pub endorsement: Vec<u8>,
+    pub administrator: bool,
 }
 
 fn endorsed(account: [u8; 16], new: &PublicIdentity) -> Vec<u8> {
@@ -480,13 +487,16 @@ impl Entry {
     }
 
     /// The entry after `previous` in the log of `log` that retires `account`'s `old` keys for
-    /// `new`'s: endorsed by the old key, signed by the new one.
+    /// `new`'s: endorsed by the old key, signed by the new one. `administrator` is whether the
+    /// account administers the organization whose log this is as of `previous`
+    /// (`Retirement::administrator`): false in a block's log.
     pub fn retirement(
         old: &RecoverySecret,
         new: &RecoverySecret,
         account: [u8; 16],
         log: [u8; 16],
         previous: EntryHash,
+        administrator: bool,
     ) -> Self {
         use ed25519_dalek::Signer;
         let endorsement = old
@@ -505,6 +515,7 @@ impl Entry {
                 old: old.signing(),
                 new: new.identity(),
                 endorsement,
+                administrator,
             }),
         )
     }
@@ -654,6 +665,10 @@ impl Entry {
             places: matches!(self.record, Record::Parent(_)),
             owns: matches!(self.record, Record::Owner(_)),
             retires: matches!(self.record, Record::Retirement(_)),
+            retires_administrator: matches!(
+                &self.record,
+                Record::Retirement(retirement) if retirement.administrator
+            ),
             digest: self.digest(),
         }
     }
@@ -691,9 +706,14 @@ pub struct Reduced {
     /// owner's Manage (`check_log`).
     pub owns: bool,
     /// Whether it is a retirement: one reduced so may retire the key of an account the path
-    /// proves, which then signs nothing after it, so no authority is taken from a path that
-    /// hides one (`Checked::hides_retirement`, `answer`).
+    /// proves, which then signs nothing after it, so no authority is taken from a block's path
+    /// that hides one (`Checked::hides_retirement`, `answer`).
     pub retires: bool,
+    /// Whether it is a retirement of an organization's administrator
+    /// (`Retirement::administrator`): no authority is taken from an organization's path that
+    /// hides one. A path may hide a member's, whose old key signs nothing on the organization's
+    /// authority.
+    pub retires_administrator: bool,
     pub digest: EntryHash,
 }
 
@@ -710,6 +730,7 @@ impl Reduced {
             u8::from(self.places),
             u8::from(self.owns),
             u8::from(self.retires),
+            u8::from(self.retires_administrator),
         ])
         .chain_update(self.digest)
         .finalize()
@@ -1107,9 +1128,10 @@ pub struct Checked {
     /// hidden from the reader, so the log names no administrator (`administrators` and `levels`
     /// are left empty) and vouches for no escrow epoch.
     pub hides_lowering: bool,
-    /// For a block's log: whether a reduced entry is a retirement (`Reduced::retires`), which
-    /// may have retired the key of an account the path proves: the key the path names for them
-    /// may sign nothing after it, so the log names no one's authority for a record elsewhere
+    /// Whether a reduced entry may have retired the key of an account the path proves: for a
+    /// block's log any retirement (`Reduced::retires`), for an organization's an
+    /// administrator's (`Reduced::retires_administrator`). The key the path names for them may
+    /// sign nothing after it, so the log names no one's authority for a record elsewhere
     /// (`answer`).
     pub hides_retirement: bool,
     /// Whether the log was served as a proof path (`proof_path`): some entries reduced, so
@@ -1425,10 +1447,11 @@ impl Checked {
                         }
                     }
                     // An honest organization path reduces only the retirements of members who
-                    // never administered it, whose keys grant nothing outside it. A server can
-                    // reduce an administrator's too, and a reader cannot tell the two apart
-                    // (guides/blocks/keys.md, "Accepted limits", "A retired administrator's key").
-                    if reduced.retires && kind == LogKind::Block {
+                    // never administered it, whose keys grant nothing outside it; the entry's
+                    // hash commits to whether it retired an administrator.
+                    if reduced.retires
+                        && (kind == LogKind::Block || reduced.retires_administrator)
+                    {
                         state.hides_retirement = true;
                     }
                     if reduced.lowers {
@@ -1448,6 +1471,11 @@ impl Checked {
                 Record::Root(_) => return Err(KeyError::Record),
                 Record::Retirement(retirement) => {
                     let current = own.ok_or(KeyError::Record)?;
+                    let administers = kind == LogKind::Organization
+                        && state.administrators.contains_key(&entry.signer);
+                    if retirement.administrator != administers {
+                        return Err(KeyError::Record);
+                    }
                     let endorsed_by_current = retirement.account == entry.signer
                         && retirement.old == current
                         && verify_signature(
@@ -2144,8 +2172,9 @@ pub fn answer(logs: &Logs, block: [u8; 16], asked: &Asked) -> Option<SigningPubl
     // every path, tell, and a placement reduced leaves the block detached (`Checked::placement`).
     //
     // A path that reduces an entry that lowered anyone may hide the signer's own revocation or
-    // demotion, and one that reduces a retirement the retirement of the key they signed with: an
-    // honest one served for authority reduces neither (`proof_path`'s `lowerings`).
+    // demotion, and one that reduces a retirement (in an organization's log, an administrator's)
+    // the retirement of the key they signed with: an honest one served for authority reduces
+    // neither (`proof_path`'s `lowerings`, and every record about an administrator).
     if checked.partial && (checked.hides_lowering || checked.hides_retirement) {
         return None;
     }

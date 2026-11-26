@@ -50,23 +50,10 @@ async fn a_new_recovery_key_brings_back_no_key_revoked_while_it_was_sealed() {
             rusqlite::params![revoked.scope.to_string(), by],
         )
         .unwrap();
-    let retirements = found
-        .logs
-        .into_iter()
-        .map(|log| be_block_protocol::Retirement {
-            organization: log.organization,
-            kind: log.kind,
-            log: log.log,
-            entry: be_block_keys::Entry::retirement(
-                &old,
-                &new,
-                account.into_bytes(),
-                log.log.into_bytes(),
-                log.head.try_into().unwrap(),
-            )
-            .encode(),
-        })
-        .collect();
+    let mut retirements = Vec::new();
+    for log in found.logs {
+        retirements.push(owner.retirement(&old, &new, account, log).await);
+    }
     let resealed = |key: Uuid, sender: Uuid| SealedKey {
         organization,
         key,

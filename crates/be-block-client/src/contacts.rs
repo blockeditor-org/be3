@@ -2,7 +2,7 @@ use be_block_keys::{
     CardRole, ContactCard, InviteCode, Own, Party, PublicIdentity, RecoveryPublic, RecoverySecret,
     SigningPublic,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use be_block_protocol::{ErrorCode, EscrowKey, Invitation, KeyChange, Link, LinkKind, SealedKey};
 use uuid::Uuid;
@@ -1157,7 +1157,10 @@ pub struct NewIdentity {
 /// a key change for each contact, and a retirement in each of `logs`. A contact's key opens with
 /// `old`, or one of `retired` while the contact may hold a key it replaced (`behind`), and is
 /// sealed again as still the contact's (`RecoverySecret::seal_as_from`), so the `KeyBook` checks
-/// the contact may hand it over. None when a log's head is malformed.
+/// the contact may hand it over. A retirement in an organization's log says whether the account
+/// administers it (`Retirement::administrator`): it does in those of `administered`. None when a
+/// log's head is malformed.
+#[allow(clippy::too_many_arguments)]
 pub fn new_identity(
     account: Uuid,
     old: &RecoverySecret,
@@ -1166,6 +1169,7 @@ pub fn new_identity(
     held: Vec<SealedKey>,
     records: &HashMap<Uuid, OwnContact>,
     logs: Vec<be_block_protocol::SignedLog>,
+    administered: &HashSet<Uuid>,
 ) -> Option<NewIdentity> {
     let me = Party {
         account: account.into_bytes(),
@@ -1242,6 +1246,8 @@ pub fn new_identity(
                 account.into_bytes(),
                 log.log.into_bytes(),
                 head,
+                log.kind == be_block_protocol::LogKind::Organization
+                    && administered.contains(&log.organization),
             );
             Some(be_block_protocol::Retirement {
                 organization: log.organization,
@@ -1256,6 +1262,63 @@ pub fn new_identity(
         changes,
         retirements,
     })
+}
+
+/// The organizations among `logs` whose log `account` administers as of the head named: each
+/// organization's log as the server serves it, checked from its root to that head. A log that
+/// reaches the head is the one the retirement follows, whatever root it has, so the server
+/// cannot pass an administrator off as a member, whose retirement a path may hide
+/// (`Reduced::retires_administrator`).
+pub(crate) async fn administered(
+    connection: &Arc<Connection>,
+    account: Uuid,
+    logs: &[be_block_protocol::SignedLog],
+) -> Result<HashSet<Uuid>, ClientError> {
+    let mut administered = HashSet::new();
+    for log in logs {
+        if log.kind != be_block_protocol::LogKind::Organization {
+            continue;
+        }
+        let organization = log.organization;
+        let page = crate::ask(be_block_protocol::read::<
+            be_block_protocol::AccessLogPage,
+            _,
+        >(
+            connection,
+            Some(organization),
+            be_block_protocol::Query::Log {
+                log: None,
+                held: None,
+            },
+        ))
+        .await?;
+        let forged = || ClientError::Forged(organization);
+        let steps = page
+            .entries
+            .iter()
+            .map(|step| be_block_keys::Step::decode(step))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| forged())?;
+        let head: be_block_keys::EntryHash = log.head.as_slice().try_into().map_err(|_| forged())?;
+        let root = steps.first().ok_or_else(forged)?.hash();
+        let checked = be_block_keys::check_log(
+            be_block_keys::LogKind::Organization,
+            organization.into_bytes(),
+            root,
+            &steps,
+            &|_| None,
+        )
+        .map_err(|_| forged())?;
+        // A path that hides a lowering names no one's administering (`Checked::hides_lowering`):
+        // an honest server reduces none in an organization's log.
+        if page.from != 0 || checked.hides_lowering || !checked.holds(&head) {
+            return Err(forged());
+        }
+        if checked.level_as_of(account.into_bytes(), &head) == Some(be_block_keys::Level::Manage) {
+            administered.insert(organization);
+        }
+    }
+    Ok(administered)
 }
 
 /// Why a device cannot take a new phrase (`set_recovery_key`).
@@ -1347,7 +1410,17 @@ pub(crate) async fn set_recovery_key_in(
         },
         None => (HashMap::new(), Vec::new()),
     };
-    let Some(resealed) = new_identity(account, old, &retired, fresh, sealed, &records, logs) else {
+    let administered = administered(connection, account, &logs).await?;
+    let Some(resealed) = new_identity(
+        account,
+        old,
+        &retired,
+        fresh,
+        sealed,
+        &records,
+        logs,
+        &administered,
+    ) else {
         return Ok(Err(CannotReseal::Unreadable));
     };
     // The old secret, kept where only the new phrase reads it once the block's keys are sealed

@@ -15,9 +15,9 @@ record, which the append of the first such record below writes, so it holds
 from the first path served after that record. An honest organization path
 already reduces no lowering and no administrator's retirement (every record
 about an administrator is whole), and one that hides a lowering names no
-administrator. A lying server can still reduce an administrator's retirement on
-an organization path, which a reader cannot tell from a member's: that is an
-accepted limit (guides/blocks/keys.md, "A retired administrator's key").
+administrator. A lying server that reduces an administrator's retirement on an
+organization path anyway is refused too: the reduced step says it retires an
+administrator (`Reduced::retires_administrator`), as the retirement signs it.
 
 ## Why
 

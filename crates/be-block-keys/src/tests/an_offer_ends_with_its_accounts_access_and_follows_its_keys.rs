@@ -55,7 +55,7 @@ fn an_offer_ends_with_its_accounts_access_and_follows_its_keys() {
     );
 
     // The heir takes a new phrase: the offer moves to its new keys.
-    let retired = Entry::retirement(&heir, &renewed, heir_id, block, offer.hash());
+    let retired = Entry::retirement(&heir, &renewed, heir_id, block, offer.hash(), false);
     let mut after = log.clone();
     after.push(retired.clone());
     assert_eq!(

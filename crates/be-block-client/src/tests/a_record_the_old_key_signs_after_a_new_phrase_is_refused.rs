@@ -62,6 +62,7 @@ async fn a_record_the_old_key_signs_after_a_new_phrase_is_refused() {
         owner.account().into_bytes(),
         team.into_bytes(),
         retired[3].hash(),
+        false,
     );
     database
         .execute(
@@ -77,6 +78,7 @@ async fn a_record_the_old_key_signs_after_a_new_phrase_is_refused() {
         owner.account().into_bytes(),
         organization.into_bytes(),
         head,
+        true,
     );
     database
         .execute(
