@@ -770,3 +770,12 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
   leaves open, so closing the canvas while the box is still empty keeps an
   invisible empty Text entity, as an undo step. Done: plans/deferred/canvas.md,
   step 4 (a draft written on its first keystroke), with its test.
+
+## 34. Desktop windows
+
+- **Window names from desktop entries installed later.** On Linux a window's name and icon
+  from its desktop entry (`desktop_host/linux.rs`, `known` and `ICONS`) are read once per
+  program id and cached for the run, outside what `DesktopHost::listed` tracks, so a program
+  installed or renamed after its first window keeps the name it had. Done when the entries
+  `known` reads come from the installed programs' list as a signal, and a window published in
+  `WindowsWatch` changes its name when its entry does, shown by a be-host-desktop test.

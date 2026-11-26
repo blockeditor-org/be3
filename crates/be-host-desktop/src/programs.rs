@@ -228,6 +228,16 @@ pub fn bound_windows() -> ReadSignal<Vec<HostWindowId>> {
     signal.read_only()
 }
 
+/// Binds `window` to `block`'s session as its launch would, for tests with no platform.
+#[cfg(test)]
+pub(crate) fn bind(block: Uuid, window: HostWindowId) {
+    with(|sessions| {
+        if let Some(session) = sessions.open.get_mut(&block) {
+            session.stage = Stage::Running(window);
+        }
+    });
+}
+
 fn bound_in(sessions: &Sessions) -> Vec<HostWindowId> {
     let mut bound: Vec<HostWindowId> = sessions
         .open

@@ -1,4 +1,4 @@
-use be_lib_geometry::{pos2, vec2};
+use be_lib_geometry::{SLACK, pos2, vec2};
 use be_sdk_api::{
     Pos2, Rect, Vec2, ViewId, ViewRef, WindowEdge, WindowOpen, WindowPlacement, WindowRequest,
 };
@@ -8,7 +8,6 @@ pub const SMALLEST: Vec2 = vec2(96.0, 64.0);
 /// How much of a window's top-left corner, where its grip is, stays on a work area, so the window
 /// can always be grabbed again.
 pub const KEPT: Vec2 = vec2(96.0, 48.0);
-pub const WALL: f32 = 0.5;
 const PLACEMENT: &str = "desktop";
 
 pub trait Stacked {
@@ -244,8 +243,8 @@ pub fn fitted(rect: Rect, display: Rect, work: Rect) -> Rect {
         let y = rect.min.y.min(work.max.y - size.y).max(work.min.y);
         return Rect::from_min_size(pos2(x, y), size);
     }
-    let walls_x = work.min.x > display.min.x + WALL || work.max.x < display.max.x - WALL;
-    let walls_y = work.min.y > display.min.y + WALL || work.max.y < display.max.y - WALL;
+    let walls_x = work.min.x > display.min.x + SLACK || work.max.x < display.max.x - SLACK;
+    let walls_y = work.min.y > display.min.y + SLACK || work.max.y < display.max.y - SLACK;
     let mut size = rect.size();
     if walls_x && work.width() > 0.0 {
         size.x = size.x.min(work.width());

@@ -391,6 +391,8 @@ impl Shell {
             if desktop {
                 Host::create();
             }
+            // Published with no desktop host too, empty, as every watch is once its service
+            // runs (guides/desktop.md), so the shell's `windows` watch is answered.
             be_host_desktop::desktop_host::publish_windows();
             surfaces::create_handles();
             display::create_handle();

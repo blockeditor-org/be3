@@ -27,7 +27,9 @@ pub struct Hearing(Arc<AtomicBool>);
 impl Default for Hearing {
     fn default() -> Self {
         let due = Arc::new(AtomicBool::new(true));
-        held().hearings.push(Arc::downgrade(&due));
+        let mut held = held();
+        held.hearings.retain(|hearing| hearing.strong_count() > 0);
+        held.hearings.push(Arc::downgrade(&due));
         Self(due)
     }
 }

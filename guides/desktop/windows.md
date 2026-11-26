@@ -113,9 +113,10 @@ included.
 - XR controller presses (`PointerId::is_controller`) are injected instead, since a laser has no
   physical cursor.
 
-**What the person is told.** The entry's `KnownWindow::note` (the child's `notice`, shown in the
-tab title, never over content; `win32_map::Notes`) says the way back while focused, a refusal until
-next focused, or "Click to use this window" on hover. Each change bumps the `changes`
-signal `listed` tracks, so `WindowsWatch` is published again (`desktop_host::publish_windows`). Only what must cover content is drawn on it (`EntryOverlay`): the
-off-screen parts of a frame (`win32_map::off_screen`; the host does not move the window) and the
-secure-desktop notice. Every toast is also a line on stderr.
+**What the person is told.** The entry's `KnownWindow::note` (the child's `notice`, shown in the tab
+title, never over content; `win32_map::Notes`) says the way back while focused, a refusal until next
+focused, or "Click to use this window" on hover. Each change bumps the `changes` signal `listed`
+tracks, so `WindowsWatch` is published again (`desktop_host::publish_windows`). Only what must cover
+content is drawn on it (`EntryOverlay`): the off-screen parts of a frame (`win32_map::off_screen`;
+the host does not move the window) and the secure-desktop notice. Every toast is also a line on
+stderr.

@@ -87,8 +87,9 @@ calls `desk.deliver(&mut c)` (`HostCore`'s requests, logind, `Programs`, `Screen
 The host keeps what it knows of each window in be-host-desktop's `KnownWindow` and publishes only
 its `listed()` part, from an effect (`desktop_host::publish_windows`) over the platform's windows
 (`DesktopHost::listed`, which tracks what it reads) and the windows bound to a block's editor
-(`programs::bound_windows`, a signal), so nothing compares a counter each frame. `be_host_desktop::naming::window_name` names a window everywhere it shows: the
-program's name, then " — " and the window's title when it says more. The name comes first from
+(`programs::bound_windows`, a signal), so nothing compares a counter each frame.
+`be_host_desktop::naming::window_name` names a window everywhere it shows: the program's name, then
+" — " and the window's title when it says more. The name comes first from
 the program the desktop launched the window from (`origin.program`), else the desktop entry (Linux)
 or Start menu program (Windows) matching the window's program id.
 
@@ -177,22 +178,22 @@ side along their bottom edges. `DisplaysWatch` gives each `HostDisplay` its `rec
   rect from it (`WindowReport::Moved`), and asks to move a window with the `place` request.
   `BeginMove`/`BeginResize` hand the press to the host.
 - A display's work area is the display less its bars' bands (`DockHostLayout::area`). The shell
-  reports it per view (`frame-report.work-area`). A window keeps only its grip, the top-left
-  corner where its handle is (`be_sdk_window_stack::KEPT`), on some display's work area
-  (`reachable`), so it can always be grabbed again; the rest of it may hang off any
-  edge or over any band. be-lib-geometry's `Rect::grabbable` is that one rule, which be-host's
-  own window (`compositor/desktop.rs`, a grip of its handle's height) and beui-dock-host's
-  floating windows call too, each with its own grip. A window taller or wider than a work area a band insets shrinks to it
-  (`fitted`), except a `WindowLevel::Fullscreen` window (the dock's fullscreen), which covers the
-  whole display; a window on no display (unplugged) moves to the nearest. A window moved past
-  where its grip can be reached follows the pointer on a rubber band, and let go, springs back
-  from there at the speed it was moving (`desktop.rs`, `Spring`); be-host's own window springs
-  the windows it carries itself (`carried`).
-  Keeping only changes where a window shows (`Stacked::show_at`), never where it is wanted
-  (`Stacked::wanted`, set by the user's and the app's moves): a window pushed in by a smaller or
-  unplugged display goes back once there is room. Its `host-place` is the wanted place, which
-  the dock saves with the window (`dock-window.placed`) and reopens it at, so a layout saved
-  meanwhile keeps it too.
+  reports it per view (`frame-report.work-area`). A window keeps only its grip, the top-left corner
+  where its handle is (`be_sdk_window_stack::KEPT`), on some display's work area (`reachable`), so
+  it can always be grabbed again; the rest of it may hang off any edge or over any band.
+  be-lib-geometry's `Rect::grabbable` is that one rule, which be-host's own window
+  (`compositor/desktop.rs`, a grip of its handle's height) and beui-dock-host's floating windows
+  call too, each with its own grip. A window taller or wider than a work area a band insets shrinks
+  to it (`fitted`), except a `WindowLevel::Fullscreen` window (the dock's fullscreen), which covers
+  the whole display; a window on no display (unplugged) moves to the nearest. A window moved past
+  where its grip can be reached follows the pointer on a rubber band, and let go, springs back from
+  there at the speed it was moving (`desktop.rs`, `Spring`); be-host's own window springs the
+  windows it carries itself (`carried`). Keeping only changes where a window shows
+  (`Stacked::show_at`), never where it is wanted (`Stacked::wanted`, set by the user's and the app's
+  moves): a window pushed in by a smaller or unplugged display goes back once there is room. Its
+  `host-place` is the wanted place, which the dock saves with the window (`dock-window.placed`) and
+  reopens it at, so a layout saved meanwhile keeps it too. be-host's own window shrinks by its own
+  rule (`clamped`; decisions/a_host_window_and_a_desktop_window_shrink_by_different_rules.md).
 - A window is drawn on the display holding most of it, at that display's raster scale; while it is
   moved, on every display it overlaps.
 - The shell's view draws its surface, every child it places (the tabs docked in its own dock)
