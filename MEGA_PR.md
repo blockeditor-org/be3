@@ -142,6 +142,7 @@ Landed on 2026-11-24:
 - `gpu-wasi-webgpu-5b`: review follow-ups: getConfiguration returns what was configured, looks are batched in one submit, and a pass that cannot begin raises once at its encoder's finish.
 - `backlog-10-2`: a host panel tab takes the keyboard under the root; an image read by range after its header grew reads its whole payload.
 - `backlog-12-3`: walks tell thinned history from a root; search waits for the device at rest, follows the indexes it may compact, keeps its answer while it runs again and leaves out blocks shared alone; a block made here is placed by its parents.
+- `backlog-26`: access logs are checked once across restarts, joins and the server's reads, and authority from another log once as of each head. Behaviour change: a key escrowed under a log not yet checked answers Withheld where it answered nothing.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
