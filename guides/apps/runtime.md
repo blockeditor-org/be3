@@ -595,6 +595,13 @@ answer a `Draw` (`be_sdk::runtime`); the host sends no `Draw` while one is
 unanswered, and at most one a pass, after that pass's poll; so the next `Draw`
 goes out after the poll that shows the held frame.
 
+A driven host can take presents in late (`drive present late`, `host::presents_late`): outside
+a poll, `Runtime::pump` holds everything an app sent from its first present on (`late`), and
+the app's presented frame with the worker, and settling counts the app as answered once only
+those are owed; the next poll hears them first. So a host test draws the frame between a
+layout and its present, as a present that misses its frame's deadline does
+(`on_a_phone_opening_a_document_from_the_files_steps_frame_by_frame_with_presents_late`).
+
 A view its app has not reported a frame of yet (a dock tab's body, mounted
 again each time its tab is shown) is filled with the backdrop its instance
 last reported for another view, else with what its placer's view is filled

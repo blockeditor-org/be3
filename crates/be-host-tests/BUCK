@@ -168,6 +168,7 @@ APPS = {
     "on_a_phone_a_new_text_opens_from_its_row_with_one_tap_after_back": ["text"],
     "on_a_phone_an_editor_stacks_over_the_files_with_its_panes_gathered_below_its_stage": ["example-pan-zoom"],
     "on_a_phone_back_leaves_each_document_opened_from_the_files": ["text"],
+    "on_a_phone_opening_a_document_from_the_files_steps_frame_by_frame_with_presents_late": ["text"],
     "on_a_phone_renaming_a_canvas_opens_a_sheet": ["infinite-canvas"],
     "on_a_phone_tapping_a_blocks_name_renames_it_in_a_sheet": ["text"],
     "on_a_phone_the_files_show_what_the_device_keeps_after_its_connection_drops": ["text"],

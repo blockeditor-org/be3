@@ -271,6 +271,10 @@ pub(super) struct Runtime {
     /// A frame held until the poll applies the children and docks its layout brought
     /// (`Runtime::received`), so both show in the same host frame.
     held_frame: Option<Frame>,
+    /// What the app sent from its first present on, held while a driven host takes presents in
+    /// late (`host::presents_late`, `drive present late`) until the next poll hears it first,
+    /// so a host frame is drawn between the app's layout and its present.
+    late: Vec<Heard>,
     pub(super) instances: Instances,
     pub(super) pass: u64,
     since: u64,
@@ -406,6 +410,7 @@ impl Runtime {
             run: Run::new(session(), DRAWS_PRESENTS, host::preferences()),
             taking_in: false,
             held_frame: None,
+            late: Vec::new(),
             instances,
             pass: 0,
             since: 0,
@@ -445,6 +450,7 @@ impl Runtime {
         presenter::release(self.surface, &self.status);
         self.shared.borrow_mut().frames.clear();
         self.held_frame = None;
+        self.late.clear();
         self.error = None;
         self.status = PresenterStatus::waiting();
         self.fallbacks = super::fonts::Fallbacks::new();
@@ -573,7 +579,9 @@ impl Runtime {
 
     fn outstanding(&self) -> bool {
         self.error.is_none()
-            && (!self.backend.settled() || self.run.pacing.painting() || self.awaiting_input)
+            && (!self.backend.settled()
+                || (self.run.pacing.painting() && self.late.is_empty())
+                || self.awaiting_input)
     }
 
     fn take_relaid(&mut self) -> bool {
@@ -634,6 +642,10 @@ impl Runtime {
             (
                 !self.run.holds.is_empty(),
                 "has answers it sent mid-frame for the next frame to take in",
+            ),
+            (
+                !self.late.is_empty(),
+                "has a present held for the next frame to take in",
             ),
             (
                 self.instances.awaiting_content(),
@@ -826,7 +838,9 @@ impl Runtime {
         if *self.run.session.state() == SessionState::Idle && self.backend.ready() {
             self.run.session.start(now);
         }
-        let mut forwarded = Vec::with_capacity(received.len());
+        // What was held back from a late present is heard first, in the order it came.
+        let mut forwarded = std::mem::take(&mut self.late);
+        forwarded.reserve(received.len());
         for heard in received {
             match heard {
                 Heard::Hello(hello) => {
@@ -860,6 +874,16 @@ impl Runtime {
                 return;
             }
         }
+        // Presents taken in late: held from the first on until a poll takes them in.
+        if host::presents_late()
+            && !self.taking_in
+            && let Some(first) = forwarded
+                .iter()
+                .position(|heard| matches!(heard, Heard::Presented(_)))
+        {
+            self.late = forwarded.split_off(first);
+            host::request_repaint();
+        }
         self.hear(forwarded);
         let (count, longest) = self.backend.stepped();
         self.steps += count;
@@ -889,7 +913,10 @@ impl Runtime {
         for image in previews::take_withdrawn(&self.app.identity.id) {
             self.backend.withdraw(image);
         }
-        if let Some(frame) = self.backend.received_frame() {
+        // A late present's frame stays with the worker until its present is heard.
+        if self.late.is_empty()
+            && let Some(frame) = self.backend.received_frame()
+        {
             self.received(frame);
         }
     }
