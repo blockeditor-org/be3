@@ -1,0 +1,78 @@
+# Written by ./scripts/verify from this crate's Schema types (be-wasm-schema): the id of each
+# field and variant. Rename a member of a frozen type here when you rename it in the source.
+
+struct Blob
+  1 data: Vec<u8>
+
+struct Borrowed
+  1 name: &'a str
+  2 data: &'a [u8]
+
+enum ClosedShape
+  1 Dot
+  2 Circle(f64)
+
+struct Drawing
+  1 shape: ShapeV2
+
+struct Everything
+  1 flag: bool
+  2 small: u8
+  3 negative: i64
+  4 letter: char
+  5 ratio: f32
+  6 id: Id
+  7 key: [u8; 4]
+  8 chunks: Vec<Vec<u8>>
+  9 names: BTreeMap<String, Vec<u8>>
+  10 counts: HashMap<String, u32>
+  11 shape: ShapeV2
+  12 boxed: Box<PersonV1>
+  13 nothing: Nothing
+
+struct FrozenPoint (frozen from 3)
+  1 y: i32
+  2 x: i32
+  3 label: Option<String>
+
+struct Holder
+  1 shape: ClosedShape
+
+newtype Id: u64
+
+struct Nothing
+
+struct Opt
+  1 count: Option<u32>
+  2 nested: Option<Option<u32>>
+
+struct PersonKeeping
+  1 name: String
+  2 age: u32
+
+struct PersonV1
+  1 name: String
+  2 age: u32
+
+struct PersonV2
+  1 name: String
+  2 age: u32
+  3 email: Option<String>
+  4 tags: Vec<String>
+
+enum ShapeV1 (open)
+  1 Dot
+  2 Circle(f64)
+
+enum ShapeV2
+  1 Dot
+  2 Circle(f64)
+  3 Square{}
+
+struct ShapeV2::Square
+  1 side: f64
+  2 label: String
+
+struct Tree
+  1 value: i32
+  2 children: Vec<Tree>

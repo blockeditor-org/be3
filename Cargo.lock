@@ -2810,6 +2810,7 @@ dependencies = [
 name = "be-tool-fix-rust-source"
 version = "0.1.0"
 dependencies = [
+ "be-wasm-schema-lock",
  "ra_ap_syntax",
 ]
 
@@ -3523,6 +3524,32 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wgpu",
+]
+
+[[package]]
+name = "be-wasm-schema"
+version = "0.1.0"
+dependencies = [
+ "be-wasm-schema-derive",
+]
+
+[[package]]
+name = "be-wasm-schema-derive"
+version = "0.1.0"
+dependencies = [
+ "be-wasm-schema-lock",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+]
+
+[[package]]
+name = "be-wasm-schema-lock"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]

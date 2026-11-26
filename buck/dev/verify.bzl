@@ -42,7 +42,8 @@ source_fix = rule(
 
 # The package's :fix, once: every cargo_* macro defines it (buck/cargo/defs.bzl)
 # with rust, over the crate's Rust files, and a package with no crate calls it
-# itself. starlark names its Starlark files; a glob stops at a package below,
+# itself, and with rust its schema.lock, which fix-rust-source rewrites from the
+# Rust files (be-wasm-schema-lock). starlark names its Starlark files; a glob stops at a package below,
 # so each file is fixed by the package that holds it. Generated files, which a
 # tool writes as it formats them, are left out. directory is where the package
 # is in the repository, for a package in a cell of its own, which also names
@@ -52,7 +53,7 @@ def package_fix(rust = False, starlark = ["BUCK", "PACKAGE", "**/*.bzl", "**/*.b
         return
     package = native.package_name() if directory == None else directory
     prefix = package + "/" if package else ""
-    paths = native.glob(starlark + (["**/*.rs"] if rust else []), exclude = exclude)
+    paths = native.glob(starlark + (["**/*.rs", "schema.lock"] if rust else []), exclude = exclude)
     platform = {} if directory == None else {"default_target_platform": "root//buck/platforms:linux_x86_64"}
     source_fix(name = "fix", srcs = {prefix + path: path for path in paths}, **platform)
 

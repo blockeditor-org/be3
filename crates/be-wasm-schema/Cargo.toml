@@ -1,0 +1,12 @@
+[package]
+name = "be-wasm-schema"
+description = "One tagged, canonical encoding for every type be3 saves or sends, numbered by the crate's schema.lock so a frozen type only grows"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-wasm-schema-derive = { path = "../be-wasm-schema-derive" }
+
+[lints]
+workspace = true

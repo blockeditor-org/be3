@@ -109,10 +109,12 @@ def _env(crate, crate_name, env):
 
 # Files a build script or proc macro reads at CARGO_MANIFEST_DIR: the crate's
 # own resources, and foreign ones, a target mapped to its path from the root,
-# such as another crate's WIT files that this crate's WIT uses.
+# such as another crate's WIT files that this crate's WIT uses. A crate's
+# schema.lock, which be-wasm-schema's derive numbers its types by, is always
+# one.
 def cargo_manifest_sources(resources = [], foreign_resources = {}):
     sources = {"Cargo.toml": native.package_name() + "/Cargo.toml"}
-    for resource in resources:
+    for resource in resources + native.glob(["schema.lock"]):
         sources[resource] = native.package_name() + "/" + resource
     sources.update(foreign_resources)
     return sources

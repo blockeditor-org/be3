@@ -1,6 +1,7 @@
 mod beui_rules;
 mod core_api;
 mod hash_order;
+mod schema_locks;
 mod unsafe_tags;
 mod views;
 
@@ -18,6 +19,7 @@ pub use views::format_views;
 
 pub fn fix_repository(root: &Path, check: bool) -> Result<(), Box<dyn Error>> {
     let mut violations = find_violations(root)?;
+    violations.extend(schema_locks::stale(root)?);
     violations.sort_unstable();
     violations.dedup();
 
@@ -31,6 +33,7 @@ pub fn fix_repository(root: &Path, check: bool) -> Result<(), Box<dyn Error>> {
     rename_module_files(root)?;
     fix_test_layout(root)?;
     format_repository_views(root)?;
+    schema_locks::write(root)?;
 
     let remaining = find_layout_violations(root)?;
     if !remaining.is_empty() {
@@ -974,7 +977,7 @@ fn remove_ranges(source: &[u8], ranges: &[Range<usize>]) -> Vec<u8> {
     output
 }
 
-fn relative(root: &Path, path: &Path) -> String {
+pub(crate) fn relative(root: &Path, path: &Path) -> String {
     path.strip_prefix(root)
         .unwrap_or(path)
         .display()
@@ -989,7 +992,10 @@ fn collect_crate_files(root: &Path, paths: &mut Vec<PathBuf>) -> Result<(), Box<
     collect_rust_files(&crates, paths)
 }
 
-fn collect_rust_files(directory: &Path, paths: &mut Vec<PathBuf>) -> Result<(), Box<dyn Error>> {
+pub(crate) fn collect_rust_files(
+    directory: &Path,
+    paths: &mut Vec<PathBuf>,
+) -> Result<(), Box<dyn Error>> {
     for entry in fs::read_dir(directory)? {
         let entry = entry?;
         let path = entry.path();

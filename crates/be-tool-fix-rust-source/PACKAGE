@@ -22,10 +22,12 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {
                 "fix-rust-source": [
+                    "//crates/be-wasm-schema-lock:be-wasm-schema-lock",
                     "//third-party/rust:ra_ap_syntax-0.0.351",
                 ],
             },
             "deps": [
+                "//crates/be-wasm-schema-lock:be-wasm-schema-lock",
                 "//third-party/rust:ra_ap_syntax-0.0.351",
             ],
             "examples": {},
@@ -36,10 +38,12 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {
                 "fix-rust-source": [
+                    "//crates/be-wasm-schema-lock:be-wasm-schema-lock",
                     "//third-party/rust:ra_ap_syntax-0.0.351",
                 ],
             },
             "deps": [
+                "//crates/be-wasm-schema-lock:be-wasm-schema-lock",
                 "//third-party/rust:ra_ap_syntax-0.0.351",
             ],
             "examples": {},
@@ -50,10 +54,12 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {
                 "fix-rust-source": [
+                    "//crates/be-wasm-schema-lock:be-wasm-schema-lock",
                     "//third-party/rust:ra_ap_syntax-0.0.351",
                 ],
             },
             "deps": [
+                "//crates/be-wasm-schema-lock:be-wasm-schema-lock",
                 "//third-party/rust:ra_ap_syntax-0.0.351",
             ],
             "examples": {},
@@ -64,10 +70,12 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {
                 "fix-rust-source": [
+                    "//crates/be-wasm-schema-lock:be-wasm-schema-lock",
                     "//third-party/rust:ra_ap_syntax-0.0.351",
                 ],
             },
             "deps": [
+                "//crates/be-wasm-schema-lock:be-wasm-schema-lock",
                 "//third-party/rust:ra_ap_syntax-0.0.351",
             ],
             "examples": {},
@@ -78,10 +86,12 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {
                 "fix-rust-source": [
+                    "//crates/be-wasm-schema-lock:be-wasm-schema-lock",
                     "//third-party/rust:ra_ap_syntax-0.0.351",
                 ],
             },
             "deps": [
+                "//crates/be-wasm-schema-lock:be-wasm-schema-lock",
                 "//third-party/rust:ra_ap_syntax-0.0.351",
             ],
             "examples": {},
@@ -92,10 +102,12 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {
                 "fix-rust-source": [
+                    "//crates/be-wasm-schema-lock:be-wasm-schema-lock",
                     "//third-party/rust:ra_ap_syntax-0.0.351",
                 ],
             },
             "deps": [
+                "//crates/be-wasm-schema-lock:be-wasm-schema-lock",
                 "//third-party/rust:ra_ap_syntax-0.0.351",
             ],
             "examples": {},
@@ -106,10 +118,12 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {
                 "fix-rust-source": [
+                    "//crates/be-wasm-schema-lock:be-wasm-schema-lock",
                     "//third-party/rust:ra_ap_syntax-0.0.351",
                 ],
             },
             "deps": [
+                "//crates/be-wasm-schema-lock:be-wasm-schema-lock",
                 "//third-party/rust:ra_ap_syntax-0.0.351",
             ],
             "examples": {},

@@ -1,0 +1,18 @@
+[package]
+name = "be-wasm-schema-derive"
+description = "The derive for be-wasm-schema's Schema trait, numbering fields from the crate's schema.lock"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+be-wasm-schema-lock = { path = "../be-wasm-schema-lock" }
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full"] }
+
+[lints]
+workspace = true

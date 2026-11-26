@@ -9,4 +9,5 @@ name = "fix-rust-source"
 path = "src/main.rs"
 
 [dependencies]
+be-wasm-schema-lock = { path = "../be-wasm-schema-lock" }
 ra_ap_syntax = "0.0.351"
