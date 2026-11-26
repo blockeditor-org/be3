@@ -51,6 +51,7 @@ const CONNECTING: &[&str] = &[
     "list",
     "blocks",
     "unfollow tree",
+    "unfollow known",
     "unfollow session",
     "unfollow block-log",
     "unfollow keys",

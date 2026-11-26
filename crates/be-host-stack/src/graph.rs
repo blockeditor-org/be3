@@ -269,6 +269,14 @@ pub struct Graph {
     /// Entry points no node lies in any more, to unfollow.
     #[serde(skip)]
     unfollowed: Vec<Uuid>,
+    /// The blocks held that this account may only know exist, each followed as a block it
+    /// knows of (`Peer::follow_known`), since no tree tells of them; true once the follow was
+    /// asked on this connection.
+    #[serde(skip)]
+    known: imbl::OrdMap<Uuid, bool>,
+    /// Blocks followed as known that no longer are (viewable now, or gone), to unfollow.
+    #[serde(skip)]
+    unknown: Vec<Uuid>,
     /// Blocks made here that the drain has not sent yet (`made`): no listing the server answers
     /// can hold one, so it stays a member of the listings it belongs in until the drain sends
     /// its creation (`relist_around`), and they are asked for again.
@@ -378,6 +386,8 @@ impl Diff for Graph {
             pending,
             follows: _,
             unfollowed: _,
+            known: _,
+            unknown: _,
             unpublished,
             nodes_moved: _,
             to_count: _,
@@ -529,6 +539,8 @@ impl PartialEq for Graph {
             pending,
             follows: _,
             unfollowed: _,
+            known: _,
+            unknown: _,
             unpublished,
             nodes_moved: _,
             to_count: _,
@@ -936,6 +948,12 @@ impl Graph {
         self.reading.clear();
         self.retrying.clear();
         self.to_read_changed = true;
+        // The server follows no known block for the new connection either.
+        let known: Vec<Uuid> = self.known.keys().copied().collect();
+        for block in known {
+            self.known.insert(block, false);
+        }
+        self.unknown.clear();
         let entries: Vec<Uuid> = self.follows.keys().copied().collect();
         for entry in entries {
             if let Some(follow) = self.follows.get_mut(&entry) {
@@ -1163,6 +1181,35 @@ impl Graph {
         }
     }
 
+    /// The blocks to follow as known (`Graph::known`), and those to follow so no longer.
+    pub fn take_known(&mut self) -> (Vec<Uuid>, Vec<Uuid>) {
+        let wanted: Vec<Uuid> = self
+            .known
+            .iter()
+            .filter(|(_, asked)| !**asked)
+            .map(|(block, _)| *block)
+            .collect();
+        for block in &wanted {
+            self.known.insert(*block, true);
+        }
+        (wanted, std::mem::take(&mut self.unknown))
+    }
+
+    /// Keeps `known` to the nodes this account may only know exist.
+    fn track_known(&mut self, block: Uuid, known_only: bool) {
+        match (known_only, self.known.contains_key(&block)) {
+            (true, false) => {
+                self.known.insert(block, false);
+            }
+            (false, true) => {
+                if self.known.remove(&block) == Some(true) {
+                    self.unknown.push(block);
+                }
+            }
+            _ => {}
+        }
+    }
+
     /// Whether `take_follows` has anything to take.
     pub fn has_follows_to_take(&self) -> bool {
         !self.unfollowed.is_empty()
@@ -1370,6 +1417,7 @@ impl Graph {
         let Some(removed) = self.nodes.remove(&block) else {
             return false;
         };
+        self.track_known(block, false);
         self.read.remove(&block);
         self.unreadable.remove(&block);
         self.retrying.remove(&block);
@@ -1801,6 +1849,7 @@ impl Graph {
     /// entry point's tree, so the mirror follows the entries of exactly what it holds.
     fn insert(&mut self, mut node: Node, at: u64) {
         self.to_read_changed = true;
+        self.track_known(node.id, !node.access.can_view());
         if let Some(known) = self.nodes.get(&node.id) {
             node.unread = known.unread;
         }

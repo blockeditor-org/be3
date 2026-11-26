@@ -216,6 +216,7 @@ pub(crate) fn target_rule(target: &Target) -> Rule {
 pub(crate) fn topic_rule(topic: &Topic) -> Rule {
     match topic {
         Topic::Tree(_)
+        | Topic::Known(_)
         | Topic::Session(_)
         | Topic::BlockLog(_)
         | Topic::Keys
@@ -422,6 +423,11 @@ impl Followed {
 fn topic_of(query: &Query) -> Option<Topic> {
     Some(match query {
         Query::Tree { entry, .. } => Topic::Tree(*entry),
+        Query::Blocks {
+            blocks,
+            contents: false,
+            ..
+        } if blocks.len() == 1 => Topic::Known(blocks[0]),
         Query::Session { block, .. } => Topic::Session(*block),
         Query::BlockLog { block, .. } => Topic::BlockLog(*block),
         Query::Keys { .. } => Topic::Keys,
@@ -810,6 +816,10 @@ impl Client {
                 organization,
                 entry,
                 sequence,
+            },
+            Push::Known(place) => Event::TopicChanged {
+                organization: Some(place.organization),
+                topic: Topic::Known(place.block),
             },
             Push::Roots { organization } => match self.follows(Followed::Roots(organization)) {
                 true => Followed::Roots(organization).told(),
@@ -1222,7 +1232,7 @@ impl Client {
         let topic = topic_of(&query).ok_or_else(|| invalid("this query has nothing to follow"))?;
         match topic {
             // Followed by its own handlers, which follow before they read.
-            Topic::Tree(_) | Topic::Session(_) | Topic::BlockLog(_) => {}
+            Topic::Tree(_) | Topic::Known(_) | Topic::Session(_) | Topic::BlockLog(_) => {}
             topic => {
                 let followed = Followed::of(organization, &topic)
                     .ok_or_else(|| invalid("this topic is followed in another organization"))?;
@@ -1282,6 +1292,37 @@ impl Client {
                 page.map(Page::Tree)
             }
             Query::Session { block, tag } => self.join(admitted.identity()?, block, tag).await,
+            Query::Blocks {
+                blocks,
+                contents: false,
+                held,
+            } => {
+                let identity = admitted.identity()?;
+                let connection = &self.connection;
+                let place = Place {
+                    organization: identity.organization,
+                    block: blocks[0],
+                };
+                // Followed before it is read, so no change during the read is missed; let go
+                // when the caller may not know of the block, which tells it nothing of it.
+                connection.hub.follow_known(connection.client, place).await?;
+                let page = self
+                    .answer(
+                        admitted,
+                        Query::Blocks {
+                            blocks,
+                            contents: false,
+                            held,
+                        },
+                    )
+                    .await;
+                let known = matches!(&page, Ok(Page::Summaries(read)) if read.first().is_some_and(Option::is_some));
+                if !known {
+                    let connection = &self.connection;
+                    connection.hub.unfollow_known(connection.client, place).await;
+                }
+                page
+            }
             Query::BlockLog {
                 block,
                 from,
@@ -1715,6 +1756,14 @@ impl Client {
                     block,
                 };
                 connection.hub.unfollow_log(connection.client, place).await;
+            }
+            Topic::Known(block) => {
+                let identity = admitted.identity()?;
+                let place = Place {
+                    organization: identity.organization,
+                    block,
+                };
+                connection.hub.unfollow_known(connection.client, place).await;
             }
             Topic::Session(block) => {
                 let identity = admitted.identity()?;
@@ -3373,6 +3422,9 @@ pub(crate) async fn advance(
     let Ok((sequence, path)) = advanced else {
         return;
     };
+    // Whoever follows a block on the path as a block it knows of (`topic.known`) hears it
+    // changed, and reads its summary again: what it may know of it is the summary's to say.
+    hub.known_changed(organization, &path).await;
     let followers = hub.followers(organization, &path).await;
     if followers.is_empty() {
         return;

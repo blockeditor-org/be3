@@ -69,7 +69,8 @@ interface server {
         /// `contents`, its journals and the objects of their heads the caller
         /// does not hold, those of the commits in `held` left out, answered
         /// as `contents` and needing View on each. A client asks again for
-        /// the blocks left out.
+        /// the blocks left out. Followed, of one block and without `contents`,
+        /// it follows `known` of that block.
         blocks(blocks-query),
         /// A page of the blocks of a listing, in the order of their ids: from
         /// the first, or from the first id past `after` (a `listed.next`) as
@@ -342,6 +343,11 @@ interface server {
     /// `unfollow` stops it.
     variant topic {
         tree(block-id),
+        /// A block the caller knows of without following a tree that holds it
+        /// (one it knows exists only through a reference, which names no
+        /// entry point): `topic-changed(known)` tells it the block, or a block
+        /// below it, changed, and it reads the block's summary again.
+        known(block-id),
         session(block-id),
         block-log(block-id),
         keys,

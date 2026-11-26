@@ -4935,6 +4935,11 @@ async fn heard(
             tasks.relearn_locked(peer, shared);
             spawn_listings(peer, shared, tasks);
         }
+        // A block this account may only know exist changed: its summary is read again.
+        Some(Event::KnownChanged(block)) => {
+            let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
+            tasks.spawn(async move { reread_known_only(&peer, &shared, vec![block]).await });
+        }
         Some(Event::MutesChanged) => tasks.mutes(peer, shared),
         // A notice to show, or a contact's key change, a record of a contact made or removed,
         // or an accepted link's card to take; or another device took one into the account's
@@ -5056,6 +5061,48 @@ pub(super) fn spawn_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>
     if !trees.is_empty() || !unfollowed.is_empty() {
         let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
         tasks.spawn(async move { read_trees(&peer, &shared, trees, unfollowed).await });
+    }
+    let (known, unknown) = shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .graph
+        .take_known();
+    if (!known.is_empty() || !unknown.is_empty()) && peer.is_attached() {
+        let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
+        tasks.spawn(async move { follow_known(&peer, &shared, known, unknown).await });
+    }
+}
+
+/// Follows the blocks the graph holds that this account may only know exist, which no tree
+/// tells of (`Peer::follow_known`), putting what each read answers; and lets go of those it may
+/// view now, or that are gone.
+async fn follow_known(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    known: Vec<Uuid>,
+    unknown: Vec<Uuid>,
+) {
+    for block in unknown {
+        let _ = peer.unfollow_known(block).await;
+    }
+    for block in known {
+        match peer.follow_known(block).await {
+            Ok(Some(summary)) => {
+                let summary = peer.summary_with_outbox(summary);
+                shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .graph
+                    .put(node_of(peer, &summary), summary.changed);
+            }
+            Ok(None) => {
+                let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                if !held.graph.unsettled(block) {
+                    held.graph.forget(block);
+                }
+            }
+            Err(error) => record(shared, error),
+        }
     }
 }
 

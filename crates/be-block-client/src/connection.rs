@@ -69,6 +69,9 @@ pub enum Event {
     /// What lies at the top of the organization, in the trash or is shared with this account may
     /// have changed: list them again.
     Roots,
+    /// A block this connection follows the summary of (`Peer::follow_known`), one it knows of
+    /// without following a tree that holds it, changed: read its summary again.
+    KnownChanged(Uuid),
     /// The server wrote a membership entry into a block's session (`session-event.membership`).
     Membership {
         block: Uuid,
@@ -443,6 +446,7 @@ impl Connection {
                 Topic::Mutes => Event::MutesChanged,
                 Topic::Mailbox => Event::MailboxChanged,
                 Topic::Storage => Event::StorageChanged,
+                Topic::Known(block) => Event::KnownChanged(block),
                 Topic::Tree(_) | Topic::Session(_) | Topic::BlockLog(_) => return None,
             },
             Told::Paired(message) => Event::Paired(message),

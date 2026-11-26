@@ -28,8 +28,8 @@ a letter in its mailbox.
 - **Re-reading trees.** A connection follows whole trees, not listings: one `tree` read per
   followed tree per burst of changes, whose pages carry changes in folders the device does not
   show, which it drops. Listings had sent only what a connection had listed.
-- **A block known only through a reference** names no entry point, so it is read again only on
-  `roots` or a reconnect (plans/backlog.md, "A block known only through a reference").
+- **A block known only through a reference** names no entry point, so no tree tells of it: it
+  is followed by itself (`topic.known`), one follow per such block.
 - **The server still learns each block's order of references** (`block_edges.position`), since
   a client diffs against it; a positionless reference change is the path if that should stop.
 

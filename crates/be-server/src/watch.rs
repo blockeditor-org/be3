@@ -77,6 +77,8 @@ pub enum Push {
         entry: std::sync::Arc<be_block_protocol::JournalEntry>,
     },
     Paired(PairingMessage),
+    /// A block the connection follows as one it knows of changed (`topic.known`).
+    Known(Place),
     /// Entries were appended to a block's signed log (`event.appended`): told to the log's
     /// followers who may still view the block.
     Logged {
@@ -124,6 +126,10 @@ struct Joined {
     log_follows: HashMap<u64, HashSet<Place>>,
     /// The connections following each block's signed log.
     log_followers: HashMap<Place, HashSet<u64>>,
+    /// The blocks each connection follows as blocks it knows of (`topic.known`).
+    known_follows: HashMap<u64, HashSet<Place>>,
+    /// The connections following each block as one they know of.
+    known_followers: HashMap<Place, HashSet<u64>>,
 }
 
 /// What a connection was told of an entry point it follows. Once it is told the tree advanced,
@@ -172,6 +178,9 @@ impl Joined {
         for place in self.log_follows.remove(&client).unwrap_or_default() {
             unindex(&mut self.log_followers, place, client);
         }
+        for place in self.known_follows.remove(&client).unwrap_or_default() {
+            unindex(&mut self.known_followers, place, client);
+        }
     }
 
     fn leave_organization(&mut self, client: u64, organization: Uuid) {
@@ -195,6 +204,17 @@ impl Joined {
             for place in left {
                 follows.remove(&place);
                 unindex(&mut self.log_followers, place, client);
+            }
+        }
+        if let Some(follows) = self.known_follows.get_mut(&client) {
+            let left: Vec<Place> = follows
+                .iter()
+                .filter(|place| place.organization == organization)
+                .copied()
+                .collect();
+            for place in left {
+                follows.remove(&place);
+                unindex(&mut self.known_followers, place, client);
             }
         }
         let identity = self
@@ -321,6 +341,68 @@ impl WatchHub {
             .or_default()
             .insert(client);
         Ok(())
+    }
+
+    /// Follows `place` as a block the connection knows of (`topic.known`), before the read that
+    /// starts it. Refused once the connection follows `MAX_FOLLOWS_PER_CONNECTION` of them, and
+    /// while it does not work in the organization.
+    pub async fn follow_known(&self, client: u64, place: Place) -> Result<(), ServerError> {
+        let mut joined = self.joined.lock().await;
+        if joined
+            .organizations
+            .get(&client)
+            .is_none_or(|organizations| !organizations.contains_key(&place.organization))
+        {
+            return Ok(());
+        }
+        let follows = joined.known_follows.entry(client).or_default();
+        if !follows.contains(&place) && follows.len() >= MAX_FOLLOWS_PER_CONNECTION {
+            return Err(crate::limits::too_many(
+                "known blocks one connection follows; unfollow some first",
+                MAX_FOLLOWS_PER_CONNECTION,
+            ));
+        }
+        follows.insert(place);
+        joined
+            .known_followers
+            .entry(place)
+            .or_default()
+            .insert(client);
+        Ok(())
+    }
+
+    pub async fn unfollow_known(&self, client: u64, place: Place) {
+        let mut joined = self.joined.lock().await;
+        if let Some(follows) = joined.known_follows.get_mut(&client) {
+            follows.remove(&place);
+        }
+        unindex(&mut joined.known_followers, place, client);
+    }
+
+    /// Tells the connections following any of `blocks` in `organization` as blocks they know of
+    /// that it changed.
+    pub async fn known_changed(&self, organization: Uuid, blocks: &[Uuid]) {
+        let told: Vec<(u64, Place)> = {
+            let joined = self.joined.lock().await;
+            blocks
+                .iter()
+                .map(|block| Place {
+                    organization,
+                    block: *block,
+                })
+                .flat_map(|place| {
+                    joined
+                        .known_followers
+                        .get(&place)
+                        .into_iter()
+                        .flatten()
+                        .map(move |client| (*client, place))
+                })
+                .collect()
+        };
+        for (client, place) in told {
+            self.send_to(client, Push::Known(place)).await;
+        }
     }
 
     pub async fn unfollow_log(&self, client: u64, place: Place) {

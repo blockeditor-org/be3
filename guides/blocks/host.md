@@ -623,7 +623,10 @@ of, which wait until the stack read their listing).
   Shared with me and the open settings, tries again every tree whose read was
   refused, and reads again the blocks the account may only know exist, which
   name no entry and so are in no tree it follows (`Graph::roots`,
-  `known_only`). Reconnecting or falling behind re-lists everything and
+  `known_only`). Each such block the mirror holds is followed by itself
+  (`Graph::known`, `Peer::follow_known`, `topic.known`), and read again as
+  the server tells it changed (`Event::KnownChanged`); one it may view now, or
+  that is gone, is let go. Reconnecting or falling behind re-lists everything and
   reads every followed tree again from its cursor. The mirror keeps the newest
   `changed` per block (`heard`) and drops anything older, so a late answer
   never undoes a newer one.
