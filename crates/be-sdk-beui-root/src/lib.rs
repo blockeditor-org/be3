@@ -50,7 +50,7 @@ use beui_renderer_wgpu::{Repaint, Resources};
 use beui_runner::renderer::{Loaded, Renderer};
 use beui_runner::{Incoming, Launch, PlatformServices, RunOptions, Runner};
 use beui_types::geometry::Region;
-use beui_types::{Color32, Rect, Vec2, WindowId, vec2};
+use beui_types::{Color32, PreferenceSource, Preferences, Rect, Vec2, WindowId, vec2};
 
 /// What the surfaces of one root drawn with beui share.
 #[derive(Clone)]
@@ -68,6 +68,8 @@ struct Shared {
     clock: Cell<(Duration, Duration)>,
     /// Whether the host delivers the paste shortcut as a paste itself (`host.paste-shortcut`).
     paste_shortcut: Cell<bool>,
+    /// The person's preferences as the host resolved them last (`frame-request.preferences`).
+    preferences: Cell<Preferences>,
 }
 
 impl BeuiRoot {
@@ -100,6 +102,7 @@ impl BeuiRoot {
             epoch: real.checked_sub(time).unwrap_or(real),
             clock: Cell::new((time, wall_clock)),
             paste_shortcut: Cell::new(false),
+            preferences: Cell::new(Preferences::default()),
         })))
     }
 
@@ -116,13 +119,22 @@ impl BeuiRoot {
         self.0.clock.set((time, wall_clock));
     }
 
+    /// The person's preferences as the host resolves them (`frame-request.preferences`), which
+    /// every document draws in from its next frame. Answers whether they changed, when each
+    /// document needs that frame now.
+    pub fn set_preferences(&self, preferences: Preferences) -> bool {
+        self.0.preferences.replace(preferences) != preferences
+    }
+
     /// The frame clock's time the host handed last.
     pub fn time(&self) -> Duration {
         self.0.clock.get().0
     }
 
-    /// Pins beui's clocks for `context` to the host's.
+    /// Pins beui's clocks for `context` to the host's, and its preferences to the host's: they
+    /// are the system's, as a platform's are to a program.
     fn pin(&self, context: &Context) {
+        context.set_preference_layer(PreferenceSource::System, self.0.preferences.get().into());
         let (time, wall_clock) = self.0.clock.get();
         let now = self.0.epoch + time;
         context.set_clock(now);

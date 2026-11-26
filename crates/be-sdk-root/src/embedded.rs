@@ -510,7 +510,7 @@ impl Embedded {
         let mut run = Run::new(
             Session::new(HOST_NAME, Some(surface)),
             false,
-            Preferences::default(),
+            preferences(),
         );
         run.session.start(millis(now));
         run.screens.clone_from(&screens);
@@ -716,8 +716,11 @@ impl Embedded {
             state.restyled = false;
             state.run.session.tick(millis(now));
             state.failed_session();
-            // Asked to describe its screens while the root's host asks for the root's tree.
-            if state.run.session.running() && state.told_describing != describing() {
+            // Asked to describe its screens while the root's host asks for the root's tree, and
+            // told the person's preferences as they change.
+            let telling =
+                state.told_describing != describing() || state.run.preferences() != preferences();
+            if state.run.session.running() && telling {
                 state.tell();
                 state.run.pacing.need();
                 if !describing() {
@@ -1797,15 +1800,15 @@ impl State {
     }
 
     /// Tells the app what it has yet to hear of what every app is told once it runs: the fonts
-    /// its root's host bundles. The root asks its apps to describe nothing, keeps the
-    /// preferences it said hello with, and tells the UTC offset its host last gave it
+    /// its root's host bundles, whether to describe its screens (`set_describing`), the
+    /// person's preferences (`set_preferences`), and the UTC offset its host last gave it
     /// (`set_clock`).
     fn tell(&mut self) {
         let fonts = Rc::clone(&self.fonts);
         let telling = Telling {
             fonts: || (*fonts).clone(),
             describing: describing(),
-            preferences: self.run.preferences(),
+            preferences: preferences(),
             utc_offset: CLOCK.get().2,
         };
         self.told_describing = telling.describing;
@@ -2111,6 +2114,23 @@ thread_local! {
 /// reaches only apps that start after).
 pub fn set_clock(now: Duration, wall: Duration, utc_offset: i32) {
     CLOCK.set((now, wall, utc_offset));
+}
+
+thread_local! {
+    /// The person's preferences as the root's frame last said (`set_preferences`).
+    static PREFERENCES: Cell<Preferences> = Cell::new(Preferences::default());
+}
+
+/// Takes the person's preferences as the root's host resolves them (`frame-request`'s
+/// `preferences`): the apps it embeds are told them as they say hello, and again as they change,
+/// as be-host tells its own.
+pub fn set_preferences(preferences: Preferences) {
+    PREFERENCES.set(preferences);
+}
+
+/// The person's preferences as the root's frame last said (`set_preferences`).
+fn preferences() -> Preferences {
+    PREFERENCES.get()
 }
 
 thread_local! {
