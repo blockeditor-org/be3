@@ -2546,12 +2546,21 @@ Each step lands on its own.
                  present; on the web be-host's `busy` does not say whether the root's apps
                  are settled (the native `Root::apps_unsettled`), which the web `Root` does not
                  answer yet. `web_host_test`'s `root` runs a page script under the root once each
-                 account signed in. Run so, `a_child_placed_in_a_popover_shows_above_it` waits
-                 in vain for `Pane "Canvas"` after the picker's Canvas, the two-pages chat test
-                 finds no `#host.contacts.new-link` in the Contacts the menu opens, and the
-                 grown page's test reads the host's canvas, which under the root shows only the
-                 background: not found yet whether the first two fail natively under the root
-                 too (no be-root host test runs those flows).
+                 account signed in; no counterpart passes yet:
+                 - `a_child_placed_in_a_popover_shows_above_it`: under the root, natively too,
+                   the files' New, "New in My files…" and the picker's Canvas make no block
+                   (My files stays "Nothing here yet"), so no `Pane "Canvas"` opens. A native
+                   host test reproduces it: `restart_as_root("be3.root")` with `previews`, then
+                   click `#file-tree.new`, `MenuItem "New in My files…"`, wait `#picker.more`,
+                   click `MenuItem "Canvas"`, wait `Pane "Canvas"`. Not found yet where the
+                   creation is lost (the file tree's ask, `serving::step_creations`, the core).
+                 - `two_pages_write_in_one_chat_and_neither_makes_a_file_call_or_starts_a_thread`:
+                   Dev makes the contact link, but on Ada's page, whose window is not focused,
+                   the menu's Contacts shows no dialog (`#host.contacts.paste`); be-host's own
+                   UI shows it there. Not found yet whether the root dismisses it without focus.
+                 - `a_grown_page_shows_the_workspaces_backdrop_beyond_its_last_frame` reads the
+                   host's canvas, which under the root shows only the background: its
+                   counterpart would read the root's canvas instead.
            With counterparts whose paintings match be-host's: the desktop shell, F6 between
            views, the lock screen on Super+L (4g7g1), the groups 4g7g2a and 4g7g2b built, and the
            palette. The test
