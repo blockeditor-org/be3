@@ -6,7 +6,7 @@ use be_type_image::BlobFile as _;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use crate::presence::{CanvasCaret, CanvasCarry, CanvasCursor};
+use crate::presence::{CanvasCaret, CanvasCursor};
 use be_sdk_beui::be_block_content::presence::{PresenceColor, pick_free_color};
 use be_sdk_beui::be_block_content::{Edit, ObjectId};
 use be_sdk_beui::be_sdk_ui::BlockLabel;
@@ -612,8 +612,6 @@ pub(crate) struct CanvasState {
     peer_carets: Memo<Vec<(CanvasCaret, PresenceColor)>>,
     peers: ReadSignal<Vec<(u64, CanvasCursor)>>,
     own_stroke: Memo<Option<Uuid>>,
-    /// What this viewer carries mid-move, as its presence shows it to peers.
-    carried: Memo<Option<CanvasCarry>>,
     strokes: Memo<Vec<Uuid>>,
 }
 
@@ -740,22 +738,6 @@ impl CanvasState {
                 _ => None,
             })
         });
-        let carried = create_memo(move || {
-            gesture.with(|gesture| match gesture {
-                Some(Gesture::Move {
-                    start,
-                    current,
-                    snapped,
-                    carried: true,
-                    duplicate: false,
-                    ..
-                }) => Some(CanvasCarry {
-                    by: CanvasPoint::new(current.x - start.x, current.y - start.y),
-                    snapped: *snapped,
-                }),
-                _ => None,
-            })
-        });
         let strokes = create_memo(move || {
             let mut strokes: Vec<Uuid> = own_stroke.get().into_iter().collect();
             peers.with(|peers| {
@@ -791,7 +773,6 @@ impl CanvasState {
             peer_carets,
             peers,
             own_stroke,
-            carried,
             strokes,
         };
         content.on_gesture_ended(move |ended| state.gesture_ended(ended));
@@ -3350,7 +3331,6 @@ impl CanvasState {
                 state.caret.track();
                 state.selection.track();
                 state.own_stroke.track();
-                state.carried.track();
             },
             move |_, _| state.publish_presence(),
         );
@@ -3505,7 +3485,6 @@ impl CanvasState {
                 selection: self.selection.get_untracked().iter().copied().collect(),
                 caret: self.caret.get_untracked(),
                 drawing: self.own_stroke.get_untracked(),
-                carried: self.carried.get_untracked(),
                 color,
             }
         });
@@ -3519,29 +3498,6 @@ impl CanvasState {
     fn read_presence(&self) {
         let mut presence = Presence::default();
         let peers = self.peers.get_untracked();
-        // Where each peer's carried move puts what of its selection can move; of two peers
-        // carrying the same entity, the one listed last.
-        let mut carried: HashMap<Uuid, CanvasPoint> = HashMap::new();
-        for (_, cursor) in &peers {
-            let Some(carry) = cursor.carried else {
-                continue;
-            };
-            for id in &cursor.selection {
-                let Some(mut entity) = self.entities.get_untracked(*id) else {
-                    continue;
-                };
-                if entity.locked {
-                    continue;
-                }
-                entity.transform.center.x += carry.by.x;
-                entity.transform.center.y += carry.by.y;
-                if carry.snapped {
-                    entity = moved_to_whole_units(entity);
-                }
-                carried.insert(*id, entity.transform.center);
-            }
-        }
-        self.entities.carry_for_peers(&carried);
         for (_, cursor) in peers {
             let color = cursor.color;
             if !cursor.selection.is_empty()
@@ -3549,12 +3505,7 @@ impl CanvasState {
                     .selection
                     .iter()
                     .filter_map(|id| self.entities.get_untracked(*id))
-                    .map(|mut entity| {
-                        if let Some(center) = carried.get(&entity.id) {
-                            entity.transform.center = *center;
-                        }
-                        entity_bounds(&entity)
-                    })
+                    .map(|entity| entity_bounds(&entity))
                     .reduce(WorldRect::union)
             {
                 presence.selections.push(RemoteSelection {

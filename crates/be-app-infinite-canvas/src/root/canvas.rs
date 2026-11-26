@@ -687,7 +687,7 @@ fn entered_group_bounds(state: CanvasState) -> Option<WorldRect> {
 }
 
 fn entity_of(state: CanvasState, id: Uuid) -> Memo<Option<CanvasEntity>> {
-    state.entities.watch(id).drawn()
+    state.entities.watch(id).stored()
 }
 
 pub(crate) fn palette(theme: &be_sdk_beui::beui::styled::ThemeStore) -> Palette {
