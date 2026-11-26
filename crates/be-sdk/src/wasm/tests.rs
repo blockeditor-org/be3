@@ -26,6 +26,7 @@ mod a_texture_whose_format_needs_an_unrequested_feature_is_refused;
 mod a_timestamp_query_set_needs_its_feature_requested;
 mod a_vertex_buffer_set_past_the_last_slot_is_refused;
 mod a_view_without_an_anchor_space_anchors_no_views;
+mod a_view_that_fits_itself_anew_is_presented_only_at_its_new_size;
 mod a_window_is_committed_with_its_own_screen_in_the_frame_that_opens_it;
 mod an_anchored_view_is_a_screen_committed_in_the_frame_that_opens_it;
 mod an_anchored_views_surface_is_kept_while_it_is_open_and_released_once_it_closes;
@@ -74,6 +75,7 @@ struct Shared {
     open: RefCell<Vec<Anchored>>,
     child_in: RefCell<Option<ViewId>>,
     window: RefCell<Option<be_sdk_api::WindowOpen>>,
+    fitted: RefCell<Option<Vec2>>,
 }
 
 struct Layered {
@@ -148,6 +150,7 @@ impl ViewHandler for AnchoringViews {
                 Frame {
                     changed: true,
                     painted: vec![region.rect],
+                    fitted: *self.shared.fitted.borrow(),
                     anchored: self.shared.open.borrow().clone(),
                     asks: self
                         .shared

@@ -52,6 +52,9 @@ pub(crate) struct Surfaces {
     layout: ScreenLayout,
     fresh: HashSet<u32>,
     relaid: bool,
+    /// A surface placed anew in the frame that laid it out, whose painting was dropped (`lay_out`),
+    /// is owed a frame at its new size.
+    owed: bool,
 }
 
 impl Surfaces {
@@ -72,6 +75,7 @@ impl Surfaces {
             layout: ScreenLayout::default(),
             fresh: HashSet::default(),
             relaid: false,
+            owed: false,
         })
     }
 
@@ -81,6 +85,12 @@ impl Surfaces {
 
     pub(crate) fn take_relaid(&mut self) -> bool {
         std::mem::take(&mut self.relaid)
+    }
+
+    /// Whether a surface the last `lay_out` placed anew is left without a frame at its new size,
+    /// which the app asks the host for (`frame-needed`), so no host need know to lay it out again.
+    pub(crate) fn take_owed(&mut self) -> bool {
+        std::mem::take(&mut self.owed)
     }
 
     pub(crate) fn place(&mut self, layout: ScreenLayout) {
@@ -131,9 +141,22 @@ impl Surfaces {
             crate::screens::seen(),
             self.gpu.is_some(),
         );
+        let mut ran = ran;
         if !self.layout.same_placements(screens.layout()) {
             self.place(screens.layout().clone());
             self.relaid = true;
+            // A view that fitted itself to new content in this frame was run at the placement it
+            // had: its painting is at a size its surface no longer has, so it is not presented,
+            // and the surface, fresh, is drawn at its new size in the next frame, which it owes.
+            let before = ran.painting.len();
+            let layout = &self.layout;
+            ran.painting.retain(|painting| {
+                layout.screens.iter().any(|laid| {
+                    laid.surface == painting.surface
+                        && (laid.width, laid.height) == (painting.width, painting.height)
+                })
+            });
+            self.owed |= ran.painting.len() != before;
         }
         Some((screens.commit(), ran))
     }
@@ -155,17 +178,8 @@ impl Surfaces {
             let damage =
                 self.panes
                     .paint(&gpu.device, &gpu.queue, *format, screens, ran.painting)?;
-            // A surface painted at the size it was placed at holds a frame; one placed anew at
-            // another size in the frame that painted it (a view that fitted itself to new
-            // content) holds none at that size yet, and stays fresh for the next frame.
             for placement in &painted {
-                let current = self.layout.screens.iter().any(|laid| {
-                    laid.surface == placement.surface
-                        && (laid.width, laid.height) == (placement.width, placement.height)
-                });
-                if current {
-                    self.fresh.remove(&placement.surface);
-                }
+                self.fresh.remove(&placement.surface);
             }
             let sequence = PRESENTS.with(|presents| {
                 presents.set(presents.get() + 1);
