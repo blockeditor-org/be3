@@ -489,13 +489,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   is heard unplaced once, and its app hides and presents again. Done: such an
   embed is told only where the frame leaves it, shown by a test that moves a
   kept `Embed` from a timer.
-- **A first measurement that is there at once.** On the HTML core a node's
-  `measure` signal is `None` until something has asked for it and a frame has
-  passed, so whatever a lift reads with `get_untracked` must be measured from
-  when it is built (the dock's tiles, tab strips and held panels, a `Reorder`'s root). Done:
-  beui-core-html's `watch()` seeds the signal synchronously the first time it
-  is made, and those eager `measure` calls at build go.
-
 - **The display arrangement refits for a carried display.** The area's view
   fits the arrangement at the lift and clips what it draws, so a display
   carried to a place beyond that fit (below a display beside it) is cut off at
