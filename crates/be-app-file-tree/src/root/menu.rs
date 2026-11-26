@@ -120,6 +120,8 @@ fn SectionMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_
     let edit = move || !row.with(|row| row.as_ref().is_some_and(|row| row.can_edit));
     let unshareable =
         move || !row.with(|row| row.as_ref().is_some_and(|row| row.access.can_manage()));
+    // A local account has no server to share through.
+    let offers_share = !editor.host().local_account();
     let deletable = move || !row.with(|row| row.as_ref().is_some_and(|row| row.can_delete));
     let my_files = be_block::my_files(editor.host().organization_id(), editor.host().account_id());
     let offers_delete =
@@ -172,13 +174,15 @@ fn SectionMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_
                 @test_id={"file-tree.section.rename".to_owned()}
                 on_click={rename}
             />
-            <MenuItem
-                label="Share"
-                glyph=ICON_SHARE_2
-                disabled={unshareable}
-                @test_id={"file-tree.section.share".to_owned()}
-                on_click={share}
-            />
+            <Show value={move || offers_share}>
+                <MenuItem
+                    label="Share"
+                    glyph=ICON_SHARE_2
+                    disabled={unshareable}
+                    @test_id={"file-tree.section.share".to_owned()}
+                    on_click={share}
+                />
+            </Show>
             <Show value={offers_delete}>
                 <MenuItem
                     label="Delete"
@@ -234,6 +238,8 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
     let edit = create_memo(move || !row.with(|row| row.as_ref().is_some_and(|row| row.can_edit)));
     let unshareable =
         move || !row.with(|row| row.as_ref().is_some_and(|row| row.access.can_manage()));
+    // A local account has no server to share through.
+    let offers_share = !editor.host().local_account();
     let unlinkable = move || {
         !row.get()
             .is_some_and(|row| row.is_reference && row.unlink.is_ok())
@@ -364,7 +370,9 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
                 @test_id={"file-tree.paste".to_owned()}
                 on_click={paste}
             />
-            <MenuItem label="Share" glyph=ICON_SHARE_2 disabled={unshareable} on_click={share} />
+            <Show value={move || offers_share}>
+                <MenuItem label="Share" glyph=ICON_SHARE_2 disabled={unshareable} on_click={share} />
+            </Show>
             <MenuItem label="Unlink" glyph=ICON_UNLINK disabled={unlinkable} on_click={unlink} />
             <DeleteBlock editor block />
             <MenuItem

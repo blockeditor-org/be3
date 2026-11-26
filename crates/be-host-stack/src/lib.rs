@@ -323,6 +323,8 @@ pub fn try_anyway(block: Uuid) {
 struct Stack {
     account: Uuid,
     organization: Uuid,
+    /// A local account's, with no server (`Config::is_local`).
+    local: bool,
     /// The account's own name as the server gave it at sign-in, which this device puts on the
     /// cards it hands its contacts (`Config::display_name`).
     name: String,
@@ -731,6 +733,7 @@ pub fn start(config: Config) {
     let handover = Arc::new(seen::Handover::default());
     let account = config.account;
     let organization = config.organization;
+    let local = config.is_local();
     let name = config.display_name.clone();
     // A test that runs no frames has nothing to take the worker's updates in, so a thread takes
     // each as it lands, until a frame takes them (`take_updates_in_frame`): a test that runs
@@ -778,6 +781,7 @@ pub fn start(config: Config) {
     *stack().lock().unwrap_or_else(PoisonError::into_inner) = Some(Stack {
         account,
         organization,
+        local,
         name,
         commands: Some(commands),
         nudges: Some(nudges),
@@ -2159,6 +2163,11 @@ pub fn own_name() -> Option<(Uuid, String)> {
         .unwrap_or_else(PoisonError::into_inner)
         .as_ref()
         .map(|stack| (stack.account, stack.name.clone()))
+}
+
+/// Whether the running stack is a local account's, with no server: false with none running.
+pub fn is_local() -> bool {
+    with_stack(|stack| stack.local).unwrap_or(false)
 }
 
 pub fn identity() -> Option<(Uuid, Uuid)> {

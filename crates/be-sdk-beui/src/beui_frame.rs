@@ -419,7 +419,8 @@ struct ContentActions {
     undo: Action,
     redo: Action,
     rename: Action,
-    share: Action,
+    /// None for a local account, which has no server to share through.
+    share: Option<Action>,
 }
 
 /// `editor.export.<name>` for each exporter `editor` declares, labelled as its manifest names
@@ -520,13 +521,14 @@ fn frame_actions(
         .pin(Pin::Title)
         .enabled(can(|state| state.can_rename))
         .register(),
-        share: Action::new("editor.share", "Share", move || {
-            editor.host().share_block(id)
-        })
-        .glyph(ICON_SHARE_2)
-        .pin(Pin::Label)
-        .enabled(can(|state| state.can_share))
-        .register(),
+        // A local account has no server to share through, so it is offered no Share.
+        share: (!editor.host().local_account()).then(|| {
+            Action::new("editor.share", "Share", move || editor.host().share_block(id))
+                .glyph(ICON_SHARE_2)
+                .pin(Pin::Label)
+                .enabled(can(|state| state.can_share))
+                .register()
+        }),
     });
     FrameActions {
         content,
@@ -622,12 +624,9 @@ pub(crate) fn FrameMenu(
         let mut listed: Vec<MenuNode> = content
             .iter()
             .flat_map(|content| {
-                [
-                    &content.undo,
-                    &content.redo,
-                    &content.rename,
-                    &content.share,
-                ]
+                [&content.undo, &content.redo, &content.rename]
+                    .into_iter()
+                    .chain(&content.share)
             })
             .chain([&palette])
             .map(MenuNode::action)

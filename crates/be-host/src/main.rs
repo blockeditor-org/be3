@@ -1691,6 +1691,14 @@ impl HostCore {
         self.account_error = None;
         self.server_url = String::new();
         self.add_account_open = false;
+        // On the web it lives only in this origin's storage, which the browser may evict unless
+        // asked to keep it.
+        #[cfg(target_arch = "wasm32")]
+        platform::spawn_request(async {
+            if !platform::keep_storage().await {
+                notices::refuse(STORAGE_NOT_KEPT.to_owned());
+            }
+        });
         self.switch_account(saved);
     }
 
@@ -5005,3 +5013,9 @@ fn may_close(from: Option<Uuid>, shell: Option<Uuid>, parent: Option<Uuid>) -> b
 
 #[cfg(test)]
 mod tests;
+
+/// What a new local account on the web says when the browser will not promise to keep its
+/// storage.
+#[cfg(target_arch = "wasm32")]
+const STORAGE_NOT_KEPT: &str = "This browser did not agree to keep this site's data, so it may \
+    delete your local account and everything in it when it runs short of space.";

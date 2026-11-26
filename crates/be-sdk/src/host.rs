@@ -669,6 +669,7 @@ pub struct EditorHost {
     graph: Rc<crate::graph::GraphState>,
     account: Rc<Cell<Uuid>>,
     organization: Rc<Cell<Uuid>>,
+    local_account: Rc<Cell<bool>>,
     page_origin: Rc<RefCell<String>>,
     module: Rc<RefCell<std::rc::Weak<crate::module::ModuleState>>>,
     settings_draft: Rc<RefCell<Option<crate::SettingsDraft>>>,
@@ -2807,6 +2808,16 @@ impl EditorHost {
 
     pub fn organization_id(&self) -> Uuid {
         self.organization.get()
+    }
+
+    pub fn set_local_account(&self, local: bool) {
+        self.local_account.set(local);
+    }
+
+    /// The account is a local one, with no server (`opening.local-account`): nothing it holds is
+    /// shared, so an editor offers no Share.
+    pub fn local_account(&self) -> bool {
+        self.local_account.get()
     }
 
     /// The origin of the web page the host runs in, empty where it is not a web page. On the
