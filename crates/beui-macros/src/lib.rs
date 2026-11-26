@@ -121,8 +121,18 @@ fn prop_setter(prop: &Prop, method: Ident) -> Setter {
 /// an `Option` slot's `TakesOptionalBlock` and an exact slot's `Exact` wrapper (backlog §21).
 const CHILD_SHAPES: [(&str, &str, &str, &str); 4] = [
     ("__children_block", "ChildBlock", "TakesBlock", "take_block"),
-    ("__children_closure", "ChildClosure", "TakesClosure", "take_closure"),
-    ("__children_unit_closure", "ChildUnitClosure", "TakesUnitClosure", "take_unit_closure"),
+    (
+        "__children_closure",
+        "ChildClosure",
+        "TakesClosure",
+        "take_closure",
+    ),
+    (
+        "__children_unit_closure",
+        "ChildUnitClosure",
+        "TakesUnitClosure",
+        "take_unit_closure",
+    ),
     ("__children_with", "ChildWith", "TakesWith", "take_with"),
 ];
 
