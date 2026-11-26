@@ -998,6 +998,10 @@ impl Module {
                     },
                 });
             }
+            Effect::KeepCarried {
+                replica,
+                submissions,
+            } => ops::with_parent(replica, || host::keep_carried(submissions)).detach(),
             Effect::Rebase {
                 replica,
                 base,
