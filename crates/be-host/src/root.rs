@@ -399,6 +399,9 @@ impl RootShell {
         // its answer wakes the host for. A frame it is still drawing is left to finish.
         #[cfg(target_arch = "wasm32")]
         let Some(done) = self.surfaces.frame(root, request, deadline, self.waker.clone()) else {
+            // The window's tree holds the root's as its last frame described it meanwhile:
+            // one this frame did not publish would leave it.
+            publish_tree(&mut self.tree, context, area, None);
             return;
         };
         let done = match done {
