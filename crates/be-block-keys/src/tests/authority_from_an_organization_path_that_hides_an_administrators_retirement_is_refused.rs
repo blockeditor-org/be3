@@ -90,9 +90,17 @@ fn authority_from_an_organization_path_that_hides_an_administrators_retirement_i
         bob_retired.hash(),
         true,
     );
+    let may_administer_log = [&organization_log[..5], &[dana_may_administer]].concat();
     assert!(
-        check(&[&organization_log[..5], &[dana_may_administer]].concat()).is_ok(),
+        check(&may_administer_log).is_ok(),
         "a member's retirement that says it may administer is taken"
+    );
+    assert!(
+        matches!(
+            proof_path(LogKind::Organization, &may_administer_log, [7; 16], [], false).last(),
+            Some(Step::Entry(_))
+        ),
+        "an honest path keeps whole a retirement that says it may administer"
     );
     let block_root = Entry::root(&alice, alice_id, LogKind::Block, note);
     let alice_may_administer =
