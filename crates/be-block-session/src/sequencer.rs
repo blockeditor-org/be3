@@ -82,6 +82,27 @@ pub enum SessionMessage {
     /// join, and as it opens to each already in the session, so each can tell one that shows
     /// nothing from one whose presence is late.
     Shown,
+    /// The sender's tentative layer (decisions/tentative_edits_wait_for_release.md), which its
+    /// peers preview on top of what they hold, never writing it. `layer` numbers the sender's
+    /// layers: one about an earlier layer than a peer holds is dropped. The layer's edits are
+    /// counted as made (`to`, the count after this message): `operations` stand for those from
+    /// `from`, appended to what a peer holds when it holds exactly `from` of them, or the whole
+    /// layer, absorbed, when `from` is zero; a peer holding another count asks again
+    /// (`HeldAgain`). `origin` is what the sender's submissions name it, and `commits_through`
+    /// the last of its local edits the layer goes out as once it commits: a peer drops the
+    /// layer once the order holds that origin's edits through it. Empty, with nothing to
+    /// commit, it drops the layer (a cancel). Only a participant that may edit sends one.
+    Held {
+        layer: u64,
+        origin: u64,
+        from: u64,
+        to: u64,
+        operations: Vec<serde_bytes::ByteBuf>,
+        commits_through: Option<u64>,
+    },
+    /// Asks the recipient for its whole tentative layer (`Held` from zero): the sender held
+    /// another count of its edits than the last `Held` appended to.
+    HeldAgain,
 }
 
 /// Where a session's order stands: the server's half of a live session, kept beside the block's

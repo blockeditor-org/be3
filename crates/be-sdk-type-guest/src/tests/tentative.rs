@@ -1,4 +1,5 @@
 use super::*;
+use be_block_session::SessionMessage;
 
 /// A live checklist on `devices` devices, each with editors 1 and 2 attached, holding the items
 /// `a` and `b`, settled: the ids of the items.
@@ -37,4 +38,51 @@ pub(super) fn told_ended(sim: &mut Sim<ChecklistContent>, device: usize, editor:
             }
         )
     })
+}
+
+/// What `device` told its peers of its tentative layers since the last call: each `Held` as
+/// (from, to, operations, commits_through).
+pub(super) fn told_held(
+    sim: &mut Sim<ChecklistContent>,
+    device: usize,
+) -> Vec<(u64, u64, Vec<Edit>, Option<u64>)> {
+    std::mem::take(&mut sim.sent)
+        .into_iter()
+        .filter(|(from, _)| *from == device)
+        .filter_map(|(_, bytes)| match crate::wire::decode(&bytes)? {
+            SessionMessage::Held {
+                from,
+                to,
+                operations,
+                commits_through,
+                ..
+            } => Some((
+                from,
+                to,
+                operations
+                    .iter()
+                    .map(|operation| ChecklistContent::decode_operation(operation).unwrap())
+                    .collect(),
+                commits_through,
+            )),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The most local edits of `device`'s origin the order holds.
+pub(super) fn journaled_through(sim: &Sim<ChecklistContent>, device: usize) -> u64 {
+    let origin = sim.devices[device].origin;
+    sim.journal
+        .as_ref()
+        .map(|journal| {
+            journal
+                .entries
+                .iter()
+                .filter(|entry| entry.origin == origin)
+                .filter_map(|entry| Some(Submitted::decode(&entry.payload)?.through))
+                .max()
+                .unwrap_or(0)
+        })
+        .unwrap_or(0)
 }
