@@ -224,6 +224,8 @@ pub struct ContentCache {
     contents: RefCell<HashMap<Option<Uuid>, Box<dyn Any>>>,
     pumps: RefCell<HashMap<Option<Uuid>, Pump>>,
     due: Rc<RefCell<Vec<Option<Uuid>>>>,
+    /// The projections refused, by block and content type, so asking again is answered alike.
+    refused: RefCell<HashMap<(Option<Uuid>, std::any::TypeId), Box<dyn Any>>>,
 }
 
 type Wake = (u64, Arc<AtomicU64>, Rc<dyn Fn(u64)>);
@@ -330,8 +332,19 @@ impl EditorCore {
         // Block data can name a block of another type than it is held as: it reads as failed,
         // kept out of every cache, so what holds it already goes on taking its updates.
         let refused = || {
+            let key = (block, std::any::TypeId::of::<C>());
+            if let Some(held) = contents.refused.borrow().get(&key)
+                && let Some(live) = held.downcast_ref::<LiveContent<C>>()
+            {
+                return live.clone();
+            }
             let named = block.unwrap_or(self.0.block);
-            LiveContent::refused(block, crate::host::another_type(named))
+            let live = LiveContent::<C>::refused(block, crate::host::another_type(named));
+            contents
+                .refused
+                .borrow_mut()
+                .insert(key, Box::new(live.clone()));
+            live
         };
         if let Some(held) = contents.contents.borrow().get(&block) {
             return match held.downcast_ref::<LiveContent<C>>() {
@@ -381,8 +394,13 @@ impl EditorCore {
     where
         C: be_block_content::LiveEdit + Clone + Default,
     {
-        self.0.host.watch_content(block, C::CONTENT_TYPE);
-        self.content(Some(block))
+        let live = self.content(Some(block));
+        // One refused as another type than the block is held as watches nothing: the watch
+        // names the block's type, and the projection held follows it.
+        if !live.is_refused() {
+            self.0.host.watch_content(block, C::CONTENT_TYPE);
+        }
+        live
     }
 
     pub fn view_content(&self) -> Option<LiveContent<EditorViewContent>> {
