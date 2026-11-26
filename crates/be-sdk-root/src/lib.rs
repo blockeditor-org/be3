@@ -884,9 +884,6 @@ impl Embedding {
             Node, NodeId, Rect as AccessRect, Role, Tree, TreeId, TreeUpdate,
         };
         use be_sdk_app_host::accessibility::{Graft, Placing};
-        for app in &self.apps {
-            app.read_trees();
-        }
         if !describing() {
             self.own_trees.clear();
             return None;
@@ -913,7 +910,11 @@ impl Embedding {
         let mut focus = None;
         // The node an app's screen says has its focus, while that screen has the keyboard: one
         // in a view it anchored when the focused layer is the view it hangs from (a dialog
-        // over a workspace).
+        // over a workspace). The window's router moves the keyboard with `Input::Focus`, false
+        // to the layer it leaves before true to the one it enters, so one screen in the window
+        // has it at most, and only that screen and the views it anchored name a focus (a
+        // graft's focus counts only while its screen has the keyboard, `has_keyboard`): of
+        // those, the one grafted last, drawn over the rest, holds it.
         let mut inner = None;
         for layer in layers.iter().filter(|layer| layer.shown) {
             // A surface's pixel (0, 0) is drawn at its layer's origin: each screen and each of
