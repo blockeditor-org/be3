@@ -2546,18 +2546,23 @@ Each step lands on its own.
                  present; on the web be-host's `busy` does not say whether the root's apps
                  are settled (the native `Root::apps_unsettled`), which the web `Root` does not
                  answer yet. `web_host_test`'s `root` runs a page script under the root once each
-                 account signed in; no counterpart passes yet:
-                 - `a_child_placed_in_a_popover_shows_above_it`: under the root, natively too,
-                   the files' New, "New in My files…" and the picker's Canvas make no block
-                   (My files stays "Nothing here yet"), so no `Pane "Canvas"` opens. A native
-                   host test reproduces it: `restart_as_root("be3.root")` with `previews`, then
-                   click `#file-tree.new`, `MenuItem "New in My files…"`, wait `#picker.more`,
-                   click `MenuItem "Canvas"`, wait `Pane "Canvas"`. Not found yet where the
-                   creation is lost (the file tree's ask, `serving::step_creations`, the core).
-                 - `two_pages_write_in_one_chat_and_neither_makes_a_file_call_or_starts_a_thread`:
-                   Dev makes the contact link, but on Ada's page, whose window is not focused,
-                   the menu's Contacts shows no dialog (`#host.contacts.paste`); be-host's own
-                   UI shows it there. Not found yet whether the root dismisses it without focus.
+                 account signed in (`test.root` names it to the script).
+                 `a_child_placed_in_a_popover_shows_above_it` passes under the root
+                 (`:root-popover-web-host-test`); left:
+                 - `two_pages_write_in_one_chat_and_neither_makes_a_file_call_or_starts_a_thread`
+                   fails under the root on most runs, at a different step each time; its
+                   target is left out. Each press waits for its target first (as the popover
+                   script's do), since be-host's `busy` on the page does not say whether the
+                   root and its apps took a click in: counting the apps' steps in flight
+                   (`Root::apps_unsettled`, natively) keeps drive busy for minutes, since the
+                   root keeps its apps stepping, and counting what the root has yet to take
+                   in (`Connection::has_outbound`) never settles between its frames. Seen
+                   still: the expanded picker's Chat, pressed, makes no creation and shows no
+                   error (My files stays empty, no `TextInput "Name" value="Chat"`); now and
+                   then the host menu's Contacts, pressed, leaves the menu open with the row
+                   focused and opens no dialog, on either page. Both pages hear the press and
+                   release whole (no focus change or pointer cancel between), so the root
+                   does not dismiss a dialog for an unfocused window.
                  - `a_grown_page_shows_the_workspaces_backdrop_beyond_its_last_frame` reads the
                    host's canvas, which under the root shows only the background: its
                    counterpart would read the root's canvas instead.
