@@ -268,6 +268,11 @@ screen is announced is dropped (`Instances::gate`), and forgets what the app hea
 it held is sent with the next input that gets through.
 An app's document starts without the keyboard (`use_document_keyboard()` false) and
 has it while any of its views does; a focused view that closes takes it away.
+A view can be given the keyboard before the app has matched it a window (a joined dock tab's
+view, built again each time its group is shown, is given it at once): its `Focus(true)` has no
+window to report to the document, so the runner tells the window `Focused` once it matches one
+to a view that still has the keyboard (`ModuleRunner::tell_focus`), and the document then gives
+the window its kept focus or its first focusable, as for any window that takes the keyboard.
 `Editor::has_keyboard` says whether one of that editor's own views has it
 (be-sdk-beui-platform's runner tells `Views::keyboard`), so of two chats shown
 at once only the one typed in counts as focused. A restarted app's runner

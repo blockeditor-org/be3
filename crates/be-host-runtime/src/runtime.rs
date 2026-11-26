@@ -275,6 +275,9 @@ pub(super) struct Runtime {
     /// late (`host::presents_late`, `drive present late`) until the next poll hears it first,
     /// so a host frame is drawn between the app's layout and its present.
     late: Vec<Heard>,
+    /// What the app sent while a driven host holds it back (`host::holds`, `drive hold`), heard
+    /// in order, after `late`, once the hold ends.
+    withheld: Vec<Heard>,
     pub(super) instances: Instances,
     pub(super) pass: u64,
     since: u64,
@@ -411,6 +414,7 @@ impl Runtime {
             taking_in: false,
             held_frame: None,
             late: Vec::new(),
+            withheld: Vec::new(),
             instances,
             pass: 0,
             since: 0,
@@ -613,8 +617,9 @@ impl Runtime {
         host::request_repaint();
     }
 
+    /// An app a driven host holds back counts as settled: the test holds it on purpose.
     fn busy(&mut self) -> Vec<&'static str> {
-        if self.error.is_some() {
+        if self.error.is_some() || host::holds(&self.app.identity.id) {
             return Vec::new();
         }
         let starting = matches!(
@@ -918,8 +923,14 @@ impl Runtime {
     /// Hears what the app sent after what a late present held back, in the order it came.
     /// Taken in `late` (`host::presents_late`, outside a poll), everything from the first
     /// present on is held again, for the next poll to hear.
+    /// While a driven host holds the app back, nothing it sends is heard (`withheld`).
     fn take_in(&mut self, received: Vec<Heard>, late: bool) {
+        if host::holds(&self.app.identity.id) {
+            self.withheld.extend(received);
+            return;
+        }
         let mut forwarded = std::mem::take(&mut self.late);
+        forwarded.append(&mut self.withheld);
         forwarded.extend(received);
         if late
             && let Some(first) = forwarded
@@ -936,6 +947,8 @@ impl Runtime {
     /// held: its frame stays with the worker until the present is heard.
     fn show_presented(&mut self, take: impl FnOnce(&mut Self) -> Option<Frame>) {
         if self.late.is_empty()
+            && self.withheld.is_empty()
+            && !host::holds(&self.app.identity.id)
             && let Some(frame) = take(self)
         {
             self.received(frame);

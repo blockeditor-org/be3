@@ -414,25 +414,6 @@ Fixed items are removed as they land.
   server, sending everything it holds there as a push to a new remote, and goes
   on as that server's account.
 
-## 20. Keyboard
-
-- **A view given the keyboard before it is ready.** When the host gives a
-  view the keyboard before its content is up (a joined text's dock tab view
-  given it the moment its group is shown again, before the app's subregion
-  hears of the child placed in its stead), the view takes the host's focus but
-  its app does not focus the field it would otherwise: the document's focus is
-  already on another node inside that view's window, so neither the window's
-  kept focus nor `focus_into` (which waits one layout) puts it on the text
-  input. Found while fixing Ctrl+Tab between texts. Done: a
-  view given the keyboard early focuses its field once it is up, shown by a
-  host test that gives a text's view the keyboard before its content arrives.
-  Left: a host test has no way to hold an app's content back while the host gives its view the
-  keyboard, so the race cannot be shown yet; that needs a test hook first (delaying a
-  subregion's child placement, say). Where to start: beui-core `window/hosted.rs`
-  (`window_focused` gives back the window's kept focus, else `focus_into` its root only when the
-  focus is not already inside it) and be-app-text's `caret_when_given_the_keyboard`, which
-  focuses the field only for an empty text.
-
 ## 21. Component macro
 
 - **Internal trait names left in a slot's error notes.** A children slot asks its

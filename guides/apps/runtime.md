@@ -601,6 +601,9 @@ the app's presented frame with the worker, and settling counts the app as answer
 those are owed; the next poll hears them first. So a host test reaches the frame between a
 layout and its present, as a present that misses its frame's deadline does
 (`on_a_phone_opening_a_document_from_the_files_steps_frame_by_frame_with_presents_late`).
+A driven host can also hold one app back (`drive hold APP`, `host::holds`): `Runtime::take_in`
+keeps everything the app sends (`withheld`), shows none of its frames, and `busy` counts the app
+settled, until the hold ends and the next poll hears it all, after `late`.
 
 A view its app has not reported a frame of yet (a dock tab's body, mounted
 again each time its tab is shown) is filled with the backdrop its instance

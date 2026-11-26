@@ -304,6 +304,11 @@ app in it. A test fails unless the host exits cleanly at `close()`.
   that spans a pause ends under load as it does idle. A closing dialog or alert animates out,
   so `gone` after closing one needs a `pause` past its exit first. `HostTest`'s doc comments cover cropping, and
   `Options` covers the desktop, previews, space and rendering.
+- To make an app slow to answer, `host.run(&["hold", APP_ID])` (such as `be3.text`) has be-host
+  hear nothing the app sends, counting it settled, until `host.run(&["hold", "off"])` hands it
+  all over in order: what the host does meanwhile (giving a view the keyboard before the app
+  has caught up with it, say) happens as it does when an app falls behind
+  (`a_text_shown_while_its_app_is_slow_takes_the_caret_once_it_catches_up`).
 - `HostTest::root(APP)` runs be-host with a root guest in place of its UI (`--root=APP`), drawn
   through lavapipe, with no workspace; `HostTest::root_with_dev_workspace(APP)` opens the dev
   workspace under it too (`--root=APP --dev-workspace`), whose session's view the root shows. A
