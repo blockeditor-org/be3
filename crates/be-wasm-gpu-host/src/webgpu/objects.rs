@@ -75,6 +75,18 @@ impl Gpu {
         }
     }
 
+    /// A texture's default view, as `create-view` with no descriptor and a texture bound
+    /// directly make it: only sampled when the host shares the texture between apps.
+    pub(super) fn default_view(&self, texture: u32) -> Result<wgpu::TextureView, Failure> {
+        let shared = self.web.imported.contains(&texture);
+        Ok(self.held(&self.textures, Kind::Texture, texture, "texture")?.create_view(
+            &wgpu::TextureViewDescriptor {
+                usage: shared.then_some(wgpu::TextureUsages::TEXTURE_BINDING),
+                ..Default::default()
+            },
+        ))
+    }
+
     /// Refuses writing into a texture the host shares between apps, which they only read.
     pub(super) fn writable(&self, texture: u32) -> Result<(), Failure> {
         match self.web.imported.contains(&texture) {
@@ -352,10 +364,7 @@ impl Gpu {
                     Held::View(self.held(&self.views, Kind::View, view.0, "texture view")?.clone())
                 }
                 // A texture binds as its default view, as WebGPU's `GPUBindingResource` has it.
-                web::GpuBindingResource::GpuTexture(texture) => Held::View(
-                    self.held(&self.textures, Kind::Texture, texture.0, "texture")?
-                        .create_view(&wgpu::TextureViewDescriptor::default()),
-                ),
+                web::GpuBindingResource::GpuTexture(texture) => Held::View(self.default_view(texture.0)?),
             });
         }
         let entries: Vec<wgpu::BindGroupEntry<'_>> = descriptor
@@ -1172,14 +1181,11 @@ impl Host for Gpu {
         let device = self.device_of(Kind::Texture, this.0);
         let label = descriptor.as_ref().and_then(|descriptor| descriptor.label.clone());
         let handle = self.make(device, Kind::View, label.as_deref(), |gpu| &mut gpu.views, |gpu| {
+            let Some(descriptor) = descriptor else {
+                return gpu.default_view(this.0);
+            };
             let texture = gpu.held(&gpu.textures, Kind::Texture, this.0, "texture")?;
             let shared = gpu.web.imported.contains(&this.0);
-            let Some(descriptor) = descriptor else {
-                return Ok(texture.create_view(&wgpu::TextureViewDescriptor {
-                    usage: shared.then_some(wgpu::TextureUsages::TEXTURE_BINDING),
-                    ..Default::default()
-                }));
-            };
             let usage = match (shared, descriptor.usage.map(Convert::<wgpu::TextureUsages>::convert)) {
                 (false, usage) => usage,
                 (true, None) => Some(wgpu::TextureUsages::TEXTURE_BINDING),

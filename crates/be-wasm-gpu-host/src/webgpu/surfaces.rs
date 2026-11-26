@@ -258,6 +258,15 @@ impl Host for Gpu {
             Some(texture) => {
                 let handle = self.textures.insert(texture);
                 self.web.imported.insert(handle);
+                // `import-texture` names no device: the texture is the app's newest device's,
+                // whose scopes hear what its use gets wrong.
+                let device = self
+                    .web
+                    .devices
+                    .handles()
+                    .filter(|device| !self.device_lost(*device))
+                    .last();
+                self.own(Kind::Texture, handle, device, None);
                 Some(web::GpuTexture(handle))
             }
             None => {
