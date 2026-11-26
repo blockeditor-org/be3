@@ -187,24 +187,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   adding thousands of entries to a watched folder writes refs bytes linear in
   them.
 
-## 13. Settings
-
-- **Typed organization policies.** Each row of the organization's and the
-  offline policies (be-app-settings `src/root/organization.rs`) is a `Policy`
-  whose select binds a position into a fixed table of labels, read and written
-  through `get` and `set` closures that index parallel arrays of values. Done:
-  a policy's select binds the policy's own value (`Allowance`, `WhoMay`, days,
-  a quota and so on), each option naming its value beside its label, with no
-  position or parallel array left, and the organization's settings tests still
-  pass.
-
-## 14. Notifications
-
-- **An app icon for notifications.** Android shows a pushed notification with
-  its built-in `stat_notify_chat` icon, as the app has none of its own
-  (`crates/be-host/android`). Done: the APK carries a monochrome notification
-  icon of its own and `PushRaise` uses it.
-
 ## 15. Flaky host tests
 
 - **A seal's lost publish and a joined channel, often at 16 at once.**
