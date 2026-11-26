@@ -150,6 +150,7 @@ fn configure(surface: &gpu::GpuCanvasContext, (width, height): (u32, u32)) {
         view_formats: None,
         color_space: None,
         tone_mapping: None,
-        alpha_mode: None,
+        // beui draws premultiplied, and a root's surface may be translucent.
+        alpha_mode: Some(web::GpuCanvasAlphaMode::Premultiplied),
     });
 }

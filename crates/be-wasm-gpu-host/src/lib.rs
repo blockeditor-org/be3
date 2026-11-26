@@ -1,4 +1,5 @@
 mod bundles;
+mod looks;
 mod queries;
 mod settling;
 mod tables;
@@ -64,6 +65,7 @@ pub struct Gpu {
     error: Option<String>,
     /// The state of wasi:webgpu's objects beyond the tables above (webgpu.rs).
     web: webgpu::Web,
+    looks: looks::Looks,
 }
 
 type Outcome<T> = Result<T, String>;
@@ -72,6 +74,10 @@ struct Surface {
     textures: Vec<(wgpu::Texture, u64)>,
     /// The formats its textures may also be viewed as.
     view_formats: Vec<wgpu::TextureFormat>,
+    /// How its configuration asks it to be shown, and, unless as it is, the textures each of
+    /// `textures` is drawn into at its present, which are what is shown (looks.rs).
+    look: looks::Look,
+    shown: Vec<(wgpu::Texture, u64)>,
     drawn: usize,
     ages: Ages,
 }
@@ -106,8 +112,10 @@ impl Ages {
 }
 
 impl Surface {
+    /// The texture last presented, as it is shown.
     fn shown(&self) -> &(wgpu::Texture, u64) {
-        &self.textures[(self.drawn + 1) % self.textures.len()]
+        let last = (self.drawn + 1) % self.textures.len();
+        self.shown.get(last).unwrap_or(&self.textures[last])
     }
 }
 
@@ -166,6 +174,7 @@ impl Gpu {
             released: Vec::new(),
             error: None,
             web: webgpu::Web::default(),
+            looks: looks::Looks::default(),
         }
     }
 
@@ -219,10 +228,58 @@ impl Gpu {
             Surface {
                 textures,
                 view_formats,
+                look: looks::Look::default(),
+                shown: Vec::new(),
                 drawn: 0,
                 ages,
             },
         );
+    }
+
+    /// Shows `surface` as `look` asks: as it is, or drawn at each present into textures of
+    /// its own, made here when its look or its textures changed.
+    fn look(&mut self, surface: u32, look: looks::Look) {
+        let Some(target) = self.surfaces.get_mut(&surface) else {
+            return;
+        };
+        let kept = target.look == look && (look.plain() || target.shown.len() == target.textures.len());
+        if kept {
+            return;
+        }
+        target.look = look;
+        target.shown = match look.plain() {
+            true => Vec::new(),
+            false => target
+                .textures
+                .iter()
+                .map(|(canvas, _)| {
+                    let shown = self.device.create_texture(&wgpu::TextureDescriptor {
+                        label: Some("app canvas, shown"),
+                        size: canvas.size(),
+                        mip_level_count: 1,
+                        sample_count: 1,
+                        dimension: wgpu::TextureDimension::D2,
+                        format: canvas.format(),
+                        usage: SURFACE_USAGE,
+                        view_formats: &[],
+                    });
+                    let generation = GENERATIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    (shown, generation)
+                })
+                .collect(),
+        };
+    }
+
+    /// Draws the texture `surface` just presented into what shows it, when its look asks.
+    fn show(&mut self, surface: u32) {
+        let Some(target) = self.surfaces.get(&surface) else {
+            return;
+        };
+        let last = (target.drawn + 1) % target.textures.len();
+        let (Some((shown, _)), (canvas, _)) = (target.shown.get(last), &target.textures[last]) else {
+            return;
+        };
+        self.looks.show(&self.device, &self.queue, target.look, canvas, shown);
     }
 
     pub fn detach_surface(&mut self, surface: u32) {

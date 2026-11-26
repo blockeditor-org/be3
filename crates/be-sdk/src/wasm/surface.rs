@@ -111,6 +111,8 @@ impl Surfaces {
                     placement.height,
                     format,
                     &[],
+                    // beui draws premultiplied, and a surface may be translucent anywhere.
+                    wgpu::CompositeAlphaMode::PreMultiplied,
                 );
                 self.fresh.insert(placement.surface);
             }

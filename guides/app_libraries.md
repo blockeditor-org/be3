@@ -264,8 +264,8 @@ app's own thread and a per-draw call takes only wasm values.
 `Gpu` answers both in `src/webgpu.rs`. wasi:webgpu's WIT is not in
 the repository: buck2 fetches it pinned by its hash (`:webgpu.wit` in
 `crates/be-wasm-gpu-abi/BUCK`) and maps it to `wit/deps/webgpu/webgpu.wit`
-for the generator, in be-wasm-gpu-abi and in every crate whose WIT uses
-`be3:gpu`. Read it with
+for the generator: in be-wasm-gpu-abi itself, and in its `:wit` filegroup,
+which every crate whose WIT uses `be3:gpu` maps. Read it with
 `./scripts/buck build //crates/be-wasm-gpu-abi:webgpu.wit --show-output`.
 On wasi:webgpu, each app device keeps the features and limits it asked for
 and its own error scopes: the host wraps creates, queue calls, `finish` and
@@ -285,6 +285,15 @@ renderers write sRGB-encoded values into it and the host composites them as
 they are. Its sRGB twin is the only other view format a canvas takes, and a
 host on WebGL cannot view a texture in another format at all, so be-sdk asks
 for none.
+
+Every compositor of the host shows premultiplied, sRGB-encoded values in
+[0, 1]. A canvas configured otherwise (`alpha-mode` opaque, which is WebGPU's
+default; `color-space` display-p3; an rgba16float format, whose extended range
+no display the host draws on shows) is drawn at each present into textures the
+host keeps beside it, which are what it shows (be-wasm-gpu-host's `looks.rs`):
+its alpha taken as 1, display-p3 clipped to sRGB, floats clamped, as browsers
+show them on an sRGB display. be-sdk and be-sdk-root ask for premultiplied, so
+their canvases are shown as they are.
 
 The app GPU API is meant to be everything JS WebGPU gives a page, with the
 host device's optional features and limits, since the same app runs in a

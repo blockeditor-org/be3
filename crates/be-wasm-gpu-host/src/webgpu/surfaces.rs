@@ -57,8 +57,13 @@ impl Gpu {
             | configuration
                 .usage
                 .map_or(wgpu::TextureUsages::RENDER_ATTACHMENT, Convert::convert);
+        let look = crate::looks::Look {
+            opaque: configuration.alpha_mode != Some(web::GpuCanvasAlphaMode::Premultiplied),
+            display_p3: configuration.color_space == Some(web::PredefinedColorSpace::DisplayP3),
+            clamped: format == wgpu::TextureFormat::Rgba16Float,
+        };
         let matches = self.surfaces.get(&surface).is_some_and(|existing| {
-            let (texture, _) = existing.shown();
+            let (texture, _) = &existing.textures[0];
             existing.textures.len() == 2
                 && existing.view_formats == view_formats
                 && texture.width() == width
@@ -67,7 +72,7 @@ impl Gpu {
                 && texture.usage() == usage
         });
         if matches {
-            return;
+            return self.look(surface, look);
         }
         let made = self.wrapped(Some(device), |gpu| {
             let texture = || {
@@ -99,7 +104,10 @@ impl Gpu {
             }
         });
         match made {
-            Some(textures) => self.insert_surface(surface, textures, view_formats),
+            Some(textures) => {
+                self.insert_surface(surface, textures, view_formats);
+                self.look(surface, look);
+            }
             None => self.detach_surface(surface),
         }
     }
@@ -246,6 +254,9 @@ impl Host for Gpu {
         if let Some(target) = self.surfaces.get_mut(&surface) {
             target.drawn = (target.drawn + 1) % target.textures.len();
             target.ages.present();
+        }
+        self.show(surface);
+        if let Some(target) = self.surfaces.get(&surface) {
             self.last_presented.insert(surface, target.shown().clone());
         }
         self.presented.push(surface);
