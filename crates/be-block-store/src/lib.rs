@@ -16,7 +16,10 @@ pub use manifest::{
 };
 pub use store::{FileStore, MemoryStore, ObjectStore};
 #[cfg(feature = "vault")]
-pub use vault::{ContentKey, Keyring, Ledger, PartWriter, Pins, Vault, Written, sealed_key};
+pub use vault::{
+    ContentKey, Keyring, Ledger, Noted, PartWriter, Pins, Unnamed, Vault, VaultStore, Written,
+    sealed_key,
+};
 
 #[derive(Debug)]
 pub enum StoreError {

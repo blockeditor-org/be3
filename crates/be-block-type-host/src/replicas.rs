@@ -435,9 +435,10 @@ impl Answering {
 /// its failure. The feed ending first (the writer dropped, its replica or module gone) lets go
 /// of the writer; the chunks it sealed are left to the vault's collection
 /// (`Peer::collect_unnamed`). A part it finished stays pinned from that collection in the
-/// replica's reach until a commit that names it is sealed (`Reach::named`) or the replica goes. `answer` sends each answer to the module, and `locked` says
-/// the block was found locked, as of the `Peer::arrivals` the writer started at. `unsealed`
-/// counts down the bytes of each write once it is sealed.
+/// replica's reach until a commit that names it is sealed (`Reach::named`) or the replica
+/// goes. `answer` sends each answer to the module, and `locked` says the block was found
+/// locked, as of the `Peer::arrivals` the writer started at. `unsealed` counts down the bytes
+/// of each write once it is sealed.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn write_part<S: be_block_store::ObjectStore>(
     peer: Arc<Peer<S>>,
@@ -1928,6 +1929,13 @@ impl<H: Host> Replicas<H> {
         self.handles
             .iter()
             .find_map(|((_, op), of)| (*of == replica).then_some(*op))
+    }
+
+    /// The reach of `block`'s open replica (`Open::reach`).
+    #[cfg(test)]
+    pub(crate) fn reach(&self, block: Uuid) -> Option<Arc<Mutex<Reach>>> {
+        let (_, open) = self.replica_of(block)?;
+        Some(Arc::clone(&open.reach))
     }
 
     /// How many part writers are open, each holding a task.
@@ -4080,6 +4088,16 @@ impl<H: Host> Replicas<H> {
                         count: conflicts,
                     },
                 );
+            }
+            // The merge names the parts it reuses, as a seal of the replica's would: the pins
+            // its replica's reach holds on them can go.
+            if !matches!(saved, Saved::Rejected { .. })
+                && let Some((_, open)) = self.replica_of(block)
+            {
+                open.reach
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .named(reach::reused(&merged.content.parts));
             }
             match saved {
                 Saved::Published(head) | Saved::Unchanged(head) => remote = Some(head),
@@ -6358,14 +6376,10 @@ impl<H: Host> Replicas<H> {
                     if let Some(Ok(Saved::Published(_) | Saved::Kept(_) | Saved::Unchanged(_))) =
                         &saved
                     {
-                        reach.lock().unwrap_or_else(PoisonError::into_inner).named(
-                            content.parts.iter().filter_map(|part| match part {
-                                be_sdk_type_api::WrittenPart::Reused(part) => {
-                                    Some(be_block_store::PartRef::from(*part))
-                                }
-                                _ => None,
-                            }),
-                        );
+                        reach
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .named(reach::reused(&content.parts));
                     }
                     // This device's journal starts from the seal too; with nothing to commit, the
                     // server's is trimmed with no new commit.
