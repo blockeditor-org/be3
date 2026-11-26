@@ -767,7 +767,7 @@ Each step lands on its own.
            so its deadline assumes the default.
          - A replaced device stops the root rather than moving it, so a replaced renderer
            (device loss) quits be-host under `--root`; and no host ships a root.
-         - `--root` on the web: be-host's web build runs no root yet. When it does, the web
+         - `--root` on the web (4g7g2c): be-host's web build runs no root yet. When it does, the web
            `Root` (be-wasm-root-host's `web.rs`) needs an `on_wake` as the native one has: a
            wake between frames only resumes a frame being drawn there (`Shared::resume` does
            nothing while none is), so a root that wakes itself for a frame its apps want
@@ -2487,6 +2487,28 @@ Each step lands on its own.
                workspace's own, since Ctrl+P from the files' filter field opens nothing.
              - Left: taps the session's editor intercepts (`key-chord.tap`, Super alone) and the
                intercepts of a window's editor (`hosts-windows`), which be-host also takes.
+           - 4g7g2c. `--root` on the web, before which be-host's web build keeps its own UI and
+             `src/ui` cannot go. In parts:
+             - 4g7g2c1. Built: a linked root on the page. be-wasm-root-host's web `Root::load`
+               runs a pure root as before, and links one that imports more (the app libraries,
+               be3:gpu: the real root) as an app is linked in its worker, through the app.js
+               beside it (`link_root`): its gpu shim answers the root's be3:gpu on a device of
+               the page's own, and the root's own surfaces show on canvases the page names
+               (`Root::show_surface`, `forget_surface`, `paint`). Its WASI is the page's
+               (be-wasm-pure-wasi seeded from the browser's randomness, the page's clocks), since
+               the page's module keeps wasi.js bound to its own memory; app.js takes a WASI of its
+               own for it (`link`'s `wasi`). dylink.js and app.js instantiate asynchronously, as
+               the page's main thread must a module past 8MB. be-wasm-root-web-testing's
+               `a_linked_root_draws_its_own_surface_on_the_page` links be-sdk-root-testing's root
+               and reads its colour back from the canvas.
+             - 4g7g2c2. App surfaces on the web (4e1's web half): a staged app the root spawns
+               presents into canvases the page transferred to its worker, named to the root by
+               handle and placed by the layer list as CSS (be-host-runtime's web canvases).
+             - 4g7g2c3. The web `Root`'s `on_wake`, as the native one has (Left of 4e5c), so a
+               root that wakes itself between frames gets one from `requestAnimationFrame`.
+             - 4g7g2c4. be-host's web build runs `RootShell` (`?root=`), its native-only parts
+               (the desktop, program windows, the login session) left out, with a web
+               counterpart of the root's host tests where one exists.
            With counterparts whose paintings match be-host's: the desktop shell, F6 between
            views, the lock screen on Super+L (4g7g1), the groups 4g7g2a and 4g7g2b built, and the
            palette. The test

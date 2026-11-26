@@ -107,9 +107,9 @@ function importedMemory(bytes) {
     return null;
 }
 
-function answer(wanted, memory, shim) {
+function answer(wanted, memory, shim, answering) {
     if (wanted.kind === "memory") return memory();
-    if (wanted.module === "wasi_snapshot_preview1") return wasi[wanted.name] ?? stub(wanted.module, wanted.name);
+    if (wanted.module === "wasi_snapshot_preview1") return answering[wanted.name] ?? stub(wanted.module, wanted.name);
     const exported = wanted.module === "be3_host" ? wanted.name : `${wanted.module}#${wanted.name}`;
     const call = shim[exported];
     return typeof call === "function" ? call : stub(wanted.module, wanted.name);
@@ -117,8 +117,11 @@ function answer(wanted, memory, shim) {
 
 // Instantiates `app`, linked against its libraries, with WASI and the gpu
 // shim, which opens a device only for a module with a display. Answers the
-// shim's module.
-export async function link({ bytes, module: app, guest, imports, initialize, wake }, display) {
+// shim's module. A guest on a page, which shares wasi.js with the page's own
+// module, brings a WASI of its own (`wasi`), which answers it instead, and
+// wasi.js stays bound to the page's memory.
+export async function link({ bytes, module: app, guest, imports, initialize, wake, wasi: own }, display) {
+    const answering = own ?? wasi;
     const shimModule = await import(new URL("./block_gpu_shim.js", import.meta.url).href);
     const shim = await shimModule.default();
     if (display) await shimModule.start();
@@ -141,18 +144,18 @@ export async function link({ bytes, module: app, guest, imports, initialize, wak
     const current = () => memory;
     const bindMemory = () => {
         guest.memory = memory;
-        wasi.bindMemory(memory);
+        if (!own) wasi.bindMemory(memory);
         shimModule.bind(memory);
     };
     if (memory !== null) bindMemory();
     shimModule.bind_wake(wake);
-    const resolve = (module) => imports(module, (wanted) => answer(wanted, current, shim));
-    const runtime = new WebAssembly.Instance(first, resolve(first));
+    const resolve = (module) => imports(module, (wanted) => answer(wanted, current, shim, answering));
+    const runtime = await WebAssembly.instantiate(first, resolve(first));
     let exports = runtime.exports;
     if (first !== app) {
         initialize(runtime.exports);
         const plan = dylink.plan(shimModule, modules, identities, runtime, memory);
-        exports = dylink.link(modules, plan, runtime, resolve).exports;
+        exports = (await dylink.link(modules, plan, runtime, resolve)).exports;
     } else {
         if (memory === null && exports.memory instanceof WebAssembly.Memory) {
             memory = exports.memory;

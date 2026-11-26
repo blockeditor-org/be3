@@ -30,6 +30,61 @@ use crate::{Core, Inline, Password, Progress};
 /// What hears a drawn frame, or why the root drew none.
 type Drawn = Box<dyn FnOnce(Result<FrameDone, String>)>;
 
+/// Links a root against the app libraries as an app is linked in its worker: through the bundle's
+/// app.js (`link`), whose gpu shim (be-wasm-gpu-shim) answers the root's be3:gpu on a device of
+/// the page's own, with the root's transport (`host`) answering `be3_host` and its WASI
+/// (`wasi`), which hears the root's memory once it has one (`bind`).
+#[wasm_bindgen(inline_js = r#"
+export async function link_root(appUrl, bytes, module, host, wasi, bind, wake) {
+    const app = await import(appUrl);
+    let memory = null;
+    const guest = {
+        get memory() {
+            return memory;
+        },
+        set memory(bound) {
+            memory = bound;
+            bind(bound);
+        },
+    };
+    const imports = (linked, answer) => {
+        const resolved = { __proto__: null };
+        for (const wanted of WebAssembly.Module.imports(linked)) {
+            const answered = wanted.module === "be3_host" && Object.hasOwn(host, wanted.name)
+                ? host[wanted.name]
+                : answer(wanted);
+            if (answered === undefined) {
+                throw new Error(`the root imports ${wanted.module}.${wanted.name}, which its host does not answer`);
+            }
+            (resolved[wanted.module] ??= { __proto__: null })[wanted.name] = answered;
+        }
+        return resolved;
+    };
+    const initialize = (exports) => {
+        if (typeof exports._initialize === "function") {
+            exports._initialize();
+        } else {
+            exports.__wasm_call_ctors?.();
+        }
+    };
+    const shim = await app.link({ bytes, module, guest, imports, initialize, wake, wasi }, true);
+    if (memory === null) guest.memory = guest.exports.memory;
+    return [guest.exports, shim];
+}
+"#)]
+extern "C" {
+    #[wasm_bindgen(catch)]
+    async fn link_root(
+        app_url: &str,
+        bytes: &JsValue,
+        module: &WebAssembly::Module,
+        host: &Object,
+        wasi: &Object,
+        bind: &Function,
+        wake: &Function,
+    ) -> Result<JsValue, JsValue>;
+}
+
 /// The root guest, run inline on the page. Dropping it stops the root and every instance it
 /// spawned.
 pub struct Root {
@@ -99,7 +154,10 @@ fn ring(id: u64) {
 
 impl Root {
     /// Fetches the root guest from `url`, compiles it with `WebAssembly.compile` and starts it on
-    /// the page. The staged apps it spawns by id are found by `apps`.
+    /// the page. The staged apps it spawns by id are found by `apps`. A root that imports more
+    /// than a pure guest (the app libraries, be3:gpu: the real root) is linked as an app is
+    /// (`link_root`), through the app.js beside it, and draws its own surfaces on a device of
+    /// the page's own, which canvases show (`show_surface`, `paint`).
     pub async fn load(url: &str, apps: Loader) -> Result<Self, String> {
         let window = web_sys::window().ok_or("the root runs only on a page")?;
         let fetched = JsFuture::from(window.fetch_with_str(url))
@@ -115,17 +173,33 @@ impl Root {
         let bytes = JsFuture::from(bytes)
             .await
             .map_err(|error| format!("{url} could not be read: {}", describe(&error)))?;
-        let module = JsFuture::from(WebAssembly::compile(&bytes))
+        let module: WebAssembly::Module = JsFuture::from(WebAssembly::compile(&bytes))
             .await
-            .map_err(|error| format!("{url} is not a valid module: {}", describe(&error)))?;
-        Self::start(&module.unchecked_into(), apps).await
+            .map_err(|error| format!("{url} is not a valid module: {}", describe(&error)))?
+            .unchecked_into();
+        if !pure(&module) {
+            let app_js = web_sys::Url::new_with_base("app.js", &absolute(url)?)
+                .map_err(|error| format!("{url} names no app.js: {}", describe(&error)))?
+                .href();
+            return Self::begin(apps, |wake| PageGuest::link(&module, &bytes, &app_js, wake))
+                .await;
+        }
+        Self::start(&module, apps).await
     }
 
-    /// Starts an instance of `module`, the root guest, on the page.
+    /// Starts an instance of `module`, the root guest, a pure guest, on the page.
     pub async fn start(module: &WebAssembly::Module, apps: Loader) -> Result<Self, String> {
+        Self::begin(apps, |wake| PageGuest::start(module, wake)).await
+    }
+
+    /// Starts the root `guest` starts, waking it with the wake it is handed.
+    async fn begin<Started: std::future::Future<Output = Result<PageGuest, String>>>(
+        apps: Loader,
+        guest: impl FnOnce(Wake) -> Started,
+    ) -> Result<Self, String> {
         let id = NEXT.with(|next| next.replace(next.get() + 1));
         let wake: Wake = Arc::new(move || ring(id));
-        let guest = PageGuest::start(module, Arc::clone(&wake)).await?;
+        let guest = guest(Arc::clone(&wake)).await?;
         let core = Core::new(guest, Server::new(wake, apps))?;
         let after = web_sys::MessageChannel::new().map_err(|error| {
             format!(
@@ -153,6 +227,39 @@ impl Root {
         });
         ROOTS.with(|roots| roots.borrow_mut().insert(id, Rc::downgrade(&shared)));
         Ok(Self { shared })
+    }
+
+    /// Shows on `canvas` what the root presents to its own surface `surface`
+    /// (`Surface::Root`), under the canvas's `id`, from the next `paint`: a linked root's
+    /// alone, which draws on the page's device. A pure root draws nothing of its own.
+    pub fn show_surface(&self, id: u32, canvas: &web_sys::OffscreenCanvas, surface: u32) {
+        if let Some(shim) = self.shim() {
+            call_shim(&shim, "show", &[id.into(), canvas.into(), surface.into()]);
+        }
+    }
+
+    /// Stops showing anything on the canvas `id` (`show_surface`).
+    pub fn forget_surface(&self, id: u32) {
+        if let Some(shim) = self.shim() {
+            call_shim(&shim, "forget", &[id.into()]);
+        }
+    }
+
+    /// Draws what the root last presented to each surface a canvas shows (`show_surface`)
+    /// onto it. Answers whether any changed, or why the root's gpu failed.
+    pub fn paint(&self) -> Result<bool, String> {
+        let Some(shim) = self.shim() else {
+            return Ok(false);
+        };
+        let painted = call_shim(&shim, "paint", &[]).is_some_and(|painted| painted.is_truthy());
+        match call_shim(&shim, "failure", &[]).and_then(|failure| failure.as_string()) {
+            Some(failure) => Err(format!("the root's gpu failed: {failure}")),
+            None => Ok(painted),
+        }
+    }
+
+    fn shim(&self) -> Option<JsValue> {
+        self.shared.core.borrow().guest.shim.clone()
     }
 
     /// How long past a frame's deadline the root itself may take, `STEP_TIMEOUT` unless set.
@@ -670,9 +777,13 @@ struct Transport {
     woken: Cell<bool>,
     panicked: RefCell<Option<String>>,
     wake: Wake,
-    /// Its WASI (guides/app_libraries.md, Pure guests), from the zero seed: the testing root, the
-    /// only pure root, wants its runs alike, and the real root is an app with an app's WASI.
+    /// Its WASI (guides/app_libraries.md, Pure guests): from the zero seed for a pure root (the
+    /// testing root, which wants its runs alike), from the browser's randomness for a linked one,
+    /// which shares no wasi.js with the page's own module.
     wasi: RefCell<be_wasm_pure_wasi::Wasi>,
+    /// Whether it reads the page's clocks (`clock_time_get`): a linked root, which keeps time as
+    /// an app does. A pure root has none.
+    clocks: bool,
 }
 
 impl Transport {
@@ -733,6 +844,10 @@ fn wasi_calls(transport: &Rc<Transport>) -> Vec<(&'static str, Closure<WasiCall>
                         .iter()
                         .map(|value| value.as_f64().map_or(0, |word| word as i64 as u32 as u64))
                         .collect();
+                    // A linked root reads the page's clocks, as an app reads its worker's.
+                    if held.clocks && name == "clock_time_get" {
+                        return Ok(clock_time(&held, words[0], words[2] as u32).into());
+                    }
                     let answered = match held.memory.borrow().clone() {
                         Some(memory) => held.wasi.borrow_mut().call(
                             name,
@@ -766,6 +881,8 @@ fn wasi_calls(transport: &Rc<Transport>) -> Vec<(&'static str, Closure<WasiCall>
 struct PageGuest {
     exports: Object,
     transport: Rc<Transport>,
+    /// The gpu shim's module a linked root draws through, on the page's device.
+    shim: Option<JsValue>,
     /// The transport's imports, which live as long as the instance.
     _imports: Vec<Box<dyn std::any::Any>>,
     stopped: bool,
@@ -775,7 +892,71 @@ struct PageGuest {
 const NO_MESSAGE: i64 = -1;
 
 impl PageGuest {
-    async fn start(module: &WebAssembly::Module, wake: Wake) -> Result<Self, String> {
+    /// A linked root (`link_root`), with the app.js at `app_js` linking it.
+    async fn link(
+        module: &WebAssembly::Module,
+        bytes: &JsValue,
+        app_js: &str,
+        wake: Wake,
+    ) -> Result<Self, String> {
+        // The real root's WASI draws its randomness from the browser's, as an app's does.
+        // Drawn into an array of its own: the page's memory is shared, which crypto refuses.
+        let drawn = Uint8Array::new_with_length(32);
+        web_sys::window()
+            .and_then(|window| window.crypto().ok())
+            .ok_or("the root's page has no crypto")?
+            .get_random_values_with_array_buffer_view(&drawn)
+            .map_err(|error| format!("the root's page drew no randomness: {}", describe(&error)))?;
+        let mut seed = [0; 32];
+        drawn.copy_to(&mut seed);
+        let (transport, host, mut held) = Self::transport(wake, Some(seed));
+        let wasi = Object::new();
+        let calls = wasi_calls(&transport);
+        for (name, call) in &calls {
+            let _ = Reflect::set(&wasi, &(*name).into(), call.as_ref());
+        }
+        let bound = Rc::clone(&transport);
+        let bind = Closure::<dyn FnMut(JsValue)>::new(move |memory: JsValue| {
+            *bound.memory.borrow_mut() = memory.dyn_into::<WebAssembly::Memory>().ok();
+        });
+        let ring = Rc::clone(&transport);
+        let woken = Closure::<dyn FnMut()>::new(move || (ring.wake)());
+        let linked = link_root(
+            app_js,
+            bytes,
+            module,
+            &host,
+            &wasi,
+            bind.as_ref().unchecked_ref(),
+            woken.as_ref().unchecked_ref(),
+        )
+        .await
+        .map_err(|error| format!("the root could not be linked: {}", describe(&error)))?;
+        let linked: js_sys::Array = linked.unchecked_into();
+        if transport.memory.borrow().is_none() {
+            return Err("the root has no memory".to_owned());
+        }
+        held.push(Box::new(calls));
+        held.push(Box::new(bind));
+        held.push(Box::new(woken));
+        let mut guest = Self {
+            exports: linked.get(0).unchecked_into(),
+            transport,
+            shim: Some(linked.get(1)),
+            _imports: held,
+            stopped: false,
+        };
+        guest.call("app_start")?;
+        Ok(guest)
+    }
+
+    /// The root's transport, the `be3_host` imports answering it, and the closures they hold. A
+    /// linked root's WASI draws from `seed` and reads the page's clocks; a pure root's (none)
+    /// from the zero seed, with no clocks.
+    fn transport(
+        wake: Wake,
+        seed: Option<[u8; 32]>,
+    ) -> (Rc<Transport>, Object, Vec<Box<dyn std::any::Any>>) {
         let transport = Rc::new(Transport {
             memory: RefCell::new(None),
             inbox: RefCell::new(VecDeque::new()),
@@ -783,7 +964,8 @@ impl PageGuest {
             woken: Cell::new(false),
             panicked: RefCell::new(None),
             wake,
-            wasi: RefCell::new(be_wasm_pure_wasi::Wasi::new([0; 32])),
+            wasi: RefCell::new(be_wasm_pure_wasi::Wasi::new(seed.unwrap_or([0; 32]))),
+            clocks: seed.is_some(),
         });
         let held = Rc::clone(&transport);
         let send = Closure::<dyn FnMut(u32, u32)>::new(move |pointer, length| {
@@ -825,6 +1007,18 @@ impl PageGuest {
         ] {
             let _ = Reflect::set(&host, &name.into(), function);
         }
+        let held: Vec<Box<dyn std::any::Any>> = vec![
+            Box::new(send),
+            Box::new(receive),
+            Box::new(wake),
+            Box::new(panic),
+        ];
+        (transport, host, held)
+    }
+
+    /// A pure root, instantiated as it is, answered a pure guest's WASI.
+    async fn start(module: &WebAssembly::Module, wake: Wake) -> Result<Self, String> {
+        let (transport, host, mut held) = Self::transport(wake, None);
         let wasi = Object::new();
         let calls = wasi_calls(&transport);
         for (name, call) in &calls {
@@ -843,16 +1037,12 @@ impl PageGuest {
             .and_then(|memory| memory.dyn_into::<WebAssembly::Memory>().ok())
             .ok_or("the root exports no memory")?;
         *transport.memory.borrow_mut() = Some(memory);
+        held.push(Box::new(calls));
         let mut guest = Self {
             exports,
             transport,
-            _imports: vec![
-                Box::new(send),
-                Box::new(receive),
-                Box::new(wake),
-                Box::new(panic),
-                Box::new(calls),
-            ],
+            shim: None,
+            _imports: held,
             stopped: false,
         };
         // A standalone module's constructors, as guest.js runs them.
@@ -929,4 +1119,58 @@ fn describe(error: &JsValue) -> String {
         .map(|error| String::from(error.message()))
         .or_else(|| error.as_string())
         .unwrap_or_else(|| "the browser gave no reason".to_owned())
+}
+
+/// Whether `module` imports no more than a pure guest does: its transport and WASI.
+fn pure(module: &WebAssembly::Module) -> bool {
+    WebAssembly::Module::imports(module).iter().all(|wanted| {
+        let module = Reflect::get(&wanted, &"module".into())
+            .ok()
+            .and_then(|module| module.as_string());
+        matches!(
+            module.as_deref(),
+            Some("be3_host") | Some(be_wasm_pure_wasi::MODULE)
+        )
+    })
+}
+
+/// `url` made absolute against the page's base address, as `fetch` resolves it.
+fn absolute(url: &str) -> Result<String, String> {
+    let base = web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| document.base_uri().ok().flatten())
+        .ok_or("the root runs only on a page")?;
+    web_sys::Url::new_with_base(url, &base)
+        .map(|url| url.href())
+        .map_err(|error| format!("{url} is no address: {}", describe(&error)))
+}
+
+/// Calls the gpu shim's export `name` with `arguments`: what it answered, or nothing if it has
+/// no such export or threw.
+fn call_shim(shim: &JsValue, name: &str, arguments: &[JsValue]) -> Option<JsValue> {
+    let export: Function = Reflect::get(shim, &name.into()).ok()?.dyn_into().ok()?;
+    export
+        .apply(shim, &arguments.iter().collect::<js_sys::Array>())
+        .ok()
+}
+
+/// WASI's `clock_time_get` for a linked root: the time of the clock `id` (the wall clock, else
+/// the page's monotonic one), in nanoseconds, written at `at` in its memory. Answers the errno.
+fn clock_time(transport: &Transport, id: u64, at: u32) -> i32 {
+    const REALTIME: u64 = 0;
+    let milliseconds = match id {
+        REALTIME => js_sys::Date::now(),
+        _ => Reflect::get(&js_sys::global(), &"performance".into())
+            .ok()
+            .and_then(|performance| performance.dyn_into::<web_sys::Performance>().ok())
+            .map_or(0.0, |performance| performance.now()),
+    };
+    let nanoseconds = (milliseconds * 1_000_000.0) as u64;
+    let Some(memory) = transport.memory.borrow().clone() else {
+        return be_wasm_pure_wasi::EBADF;
+    };
+    match be_wasm_pure_wasi::Memory::write(&mut PageMemory(memory), at, &nanoseconds.to_le_bytes()) {
+        Ok(()) => be_wasm_pure_wasi::SUCCESS,
+        Err(_) => be_wasm_pure_wasi::EBADF,
+    }
 }

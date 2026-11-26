@@ -139,7 +139,9 @@ WebAssembly API called from Rust) and `crates/be-host/web/dylink.js` (the
 browser, through be-wasm-gpu-shim) only carry it out the same way: instantiate the root against the memory and run
 `_initialize`, grow the memory for the other modules' data, then instantiate
 and relocate each module in order and run its constructors before anything
-above it is instantiated, once, on the guest's one thread. Everything is
+above it is instantiated, once, on the guest's one thread. The browser
+instantiates each asynchronously, as a page's main thread must a module past
+8MB: the root be-host runs in place of its UI is linked on the page itself. Everything is
 linked at start and nothing loads later; with no threads to share a table
 with, a library could, but nothing asks for it yet.
 
@@ -243,7 +245,10 @@ wakes itself every step never settles, and `drive settle` times out on it with
 `thread::spawn` runs one on its own thread natively;
 `InProcess` runs a guest's Rust in-process for tests; `web::WebGuest` runs one
 in a blob worker (`src/guest.js`), which be-host's `app.js` extends for an
-editor with libraries, WASI, threads and the gpu.
+editor with libraries, WASI, threads and the gpu. A root linked on the page
+(be-wasm-root-host's web `Root`) goes through the same `app.js`, its gpu shim on
+a device of the page's own, with a WASI of its own (the page's module keeps
+wasi.js): random from the browser, the page's clocks.
 
 ## The gpu
 
