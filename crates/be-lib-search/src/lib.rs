@@ -47,6 +47,7 @@ mod compact;
 mod join;
 mod merge;
 mod query;
+mod scan;
 mod segment;
 mod snippet;
 mod table;
