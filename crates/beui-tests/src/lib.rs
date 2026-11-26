@@ -1060,24 +1060,18 @@ fn CanvasFixture() -> NodeId {
     let pan = create_signal(Vec2::ZERO);
     let scale = create_signal(1.0_f32);
     let canvas = NodeRef::new();
-    let placed = create_signal(None::<Rect>);
-    let view = create_memo(move || {
-        placed
-            .get()
-            .map(|rect| CanvasView::new(rect.min + pan.get(), scale.get()))
-    });
+    let view = create_memo(move || Some(CanvasView::new(beui::Pos2::ZERO + pan.get(), scale.get())));
     let item = view! {
         <Frame width=20.0 height=20.0 fill={AMBER} @test_id="canvas.item" />
     };
     let held = view! {
         <Frame width=240.0 height=120.0 fill={BLUE}>
-            <Canvas @node_ref=&canvas view={view}>
+            <Canvas @node_ref=&canvas view={view} local_view=true>
                 <CanvasItem x=20.0 y=10.0 width=20.0 height=20.0 scales=true>{item}</CanvasItem>
             </Canvas>
         </Frame>
     };
     let canvas_rect = measured_rect(canvas.get());
-    create_effect(move || placed.set(canvas_rect.get()));
     let item_rect = measured_rect(item);
     let report = create_memo(move || match (item_rect.get(), canvas_rect.get()) {
         (Some(item), Some(canvas)) => format!(
