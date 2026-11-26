@@ -1,6 +1,5 @@
 use be_lib_layers::{Affine, LayerInput, Surface};
 
-
 use super::*;
 
 /// A host panel editor 1 placed as child 9, which the root draws in its own surface, shown in
