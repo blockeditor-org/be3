@@ -408,9 +408,11 @@ taken unproven.
   this one, and the entry alone decides it, with nothing read, the same on
   every device. No verdict rests on the
   file's arrival (`verify_exported` passes none). New entries append after
-  it. A file carries a block's own entries alone (an export of the new block
-  leaves its history out), and `transfer::decode` refuses an entry written in
-  another block than the one it is saved with.
+  it. A file carries a block's history as its own leading run, each entry as
+  written in the block it names (`Peer::export_log` exports an imported entry
+  as its original), then the entries written in the block, so a chat imported
+  and exported again keeps its history; `transfer::decode` refuses an entry
+  written in another block after one written in the block it is saved with.
 - **Redactions.** The server tells a log's followers of each redaction
   (`event.redacted`). `Peer::redacted` takes the server's word for it, as the
   server holds the payloads and may drop any anyway; the entry's leaf stays,

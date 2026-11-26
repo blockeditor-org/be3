@@ -19,9 +19,10 @@ pub struct SavedBlock {
     pub metadata: BlockMetadata,
     pub references: Vec<Uuid>,
     pub content: Option<Vec<u8>>,
-    /// The block's signed log, opened, each entry as its author signed it in the block `id`
-    /// (`Peer::export_log`, `Peer::verify_exported`), a redacted one without what it said;
-    /// empty for a block with none.
+    /// The block's signed log, opened, each entry as its author signed it in the block it was
+    /// written in (`Peer::export_log`, `Peer::verify_exported`), a redacted one without what it
+    /// said; empty for a block with none. History an import brought, written in other blocks,
+    /// leads it, and the entries written in `id` follow.
     pub log: Vec<crate::ExportedEntry>,
 }
 
@@ -113,12 +114,16 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<SavedBlock>, String> {
             }
         };
         let mut log = Vec::new();
+        let mut own = false;
         for _ in 0..reader.u32()? {
             let original = reader.uuid()?;
-            // A block's log holds what was written in it: an entry of another block's would be
-            // replayed in it as history it never had.
-            if original != id {
-                return Err("a log entry in the file was written in another block".to_owned());
+            // A block's log is its history, written in other blocks, then what was written in
+            // it: an entry of another block's after its own would be history it never had.
+            own |= original == id;
+            if own && original != id {
+                return Err(
+                    "a log entry in the file written in another block follows its own".to_owned(),
+                );
             }
             let seq = reader.u64()?;
             let id = reader.uuid()?;

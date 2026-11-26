@@ -704,14 +704,6 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
   reader that knows a block only through a reference sees its new summary
   without reconnecting.
 
-- **Imported history in a re-export.** An export carries only a block's own
-  log entries (`Peer::export_log`), and `transfer::decode` refuses an entry
-  written in another block, so exporting a chat with imported history drops
-  that history from the file. Done: a file carries a block's history as its
-  own run, each entry naming the block it was written in and verifying
-  there, and an import of it shows that history again, with a
-  be-block-client test exporting and importing a chat twice.
-
 ## 27. Unread counts
 
 - **An open block counted live, for a type that counts from its content.** A
