@@ -82,6 +82,12 @@ pub(crate) struct Visibility {
     visible: std::cell::OnceCell<BTreeMap<Uuid, Access>>,
 }
 
+/// Whether `block` is within what an account bound to `bound` may reach at all: anything for an
+/// account bound to none, or for a block's agent its block and the blocks under it.
+pub(crate) fn reaches(graph: &BlockGraph, bound: Option<Uuid>, block: Uuid) -> bool {
+    bound.is_none_or(|root| block == root || graph.ancestors(block).any(|above| above == root))
+}
+
 impl Visibility {
     fn of(identity: Identity) -> Self {
         Self {
@@ -96,11 +102,9 @@ impl Visibility {
         }
     }
 
-    /// Whether `block` is within what this caller may reach at all: anything, or for a block's
-    /// agent its block and the blocks under it.
+    /// Whether `block` is within what this caller may reach at all (`reaches`).
     fn reaches(&self, graph: &BlockGraph, block: Uuid) -> bool {
-        self.bound
-            .is_none_or(|root| block == root || graph.ancestors(block).any(|above| above == root))
+        reaches(graph, self.bound, block)
     }
 
     fn inherited(&self, graph: &BlockGraph, block: Uuid) -> Access {

@@ -108,6 +108,11 @@ struct Roots {
     /// (`crate::refs::KeptLog`): a log served later that does not reach it is withheld, and
     /// with no log read, an epoch is judged by it.
     kept: HashMap<Uuid, crate::refs::KeptLog>,
+    /// Entries this device appended that lowered someone (`KeyBook::appended`), by the log they
+    /// went to (a block's, or the organization's under its id), until a log checked here holds
+    /// them: until then every epoch judged by that log is outdated, its log is read again before
+    /// the next seal, and one served short of them is withheld.
+    awaited: HashMap<Uuid, EntryHash>,
     /// Blocks this device set out to make whose creation no server has taken yet, with the root
     /// it made (`KeyBook::pin_root`) and any other root a key of them carried meanwhile: a
     /// creation the server refuses as made by someone else lets its root go, and the other root
@@ -143,6 +148,14 @@ pub enum RootPin {
 }
 
 impl Roots {
+    /// Whether this device appended a lowering to `log` that no log of it checked here holds
+    /// yet (`awaited`).
+    fn behind(&self, log: Uuid) -> bool {
+        self.awaited
+            .get(&log)
+            .is_some_and(|awaited| !self.logs.get(&log).is_some_and(|log| log.holds(awaited)))
+    }
+
     /// `key`, a key of `block`'s scope, and every key it was opened through, each with the
     /// scope it is a key of, up every path (`through`).
     /// None when the path is longer than any honest one (`MAX_PATH`), or passes through a key
@@ -1176,6 +1189,13 @@ impl KeyBook {
         };
         let mut checked = checked.clone();
         checked.last_lowering = checked.last_lowering.max(seen);
+        if roots
+            .awaited
+            .get(&block)
+            .is_some_and(|awaited| checked.holds(awaited))
+        {
+            roots.awaited.remove(&block);
+        }
         roots.logs.insert(block, checked.clone());
         roots.entries.insert(block, entries.to_vec());
         // Kept up to the last entry served whole: on a proof path, reduced entries after it
@@ -1235,6 +1255,14 @@ impl KeyBook {
     /// newer is used, or else withheld, and nothing is taken from it.
     pub fn served(&self, block: Uuid, checked: &Checked) -> Served {
         let roots = self.roots.lock().unwrap();
+        // A log short of a lowering this device appended to it hides that lowering.
+        if roots
+            .awaited
+            .get(&block)
+            .is_some_and(|awaited| !checked.holds(awaited))
+        {
+            return Served::Withheld;
+        }
         let Some(kept) = roots.kept.get(&block) else {
             return Served::Take;
         };
@@ -1520,6 +1548,9 @@ impl KeyBook {
             if self.demoted_since(&roots, key, heads.organization) {
                 return true;
             }
+            if roots.behind(block) {
+                return true;
+            }
             let head = heads.block;
             if let Some(log) = roots.logs.get(&block) {
                 return match head.filter(|head| log.holds(head)) {
@@ -1562,6 +1593,9 @@ impl KeyBook {
         if self.owner_only_covers(key) {
             return false;
         }
+        if roots.behind(self.organization) {
+            return true;
+        }
         if let Some(log) = roots.logs.get(&self.organization) {
             return match head.filter(|head| log.holds(head)) {
                 Some(head) => log.outdates(&head),
@@ -1571,6 +1605,23 @@ impl KeyBook {
         roots.kept.get(&self.organization).is_some_and(|kept| {
             kept.lowering_place > 0 && !head.is_some_and(|head| kept.current.contains(&head))
         })
+    }
+
+    /// Notes `signed`, an access log entry this device signed and the server just appended: one
+    /// that lowered anyone outdates the epochs before it here at once, before any log read shows
+    /// it, so this device's next seal reads the log again and rotates rather than seal under an
+    /// epoch whom it lowered may hold, whatever key work lists. Answers the log, when it lowered.
+    pub fn appended(&self, signed: &[u8]) -> Option<Uuid> {
+        let entry = be_block_keys::Entry::decode(signed).ok()?;
+        if !entry.lowers {
+            return None;
+        }
+        let log = Uuid::from_bytes(entry.log);
+        let mut roots = self.roots.lock().unwrap();
+        if !roots.logs.get(&log).is_some_and(|held| held.holds(&entry.hash())) {
+            roots.awaited.insert(log, entry.hash());
+        }
+        Some(log)
     }
 
     /// The scopes whose logs `outdated` judges `key`, of `block`'s scope, by, that this device
@@ -1585,20 +1636,24 @@ impl KeyBook {
             && path.iter().any(|(key, _)| {
                 let head = roots.heads.get(key).and_then(|heads| heads.organization);
                 !self.owner_only_covers(*key)
-                    && match roots.logs.get(&self.organization) {
+                    && (roots.behind(self.organization)
+                        || match roots.logs.get(&self.organization) {
                         None => true,
-                        Some(log) => head.is_some_and(|head| !log.holds(&head)),
-                    }
+                            Some(log) => head.is_some_and(|head| !log.holds(&head)),
+                        })
             });
         let mut found: Vec<Uuid> = path
             .into_iter()
-            .filter(|(key, block)| match roots.logs.get(block) {
-                None => true,
-                Some(log) => roots
-                    .heads
-                    .get(key)
-                    .and_then(|heads| heads.block)
-                    .is_some_and(|head| !log.holds(&head)),
+            .filter(|(key, block)| {
+                roots.behind(*block)
+                    || match roots.logs.get(block) {
+                        None => true,
+                        Some(log) => roots
+                            .heads
+                            .get(key)
+                            .and_then(|heads| heads.block)
+                            .is_some_and(|head| !log.holds(&head)),
+                    }
             })
             .map(|(_, block)| block)
             .chain(organization.then_some(self.organization))

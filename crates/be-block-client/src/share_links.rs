@@ -546,15 +546,13 @@ impl<S: ObjectStore> Peer<S> {
                 })
             })
             .await?;
-        be_block_protocol::write::<(), _>(
-            &self.connection(),
-            Some(self.organization()),
-            be_block_protocol::Op::RevokeShareLink {
-                link: row.id,
-                signed,
-            },
-        )
-        .await??;
+        let op = be_block_protocol::Op::RevokeShareLink {
+            link: row.id,
+            signed,
+        };
+        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization()), op.clone())
+            .await??;
+        self.appended(&op);
         self.keep_share(row.id, None).await
     }
 

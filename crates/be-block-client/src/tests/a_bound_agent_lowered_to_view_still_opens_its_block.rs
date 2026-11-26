@@ -84,13 +84,7 @@ async fn a_bound_agent_lowered_to_view_still_opens_its_block() {
     .unwrap();
     assert_eq!(agent.summary(block).await.unwrap().access, Access::View);
 
-    // Another agent's grant has the owner read the log again, past the lowering.
     let epoch = owner.keys().scope_key(block);
-    let (editing, editing_secret, _) = bound_agent(&owner, block).await;
-    owner
-        .seal_share(block, editing, &editing_secret.public())
-        .await
-        .unwrap();
     owner
         .save(block, &TextBlock::of("kept"), None)
         .await
