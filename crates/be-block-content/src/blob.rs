@@ -46,6 +46,9 @@ pub struct Blob<K: BlobKind> {
     /// Where the payload starts in the stored form this blob was decoded from, while its header
     /// is the one decoded: `payload_offset` then reads it rather than encoding the header again.
     stored_start: Option<u64>,
+    /// Where the payload started in the stored form this blob was decoded from, kept as its
+    /// header changes: the payload's length in that form (`payload_range`).
+    decoded_start: Option<u64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -61,6 +64,7 @@ impl<K: BlobKind> Blob<K> {
             saved: None,
             unloaded: false,
             stored_start: None,
+            decoded_start: None,
         }
     }
 
@@ -86,6 +90,16 @@ impl<K: BlobKind> Blob<K> {
             .unwrap_or_else(|| encode_streamed(&self.header, &[]).len() as u64)
     }
 
+    /// Where the payload starts now (`payload_offset`), and how long it is, of a blob decoded
+    /// from the start of a stored form `stored_length` long: what a reader of a blob loaded
+    /// without its payload asks of its replica, whose content has the same header. A header
+    /// edited since it was decoded moves where the payload starts but keeps its length.
+    pub fn payload_range(&self, stored_length: u64) -> (u64, u64) {
+        let start = self.payload_offset();
+        let decoded = self.decoded_start.unwrap_or(start);
+        (start, stored_length.saturating_sub(decoded))
+    }
+
     pub fn payload_length(&self) -> u64 {
         match self.unloaded {
             true => self.saved.map_or(0, PartRef::length),
@@ -107,6 +121,7 @@ impl<K: BlobKind> Clone for Blob<K> {
             saved: self.saved,
             unloaded: self.unloaded,
             stored_start: self.stored_start,
+            decoded_start: self.decoded_start,
         }
     }
 }
@@ -119,6 +134,7 @@ impl<K: BlobKind> Default for Blob<K> {
             saved: None,
             unloaded: false,
             stored_start: None,
+            decoded_start: None,
         }
     }
 }
@@ -166,6 +182,7 @@ impl<K: BlobKind> BlockContent for Blob<K> {
         let start = (bytes.len() - data.len()) as u64;
         Ok(Self {
             stored_start: Some(start),
+            decoded_start: Some(start),
             ..Self::new(header, data)
         })
     }

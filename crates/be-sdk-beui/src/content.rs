@@ -430,7 +430,10 @@ impl std::ops::Deref for Payload {
 impl<K: be_block_content::BlobKind> ContentProjection<be_block_content::Blob<K>> {
     /// The payload, which a kind that loads only its header (`BlobKind::LOADS`) leaves in the
     /// store: read by range once the first snapshot arrives, and again with each new one (a
-    /// replacement), never on a header edit.
+    /// replacement), never on a header edit. The range is where the payload starts in the
+    /// visible blob, as the replica reads its visible content, and the payload's length in the
+    /// snapshot (`Blob::payload_range`): a header edited since the snapshot (the size and
+    /// thumbhash an image records) moves where the payload starts but not how long it is.
     pub fn payload(&self) -> AsyncMemo<Payload> {
         let projection = self.inner();
         if let Some((_, payload)) = projection.payload.borrow().as_ref() {
@@ -452,14 +455,14 @@ impl<K: be_block_content::BlobKind> ContentProjection<be_block_content::Blob<K>>
                 let stored = stored.get();
                 let live = this.live();
                 let read = stored.map(|(length, _)| {
-                    let (start, held) = live.visible(|blob| {
-                        let start = blob.payload_offset();
-                        let whole = start + blob.data().len() as u64 == length;
-                        (start, whole.then(|| Payload(blob.data().into())))
+                    let (start, length, held) = live.visible(|blob| {
+                        let (start, length) = blob.payload_range(length);
+                        let whole = blob.data().len() as u64 == length;
+                        (start, length, whole.then(|| Payload(blob.data().into())))
                     });
                     match held {
                         Some(held) => Ok(held),
-                        None => Err(live.read_range(start, length.saturating_sub(start))),
+                        None => Err(live.read_range(start, length)),
                     }
                 });
                 async move {
