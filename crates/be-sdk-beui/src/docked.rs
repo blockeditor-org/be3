@@ -772,7 +772,11 @@ pub(crate) fn bridge_child_dock(
         let host = host.clone();
         let paths = Rc::clone(&paths);
         // A descendant's restore waits until the root hosts the group it replaces, so this
-        // runs again as what the root hosts changes.
+        // runs again as what the root hosts changes. It tracks `pushed` for requests and
+        // declarations heard, `hosted` for what the root hosts, and `child` for the child placed,
+        // on purpose. It is made after the declare effect above so that, run by the same change,
+        // it runs second: the declaration it reads has been declared to the dock and its tabs
+        // given ids in `paths` first, which the requests it converts name.
         create_effect(move || {
             pushed.track();
             hosted.track();
