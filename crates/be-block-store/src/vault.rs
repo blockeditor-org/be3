@@ -692,6 +692,24 @@ impl<S: ObjectStore> Vault<S> {
         Ok(missing)
     }
 
+    /// The nodes of the parts the content wrote (`PartRef::Node`) this store lacks and can
+    /// name, leaving out the vault's split parts (`PartRef::Chunks`) and chunks: what `outline`
+    /// reads, so it costs the content's shape, not the size of its bytes.
+    pub fn missing_outline(&self, manifest: &Manifest) -> Result<Vec<Hash>, StoreError> {
+        let mut missing = Vec::new();
+        self.walk_manifest(manifest, 0..u64::MAX, |part, _| {
+            let PartRef::Node(node) = part else {
+                return Ok(false);
+            };
+            if self.store.has(node.hash)? {
+                return Ok(true);
+            }
+            missing.push(node.hash);
+            Ok(false)
+        })?;
+        Ok(missing)
+    }
+
     /// Stores a value as a CBOR map by field name (`encode_value`), so a later build can add a
     /// field with `#[serde(default)]`. Values stored this way (commits, version-control trees)
     /// are encrypted, so only a client could rewrite one, and that would change its hash and
