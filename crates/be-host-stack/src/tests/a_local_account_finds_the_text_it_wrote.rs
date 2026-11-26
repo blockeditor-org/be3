@@ -48,8 +48,6 @@ fn a_local_account_finds_the_text_it_wrote() {
         within: None,
     };
     want_searches(Owner::Host, vec![ask.clone()]);
-    // Read in the one wait: an index whose head moves runs the search again, and its answer
-    // shows no hits until their snippets are cut again (`forget_answers`).
     crate::wait_until("found the text it wrote, with its snippet", |shared| {
         let answer = shared.search.answer(&ask)?;
         let found: Vec<Uuid> = answer.hits.iter().map(|hit| hit.block).collect();

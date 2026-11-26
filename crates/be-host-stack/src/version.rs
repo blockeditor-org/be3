@@ -10,7 +10,7 @@ use be_block_repository::{Action, Kept, Operation, View, masked, scope_mask};
 
 use be_block_client::{ClientError, Peer, Saved, Write};
 use be_block_commit::{
-    ChangeId, Commit, CommitId, CommitKind, MergeBase, MergeBaseWalk, now_milliseconds,
+    ChangeId, Commit, CommitId, CommitKind, Descent, MergeBase, MergeBaseWalk, now_milliseconds,
 };
 use be_block_content::{
     BlockContent, BlockMetadata, Root,
@@ -1241,11 +1241,20 @@ impl Versions {
                 context.peer.fetch_history(parent).await.map_err(failed)?;
                 let commits = context.peer.commits();
                 if current.commit.parents.contains(&other)
-                    || commits.is_ancestor(other, parent).map_err(stored)?
+                    || commits.is_ancestor(other, parent).map_err(stored)? == Descent::Yes
                 {
                     return Err(format!("Everything on {branch} is already here."));
                 }
-                commits.common_ancestor(parent, other).map_err(stored)?
+                match commits.common_ancestor(parent, other).map_err(stored)? {
+                    MergeBase::Behind => {
+                        return Err(format!("Everything on {branch} is already here."));
+                    }
+                    MergeBase::Base(base) => Some(base),
+                    // Past history thinned away, the snapshot this checkout is on, as a merge
+                    // base walk falls back.
+                    MergeBase::Unreached => Some(parent),
+                    MergeBase::Unrelated => None,
+                }
             }
             None => None,
         };
@@ -1628,11 +1637,12 @@ impl Versions {
             match current.branch(name) {
                 Some(existing) if existing == *head => {}
                 Some(existing)
-                    if !context
+                    if context
                         .peer
                         .commits()
                         .is_ancestor(existing, *head)
-                        .map_err(stored)? =>
+                        .map_err(stored)?
+                        != Descent::Yes =>
                 {
                     diverged.push(name.clone());
                 }
