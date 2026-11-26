@@ -137,6 +137,7 @@ Landed on 2026-11-24:
 - `backlog-10`: a part read for a replica counts as unsettled until it is answered; flake counts recorded in the backlog.
 - `backlog-11`: a large blob's header loads only its first part's path; a failed drain drains again on keys changing or a lane command ending; unread badges on picker rows and tabs; a re-export carries imported history; a block known only through a reference is told when it changes, and its follow goes silently once it may not be known.
 - `gpu-wasi-webgpu-3b`: be3:gpu/device goes, wasi:webgpu is the only app gpu; createView on a destroyed texture is valid as in JS WebGPU; the gpu host's maps use foldhash.
+- `gpu-wasi-webgpu-4`: a canvas is shown as its alpha mode, colour space and tone mapping ask; an unset alpha mode shows opaque.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
