@@ -125,10 +125,7 @@ Fixed items are removed as they land.
   (128 MiB), as a merge reads its segments whole into memory. Done: a merge
   streams its segments, and the idle pass at rest merges tiers past that cap,
   shown by a be-block-search-index test merging segments larger than the memory
-  it may hold. Left: streaming needs both sides to stream, a k-way read over
-  dictionary blocks, postings and documents, and a write path that writes parts as
-  it goes, which be-block-store, the vault (`Vault::write`, `chunker::split`),
-  `Peer::put_part` and the type protocol do not have; it wants its own plan.
+  it may hold. Planned in plans/streamed_part_writes.md.
 
 ## 12. Large folders
 
