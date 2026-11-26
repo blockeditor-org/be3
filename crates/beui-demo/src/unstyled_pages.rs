@@ -833,6 +833,14 @@ pub(crate) fn DraggingPage() -> NodeId {
     }
 }
 
+/// What a bin fruit's carry holds: its own type, so no other site takes or lifts it.
+#[derive(Clone, Copy, PartialEq)]
+struct BinFruit(usize);
+
+/// What a list row's carry holds: its own type, apart from the bins' fruit.
+#[derive(Clone, Copy, PartialEq)]
+struct PlaceFruit(usize);
+
 #[sample]
 #[component]
 fn FruitBins() -> NodeId {
@@ -861,11 +869,11 @@ fn FruitBin(bin: usize, bins: Signal<Vec<usize>>) -> NodeId {
     });
     let area = NodeRef::new();
     let site = unstyled::use_drop_site(
-        Func::new(move |fruit: usize| bins.with_untracked(|bins| bins[fruit] != bin)),
-        Func::new(move |_: usize| {
+        Func::new(move |BinFruit(fruit): BinFruit| bins.with_untracked(|bins| bins[fruit] != bin)),
+        Func::new(move |_: BinFruit| {
             unstyled::place_on(area, ()).map_or(drag::floating(), drag::fixed)
         }),
-        Callback::new(move |(fruit, ()): (usize, ())| bins.update(|bins| bins[fruit] = bin)),
+        Callback::new(move |(BinFruit(fruit), ()): (BinFruit, ())| bins.update(|bins| bins[fruit] = bin)),
     );
     let edge = create_memo(move || match site.over.get() {
         Some(()) => ColorRole::Accent,
@@ -882,11 +890,11 @@ fn FruitBin(bin: usize, bins: Signal<Vec<usize>>) -> NodeId {
             <List spacing=Space::Md>
                 <Text color=TextColor::Muted>{BINS[bin].to_owned()}</Text>
                 <ForEach value={fruits}>|fruit: usize| {
-                    let lifted = unstyled::is_carried(fruit);
+                    let lifted = unstyled::is_carried(BinFruit(fruit));
                     view! {
                         <Interactive
                             drag={Func::new(move |_: PointerPress| {
-                                Some(drag::Carry::new(fruit).preview(move || view! {
+                                Some(drag::Carry::new(BinFruit(fruit)).preview(move || view! {
                                     <FruitChip fruit lifted=true />
                                 }))
                             })}
@@ -911,8 +919,8 @@ fn PlacesList() -> NodeId {
     let rows = ForEachRef::<usize, NodeId>::new();
     let list = NodeRef::new();
     let site = unstyled::use_drop_site(
-        Func::new(|_: usize| true),
-        Func::new(move |fruit: usize| {
+        Func::new(|_: PlaceFruit| true),
+        Func::new(move |PlaceFruit(fruit): PlaceFruit| {
             drag::closest(unstyled::slots_in(
                 list,
                 rows,
@@ -922,7 +930,7 @@ fn PlacesList() -> NodeId {
             .when_far(drag::floating())
         }),
         Callback::new(
-            move |(fruit, drag::After(after)): (usize, drag::After<usize>)| {
+            move |(PlaceFruit(fruit), drag::After(after)): (PlaceFruit, drag::After<usize>)| {
                 fruits.update(|fruits| drag::move_after(fruits, fruit, after))
             },
         ),
@@ -930,7 +938,7 @@ fn PlacesList() -> NodeId {
     let order = create_memo(move || {
         let mut order = fruits.get();
         if let (Some(fruit), Some(drag::After(after))) = (
-            unstyled::carrying::<usize>().first().copied(),
+            unstyled::carrying::<PlaceFruit>().first().map(|PlaceFruit(fruit)| *fruit),
             site.over.get(),
         ) {
             drag::move_after(&mut order, fruit, after);
@@ -940,12 +948,12 @@ fn PlacesList() -> NodeId {
     view! {
         <List @node_ref=&list spacing=Space::Sm>
             <ForEach value={order} handle={rows}>|fruit: usize| {
-                let carried = unstyled::is_carried(fruit);
+                let carried = unstyled::is_carried(PlaceFruit(fruit));
                 view! {
                     <Interactive
                         @test_id={format!("demo.places.{fruit}")}
                         focusable=true
-                        drag={Func::new(move |_: PointerPress| Some(drag::Carry::new(fruit)))}
+                        drag={Func::new(move |_: PointerPress| Some(drag::Carry::new(PlaceFruit(fruit))))}
                     >
                         <FruitChip fruit lifted={carried} />
                     </Interactive>
