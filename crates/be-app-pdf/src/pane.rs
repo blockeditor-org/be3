@@ -6,8 +6,7 @@ use be_sdk_beui::{
 };
 
 use crate::render::{
-    DETAIL_MAX_DIM, MIN_SCALE, RenderClient, RenderRequest, RenderTarget, RenderedTile,
-    Unrendered,
+    DETAIL_MAX_DIM, MIN_SCALE, RenderClient, RenderRequest, RenderTarget, RenderedTile, Unrendered,
 };
 
 const TILE_MIN_SCALE_FACTOR: f32 = 0.4;

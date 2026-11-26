@@ -182,7 +182,6 @@ fn load_error(code: c_ulong) -> String {
 }
 
 /// Renders `target` of page `page` of `pdf`, adding what it measured to `measures`.
-// unsafe(ffi)
 pub(crate) fn render(
     pdf: &Pdf,
     page: usize,
@@ -238,6 +237,7 @@ pub(crate) fn render(
     let bitmap = Bitmap::new(width, height)?;
     record(measures, "Bitmap allocation", phase);
     let phase = Instant::now();
+    // unsafe(ffi)
     unsafe {
         FPDF_RenderPageBitmap(
             bitmap.0,

@@ -7,8 +7,8 @@ mod a_stopped_sandbox_answers_later_calls_with_why;
 mod a_watch_of_an_extension_the_manifest_does_not_grant_is_denied;
 #[cfg(not(target_arch = "wasm32"))]
 mod an_app_may_start_only_its_own_apps_modules;
-mod an_instance_made_after_a_sandbox_stopped_is_sent_to_and_dropped;
 mod an_editor_a_roots_host_opened_is_served_by_the_host_through_the_root;
+mod an_instance_made_after_a_sandbox_stopped_is_sent_to_and_dropped;
 mod closing_an_editor_ends_its_watches;
 mod closing_the_last_watch_of_a_kind_unwatches_it;
 mod events_reach_the_editor_in_one_hear_before_a_call_that_answers;

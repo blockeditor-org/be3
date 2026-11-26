@@ -9,9 +9,7 @@ use std::rc::Rc;
 use beui_view::drag::{
     CandidateId, Carry, CarryId, DragFrame, DragPoint, DragSpec, Evaluation, STICKY, evaluate,
 };
-use beui_view::reactive::{
-    Get, NodeId, OwnedTrigger, Set, Trigger, now, on_cleanup, tracking,
-};
+use beui_view::reactive::{Get, NodeId, OwnedTrigger, Set, Trigger, now, on_cleanup, tracking};
 use beui_view::types::input::PointerId;
 use beui_view::types::{Rect, Velocity};
 

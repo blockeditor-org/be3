@@ -42,7 +42,10 @@ fn the_renderer_renders_twice_from_one_open() {
     assert!(loaded(&first), "the first job opens the document");
 
     let second = ask(&mut renderer, document, None);
-    assert!(second.result.is_ok(), "the second job renders from the open document");
+    assert!(
+        second.result.is_ok(),
+        "the second job renders from the open document"
+    );
     assert!(!loaded(&second), "the second job loads nothing");
 
     let other = Document {

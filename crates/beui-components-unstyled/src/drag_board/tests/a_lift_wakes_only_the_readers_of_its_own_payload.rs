@@ -35,12 +35,20 @@ fn a_lift_wakes_only_the_readers_of_its_own_payload() {
 
     board.lift(Carry::new(1_u32), at_point(pos2(10.0, 10.0)));
     flush();
-    assert_eq!(ran(&runs), [2, 1, 1], "lifting 1 wakes the reader of 1 alone");
+    assert_eq!(
+        ran(&runs),
+        [2, 1, 1],
+        "lifting 1 wakes the reader of 1 alone"
+    );
 
     let order = |_| (vec![0], WindowId::MAIN);
     Driver::release(&*board, PointerId::Mouse, false, &order);
     flush();
-    assert_eq!(ran(&runs), [3, 1, 1], "putting 1 down wakes the reader of 1 alone");
+    assert_eq!(
+        ran(&runs),
+        [3, 1, 1],
+        "putting 1 down wakes the reader of 1 alone"
+    );
 
     board.lift(Carry::new("word"), at_point(pos2(10.0, 10.0)));
     flush();
