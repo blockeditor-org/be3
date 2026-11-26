@@ -59,10 +59,10 @@ pub mod reactive {
         pub use crate::prop::{ByClosure, ByClosureLifted, ByLift, ByValue, Given};
         pub use crate::prop_value::{
             ByExact, ByInto, ByProp, BySignal, BySome, ByTakes, ByUnitClosure, ChildBlock,
-            ChildClosure, ChildShape, ChildUnitClosure, ChildWith, Exact, ExactTakes, ExactWithin,
+            ChildClosure, ChildUnitClosure, ChildWith, Exact, ExactTakes, ExactWithin,
             ExactWithinTakes, FnOnceSlot, FnSlot, HandsAValue, IntoExactProp, Is, Itself,
             NoHandedSlot, OptionalPropTakes, OptionalTakes, PropOr, PropTakes, ReadProp,
-            ReadPropTakes, SameType, SetProp, Slot, TakesChildren, TakesClosure, TakesNoChildren,
+            ReadPropTakes, SameType, SetProp, Slot, TakesBlock, TakesClosure, TakesNoChildren,
             TakesUnitClosure, TakesWith,
         };
     }

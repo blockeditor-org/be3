@@ -251,7 +251,9 @@ test the accepted paintings (`hidden`), which it compares in-process to pass or 
   (guides/testing_a_gui.md, 7). Nothing is installed on the machine that builds.
 - **Compile-fail tests** live in `compile_fail/`, outside `crates/` so `build //crates/...` does not
   fail on them: `compile_fail(name, deps)` passes when every line marked
-  `//~ ERROR <part of message>` has that error and no other line has one.
+  `//~ ERROR <part of message>` has that error and no other line has one. `//~ NOTE <part of a
+  note>` lines after a marker pin every "required for ..." note rustc writes under that error, in
+  order, so a case can show which impls its message names.
 - Arguments after `--` go to the test executor: `--env NAME=VALUE`, `--test-arg=NAME`. Write the
   `=`: a spaced `--test-arg NAME` swallows every argument after it.
 - A binary's tests run on threads, so tests touching process-wide state race unless they take
