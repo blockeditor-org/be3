@@ -23,11 +23,11 @@ async fn a_large_image_is_read_by_span_without_downloading_all_of_it() {
     assert_eq!(loaded.header().source_name, "panorama.png");
     assert_eq!(loaded.header().size(), Some((1920, 1080)));
     assert_eq!(loaded.payload_length(), original.data().len() as u64);
-    // Loading the first part fetches the manifest's nodes and the header's chunk, none of
-    // the payload's chunks.
+    // Loading the first part fetches the commit, the content's root node and the header's
+    // chunk, a constant: none of the nodes the payload was split over, nor its chunks.
     let held = reader.commits().vault().store().count();
     assert!(
-        held < objects / 16,
+        held <= 3,
         "reading a header pulled down {held} objects of {objects}"
     );
     let after_header = reader.commits().vault().store().total_bytes();

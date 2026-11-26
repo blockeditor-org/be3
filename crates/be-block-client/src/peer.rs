@@ -1818,8 +1818,17 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// The stored form's first part, without the rest (`be_block_content::Loads::FirstPart`).
+    /// It fetches the content's own nodes and the objects on the path to the first part's
+    /// end, never the nodes the vault split a large part over, so opening a large blob costs
+    /// the tree's depth.
     pub async fn load_first_part(&self, manifest: &Manifest) -> Result<Stored, ClientError> {
-        self.fetch_nodes(manifest).await?;
+        loop {
+            let missing = self.commits.vault().missing_outline(manifest)?;
+            if missing.is_empty() {
+                break;
+            }
+            self.fetch(&missing).await?;
+        }
         let end = self
             .commits
             .vault()
