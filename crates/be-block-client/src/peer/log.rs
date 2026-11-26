@@ -906,13 +906,13 @@ impl<S: ObjectStore> Peer<S> {
                 return Ok(exported);
             }
             from += read.entries.len() as u64;
-            // A file carries a block's own entries alone, each written there (`transfer::decode`
-            // takes no other): history an import brought stays with the block it came into.
-            exported.extend(read.entries.into_iter().filter_map(|logged| {
-                if logged.imported.is_some() {
-                    return None;
-                }
-                Some(ExportedEntry {
+            // History an import brought (the log's leading run) goes as it was written, each entry
+            // naming the block it was written in, which it verifies against; the block's own
+            // entries follow it (`transfer::decode`), so an import of the file shows the history
+            // again, however many times it was exported.
+            exported.extend(read.entries.into_iter().map(|logged| match logged.imported {
+                Some(original) => original,
+                None => ExportedEntry {
                     block,
                     seq: logged.entry.seq,
                     id: logged.entry.id,
@@ -920,7 +920,7 @@ impl<S: ObjectStore> Peer<S> {
                     arrival: logged.entry.arrival,
                     said: logged.opened,
                     signature: logged.entry.signature,
-                })
+                },
             }));
             if from >= read.head.size {
                 return Ok(exported);

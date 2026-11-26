@@ -130,10 +130,10 @@ shows it above the chat's own messages, read-only, under "Imported by
 {importer} from an export", with no verdict on when a message arrived (the
 file's word). An entry that may not be history here (`Bad`: not the log's
 leading run at the place its importer signed, or not appended by the chat's
-creator) is hidden. An export
-carries only the chat's own messages, since a file's log holds what was
-written in its block alone: exporting a chat with imported history leaves
-that history out (plans/backlog.md, "Imported history in a re-export").
+creator) is hidden. An export carries the history ahead of the chat's own
+messages, so history can hold runs from several chats (imported, exported
+again, imported): each folds apart by its places in the chat it was written
+in, and a later run goes after the one before it (`ChatLog::shifted`).
 
 ## Search
 

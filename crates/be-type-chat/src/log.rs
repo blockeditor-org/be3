@@ -124,7 +124,8 @@ pub struct ChatLog {
 pub struct History {
     /// Who imported it.
     pub importer: Uuid,
-    /// Its messages, by their places in the block they were written in.
+    /// Its messages, by their places in the block they were written in; a run from a chat
+    /// imported after another goes past the places of the one before it.
     pub log: ChatLog,
 }
 
@@ -141,28 +142,101 @@ impl ChatLog {
                 Some(_) if item.signer == Signer::Bad => {}
                 Some(from) => {
                     importer.get_or_insert(from.importer);
-                    imported.push(LogItem {
-                        seq: from.seq,
-                        ..item.clone()
-                    });
+                    imported.push((
+                        from.block,
+                        LogItem {
+                            seq: from.seq,
+                            ..item.clone()
+                        },
+                    ));
                 }
                 None => log.take(item),
             }
         }
         log.settle();
         if let Some(importer) = importer {
-            let mut history = Self::default();
-            imported.sort_by_key(|item| item.seq);
-            for item in &imported {
-                history.take(item);
+            // History may hold runs from several chats (a chat imported, exported again with
+            // its history, and imported): each folds on its own by its places in the chat it was
+            // written in, and a later run goes after the one before it.
+            let mut runs: Vec<(Uuid, Vec<LogItem>)> = Vec::new();
+            for (block, item) in imported {
+                match runs.iter_mut().find(|(run, _)| *run == block) {
+                    Some((_, items)) => items.push(item),
+                    None => runs.push((block, vec![item])),
+                }
             }
-            history.settle();
+            let mut history = Self::default();
+            let mut after = 0;
+            for (_, mut items) in runs {
+                items.sort_by_key(|item| item.seq);
+                let mut run = Self::default();
+                for item in &items {
+                    run.take(item);
+                }
+                run.settle();
+                let last = items.last().map_or(0, |item| item.seq);
+                history.absorb(run.shifted(after));
+                after += last + 1;
+            }
             log.history = Some(Box::new(History {
                 importer,
                 log: history,
             }));
         }
         log
+    }
+
+    /// The fold with every place it holds and names `by` further on, for a run of history that
+    /// goes after another.
+    fn shifted(self, by: u64) -> Self {
+        Self {
+            messages: self
+                .messages
+                .into_values()
+                .map(|mut shown| {
+                    shown.seq += by;
+                    shown.reply_to = shown.reply_to.map(|seq| seq + by);
+                    (shown.seq, shown)
+                })
+                .collect(),
+            reactions: self
+                .reactions
+                .into_iter()
+                .map(|((seq, author, reaction), (at, kept))| {
+                    ((seq + by, author, reaction), (at + by, kept))
+                })
+                .collect(),
+            unopened: self
+                .unopened
+                .into_iter()
+                .map(|(seq, mut item)| {
+                    item.seq += by;
+                    (seq + by, item)
+                })
+                .collect(),
+            taken_back: self.taken_back.into_iter().map(|seq| seq + by).collect(),
+            reactions_taken: self
+                .reactions_taken
+                .into_iter()
+                .map(|seq| seq + by)
+                .collect(),
+            deleted: self
+                .deleted
+                .into_iter()
+                .map(|(seq, deleted)| (seq + by, deleted))
+                .collect(),
+            history: None,
+        }
+    }
+
+    /// Takes in a fold whose places are past this one's.
+    fn absorb(&mut self, other: Self) {
+        self.messages.extend(other.messages);
+        self.reactions.extend(other.reactions);
+        self.unopened.extend(other.unopened);
+        self.taken_back.extend(other.taken_back);
+        self.reactions_taken.extend(other.reactions_taken);
+        self.deleted.extend(other.deleted);
     }
 
     fn settle(&mut self) {
