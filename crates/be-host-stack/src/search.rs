@@ -122,6 +122,9 @@ struct Answer {
     shown: Option<Searched>,
     /// Whether `shown` is cut from `found`.
     cut: bool,
+    /// A hit it found is one the mirror has not listed yet, so `shown` leaves it out until it
+    /// does: shown again then (`missing`), and not complete meanwhile.
+    unlisted: bool,
     /// Which run of its search found it (`Searching::runs`), so snippets cut for one run are
     /// never shown for a later one.
     run: u64,
@@ -282,6 +285,9 @@ pub struct Searching {
     running: HashSet<SearchAsk>,
     /// Counts the searches run, to number each answer (`Answer::run`).
     runs: u64,
+    /// Counts `forget_answers`: a search that started before an index it read changed answers
+    /// stale, to run again.
+    forgotten: u64,
     /// Documents' text for snippets, by block, key and head.
     texts: HashMap<(Uuid, String, Option<CommitId>), Option<String>>,
     /// Blocks put by their name alone (`Put::partial`), by their type: queued again once its
@@ -309,7 +315,7 @@ pub struct Searching {
 impl Answer {
     /// Whether what it shows answers what the indexes hold now.
     fn current(&self) -> bool {
-        self.cut && !self.stale
+        self.cut && !self.stale && !self.unlisted
     }
 }
 
@@ -511,6 +517,7 @@ impl Searching {
         for answer in self.answers.values_mut() {
             answer.stale = true;
         }
+        self.forgotten += 1;
         self.shown_revision += 1;
     }
 
@@ -1260,8 +1267,12 @@ async fn index(
                     held.search.creating.remove(&root);
                     batches.entry(index).or_default().push(block);
                 }
-                // Its index is being made or named: queued again once it is.
-                None if held.search.creating.contains_key(&root) => {
+                // Its index is being made or named, or soon will be (a workspace made here is
+                // given one once its creation settles, `unindexed`): queued again once it is,
+                // and until then nothing this device made there is indexed.
+                None if held.search.creating.contains_key(&root)
+                    || will_want_index(&held, root) =>
+                {
                     held.search.waiting.insert(block);
                 }
                 None => {}
@@ -1447,6 +1458,21 @@ fn unindexed_roots(held: &mut Shared) -> Vec<(Uuid, Uuid)> {
             (root, index)
         })
         .collect()
+}
+
+/// Whether `root` is a workspace this device may edit that names no index and is not left
+/// alone: one `unindexed` gives an index, now or once its creation settles.
+fn will_want_index(held: &Shared, root: Uuid) -> bool {
+    held.graph.get(root).is_some_and(|node| {
+        node.parent == Some(BlockParent::Root)
+            && node.content_type == be_block::WORKSPACE_TYPE
+            && node.access.can_edit()
+            && !node.metadata.contains(&SEARCH_INDEX)
+            && !held.search.named.contains_key(&root)
+            && !held
+                .search
+                .excluded(root, held.graph.revision, node.access)
+    })
 }
 
 /// The workspaces in the mirror this device may edit that name no index and have none being
@@ -2898,6 +2924,7 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
             .iter()
             .map(|index| (*index, held.graph.get(*index).and_then(|node| node.head)))
             .collect();
+        let forgotten = held.search.forgotten;
         let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
         tasks.spawn(async move {
             let (found, exact) = run(&peer, &asked, &indexes).await;
@@ -2906,6 +2933,8 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
             if held.search.wanted().any(|wanted| *wanted == asked) {
                 held.search.shown_revision += 1;
                 held.search.runs += 1;
+                let run = held.search.runs;
+                let stale = held.search.forgotten != forgotten;
                 // The answer before stays shown until this one's snippets are cut.
                 let shown = held
                     .search
@@ -2919,8 +2948,10 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
                         found,
                         shown,
                         cut: false,
-                        run: held.search.runs,
-                        stale: false,
+                        unlisted: false,
+                        run,
+                        // An index it read changed while it ran: shown, and run again.
+                        stale,
                         missing: None,
                         retry: (!exact).then_some(graph),
                     },
@@ -2936,6 +2967,16 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
         .collect();
     followed.extend(hits.into_iter().map(GraphQuery::Block));
     let held = &mut *held;
+    // An index the idle pass may compact is followed too: it reads the index's access there
+    // (`compact_idle_indexes`), and no search need be open for it.
+    let compacting: Vec<Uuid> = held
+        .search
+        .last_written
+        .iter()
+        .filter(|(_, last)| !last.looked)
+        .map(|(index, _)| *index)
+        .collect();
+    followed.extend(compacting.into_iter().map(GraphQuery::Block));
     // An index a batch is held back for is followed too, for its next head (`moving`).
     let moving: Vec<Uuid> = held.search.moving_indexes().collect();
     followed.extend(moving.into_iter().map(GraphQuery::Block));
@@ -3027,10 +3068,12 @@ async fn show(
     for (asked, run, found) in unshown {
         let query = Query::parse(&asked.text);
         let mut hits = Vec::new();
+        let mut unlisted = false;
         for found in found {
             let (content_type, head) = {
                 let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
                 let Some(node) = held.graph.get(found.block) else {
+                    unlisted = true;
                     continue;
                 };
                 let viewable = node.access.can_view() && node.parent != Some(BlockParent::Detached);
@@ -3077,6 +3120,7 @@ async fn show(
                 complete: false,
             });
             answer.cut = true;
+            answer.unlisted = unlisted;
             held.search.shown_revision += 1;
             // Shown again whenever the mirror moves: a hit may have left the tree, or been moved
             // out of what the search is within, or the mirror may now hold one it lacked.
