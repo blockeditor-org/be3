@@ -476,18 +476,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   rests in desktop pixels mapped through the view at each point (a `free`-like
   spec of its own), or a view that only grows while a carry lasts.
 
-## 18. Keys
-
-- **Contact rows a new phrase could not seal again.** `set-recovery-key` deletes every
-  key sealed to the account that the device does not send again, sealed to the new key.
-  A device follows its contacts' key changes first (`set_recovery_key_in` runs
-  `contacts`), but that is best-effort: a row from a contact whose key change it could
-  not follow (a broken chain, a failed read) opens with no key it holds, so it is not
-  sealed again and the new phrase deletes it. Done: the server keeps a contact's row the
-  device did not seal again rather than deleting it, so a device can still open it with
-  the retired secret once it follows the contact, with a be-block-client test where a
-  contact's unfollowed row outlasts a new phrase.
-
 ## 19. Local accounts
 
 - **Share and Access offered with no server.** A local account's block menus

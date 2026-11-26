@@ -1493,7 +1493,7 @@ impl ServerStore {
     /// `account`'s recovery key, and every key sealed to it, in every organization that holds
     /// one, whether or not the account may still view the key's block or is still a member:
     /// a new phrase seals again all of them (`set_recovery_key`), and drops none it was not
-    /// shown.
+    /// shown. A contact's row it does not seal again stays as it was.
     pub async fn recovery_key(
         &self,
         account: Uuid,
@@ -1717,6 +1717,20 @@ impl ServerStore {
             transaction.execute("DELETE FROM wrapped_keys WHERE wrapped_by = ?1", [&by])?;
             for held in &held {
                 let Some(key) = resealed.get(&(held.organization, held.key)) else {
+                    // A contact's row the device did not seal again (it could not follow the
+                    // contact's key change) stays as it was, sealed to the retired key: once the
+                    // device follows the contact, it opens with the retired secret.
+                    transaction.execute(
+                        "INSERT INTO wrapped_keys (organization_id, key_id, wrapped_by, sender, sealed)
+                         VALUES (?1, ?2, ?3, ?4, ?5)",
+                        params![
+                            held.organization.to_string(),
+                            held.key.to_string(),
+                            by,
+                            held.sender.to_string(),
+                            held.sealed
+                        ],
+                    )?;
                     continue;
                 };
                 // A contact's key sealed again stays the contact's, as the device sealed it

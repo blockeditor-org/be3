@@ -819,7 +819,12 @@ in the account's block (`Peer::save_pin`); an unverifiable newer key is not used
   that key, so on others once they refresh their contacts. The server shows
   the device every row sealed to the account (`recovery-key`), in every
   organization and whether or not it may still view the block, since the move
-  drops every row not sealed again. The
+  drops every row of the account's own not sealed again. A contact's row the
+  device could not seal again (its key change not followed: a broken chain, a
+  failed read) the server keeps as it was, sealed to the retired key, which
+  the device opens with the retired secret (`AccountBlock::retired`) once it
+  follows the contact, and then seals again to the new key
+  (`Peer::reseal_retired`). The
   account's block's keys are among those rows, so the new phrase reads its
   history; and in the same write the block starts a new key epoch whose scope
   key is sealed to the new phrase alone (`AccountRecords::epoch_for`, a
