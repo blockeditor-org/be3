@@ -2306,8 +2306,8 @@ Each step lands on its own.
            - Left: unlocking with a password has no host test (PAM needs the machine's
              password); be-root's `a_root_shows_its_hosts_lock_screen` covers handing it over.
            - Left: what 4g7a2 left to be-host's menu (About, Close be-host, its other debug
-             panels and the inspector; the invite's QR code and Share; Invite member inside
-             Members; the web's local account note).
+             panels and the inspector; the invite's Share; the web's local account note). The
+             invite's QR code and Invite member inside Members came with 4g7g2b.
          - 4g7g2. The root becomes the default, and be-host's `src/ui` and `src/compositor` go,
            once the real root passes the host tests that exercise be-host's own UI. Surveyed
            (not started): the host tests that drive `src/ui` or the compositor's palette by its
@@ -2327,10 +2327,22 @@ Each step lands on its own.
              `players_carry_on_with_the_next_host_once_the_first_closes_the_world`,
              `killing_the_desktop_shell_shows_the_session_picker` and
              `a_wait_names_an_app_that_stopped_instead_of_running_out` (`sessions.keep`).
-           - Members, invitations and agents: `the_members_dialog_lists_an_organizations_members_and_their_roles`,
-             `the_members_dialog_warns_of_a_member_no_invitation_signed_in`,
-             `an_invitation_shows_the_link_to_send_the_invited_person` (its QR code, which
-             be-root does not show), `a_personal_organization_can_create_an_agent`.
+           - Built (4g7g2b): members, invitations and agents. Counterparts under the root, on a
+             device of a test's server that restarts as the root (`HostTest::drawn_device`,
+             `restart_as_root`) or starts as it (`HostTest::root_device`):
+             `be_root_in_place_of_the_hosts_ui_lists_an_organizations_members_and_their_roles`,
+             `..._warns_of_a_member_no_invitation_signed_in`,
+             `..._shows_the_link_to_send_the_invited_person` and
+             `..._creates_an_agent_in_a_personal_organization`. be-root's menu entries, Members,
+             Invite member and Agents carry be-host's test ids and layout (Members' Remove asks over
+             the list): Members' Invite member
+             closes it for a new link, Invite member is its own dialog with the link's QR code
+             (`be-lib-qr`, which be-host's draws with too), and Agents' credentials copy from
+             their fields and Done closes it. Their paintings match be-host's but for the agents'
+             proxy note, which names the host's default server where be-host's names the hosted
+             service.
+             - Left: Invite member offers no Share, as the root's host has no share sheet to
+               ask for.
            - Contacts and share links: `a_contact_link_asks_before_connecting_two_accounts`,
              `a_contact_the_server_rolls_back_keeps_the_key_this_device_saw`,
              `leaving_a_workspace_someone_shared_asks_first`,

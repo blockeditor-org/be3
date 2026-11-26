@@ -81,6 +81,7 @@ members = [
     "crates/be-lib-input-router",
     "crates/be-lib-layers",
     "crates/be-lib-prompt",
+    "crates/be-lib-qr",
     "crates/be-lib-quoted-name",
     "crates/be-lib-remap",
     "crates/be-lib-remap-module",

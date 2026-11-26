@@ -41328,6 +41328,7 @@ third_party = {
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi": {},
+            "wasi-guest": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },

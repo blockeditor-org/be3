@@ -1601,6 +1601,7 @@ dependencies = [
  "be-lib-build-id",
  "be-lib-dmabuf",
  "be-lib-layers",
+ "be-lib-qr",
  "be-lib-quoted-name",
  "be-lib-ui-types",
  "be-root-accounts-ui",
@@ -1629,7 +1630,6 @@ dependencies = [
  "libc",
  "ndk-context",
  "postcard",
- "qrcodegen",
  "serde",
  "serde_json",
  "tokio",
@@ -2066,6 +2066,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-lib-qr"
+version = "0.1.0"
+dependencies = [
+ "qrcodegen",
+]
+
+[[package]]
 name = "be-lib-quoted-name"
 version = "0.1.0"
 dependencies = [
@@ -2180,6 +2187,7 @@ version = "0.1.0"
 dependencies = [
  "be-lib-geometry",
  "be-lib-layers",
+ "be-lib-qr",
  "be-lib-quoted-name",
  "be-lib-ui-types",
  "be-root-accounts-ui",
