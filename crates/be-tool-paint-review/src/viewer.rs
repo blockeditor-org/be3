@@ -331,16 +331,18 @@ fn Stage(review: Review) -> NodeId {
                             @test_id="paint_review.pan_zoom"
                         >|handle: PanZoomHandle| {
                             let PanZoomHandle { view, scale, focused, .. } = handle;
+                            // The press is in the handle's own points, the handle centred on the split.
                             let drag = move |press: PointerPress| {
-                                let (Some(view), Some(content)) = (view.get_untracked(), content.get_untracked()) else {
+                                let Some(content) = content.get_untracked() else {
                                     return;
                                 };
-                                let x = view.to_canvas(press.pos).x;
+                                let x = split_x.get_untracked()
+                                    + (press.local.x - HANDLE_WIDTH / 2.0) / scale.get_untracked().max(0.01);
                                 split.set((x / content.x.max(1.0)).clamp(0.0, 1.0));
                             };
                             view! {
                                 <Frame focus={focused}>
-                                    <Canvas view>
+                                    <Canvas view local_view=true>
                                         <CanvasItem
                                             x=0.0
                                             y=0.0
