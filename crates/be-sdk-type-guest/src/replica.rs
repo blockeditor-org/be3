@@ -5693,6 +5693,7 @@ where
         }
         self.unsent = carried;
         self.in_flight = 0;
+        self.keep_carried();
         // The tentative layer goes on after them, on the same chain; a gesture with an edit
         // that does not carry ends, its edits dropped.
         let mut lost = Vec::new();
@@ -5718,7 +5719,51 @@ where
         // They go again as new submissions: the ones on their way are passed over.
         self.lacking.unsubmitted();
     }
+
+    /// Makes the submission of each edit just carried over a restart, which goes in turn, and
+    /// has the host keep them: opened again after a stop, a replica is given the edits again as
+    /// typed, made on content the restart replaced, and sends what each submission holds
+    /// instead (`flush`). One that goes by a part is not made ahead, as its part is not put yet.
+    fn keep_carried(&mut self) {
+        let mut kept = Vec::new();
+        for (operation, _, _, through, held) in &mut self.unsent {
+            let bytes = C::encode_operation(operation);
+            if bytes.len() > largest_inline() {
+                continue;
+            }
+            self.counter += 1;
+            let submission = KeptSubmission {
+                counter: self.counter,
+                through: *through,
+                payload: Submitted {
+                    through: *through,
+                    entry: Entry::Operation(Payload::Inline(bytes)),
+                }
+                .encode(),
+            };
+            *held = Some(submission.clone());
+            kept.push(submission);
+        }
+        if kept.is_empty() {
+            return;
+        }
+        // The host drops what it keeps of before a restart once it is told of it: told first,
+        // it keeps these.
+        if self
+            .reported
+            .status
+            .as_ref()
+            .is_none_or(|status| status.restarts != self.restarts)
+        {
+            self.report();
+        }
+        self.out.push(Effect::KeepCarried {
+            replica: self.id,
+            submissions: kept,
+        });
+    }
 }
+
 
 /// Whether every replica passes `op` over for being based before the order's floor (made
 /// before a restart): it puts none of the local edits it holds in the order, which the origin's

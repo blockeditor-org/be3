@@ -6027,6 +6027,29 @@ impl<H: Host> Replicas<H> {
                     .await;
                 false
             }
+            Call::KeepCarried { reply, submissions } => {
+                // Kept as those submitted are, but not as sent: `submitted_through` stays.
+                if let Some(open) = self.open.get_mut(&replica) {
+                    open.submissions.retain(|kept| kept.through > open.given_up);
+                    for submission in submissions {
+                        if !open
+                            .submissions
+                            .iter()
+                            .any(|kept| kept.counter == submission.counter)
+                        {
+                            open.submissions.push(be_block_client::KeptSubmission {
+                                counter: submission.counter,
+                                through: submission.through,
+                                payload: submission.payload,
+                            });
+                            open.edits_changed = true;
+                            open.unkept_submissions = true;
+                        }
+                    }
+                }
+                self.acknowledge(module, reply);
+                false
+            }
             Call::RebaseJournal {
                 reply,
                 base,

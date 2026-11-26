@@ -80,6 +80,11 @@ pub(crate) enum Effect {
         replica: ReplicaId,
         submission: be_block_session::Submission,
     },
+    /// Keeps the submissions of edits carried over a restart, not sent yet (`host.keep-carried`).
+    KeepCarried {
+        replica: ReplicaId,
+        submissions: Vec<be_sdk_type_api::KeptSubmission>,
+    },
     Rebase {
         replica: ReplicaId,
         base: JournalBase,

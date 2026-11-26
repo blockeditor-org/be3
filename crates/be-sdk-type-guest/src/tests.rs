@@ -1681,6 +1681,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.log_item(item);
             }
             Call::LetGoRefused { reply, .. } => self.to(device, |host| reply.send(host, &())),
+            Call::KeepCarried { reply, .. } => self.to(device, |host| reply.send(host, &())),
             Call::ReadLog { reply, from, limit } => {
                 let page = be_block_content::LogPage {
                     size: self.log.len() as u64,

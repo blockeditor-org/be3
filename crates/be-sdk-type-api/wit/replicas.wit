@@ -9,7 +9,8 @@ interface replicas {
     use types.{
         account-id, block-id, block-place, change, client-id, commit-id, content-type-id, description, editor-id,
         endpoint, failure, journal, loaded, merged, merged-parts, organization-id, part-ref, plain-file,
-        journal-entry, log-item, log-search, refused-entry, search-document, session-state,
+        journal-entry, kept-submission, log-item, log-search, refused-entry, search-document,
+        session-state,
         session-tag, type-info, entries,
     };
 
@@ -48,7 +49,8 @@ interface replicas {
         /// seen in the order fail as possibly sent rather than be sent again.
         kept-submitted: u64,
         /// The submissions earlier openings made online of the local edits it
-        /// is given again, oldest first. Once joined, the replica submits the
+        /// is given again, oldest first, sent or made of edits carried over a
+        /// restart to go in turn (`host.keep-carried`). Once joined, the replica submits the
         /// edits each holds as exactly that submission, under its id, so a
         /// server that holds it already answers it held rather than number
         /// those edits a second time.
@@ -92,15 +94,6 @@ interface replicas {
         /// showing it, so what it tells each client already present, before
         /// `Shown`, holds it, as does what it tells each that joins.
         shown: entries,
-    }
-
-    /// A submission an earlier opening of a replica made: its counter under
-    /// the replica's origin, the last local edit it holds (`through`), and its
-    /// payload as the module wrote it.
-    record kept-submission {
-        counter: u64,
-        through: u64,
-        payload: list<u8>,
     }
 
     record sealed-head {
