@@ -78,7 +78,7 @@ fn run() -> Result<(), String> {
         files,
         missing: BTreeSet::new(),
         errors: Vec::new(),
-        loaded: false,
+        failed_sends: Vec::new(),
     };
     let drawn = draw(&mut browser.cdp, &mut page, snapshot.size);
     browser.close();
@@ -93,6 +93,11 @@ fn run() -> Result<(), String> {
         Some(format!(
             "Snapshot images failed to decode:\n{}",
             image.broken.join("\n")
+        ))
+    } else if !page.failed_sends.is_empty() {
+        Some(format!(
+            "Could not answer Chromium's requests:\n{}",
+            page.failed_sends.join("\n")
         ))
     } else if !page.errors.is_empty() {
         Some(format!(
@@ -177,7 +182,6 @@ impl Browser {
     fn launch(directory: &Path) -> Result<Self, String> {
         let profile =
             std::env::temp_dir().join(format!("browser-rasterizer-{}", std::process::id()));
-        std::fs::create_dir_all(&profile).map_err(|error| error.to_string())?;
         let (from_us, to_chromium) = std::io::pipe().map_err(|error| error.to_string())?;
         let (from_chromium, to_us) = std::io::pipe().map_err(|error| error.to_string())?;
         let (reads, writes) = (from_us.as_raw_fd(), to_us.as_raw_fd());
@@ -195,8 +199,8 @@ impl Browser {
         unsafe {
             command.pre_exec(move || {
                 // Moved above 4 first, so neither lands on the other's number before it is read.
-                let reads = libc::fcntl(reads, libc::F_DUPFD, 10);
-                let writes = libc::fcntl(writes, libc::F_DUPFD, 10);
+                let reads = libc::fcntl(reads, libc::F_DUPFD_CLOEXEC, 10);
+                let writes = libc::fcntl(writes, libc::F_DUPFD_CLOEXEC, 10);
                 if reads < 0 || writes < 0 || libc::dup2(reads, 3) < 0 || libc::dup2(writes, 4) < 0
                 {
                     return Err(std::io::Error::last_os_error());
@@ -220,6 +224,7 @@ impl Browser {
                 written.lock().unwrap().extend_from_slice(&buffer[..read]);
             }
         });
+        // Chromium makes the profile directory itself; `Drop` removes it, whatever happens next.
         Ok(Self {
             child,
             cdp: Cdp::new(from_chromium, to_chromium),
@@ -245,7 +250,13 @@ impl Browser {
     }
 
     /// `error` with what Chromium wrote to its stderr, if anything.
-    fn with_log(&self, error: String) -> String {
+    fn with_log(&mut self, error: String) -> String {
+        let error = match (error.as_str(), self.child.try_wait()) {
+            ("Chromium closed its pipe", Ok(Some(status))) => {
+                format!("Chromium closed its pipe and exited with {status}")
+            }
+            _ => error,
+        };
         let log = self.log.lock().unwrap();
         if log.is_empty() {
             return error;
@@ -278,7 +289,8 @@ struct Page {
     files: BTreeMap<String, (String, Vec<u8>)>,
     missing: BTreeSet<String>,
     errors: Vec<String>,
-    loaded: bool,
+    /// Responses to requests that Chromium did not accept.
+    failed_sends: Vec<String>,
 }
 
 impl Events for Page {
@@ -313,7 +325,7 @@ impl Events for Page {
                     }
                 };
                 if let Err(error) = sent {
-                    self.errors.push(error);
+                    self.failed_sends.push(error);
                 }
             }
             "Runtime.exceptionThrown" => {
@@ -324,7 +336,6 @@ impl Events for Page {
                     .unwrap_or("an exception");
                 self.errors.push(description.to_owned());
             }
-            "Page.loadEventFired" => self.loaded = true,
             _ => {}
         }
     }
@@ -439,11 +450,13 @@ fn draw(cdp: &mut Cdp, page: &mut Page, size: [u32; 2]) -> Result<Drawn, String>
     if let Some(error) = navigated["errorText"].as_str() {
         return Err(format!("could not load the painting: {error}"));
     }
-    if !page.loaded {
-        cdp.wait(page, step(), "the page to load", |message| {
-            message["method"] == "Page.loadEventFired"
-        })?;
-    }
+    // The initial about:blank page may have fired its own load event, so ask the document.
+    evaluate(
+        cdp,
+        page,
+        session,
+        "document.readyState === 'complete' || new Promise(r => addEventListener('load', () => r(null), {once: true}))",
+    )?;
     evaluate(cdp, page, session, "document.fonts.ready.then(() => null)")?;
     let broken = evaluate(cdp, page, session, BROKEN_IMAGES)?;
     let broken = broken
