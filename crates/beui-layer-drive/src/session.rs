@@ -1400,7 +1400,19 @@ impl Session {
             "hold" => {
                 self.held = match argument(0)? {
                     "off" => None,
-                    name => Some(name.to_owned()),
+                    name => {
+                        let holdable = frame.program.holdable();
+                        if !holdable.iter().any(|running| running == name) {
+                            return Err(match holdable.is_empty() {
+                                true => format!("hold {name}: the program runs nothing to hold"),
+                                false => format!(
+                                    "hold {name}: not a running app's id; hold takes off or one of {}",
+                                    holdable.join(", ")
+                                ),
+                            });
+                        }
+                        Some(name.to_owned())
+                    }
                 };
                 frame.context.set_held(self.held.clone());
                 Ok(Started::Phase(Phase::Settling { before: None }))

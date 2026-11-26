@@ -560,6 +560,13 @@ impl beui::native::Program for Shell {
         Host::environment()
     }
 
+    fn holdable(&self) -> Vec<String> {
+        be_host_runtime::running()
+            .into_iter()
+            .map(|status| status.app_id)
+            .collect()
+    }
+
     fn drawing(&self) -> bool {
         be_host_runtime::drawing()
     }

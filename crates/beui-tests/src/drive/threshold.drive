@@ -1,0 +1,17 @@
+# A press moved less than the drag threshold (4 points for a mouse) and let go only clicks.
+clock stop
+wait 'value="Clicked 0, dragged 0, first at nowhere"'
+down '#threshold.pad+40,40'
+move '#threshold.pad+43,40'
+up
+wait 'value="Clicked 1, dragged 0, first at nowhere"'
+# One moved past it drags first at the point that crossed it, a whole move from the press,
+# and drags on from there; let go over what it pressed, it clicks too, as a button does.
+down '#threshold.pad+40,40'
+move '#threshold.pad+42,40'
+wait 'value="Clicked 1, dragged 0, first at nowhere"'
+move '#threshold.pad+45,40'
+wait 'value="Clicked 1, dragged 1, first at 45,40"'
+move '#threshold.pad+50,40'
+up
+wait 'value="Clicked 2, dragged 2, first at 45,40"'

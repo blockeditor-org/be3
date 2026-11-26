@@ -168,6 +168,7 @@ impl Board {
             id,
             match over {
                 Some(over) => format!("Lifted, {over}"),
+                None if places == 1 => "Lifted, 1 place to drop it".to_owned(),
                 None => format!("Lifted, {places} places to drop it"),
             },
         );
@@ -214,16 +215,26 @@ impl Board {
         Some((self.rests_of(pointer), frame))
     }
 
-    /// Every fixed place of `pointer`'s carry, where it is now.
+    /// Every fixed place of `pointer`'s carry in the window of its last point, where it is
+    /// now: a place in another window is not there for it, as `place` reads it, so a keyboard
+    /// step never aims at one and the places it counts are those it can reach.
     fn rests_of(&self, pointer: PointerId) -> Vec<beui_view::drag::Rest> {
-        let space = Rc::clone(&self.space);
-        let placed = move |node: NodeId| space.placed(node);
-        self.placing
-            .borrow()
-            .iter()
-            .find(|placing| placing.pointer == pointer)
-            .map(|placing| beui_view::drag::rests(&placing.spec, &placed))
-            .unwrap_or_default()
+        let placing = self.placing.borrow();
+        let Some(placing) = placing.iter().find(|placing| placing.pointer == pointer) else {
+            return Vec::new();
+        };
+        let window = placing.last.map(|last| last.window);
+        let placed = |node: NodeId| {
+            let elsewhere = window.is_some_and(|window| {
+                self.known_window(node)
+                    .is_some_and(|known| known != window)
+            });
+            match elsewhere {
+                true => None,
+                false => self.space.placed(node),
+            }
+        };
+        beui_view::drag::rests(&placing.spec, &placed)
     }
 
     fn say(&self, id: CarryId, said: String) {

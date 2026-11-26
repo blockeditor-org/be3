@@ -20,7 +20,7 @@ use super::overlay::{Badge, FrameBackdrop, Hint, Live, Overlay, PathGrips};
 use super::paint::{EntityPaint, Palette, arrowhead_size, resolve_color};
 use super::raster::{RasterGuideDrawing, raster_image, rastering};
 use super::sketch::{Sketch, SketchKey, rough_reach};
-use super::state::{CanvasState, Gesture};
+use super::state::{CanvasState, Gesture, Tool};
 use super::text::{EntityText, path_label_reach, text_region, writes};
 use crate::freehand::LiveStroke;
 use beui::clipboard::formats;
@@ -168,10 +168,17 @@ fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
     let interactive = !state.previewing();
     let surface = state.surface();
     super::carry::use_move_site(state, surface);
+    // On while the pen tool waits for a press, not only once its stroke has begun: the window
+    // learns that its pointer's samples are wanted only from the frame after it asks, so a
+    // stroke that asked at its press would lose the moves of the press's own frame. Off for
+    // any other gesture (a finger that selects while a stylus inks), which drags past the
+    // threshold as usual.
     let inking = create_memo(move || {
-        state
-            .gesture
-            .with(|gesture| matches!(gesture, Some(Gesture::Pen { .. })))
+        state.gesture.with(|gesture| match gesture {
+            Some(Gesture::Pen { .. }) => true,
+            Some(_) => false,
+            None => state.tool.get() == Tool::Pen,
+        })
     });
     view! {
         <Interactive
