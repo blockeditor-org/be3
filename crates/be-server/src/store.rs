@@ -2125,6 +2125,21 @@ fn manages(
     )
 }
 
+/// The block `account` is bound to, when it is a block's agent.
+pub(crate) fn bound_block(
+    connection: &Connection,
+    account: Uuid,
+) -> Result<Option<Uuid>, ServerError> {
+    let bound: Option<String> = connection
+        .query_row(
+            "SELECT bound_to FROM agents WHERE account_id = ?1 AND bound_to IS NOT NULL",
+            [account.to_string()],
+            |row| row.get(0),
+        )
+        .optional()?;
+    bound.as_deref().map(parse_uuid).transpose()
+}
+
 pub(crate) fn is_agent(connection: &Connection, account: Uuid) -> Result<bool, ServerError> {
     Ok(connection
         .query_row(

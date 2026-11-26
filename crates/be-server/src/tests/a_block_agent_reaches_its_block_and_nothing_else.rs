@@ -248,22 +248,6 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
         "a block's agent has contacts beyond its creator"
     );
 
-    let followed = agent
-        .call(|peer| {
-            peer.ask::<be_block_protocol::KeyPage>(
-                Query::Keys {
-                    blocks: None,
-                    after: None,
-                },
-                true,
-            )
-        })
-        .await;
-    assert!(
-        refused_as(&followed, ErrorCode::PermissionDenied),
-        "a block's agent followed the keys topic, which tells of every block's: {followed:?}"
-    );
-
     let answers = agent.everything(elsewhere, organization).await;
     for (name, answer) in &answers {
         if REACHING_PAST.contains(name) {

@@ -235,7 +235,7 @@ pub(crate) fn topic_rule(topic: &Topic) -> Rule {
 /// `be terminal-host` makes no call these refuse (the `a_terminal_host_*` tests run as one).
 /// Everything that reaches past the block is refused: agents, contact links and contacts'
 /// keys, members, pairing, access, escrows, a new recovery key, storage.
-pub(crate) fn bound_may_read(query: &Query, follow: bool) -> bool {
+pub(crate) fn bound_may_read(query: &Query) -> bool {
     match query {
         Query::Blocks { .. }
         | Query::List { .. }
@@ -247,11 +247,12 @@ pub(crate) fn bound_may_read(query: &Query, follow: bool) -> bool {
         | Query::RecoveryKey
         | Query::Organizations
         | Query::Mailbox
+        // Its topic tells a block's agent only of its own blocks' keys (`put_keys`), so one
+        // connected hears of a key sealed to it after it connected.
+        | Query::Keys { .. }
         | Query::DownloadUrls { .. }
         | Query::ServerInfo
         | Query::Session { .. } => true,
-        // The keys topic tells of keys for any block the account may open.
-        Query::Keys { .. } => !follow,
         // It asks of many blocks, the agent's own among others.
         Query::LogRedactions(_)
         | Query::Access(_)
@@ -1222,7 +1223,7 @@ impl Client {
         query: Query,
         follow: bool,
     ) -> Result<Page, ServerError> {
-        let bound = bound_may_read(&query, follow);
+        let bound = bound_may_read(&query);
         let admitted = self.admit(organization, query_rule(&query), bound).await?;
         let account = admitted.account().ok();
         if !follow {

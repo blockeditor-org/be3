@@ -1073,7 +1073,7 @@ impl ServerStore {
 
     /// Stores `set` and answers whom to tell (`topic.keys`), none when it stored nothing:
     /// the viewers of each block it gave a key or wrapped one of under another, and each account
-    /// it sealed a key to that views the key's block. Administrators are told anyway, which is
+    /// it sealed a key to that views the key's block, a block's agent only of its own blocks. Administrators are told anyway, which is
     /// all an escrow wrap tells.
     pub async fn put_keys(
         &self,
@@ -1095,12 +1095,24 @@ impl ServerStore {
             if !stored.any {
                 return Ok(None);
             }
+            // A block's agent reads the keys of its block and those below it alone
+            // (`blocks::Visibility`), so it hears of no other's.
+            let reaches = |account: Uuid, block: Uuid| -> Result<bool, ServerError> {
+                Ok(match crate::store::bound_block(database, account)? {
+                    Some(root) => block == root || graph.ancestors(block).any(|above| above == root),
+                    None => true,
+                })
+            };
             let mut told = BTreeSet::new();
             for block in stored.opened {
-                told.extend(graph.viewers(block));
+                for account in graph.viewers(block) {
+                    if reaches(account, block)? {
+                        told.insert(account);
+                    }
+                }
             }
             for (block, account) in stored.sealed {
-                if graph.viewers(block).contains(&account) {
+                if graph.viewers(block).contains(&account) && reaches(account, block)? {
                     told.insert(account);
                 }
             }

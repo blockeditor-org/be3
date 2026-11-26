@@ -1658,6 +1658,15 @@ impl<S: ObjectStore> Peer<S> {
         if let Some(scope) = kept.and_then(|kept| scope_of(&kept).ok())
             && self.outdated(chosen, scope).await
         {
+            // Another editor may have given the scope its new epoch already and sealed it here:
+            // asked for first, so this device rotates only when no one has, and one that may
+            // not rotate (a viewer whose lowering outdated the epoch) seals under theirs.
+            if !self.local && self.refresh_keys(Some(vec![block])).await.is_ok() {
+                let fresh = newest();
+                if fresh != chosen && !self.outdated(fresh, scope).await {
+                    return Ok(fresh);
+                }
+            }
             match self.rotate_outdated(scope).await {
                 Ok(()) => {}
                 // A person's edit made offline is never refused: it is sealed and kept here,

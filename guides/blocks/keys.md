@@ -124,8 +124,9 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   stored later must be told: a `put-keys` that stores or changes a row tells
   `topic.keys` to every other connection, following it, of the viewers of each block it gave
   a key or wrapped one of under another key, of each viewer it sealed a key to,
-  and of every administrator (all an escrow wrap tells). An agent bound to a
-  block may not open it; a device attaching again reads every row anyway.
+  and of every administrator (all an escrow wrap tells). A block's agent follows
+  it too, told only of keys of its block and those below it; a device attaching
+  again reads every row anyway.
   `Peer::keys_changed` forgets what was
   found missing, and a `learn` or read asking as keys arrive asks once more.
   A key that opens on the device by any path counts as keys arriving too, with
@@ -556,7 +557,10 @@ names the organization's head in its signed record (`EscrowKey::head`).
   inside a scope cannot rotate it (its new epoch is wrapped under the scope
   above). A
   device about to write or wrap under a data or scope key its logs outdate
-  rotates the scope first (`Peer::sealing_key`, `scope_key`), from the highest
+  asks for the block's keys again first and writes under a newer epoch someone
+  else made if one opens here and is current (so a viewer, who may not rotate,
+  writes its relays under the rotation an editor made); otherwise it
+  rotates the scope (`Peer::sealing_key`, `scope_key`), from the highest
   scope above it whose newest key is outdated too (`Peer::rotation_top`), so
   one rotation covers a tree a demotion outdated whole, judging by the
   logs of the scope and of every scope above it the key was opened through,
@@ -646,7 +650,10 @@ on connect, `MailboxChanged`, each `KeyWorkChanged` and after its own changes.
 
 `Peer::rotate` sends one `put-keys(rotate)` for a subtree: new epochs of every scope key,
 every data key rewrapped, a new data key per block. The server takes it only
-whole. Each block it lists must be placed where the server lists it by the
+whole. The rotating device then reads key work and seals the new epochs to whom
+it lists (`Peer::seals`, as `tend` seals), so a viewer kept through the lowering
+that outdated the old epoch reads what is written under the new one at once,
+not after some editor's next `tend`. Each block it lists must be placed where the server lists it by the
 signed parent records (`Peer::signed_below`), or nothing is sent. Content is not resealed, except that the lease holder of a live session
 on a rekeyed block seals once more (`Session::rekey`), which reseals the parts it
 reuses under the new key (`Vault::write`). A rotation nobody can do yet
