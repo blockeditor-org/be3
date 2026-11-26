@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
 mod announcements;
+mod kept_logs;
 mod sqlite;
 
 use announcements::Waiting;
@@ -73,10 +74,13 @@ pub(crate) enum Table {
     LogRedactions,
     /// The first fork of each block's signed log this device found (`Refs::log_fork`).
     LogForks,
+    /// What each kept access log holds at each of its places (`KeptLog`, `kept_logs`), by block
+    /// and place: an append writes only the places it adds.
+    LogPlace,
 }
 
 impl Table {
-    pub const ALL: [Self; 30] = [
+    pub const ALL: [Self; 31] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -107,6 +111,7 @@ impl Table {
         Self::NameCards,
         Self::LogRedactions,
         Self::LogForks,
+        Self::LogPlace,
     ];
 
     pub fn code(self) -> u8 {
@@ -141,6 +146,7 @@ impl Table {
             Self::NameCards => 28,
             Self::LogRedactions => 29,
             Self::LogForks => 30,
+            Self::LogPlace => 31,
         }
     }
 
@@ -532,6 +538,8 @@ struct State {
     log_redactions: HashMap<Uuid, u64>,
     /// The first fork of each block's signed log this device found.
     log_forks: HashMap<Uuid, LogFork>,
+    /// The places of kept logs as loaded, until `load` joins them to their logs.
+    log_places: HashMap<Uuid, BTreeMap<u64, kept_logs::KeptPlace>>,
     next: u64,
 }
 
@@ -724,6 +732,10 @@ impl State {
             let Some(value) = &row.value else { continue };
             let _ = state.add(&row, value);
         }
+        let mut places = std::mem::take(&mut state.log_places);
+        for (block, kept) in &mut state.logs {
+            kept_logs::join(kept, places.remove(block).unwrap_or_default());
+        }
         for summary in state.summaries.values() {
             if let Some(parent) = summary.parent {
                 state.placed.entry(parent).or_default().insert(summary.id);
@@ -861,6 +873,13 @@ impl State {
             Table::LogForks => {
                 self.log_forks.insert(uuid_key(&row.key)?, decode(value)?);
             }
+            Table::LogPlace => {
+                let (block, place) = row.key.split_at_checked(16).ok_or(StoreError::Corrupt)?;
+                self.log_places
+                    .entry(uuid_key(block)?)
+                    .or_default()
+                    .insert(sequence_key(place)?, decode(value)?);
+            }
             Table::NotAppended => {
                 let (block, order) = row.key.split_at_checked(16).ok_or(StoreError::Corrupt)?;
                 let order = sequence_key(order)?;
@@ -931,6 +950,12 @@ pub(crate) struct Refs {
 }
 
 impl Refs {
+    /// The bytes of the rows written to the database these refs are in, so far.
+    #[cfg(test)]
+    pub fn written(&self) -> u64 {
+        self.backend.written()
+    }
+
     fn write(&self, rows: Vec<Row>) -> Result<(), StoreError> {
         if rows.is_empty() {
             return Ok(());
@@ -1567,13 +1592,9 @@ impl Refs {
                 .logs
                 .get(&block)
                 .is_some_and(|kept| kept.head == root && kept.place == 0)
+                && let Some(kept) = state.logs.remove(&block)
             {
-                state.logs.remove(&block);
-                rows.push(Row {
-                    table: Table::Logs,
-                    key: block.as_bytes().to_vec(),
-                    value: None,
-                });
+                rows.extend(kept_logs::removed(block, &kept));
             }
             let keys = state.unmade.entry(block).or_default();
             let before = keys.len();
@@ -1601,11 +1622,19 @@ impl Refs {
             .collect()
     }
 
+    /// Keeps `kept` as how far this device checked `block`'s log. A log that grew from the one
+    /// kept writes its own row and the places it added alone (`kept_logs`), so keeping a log
+    /// as it grows writes each entry once.
     pub fn keep_log(&self, block: Uuid, kept: KeptLog) -> Result<(), StoreError> {
-        if self.state.lock().unwrap().logs.insert(block, kept.clone()) == Some(kept.clone()) {
-            return Ok(());
-        }
-        self.write(vec![row(Table::Logs, block.as_bytes().to_vec(), &kept)])
+        let rows = {
+            let mut state = self.state.lock().unwrap();
+            let old = state.logs.insert(block, kept.clone());
+            if old.as_ref() == Some(&kept) {
+                return Ok(());
+            }
+            kept_logs::rows(block, old.as_ref(), &kept)
+        };
+        self.write(rows)
     }
 
     /// The newest record of each verified contact this device has seen, which a record the
