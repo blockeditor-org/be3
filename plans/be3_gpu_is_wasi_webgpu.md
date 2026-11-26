@@ -22,12 +22,12 @@ names the version itself, and changes with it:
 - the raw apps, which are wat: be-wasm-host's `src/tests/standalone.wat` and
   be-wasm-root-host's `src/tests/painter.wat`.
 
-## 2. Asynchronous pipelines off the app's thread
+## 2. Asynchronous pipelines in the browser
 
-Compile `create-*-pipeline-async`'s pipelines on a worker thread natively (wgpu's device and
-the descriptor's objects are `Send`), and in the shim through the browser's
-`createRenderPipelineAsync` and `createComputePipelineAsync` with web-sys, settling through the
-poll as now.
+Natively the host makes `create-*-pipeline-async`'s pipelines on a thread of their own
+(be-wasm-gpu-host `webgpu/pipelines.rs`). The shim still makes them at once: make them through
+the browser's `createRenderPipelineAsync` and `createComputePipelineAsync` with web-sys,
+settling through the poll as now.
 
 ## 3. One poll per app, and cancelling
 

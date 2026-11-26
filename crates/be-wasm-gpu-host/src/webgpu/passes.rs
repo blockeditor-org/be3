@@ -406,49 +406,4 @@ impl Gpu {
         });
     }
 
-    /// An async pipeline: made now, its answer settled at the next poll. A pipeline that fails
-    /// is a `GPUPipelineError`, not an error in a scope.
-    pub(super) fn made_async<T>(
-        &mut self,
-        device: u32,
-        kind: Kind,
-        label: Option<String>,
-        table: fn(&mut Self) -> &mut Table<T>,
-        act: impl FnOnce(&mut Self) -> Result<T, Failure>,
-    ) -> Result<u32, web::CreatePipelineError> {
-        let refuse = |reason, message: String| web::CreatePipelineError {
-            kind: web::CreatePipelineErrorKind::GpuPipelineError(reason),
-            message,
-        };
-        if self.device_lost(device) {
-            return Err(refuse(
-                web::GpuPipelineErrorReason::Internal,
-                "the device is lost".to_owned(),
-            ));
-        }
-        let scopes: Vec<wgpu::ErrorScopeGuard> =
-            [wgpu::ErrorFilter::Validation, wgpu::ErrorFilter::Internal]
-                .into_iter()
-                .map(|filter| self.device.push_error_scope(filter))
-                .collect();
-        let made = act(self);
-        let mut caught = None;
-        for scope in scopes.into_iter().rev() {
-            if let Some(message) = crate::caught(scope.pop()) {
-                caught.get_or_insert(message);
-            }
-        }
-        match (made, caught) {
-            (Ok(value), None) => {
-                let handle = table(self).insert(value);
-                self.own(kind, handle, Some(device), label.as_deref());
-                Ok(handle)
-            }
-            (Ok(_), Some(message)) => Err(refuse(web::GpuPipelineErrorReason::Validation, message)),
-            (Err(failure), _) => Err(refuse(
-                web::GpuPipelineErrorReason::Validation,
-                failure.message,
-            )),
-        }
-    }
 }

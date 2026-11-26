@@ -1,5 +1,17 @@
 use super::*;
 
+/// Polls `made` until it is ready, waiting on the gpu between polls: the host makes a pipeline
+/// off the app's thread, so it may not be ready at the first.
+fn ready<T>(made: impl Future<Output = T>) -> T {
+    let mut made = pin!(made);
+    loop {
+        if let Poll::Ready(made) = made.as_mut().poll(&mut Context::from_waker(Waker::noop())) {
+            return made;
+        }
+        be_wasm_gpu_guest::wait();
+    }
+}
+
 #[test]
 fn a_pipeline_made_asynchronously_is_ready_or_says_why_not() {
     let (device, _queue) = be_wasm_gpu_guest::request_device(&wgpu::DeviceDescriptor {
@@ -13,7 +25,7 @@ fn a_pipeline_made_asynchronously_is_ready_or_says_why_not() {
     });
     let made = |entry_point| {
         let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
-        let made = pin!(be_wasm_gpu_guest::create_compute_pipeline_async(
+        let made = ready(be_wasm_gpu_guest::create_compute_pipeline_async(
             &device,
             &wgpu::ComputePipelineDescriptor {
                 label: None,
@@ -23,11 +35,7 @@ fn a_pipeline_made_asynchronously_is_ready_or_says_why_not() {
                 compilation_options: Default::default(),
                 cache: None,
             },
-        ))
-        .poll(&mut Context::from_waker(Waker::noop()));
-        let Poll::Ready(made) = made else {
-            panic!("the host did not settle the pipeline at once");
-        };
+        ));
         let popped = pin!(scope.pop()).poll(&mut Context::from_waker(Waker::noop()));
         assert!(
             matches!(popped, Poll::Ready(None)),
@@ -47,7 +55,7 @@ fn a_pipeline_made_asynchronously_is_ready_or_says_why_not() {
                 .into(),
         ),
     });
-    let rendered = pin!(be_wasm_gpu_guest::create_render_pipeline_async(
+    let rendered = ready(be_wasm_gpu_guest::create_render_pipeline_async(
         &device,
         &wgpu::RenderPipelineDescriptor {
             label: None,
@@ -70,10 +78,9 @@ fn a_pipeline_made_asynchronously_is_ready_or_says_why_not() {
             multiview_mask: None,
             cache: None,
         },
-    ))
-    .poll(&mut Context::from_waker(Waker::noop()));
+    ));
     assert!(
-        matches!(rendered, Poll::Ready(Ok(_))),
+        rendered.is_ok(),
         "a render pipeline is made asynchronously too"
     );
 }
