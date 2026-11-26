@@ -26,6 +26,10 @@ pub(crate) struct SqliteRefs {
     connection: Mutex<Connection>,
     /// The bytes of every key and value written, deletions' keys included (`RefsDb::written`).
     written: AtomicU64,
+    /// The tables whose rows a write fails on, for tests of a refs write that fails
+    /// (`RefsDb::refuse`).
+    #[cfg(test)]
+    refused: Mutex<std::collections::HashSet<Table>>,
 }
 
 impl SqliteRefs {
@@ -50,6 +54,8 @@ impl SqliteRefs {
         Ok(Self {
             connection: Mutex::new(connection),
             written: AtomicU64::new(0),
+            #[cfg(test)]
+            refused: Mutex::default(),
         })
     }
 }
@@ -96,6 +102,13 @@ impl SqliteRefs {
     }
 
     pub(crate) fn write(&self, scope: &Scope, rows: &[Row]) -> Result<(), StoreError> {
+        #[cfg(test)]
+        {
+            let refused = self.refused.lock().unwrap();
+            if rows.iter().any(|row| refused.contains(&row.table)) {
+                return Err(failed("a test refuses this table's rows"));
+            }
+        }
         let connection = self.connection.lock().unwrap();
         let transaction = be_block_sqlite_schema::write_transaction(&connection).map_err(failed)?;
         {
@@ -143,6 +156,15 @@ impl SqliteRefs {
     #[cfg(test)]
     pub(crate) fn written(&self) -> u64 {
         self.written.load(Ordering::Relaxed)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn refuse(&self, table: Table, refused: bool) {
+        let mut tables = self.refused.lock().unwrap();
+        match refused {
+            true => tables.insert(table),
+            false => tables.remove(&table),
+        };
     }
 }
 

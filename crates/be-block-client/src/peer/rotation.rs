@@ -933,6 +933,7 @@ impl<S: ObjectStore> Peer<S> {
         // Checked on from what this device kept, as a block's is (`Peer::checked_access`).
         let (entries, checked) = self.organization_log_checked().await?;
         let checked = checked.ok_or(ClientError::Forged(self.organization))?;
+        self.keep_unkept(self.organization);
         // Kept as a block's is (`KeyBook::note_log`): one short of what was kept is withheld,
         // and changes nothing here.
         match self.keys.served(self.organization, &checked) {

@@ -428,6 +428,13 @@ pub struct Peer<S: ObjectStore> {
     /// (`ClientError::Withheld` from `Peer::reseal`): past `WITHHELD_DRAINS` the edit is set
     /// aside rather than tried again forever.
     withheld_drains: Mutex<HashMap<Uuid, u32>>,
+    /// Held across each change to an unsure mark in the key book together with its row in the
+    /// refs (`KeyBook::sending` and `set_unsure`, `KeyBook::sent` or `answered` and the row's
+    /// clearing), so a mark made while another is cleared never finds its row about to go. It
+    /// holds the logs whose awaited lowering the refs did not take (`keep_awaited`): their
+    /// unsure rows stay until it is kept, since a restart with neither row would judge by a log
+    /// a withholding server serves short of it.
+    unsure_rows: Mutex<HashSet<Uuid>>,
     /// How far this device's clock reads past `now_milliseconds` (`local_now`): a test's fast
     /// clock, beside a server in the same process that reads the true one.
     #[cfg(test)]
@@ -722,6 +729,7 @@ impl<S: ObjectStore> Peer<S> {
             settled_here: Mutex::new(HashSet::new()),
             log_reads: Mutex::new(HashSet::new()),
             withheld_drains: Mutex::new(HashMap::new()),
+            unsure_rows: Mutex::new(HashSet::new()),
             #[cfg(test)]
             clock_ahead: std::sync::atomic::AtomicI64::new(0),
             #[cfg(test)]
@@ -2893,15 +2901,18 @@ impl<S: ObjectStore> Peer<S> {
     /// (`KeyBook::answered`). A read sent before the mark, or before a newer one, may have been
     /// answered before the append landed, so it clears nothing.
     pub(crate) fn answered(&self, log: Uuid, unsure: Option<u64>) {
-        if let Some(generation) = unsure
-            && self.keys.answered(log, generation)
-        {
+        let Some(generation) = unsure else {
+            return;
+        };
+        let unkept = self.unsure_rows.lock().unwrap();
+        if self.keys.answered(log, generation) && !unkept.contains(&log) {
             self.clear_unsure(log);
         }
     }
 
-    /// Clears `log`'s unsure mark in the refs, once the key book let it go. One that fails to
-    /// clear stays marked there, which fails closed: a restart reads the log again first.
+    /// Clears `log`'s unsure mark in the refs, once the key book let it go, with `unsure_rows`
+    /// held. One that fails to clear stays marked there, which fails closed: a restart reads
+    /// the log again first.
     fn clear_unsure(&self, log: Uuid) {
         if let Err(error) = self.refs.set_unsure(log, false) {
             tracing::warn!("an access log's unsure mark was not cleared: {error}");
@@ -2917,6 +2928,7 @@ impl<S: ObjectStore> Peer<S> {
         read: ServedRead,
         checked: be_block_keys::Checked,
     ) -> Result<(Vec<be_block_keys::Step>, be_block_keys::Checked), ClientError> {
+        self.keep_unkept(block);
         // A log short of what an earlier check kept is withheld: nothing acts on it, and what
         // waits on it (a seal to judge, an escrowed key to take) waits for a whole one.
         match self.keys.served(block, &checked) {
@@ -5199,25 +5211,28 @@ impl<S: ObjectStore> Peer<S> {
             marks: Vec::new(),
         };
         for record in ops.iter().flat_map(log_records) {
-            if let Some(mark) = self.keys.sending(record) {
-                marked.marks.push(mark);
-            }
-        }
-        for mark in &marked.marks {
+            let _rows = self.unsure_rows.lock().unwrap();
+            let Some(mark) = self.keys.sending(record) else {
+                continue;
+            };
+            marked.marks.push(mark);
             self.forget_log_reads(mark.log);
             self.refs.set_unsure(mark.log, true)?;
         }
         let written =
             be_block_protocol::write_all::<(), _>(&self.connection(), Some(self.organization), ops.clone())
                 .await;
-        let unkept = match &written {
-            Ok(Ok(())) => ops.iter().flat_map(|op| self.appended(op)).collect(),
-            _ => HashSet::new(),
-        };
+        if let Ok(Ok(())) = &written {
+            for op in &ops {
+                self.appended(op);
+            }
+        }
         let settled = matches!(written, Ok(_));
-        for mark in std::mem::take(&mut marked.marks) {
+        // Popped one at a time, so a panic leaves the rest for `Marked` to settle.
+        while let Some(mark) = marked.marks.pop() {
             // A lowering awaited only in memory is cleared from the refs by no mark: a restart
             // must still read its log first.
+            let unkept = self.unsure_rows.lock().unwrap();
             if self.keys.sent(mark, settled) && !unkept.contains(&mark.log) {
                 self.clear_unsure(mark.log);
             }
@@ -5238,26 +5253,41 @@ impl<S: ObjectStore> Peer<S> {
     /// (`KeyBook::appended`): one that lowered anyone has the epochs before it outdated here at
     /// once, and its log read again before each seal until it shows it (`read_logs`), rather
     /// than this device sealing on by the log it read before signing it.
-    /// Answers the logs whose awaited lowering could not be written to the refs.
-    fn appended(&self, op: &be_block_protocol::Op) -> Vec<Uuid> {
-        log_records(op)
+    fn appended(&self, op: &be_block_protocol::Op) {
+        for log in log_records(op)
             .into_iter()
             .filter_map(|record| self.keys.appended(record))
-            .filter(|log| !self.keep_awaited(*log))
-            .collect()
+        {
+            self.keep_awaited(log);
+        }
+    }
+
+    /// Writes again the lowering this device awaits on `log` when the refs did not take it
+    /// (`keep_awaited`), at each read of the log, withheld or not, so its unsure row can go.
+    pub(crate) fn keep_unkept(&self, log: Uuid) {
+        if self.unsure_rows.lock().unwrap().contains(&log) {
+            self.keep_awaited(log);
+        }
     }
 
     /// Writes the lowering this device awaits on `log` (`KeyBook::awaited`) to the refs, or
     /// clears it once a log checked here holds it, so a restart still withholds a log served
     /// short of it. A lost append (an honest server restored from a backup made before it)
-    /// leaves the log withheld here until it is appended again, which fails closed. Answers
-    /// whether the refs took it.
-    pub(crate) fn keep_awaited(&self, log: Uuid) -> bool {
+    /// leaves the log withheld here until it is appended again, which fails closed. One the
+    /// refs refuse is listed in `unsure_rows`, which keeps the log's unsure row until it is
+    /// written (tried again at each read of the log, `take_checked`); once it is, an unsure row
+    /// no mark in memory holds goes.
+    pub(crate) fn keep_awaited(&self, log: Uuid) {
+        let mut unkept = self.unsure_rows.lock().unwrap();
         match self.refs.set_awaited(log, self.keys.awaited(log)) {
-            Ok(()) => true,
+            Ok(()) => {
+                if unkept.remove(&log) && self.keys.is_unsure(log).is_none() {
+                    self.clear_unsure(log);
+                }
+            }
             Err(error) => {
                 tracing::warn!("an awaited access log entry was not kept: {error}");
-                false
+                unkept.insert(log);
             }
         }
     }

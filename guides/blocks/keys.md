@@ -616,9 +616,15 @@ names the organization's head in its signed record (`EscrowKey::head`).
   While a log is awaited or unsure, an edit sealed offline that the drain finds
   outdated is tried again at the next drain (`Peer::reseal`,
   `Drained::Failed`), up to `peer::WITHHELD_DRAINS` drains in a run, and then
-  set aside (`Aside::KeyOutdated`), never sent: a log whose read keeps failing
+  set aside (`Aside::Withheld`), never sent: a log whose read keeps failing
   for a reason other than the server being out of reach (a block deleted or no
   longer readable, a root this device cannot place) would hold it back for good.
+  Restored once the log is served, it is sealed again then.
+  A mark and its refs row change together under one lock (`Peer::unsure_rows`),
+  so a mark made while another clears never finds its row about to go. An
+  awaited lowering the refs refuse keeps the log's unsure row until it is
+  written, tried again at each read of the log (`Peer::keep_unkept`): a
+  restart with neither row would judge by a log served short of it.
   How far it checked each scope's
   log is kept with the refs (`refs::KeptLog`, `KeyBook::note_log`;
   `refresh_keys` reads each scope's log once as its keys arrive, and a block
