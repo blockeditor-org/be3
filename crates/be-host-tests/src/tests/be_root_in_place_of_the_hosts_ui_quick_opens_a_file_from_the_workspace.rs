@@ -72,5 +72,21 @@ fn be_root_in_place_of_the_hosts_ui_quick_opens_a_file_from_the_workspace() {
         2,
         "the text that was not open opens in a tab"
     );
+    // The command palette lists the host's own rows after every editor's: its theme, which the
+    // host switches.
+    host.click("#text.surface");
+    host.key("ctrl+shift+p");
+    host.wait("#root.palette.search");
+    host.type_text("theme");
+    host.run(&["settle"]);
+    let rows = listed(&mut host);
+    assert!(
+        rows.iter().any(|key| key == "host/host.theme"),
+        "the host's theme is listed: {rows:?}"
+    );
+    host.click(&format!("{ROW}host/host.theme"));
+    host.gone("#root.palette.search");
+    host.run(&["settle"]);
+    host.snapshot("be_root_the_theme_action_turns_the_host_light");
     host.close();
 }

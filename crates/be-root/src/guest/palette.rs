@@ -27,24 +27,28 @@ pub(super) fn palette_chord() -> KeyChord {
 }
 
 /// One row: what it shows, and what choosing it does.
+#[derive(Clone)]
 struct Row {
     item: PaletteItem,
     run: Run,
+    /// The block of the editor whose action it runs, which names it once the host does.
+    block: Option<[u8; 16]>,
 }
 
 /// What choosing a row does.
+#[derive(Clone)]
 enum Run {
     /// Runs the action `id` on the screen of the app `app` that described it.
     Action { app: u64, screen: ScreenId, id: String },
     /// Opens the block (quick open).
     Open(OpenableBlock),
+    /// Asks the host to do one of its own (`host.ask-core`), the command this makes.
+    Core(fn() -> CoreCommand),
 }
 
 /// Quick open while the palette shows it: what is typed, the rows it shows, the editor it was
 /// asked from, and the host's answers.
 struct Blocks {
-    /// The rows shown, the palette document's own, once it ran.
-    items: Rc<Cell<Option<Signal<Vec<PaletteItem>>>>>,
     /// What is typed, as it changed since the root last asked the host for it, which the
     /// palette document's search field sets.
     typed: Rc<RefCell<Option<String>>>,
@@ -85,6 +89,11 @@ impl Stop {
 pub(super) struct Palette {
     surface: BeuiSurface,
     rows: Rc<Vec<Row>>,
+    /// The rows shown, the palette document's own, once it ran.
+    items: Rc<Cell<Option<Signal<Vec<PaletteItem>>>>>,
+    /// The names of the blocks of the editors it lists, once the host named them
+    /// (`host.block-names`), until its rows are named after them.
+    names: Rc<RefCell<Option<Vec<([u8; 16], String)>>>>,
     /// Quick open, while it shows blocks.
     blocks: Option<Blocks>,
     /// The row picked, by its key, which its document sets.
@@ -141,7 +150,6 @@ impl Root {
             return;
         };
         let blocks = (mode == PaletteMode::Blocks).then(|| Blocks {
-            items: Rc::default(),
             // Every block, by name, for nothing typed yet.
             typed: Rc::new(RefCell::new(Some(String::new()))),
             from: from.as_ref().map(|(app, editor, _)| OpenedIn {
@@ -156,10 +164,33 @@ impl Root {
             PaletteMode::Blocks => Vec::new(),
         });
         let items: Vec<PaletteItem> = rows.iter().map(|row| row.item.clone()).collect();
-        let (typed_out, items_out) = match &blocks {
-            Some(blocks) => (Some(Rc::clone(&blocks.typed)), Some(Rc::clone(&blocks.items))),
-            None => (None, None),
-        };
+        let items_out: Rc<Cell<Option<Signal<Vec<PaletteItem>>>>> = Rc::default();
+        let shown_out = Rc::clone(&items_out);
+        let typed_out = blocks.as_ref().map(|blocks| Rc::clone(&blocks.typed));
+        // The rows are named after the blocks of the editors they run on once the host names
+        // them, as be-host's palette names them.
+        let names: Rc<RefCell<Option<Vec<([u8; 16], String)>>>> = Rc::default();
+        let mut named: Vec<[u8; 16]> = rows.iter().filter_map(|row| row.block).collect();
+        named.sort_unstable();
+        named.dedup();
+        if !named.is_empty() {
+            let asked = host::block_names(named.clone());
+            let names = Rc::clone(&names);
+            let waker = self.waker.clone();
+            be_wasm_ops::guest::spawn(async move {
+                // A host that stopped answering stops the root too.
+                if let Ok(answer) = asked.await {
+                    *names.borrow_mut() = Some(
+                        named
+                            .into_iter()
+                            .zip(answer)
+                            .filter_map(|(block, name)| Some((block, name?)))
+                            .collect(),
+                    );
+                    waker.wake();
+                }
+            });
+        }
         let (placeholder, label) = match mode {
             PaletteMode::Actions => ("Run a command", "Command palette"),
             PaletteMode::Blocks => ("Go to a file", "Quick open"),
@@ -179,8 +210,8 @@ impl Root {
                 let open = create_signal(true);
                 let query = create_signal(String::new());
                 let shown = create_signal(items.clone());
-                if let (Some(typed_out), Some(items_out)) = (typed_out.clone(), &items_out) {
-                    items_out.set(Some(shown));
+                shown_out.set(Some(shown));
+                if let Some(typed_out) = typed_out.clone() {
                     // Quick open asks the host again as what is typed changes.
                     let asks = wakes.clone();
                     create_effect_on(
@@ -226,6 +257,8 @@ impl Root {
         *self.palette.borrow_mut() = Some(Palette {
             surface,
             rows,
+            items: items_out,
+            names,
             blocks,
             chosen,
             closed,
@@ -241,6 +274,49 @@ impl Root {
         &self,
         from: Option<(Embedded, EditorInstanceId, Option<ScreenId>)>,
     ) -> Vec<Row> {
+        let mut rows = self.editor_rows(from);
+        rows.extend(self.host_rows());
+        rows
+    }
+
+    /// The host's own rows, after every editor's, as be-host's palette lists its own: switching
+    /// account while a session shows, and its theme.
+    fn host_rows(&self) -> Vec<Row> {
+        let shown = self.core.borrow().waits_for.is_none();
+        let row = |id: &str, title: &str, glyph, enabled: bool, command: fn() -> CoreCommand| Row {
+            item: PaletteItem {
+                key: format!("host/{id}"),
+                title: title.to_owned(),
+                detail: "be-host".to_owned(),
+                glyph: Some(glyph),
+                disabled: !enabled,
+                ..PaletteItem::default()
+            },
+            run: Run::Core(command),
+            block: None,
+        };
+        let mut rows = vec![
+            row(
+                "host.switch-account",
+                "Switch account",
+                beui::icons::ICON_USERS,
+                shown,
+                || CoreCommand::SwitchAccount,
+            ),
+            row(
+                "host.theme",
+                "Switch between system, light and dark theme",
+                beui::icons::ICON_SUN_MOON,
+                true,
+                || CoreCommand::CycleTheme,
+            ),
+        ];
+        rows.sort_by_key(|row| row.item.disabled);
+        rows
+    }
+
+    /// The rows of the editors outward from `from` (`palette_rows`).
+    fn editor_rows(&self, from: Option<(Embedded, EditorInstanceId, Option<ScreenId>)>) -> Vec<Row> {
         let Some((app, editor, screen)) = from else {
             return Vec::new();
         };
@@ -250,6 +326,7 @@ impl Root {
                 app: app.instance(),
                 editor,
                 name: String::new(),
+                block: None,
                 placing: None,
             }],
         };
@@ -259,6 +336,7 @@ impl Root {
             app: handle,
             editor: shown,
             name,
+            block,
             placing,
         } in around
         {
@@ -279,6 +357,7 @@ impl Root {
             actions.sort_by_key(|(_, action)| !action.enabled);
             for (screen, action) in actions {
                 rows.push(Row {
+                    block,
                     run: Run::Action {
                         app: handle,
                         screen,
@@ -308,6 +387,7 @@ impl Root {
     /// screen it runs on, as be-host focuses the chosen row's view, then runs it there.
     pub(super) fn settle_palette(&self) {
         self.find_blocks();
+        self.name_rows();
         let picked = {
             let palette = self.palette.borrow();
             let Some(palette) = palette.as_ref() else {
@@ -325,6 +405,7 @@ impl Root {
                             }
                         }
                         Run::Open(block) => Run::Open(block.clone()),
+                        Run::Core(command) => Run::Core(*command),
                     },
                 )),
                 (None, true) => Some(None),
@@ -356,6 +437,9 @@ impl Root {
         if let Some((app, screen, id)) = action {
             app.run_action(screen, id);
         }
+        if let Some(Run::Core(command)) = &run {
+            ask_core(command());
+        }
         // The block chosen opens as the editor that asked for quick open asked to.
         if let Some(Run::Open(block)) = run {
             let opened = host::open_block(from, block);
@@ -364,6 +448,37 @@ impl Root {
                 let _ = opened.await;
             });
         }
+    }
+
+    /// Names each editor's rows after its block, once the host named the blocks.
+    fn name_rows(&self) {
+        let mut palette = self.palette.borrow_mut();
+        let Some(palette) = palette.as_mut() else {
+            return;
+        };
+        let Some(names) = palette.names.borrow_mut().take() else {
+            return;
+        };
+        let Some(items) = palette.items.get() else {
+            return;
+        };
+        let rows: Vec<Row> = palette
+            .rows
+            .iter()
+            .cloned()
+            .map(|mut row| {
+                if let Some((_, name)) = row
+                    .block
+                    .and_then(|block| names.iter().find(|(named, _)| *named == block))
+                {
+                    row.item.detail = name.clone();
+                }
+                row
+            })
+            .collect();
+        let shown: Vec<PaletteItem> = rows.iter().map(|row| row.item.clone()).collect();
+        palette.rows = Rc::new(rows);
+        palette.surface.enter(|| items.set(shown));
     }
 
     /// Keeps quick open's rows to what the host finds for what is typed: asks it again as that
@@ -377,7 +492,7 @@ impl Root {
         let Some(blocks) = palette.blocks.as_mut() else {
             return;
         };
-        let Some(items) = blocks.items.get() else {
+        let Some(items) = palette.items.get() else {
             return;
         };
         let typed = blocks.typed.borrow_mut().take();
@@ -428,6 +543,7 @@ impl Root {
                     ..PaletteItem::default()
                 },
                 run: Run::Open(block),
+                block: None,
             })
             .collect();
         let shown: Vec<PaletteItem> = rows.iter().map(|row| row.item.clone()).collect();

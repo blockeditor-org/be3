@@ -238,6 +238,7 @@ fn commands(command: CoreCommand) -> Vec<ui::UiCommand> {
         CoreCommand::CheckSignIn => vec![Ui::CheckLoginNow],
         CoreCommand::CancelSignIn => vec![Ui::CloseAddAccount],
         CoreCommand::SwitchAccount => vec![Ui::SwitchAccount],
+        CoreCommand::CycleTheme => vec![Ui::CycleTheme],
         CoreCommand::ReloadOrganizations => vec![Ui::ReloadOrganizations],
         CoreCommand::OpenOrganization(organization) => vec![Ui::OpenOrganization(id(organization))],
         CoreCommand::ChooseSessionIn(organization) => vec![Ui::ChooseSession(id(organization))],

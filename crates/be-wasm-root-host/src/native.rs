@@ -266,6 +266,19 @@ impl Root {
         }
     }
 
+    /// The blocks the root asked the names of since the last call (`host.block-names`), each
+    /// by the id `answer_names` answers it by.
+    pub fn take_name_asks(&mut self) -> Vec<(u64, Vec<[u8; 16]>)> {
+        self.core.take_name_asks()
+    }
+
+    /// Answers the root's `host.block-names` of `id`.
+    pub fn answer_names(&mut self, id: u64, names: Vec<Option<String>>) {
+        if self.core.answer_names(id, names) {
+            self.bell.ring();
+        }
+    }
+
     /// The finds taken that the root cancelled since the last call, which need no answer.
     pub fn take_cancelled_finds(&mut self) -> Vec<u64> {
         self.core.take_cancelled_finds()

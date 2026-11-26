@@ -916,6 +916,9 @@ interface host {
         cancel-sign-in,
         /// Leave the account open for the accounts, keeping it on this device.
         switch-account,
+        /// Switch the host's theme to the next of following the system's, light and
+        /// dark, on this device.
+        cycle-theme,
         /// List the account's organizations again.
         reload-organizations,
         /// Open the organization, in the session the person used last.
@@ -1137,6 +1140,11 @@ interface host {
     /// an editor first, then the search index's hits in content, once the
     /// index answered; every block it holds, by name, for no text.
     find-blocks: async func(text: string) -> list<openable-block>;
+
+    /// The names of `blocks`, in order, as the host holds them: none for one
+    /// it holds no name of. The root names an editor's rows in its palette
+    /// after its block, as be-host's own palette does.
+    block-names: async func(blocks: list<block-id>) -> list<option<string>>;
 
     /// Opens `block` as the editor `opener` names asked to (its `open-block`
     /// action), or as the session's editor would for none: the host has the

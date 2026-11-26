@@ -187,6 +187,10 @@ struct Core<G> {
     /// answered by, until the host takes them, and the replies waiting on each.
     block_finds: Vec<(u64, String)>,
     block_found: Vec<(u64, Reply<Vec<be_wasm_root_api::OpenableBlock>>)>,
+    /// The blocks the root asked the names of (`host.block-names`), each by the id it is
+    /// answered by, until the host takes them, and the replies waiting on each.
+    name_asks: Vec<(u64, Vec<[u8; 16]>)>,
+    name_replies: Vec<(u64, Reply<Vec<Option<String>>>)>,
     /// The finds the root cancelled that the host took already, until it takes them too.
     block_finds_cancelled: Vec<u64>,
     /// The blocks the root asked to open (`host.open-block`), until the host takes them.
@@ -368,6 +372,8 @@ impl<G: Inline> Core<G> {
             block_finds: Vec::new(),
             block_found: Vec::new(),
             block_finds_cancelled: Vec::new(),
+            name_asks: Vec::new(),
+            name_replies: Vec::new(),
             block_opens: Vec::new(),
             next_editor: 1,
             forwarded: Vec::new(),
@@ -707,6 +713,22 @@ impl<G: Inline> Core<G> {
     /// `answer_block_find` answers it by.
     fn take_block_finds(&mut self) -> Vec<(u64, String)> {
         std::mem::take(&mut self.block_finds)
+    }
+
+    /// The blocks the root asked the names of since the last call, each by the id `answer_names`
+    /// answers it by.
+    fn take_name_asks(&mut self) -> Vec<(u64, Vec<[u8; 16]>)> {
+        std::mem::take(&mut self.name_asks)
+    }
+
+    /// Answers the root's `host.block-names` of `id`. Answers whether the root waited for it.
+    fn answer_names(&mut self, id: u64, names: Vec<Option<String>>) -> bool {
+        let Some(at) = self.name_replies.iter().position(|(asked, _)| *asked == id) else {
+            return false;
+        };
+        let (_, reply) = self.name_replies.remove(at);
+        reply.send(&mut self.connection, &names);
+        true
     }
 
     /// The finds the host took that the root cancelled since the last call (it stopped waiting
@@ -1273,6 +1295,12 @@ impl<G: Inline> Core<G> {
             embed::Call::Host(embed::host::Call::LockPower { action, reply }) => {
                 self.lock_powers.push(action);
                 reply.send(&mut self.connection, &());
+            }
+            embed::Call::Host(embed::host::Call::BlockNames { blocks, reply }) => {
+                let id = self.next_editor;
+                self.next_editor += 1;
+                self.name_asks.push((id, blocks));
+                self.name_replies.push((id, reply));
             }
             embed::Call::Host(embed::host::Call::FindBlocks { text, reply }) => {
                 let id = self.next_editor;
