@@ -272,16 +272,19 @@ impl Gpu {
         if self.looking.is_empty() {
             return;
         }
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("canvas looks"),
-        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("canvas looks"),
+            });
         for surface in std::mem::take(&mut self.looking) {
             let Some(target) = self.surfaces.get(&surface) else {
                 continue;
             };
             let last = (target.drawn + 1) % target.textures.len();
             if let Some(shown) = target.shown.get(last) {
-                self.looks.show(&self.device, &mut encoder, target.look, shown);
+                self.looks
+                    .show(&self.device, &mut encoder, target.look, shown);
             }
         }
         self.queue.submit([encoder.finish()]);

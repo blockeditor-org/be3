@@ -79,9 +79,6 @@ impl Caller for Guest {
 
 mod a_buffer_range_past_the_end_of_its_buffer_is_reported;
 mod a_canvas_answers_its_configuration_with_the_defaults_filled_in;
-mod a_draw_after_its_device_is_destroyed_raises_nothing;
-mod a_draw_on_an_ended_render_pass_is_raised_in_its_scope;
-mod a_pass_that_cannot_begin_raises_once_at_its_encoders_finish;
 mod a_canvas_configured_or_resized_again_is_shown_as_it_is_now;
 mod a_canvas_is_shown_as_its_configuration_asks;
 mod a_compute_pass_is_recorded_on_its_encoder;
@@ -89,11 +86,14 @@ mod a_configured_surface_alternates_between_two_textures;
 mod a_configured_surface_keeps_its_texture_until_its_size_changes;
 mod a_device_offers_only_the_features_browser_webgpu_has;
 mod a_device_the_gpu_owns_tells_the_app_when_it_is_lost;
+mod a_draw_after_its_device_is_destroyed_raises_nothing;
+mod a_draw_on_an_ended_render_pass_is_raised_in_its_scope;
 mod a_dropped_handle_is_reported_not_reused;
 mod a_malformed_descriptor_is_refused;
 mod a_map_cut_short_settles_failed_once_and_never_settles_a_later_one;
 mod a_mapped_range_is_read_raw_and_only_while_mapped;
 mod a_new_instances_surfaces_never_share_a_generation_with_an_old_ones;
+mod a_pass_that_cannot_begin_raises_once_at_its_encoders_finish;
 mod a_rejected_shader_module_is_kept_and_says_why;
 mod a_render_bundle_that_fails_validation_is_reported_not_panicked;
 mod a_result_longer_than_its_room_waits_to_be_taken;
@@ -341,10 +341,12 @@ mod looking {
     /// A gpu on a real device, which draws what the host shows.
     pub(super) fn drawing() -> Gpu {
         let instance = wgpu::Instance::default();
-        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
-            .expect("the test has lavapipe");
-        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
-            .expect("lavapipe gives a device");
+        let adapter =
+            pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
+                .expect("the test has lavapipe");
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
+                .expect("lavapipe gives a device");
         Gpu::new(device, queue)
     }
 
@@ -384,7 +386,11 @@ mod looking {
 
     /// What surface 0 shows once its canvas is cleared to `clear` and presented and the host took
     /// what was presented: its first pixel, and whether it is the canvas's own texture.
-    pub(super) fn shown(gpu: &mut Gpu, context: GpuCanvasContext, clear: wgpu::Color) -> ([u8; 4], bool) {
+    pub(super) fn shown(
+        gpu: &mut Gpu,
+        context: GpuCanvasContext,
+        clear: wgpu::Color,
+    ) -> ([u8; 4], bool) {
         let canvas = current(gpu, context);
         let mut encoder = gpu.device().create_command_encoder(&Default::default());
         encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -425,7 +431,9 @@ mod looking {
         );
         gpu.queue().submit([encoder.finish()]);
         readable.slice(..).map_async(wgpu::MapMode::Read, |_| {});
-        gpu.device().poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        gpu.device()
+            .poll(wgpu::PollType::wait_indefinitely())
+            .unwrap();
         let pixel: [u8; 4] = readable.slice(..4).get_mapped_range().unwrap()[..4]
             .try_into()
             .unwrap();
@@ -435,12 +443,20 @@ mod looking {
     }
 
     pub(super) fn near(shown: [u8; 4], wanted: [u8; 4]) -> bool {
-        shown.iter().zip(wanted).all(|(shown, wanted)| shown.abs_diff(wanted) <= 2)
+        shown
+            .iter()
+            .zip(wanted)
+            .all(|(shown, wanted)| shown.abs_diff(wanted) <= 2)
     }
 
     pub(super) fn premultiplied(configuration: &mut GpuCanvasConfiguration) {
         configuration.alpha_mode = Some(GpuCanvasAlphaMode::Premultiplied);
     }
 
-    pub(super) const GRAY: wgpu::Color = wgpu::Color { r: 0.2, g: 0.2, b: 0.2, a: 0.5 };
+    pub(super) const GRAY: wgpu::Color = wgpu::Color {
+        r: 0.2,
+        g: 0.2,
+        b: 0.2,
+        a: 0.5,
+    };
 }

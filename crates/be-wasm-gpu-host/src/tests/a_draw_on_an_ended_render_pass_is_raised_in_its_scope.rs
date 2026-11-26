@@ -12,5 +12,8 @@ fn a_draw_on_an_ended_render_pass_is_raised_in_its_scope() {
     })
     .expect("a draw on an ended pass is refused");
     assert!(refused.contains("render pass"), "{refused}");
-    assert!(gpu.take_logged().is_empty(), "the scope heard it, not the log");
+    assert!(
+        gpu.take_logged().is_empty(),
+        "the scope heard it, not the log"
+    );
 }

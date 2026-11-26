@@ -86,12 +86,23 @@ pub(crate) struct Shown {
 /// The pass that shows canvases: its layout, made when first needed, and a pipeline per look.
 #[derive(Default)]
 pub(crate) struct Looks {
-    made: Option<(wgpu::ShaderModule, wgpu::BindGroupLayout, wgpu::PipelineLayout)>,
+    made: Option<(
+        wgpu::ShaderModule,
+        wgpu::BindGroupLayout,
+        wgpu::PipelineLayout,
+    )>,
     pipelines: HashMap<Look, wgpu::RenderPipeline>,
 }
 
 impl Looks {
-    fn made(&mut self, device: &wgpu::Device) -> &(wgpu::ShaderModule, wgpu::BindGroupLayout, wgpu::PipelineLayout) {
+    fn made(
+        &mut self,
+        device: &wgpu::Device,
+    ) -> &(
+        wgpu::ShaderModule,
+        wgpu::BindGroupLayout,
+        wgpu::PipelineLayout,
+    ) {
         self.made.get_or_insert_with(|| {
             let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("canvas look"),
@@ -120,7 +131,12 @@ impl Looks {
     }
 
     /// The texture `canvas` is shown as.
-    pub(crate) fn shown(&mut self, device: &wgpu::Device, canvas: &wgpu::Texture, generation: u64) -> Shown {
+    pub(crate) fn shown(
+        &mut self,
+        device: &wgpu::Device,
+        canvas: &wgpu::Texture,
+        generation: u64,
+    ) -> Shown {
         let (_, layout, _) = self.made(device);
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("app canvas, shown"),
@@ -149,7 +165,13 @@ impl Looks {
     }
 
     /// Records drawing a canvas into what shows it, as `look` asks.
-    pub(crate) fn show(&mut self, device: &wgpu::Device, encoder: &mut wgpu::CommandEncoder, look: Look, shown: &Shown) {
+    pub(crate) fn show(
+        &mut self,
+        device: &wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
+        look: Look,
+        shown: &Shown,
+    ) {
         if !self.pipelines.contains_key(&look) {
             let (module, _, layout) = self.made(device);
             let flag = |on: bool| f64::from(u8::from(on));
