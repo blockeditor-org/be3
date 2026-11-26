@@ -197,6 +197,20 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
         self.replicas.session(self.block).map(|(client, _)| client)
     }
 
+    /// The clients in the block's session, this one's among them.
+    pub fn members(&self) -> Vec<ClientId> {
+        self.replicas
+            .session(self.block)
+            .map(|(_, state)| {
+                state
+                    .participants
+                    .iter()
+                    .map(|participant| participant.client)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     /// Who holds the lease of the block's session, by its membership.
     pub fn holder(&self) -> Option<ClientId> {
         self.replicas.holder(self.block)
@@ -259,7 +273,9 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
         self.mirror.presence()
     }
 
-    /// Whether `client`'s presence has arrived in full, whatever it shows.
+    /// Whether `client`'s presence has arrived in full, whatever it shows: everything it
+    /// showed as of when it saw this session's replica, or this one saw it
+    /// (`EditorMirror::heard`).
     pub fn heard(&self, client: ClientId) -> bool {
         self.mirror.heard(client)
     }
@@ -286,7 +302,8 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
         frames
     }
 
-    /// Wakes once a test lets go of what `withhold` set aside.
+    /// Wakes once a test lets go of what `withhold` set aside. Each `next` while frames are
+    /// set aside comes to `point` again, so a test's `reached` counts those waits.
     fn released(&self) -> impl Future<Output = ()> + use<S, C> {
         #[cfg(test)]
         let waiting = (!self.withheld.is_empty()).then(|| self.peer.account().as_u128());

@@ -9,7 +9,12 @@ fn an_editor_joins_with_a_snapshot_and_follows_operations() {
     sim.operate(1, 1, add("first"));
     sim.settle();
     sim.attach(1, 2, true);
-    let received = sim.take_received(1, 2);
+    // What it hears of the peers (`ToEditor::Presence`) comes beside the snapshot.
+    let received: Vec<ToEditor> = sim
+        .take_received(1, 2)
+        .into_iter()
+        .filter(|message| !matches!(message, ToEditor::Presence { .. }))
+        .collect();
     let [ToEditor::Snapshot(snapshot)] = received.as_slice() else {
         panic!("a joining editor is sent a snapshot first");
     };

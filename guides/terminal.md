@@ -38,7 +38,12 @@ lease, stands by while another `TerminalHost` holds it, and otherwise claims eve
 (`CLAIM_INTERVAL`). A claim takes the lease at once, so a host first waits on a new holder's
 presence, which says whether it is another host: it decides once the replica says that
 holder's presence has arrived (`Session::heard`), and claims anyway only after
-`UNHEARD_HOLDER` for a holder never heard from. A host that becomes the writer and finds a shell in the document that isn't
+`UNHEARD_HOLDER` for a holder never heard from. Hosts that all hear a holder that is none of
+them would claim together and take the lease from each other, so one claims at once only
+once it has heard every member of the session (`Session::members`) and no other host comes
+before it by client; the others wait `CLAIM_INTERVAL`. Claims are timed on `Host::on_clock`
+(the system's by default, a manual one in tests), and `Host::standing` says where a host
+stands. A host that becomes the writer and finds a shell in the document that isn't
 its own restores: the old screen goes into history behind a faint `Restored session: <date>`
 line and a new shell starts. After the shell exits, the next key starts another.
 

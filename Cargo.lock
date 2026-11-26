@@ -1548,7 +1548,6 @@ dependencies = [
  "be-block-store",
  "be-lib-build-id",
  "be-lib-failure-budget",
- "be-lib-test-pause",
  "be-sdk-type-api",
  "be-sdk-type-guest",
  "be-sdk-type-testing",

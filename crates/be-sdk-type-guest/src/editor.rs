@@ -178,9 +178,11 @@ pub struct PeerMessage {
 pub enum ToEditor {
     Snapshot(Snapshot),
     Operations(Vec<EditorOperation>),
-    /// What each peer shows, and the peers whose presence has arrived in full, whatever it
-    /// holds: one listed in `heard` with nothing in `peers` shows nothing, and one in neither
-    /// may not have been heard from yet.
+    /// What each peer shows, and the peers whose presence has arrived in full (their
+    /// `SessionMessage::Shown`): everything a peer in `heard` showed as of when it saw this
+    /// replica join, or opened beside it, has arrived, and what it shows since comes as it
+    /// changes. One in `heard` with nothing in `peers` shows nothing; one not in `heard` may
+    /// not have been heard from yet.
     Presence {
         peers: Vec<PeerPresence>,
         heard: Vec<ClientId>,
@@ -782,7 +784,8 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         &self.presence
     }
 
-    /// Whether `client`'s presence has arrived in full (`ToEditor::Presence::heard`).
+    /// Whether `client`'s presence has arrived in full (`ToEditor::Presence::heard`): all it
+    /// showed as of when it saw this replica, with what it changed since as it came.
     pub fn heard(&self, client: ClientId) -> bool {
         self.heard.contains(&client)
     }

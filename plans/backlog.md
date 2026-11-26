@@ -28,8 +28,8 @@ Fixed items are removed as they land.
   `sealed_joining`. It is expected to resolve once the drain sends the commit
   and the replica merges it, with the sealed edits given up and not given again.
   Done: a be-host-stack test that reopens a block after a crash, has its
-  made-up session seal while the join is held (`be_block_type_host::JOIN_PAUSE`
-  holds it once the server answered), and counts exactly what was made. Found
+  made-up session seal while the join is held (a pause point in be-block-type-host's
+  `rejoin` after the server answered held it), and counts exactly what was made. Found
   so far: reopened offline after a crash with kept edits, then held there, the
   made-up session seals neither on `QUIET_INTERVAL` (manual clock) nor on
   `close`: `Peer::local_head` does not move and nothing waits in the outbox, so
