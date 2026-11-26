@@ -48,7 +48,10 @@ fn a_read_sent_before_a_newer_lowering_leaves_its_log_unsure() {
     let first = book.is_unsure(block).unwrap();
     book.set_unsure([block]);
     assert!(!book.answered(block, first));
-    assert!(book.awaiting(block), "a read from before the newer mark let the log go");
+    assert!(
+        book.awaiting(block),
+        "a read from before the newer mark let the log go"
+    );
     assert!(book.answered(block, book.is_unsure(block).unwrap()));
     assert!(!book.awaiting(block));
 
@@ -56,9 +59,15 @@ fn a_read_sent_before_a_newer_lowering_leaves_its_log_unsure() {
     // unanswered leaves it for a read.
     let sending = book.sending(&revoked).unwrap();
     let captured = book.is_unsure(block).unwrap();
-    assert!(!book.answered(block, captured), "a read let go a log with a lowering in flight");
+    assert!(
+        !book.answered(block, captured),
+        "a read let go a log with a lowering in flight"
+    );
     let again = book.sending(&revoked).unwrap();
-    assert!(!book.sent(sending, true), "an older write let go a newer mark");
+    assert!(
+        !book.sent(sending, true),
+        "an older write let go a newer mark"
+    );
     assert!(!book.sent(again, false));
     assert!(book.awaiting(block));
     assert!(!book.answered(block, captured));

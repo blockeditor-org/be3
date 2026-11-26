@@ -76,7 +76,12 @@ async fn an_owner_restarted_after_it_revokes_a_member_is_withheld_a_log_without_
         epochs + 1,
         "the save once the revocation is served gives the scope a new epoch"
     );
-    let written = restarted.keys().keys_of(note, KeyKind::Data).last().unwrap().id;
+    let written = restarted
+        .keys()
+        .keys_of(note, KeyKind::Data)
+        .last()
+        .unwrap()
+        .id;
     bob.refresh_keys(None).await.unwrap();
     assert!(!bob.keys().has(written));
     assert_eq!(text(&harness.second(&admin).await, note).await, "after");

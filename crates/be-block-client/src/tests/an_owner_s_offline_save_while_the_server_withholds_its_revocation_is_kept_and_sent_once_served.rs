@@ -75,11 +75,7 @@ async fn an_owner_s_offline_save_while_the_server_withholds_its_revocation_is_ke
         epochs + 1
     );
     let head = offline.local_head(note).unwrap();
-    let key = offline
-        .commits()
-        .vault()
-        .sealed_under(head.hash())
-        .unwrap();
+    let key = offline.commits().vault().sealed_under(head.hash()).unwrap();
     bob.refresh_keys(None).await.unwrap();
     assert!(!bob.keys().has(key));
     assert_eq!(text(&harness.second(&admin).await, note).await, "after");

@@ -49,10 +49,26 @@ async fn a_block_agent_hears_only_of_its_own_blocks_keys() {
         }
     };
     for (keys, told, place) in [
-        (seal(outside.scope, b"outside"), false, "sealed to it outside its block"),
-        (opened(&outside, b"outside"), false, "wrapped under a scope outside its block"),
-        (opened(&own, b"inside"), true, "wrapped under its block's scope"),
-        (seal(own.scope, b"inside"), true, "sealed to it in its block"),
+        (
+            seal(outside.scope, b"outside"),
+            false,
+            "sealed to it outside its block",
+        ),
+        (
+            opened(&outside, b"outside"),
+            false,
+            "wrapped under a scope outside its block",
+        ),
+        (
+            opened(&own, b"inside"),
+            true,
+            "wrapped under its block's scope",
+        ),
+        (
+            seal(own.scope, b"inside"),
+            true,
+            "sealed to it in its block",
+        ),
     ] {
         let put = owner
             .call(|peer| {

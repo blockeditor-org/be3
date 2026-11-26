@@ -1917,7 +1917,11 @@ impl Refs {
     /// `set_awaited` kept them (`KeyBook::appended`).
     pub fn awaited(&self) -> Vec<(Uuid, [u8; 32])> {
         let state = self.state.lock().unwrap();
-        state.awaited.iter().map(|(log, entry)| (*log, *entry)).collect()
+        state
+            .awaited
+            .iter()
+            .map(|(log, entry)| (*log, *entry))
+            .collect()
     }
 
     /// Keeps `awaited` as the lowering this device appended to `log` that no log it checked

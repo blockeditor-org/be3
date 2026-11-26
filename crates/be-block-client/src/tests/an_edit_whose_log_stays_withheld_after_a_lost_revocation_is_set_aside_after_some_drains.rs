@@ -5,8 +5,7 @@ use super::*;
 /// `WITHHELD_DRAINS`, and then sets it aside for the person, still never sent under the epoch
 /// the reader holds, rather than holding it back for good.
 #[tokio::test]
-async fn an_edit_whose_log_stays_withheld_after_a_lost_revocation_is_set_aside_after_some_drains()
- {
+async fn an_edit_whose_log_stays_withheld_after_a_lost_revocation_is_set_aside_after_some_drains() {
     let lost = LostRevocation::start().await;
     assert!(matches!(
         lost.tablet

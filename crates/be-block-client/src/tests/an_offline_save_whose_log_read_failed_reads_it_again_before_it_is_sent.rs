@@ -56,12 +56,11 @@ async fn an_offline_save_whose_log_read_failed_reads_it_again_before_it_is_sent(
         epochs + 1
     );
     let head = offline.local_head(note).unwrap();
-    let key = offline
-        .commits()
-        .vault()
-        .sealed_under(head.hash())
-        .unwrap();
+    let key = offline.commits().vault().sealed_under(head.hash()).unwrap();
     bob.refresh_keys(None).await.unwrap();
-    assert!(!bob.keys().has(key), "the edit was sent under a key the revoked reader holds");
+    assert!(
+        !bob.keys().has(key),
+        "the edit was sent under a key the revoked reader holds"
+    );
     harness.stop().await;
 }

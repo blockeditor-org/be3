@@ -196,9 +196,10 @@ impl Roots {
     /// (`unsure`).
     fn behind(&self, log: Uuid) -> bool {
         self.unsure.contains_key(&log)
-            || self.awaited.get(&log).is_some_and(|awaited| {
-                !self.logs.get(&log).is_some_and(|log| log.holds(awaited))
-            })
+            || self
+                .awaited
+                .get(&log)
+                .is_some_and(|awaited| !self.logs.get(&log).is_some_and(|log| log.holds(awaited)))
     }
 
     /// `key`, a key of `block`'s scope, and every key it was opened through, each with the
@@ -1720,7 +1721,11 @@ impl KeyBook {
         }
         let log = Uuid::from_bytes(entry.log);
         let mut roots = self.roots.lock().unwrap();
-        if !roots.logs.get(&log).is_some_and(|held| held.holds(&entry.hash())) {
+        if !roots
+            .logs
+            .get(&log)
+            .is_some_and(|held| held.holds(&entry.hash()))
+        {
             roots.awaited.insert(log, entry.hash());
         }
         Some(log)

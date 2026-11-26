@@ -5207,9 +5207,12 @@ impl<S: ObjectStore> Peer<S> {
             self.forget_log_reads(mark.log);
             self.refs.set_unsure(mark.log, true)?;
         }
-        let written =
-            be_block_protocol::write_all::<(), _>(&self.connection(), Some(self.organization), ops.clone())
-                .await;
+        let written = be_block_protocol::write_all::<(), _>(
+            &self.connection(),
+            Some(self.organization),
+            ops.clone(),
+        )
+        .await;
         let unkept = match &written {
             Ok(Ok(())) => ops.iter().flat_map(|op| self.appended(op)).collect(),
             _ => HashSet::new(),

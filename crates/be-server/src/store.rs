@@ -2132,7 +2132,9 @@ pub(crate) fn bound_block(
     account: Uuid,
 ) -> Result<Option<Uuid>, ServerError> {
     let bound: Option<String> = connection
-        .prepare_cached("SELECT bound_to FROM agents WHERE account_id = ?1 AND bound_to IS NOT NULL")?
+        .prepare_cached(
+            "SELECT bound_to FROM agents WHERE account_id = ?1 AND bound_to IS NOT NULL",
+        )?
         .query_row([account.to_string()], |row| row.get(0))
         .optional()?;
     bound.as_deref().map(parse_uuid).transpose()
