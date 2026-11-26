@@ -11,9 +11,10 @@ be_wasm_ops_bindgen::generate!({
         "be3:ui/types@0.1.0": ::be_lib_ui_types::types,
         "be3:preferences/types@0.1.0": ::be_lib_ui_preferences::types,
         "be3:keys/types@0.1.0": ::be_lib_ui_keys::types,
-        "be3:gpu/device@0.1.0": ::be_wasm_gpu_abi::device,
+        "wasi:webgpu/webgpu@0.3.0-rc.2": ::be_wasm_gpu_abi::webgpu::webgpu,
+        "be3:gpu/host@0.1.0": ::be_wasm_gpu_abi::host,
     },
-    local: ["be3:gpu/device@0.1.0"],
+    local: ["wasi:webgpu/webgpu@0.3.0-rc.2", "be3:gpu/host@0.1.0"],
     with: {
         "uuid": [u8; 16],
         "hash": [u8; 32],

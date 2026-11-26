@@ -1,9 +1,7 @@
 use std::ops::Range;
 
-use be_wasm_gpu_abi::device as abi;
-use be_wasm_gpu_convert::Convert;
 
-use crate::{Outcome, convert, slice, vertex_slice};
+use crate::{Outcome, slice, vertex_slice};
 
 const MAX_COLOR_ATTACHMENTS: usize = 8;
 
@@ -33,25 +31,6 @@ pub(crate) enum Command {
 }
 
 impl BundleEncoder {
-    pub(crate) fn new(descriptor: abi::RenderBundleEncoderDescriptor) -> Outcome<Self> {
-        Self::with(
-            descriptor.label,
-            descriptor
-                .color_formats
-                .iter()
-                .map(|format| format.map(Convert::<wgpu::TextureFormat>::convert))
-                .collect(),
-            descriptor
-                .depth_stencil
-                .map(|state| wgpu::RenderBundleDepthStencil {
-                    format: Convert::<wgpu::TextureFormat>::convert(state.format),
-                    depth_read_only: state.depth_read_only,
-                    stencil_read_only: state.stencil_read_only,
-                }),
-            descriptor.sample_count,
-        )
-    }
-
     pub(crate) fn with(
         label: Option<String>,
         color_formats: Vec<Option<wgpu::TextureFormat>>,
@@ -115,7 +94,7 @@ impl BundleEncoder {
         }
         let mut encoder =
             device.create_render_bundle_encoder(&wgpu::RenderBundleEncoderDescriptor {
-                label: convert::label(&self.label),
+                label: self.label.as_deref(),
                 color_formats: &self.color_formats,
                 depth_stencil: self.depth_stencil,
                 sample_count: self.sample_count,
@@ -149,20 +128,5 @@ impl BundleEncoder {
             }
         }
         Ok(encoder.finish(&wgpu::RenderBundleDescriptor { label }))
-    }
-}
-
-impl crate::Gpu {
-    pub(crate) fn bundle(
-        &mut self,
-        this: abi::RenderBundleEncoder,
-        command: impl FnOnce(&Self) -> Outcome<Command>,
-    ) {
-        let result = command(self).and_then(|command| {
-            self.bundle_encoders
-                .get_mut(this.0, "render bundle encoder")?
-                .push(command)
-        });
-        self.fail(result, ());
     }
 }

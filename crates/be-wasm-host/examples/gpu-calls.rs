@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use be_wasm_gpu_abi::device as abi;
+use be_wasm_gpu_abi::webgpu::webgpu as web;
 use be_wasm_host::Host;
 
 const DRAWS: u32 = 100_000;
@@ -36,123 +36,113 @@ fn escaped(bytes: &[u8]) -> String {
 
 /// The guest, importing its memory, unshared as every guest's is
 /// (decisions/guests_are_single_threaded.md). Its gpu imports are fast-API calls where the host's
-/// memories stay put (V8's trap handler is on), and ordinary V8 calls where they may not.
+/// memories stay put (V8's trap handler is on), and ordinary V8 calls where they may not. It asks
+/// for its adapter and device through `[poll]`, and each handle it is given is the first of its
+/// kind, 1, which the descriptors name.
 fn guest() -> String {
     let mut data = Data { bytes: Vec::new() };
-    let texture = data.put(be_wasm_ops::encode(&abi::TextureDescriptor {
-        label: None,
-        size: abi::Extent3d {
+    let none = data.put(vec![0]);
+    let texture = data.put(be_wasm_ops::encode(&web::GpuTextureDescriptor {
+        size: web::GpuExtent3D {
             width: 64,
-            height: 64,
-            depth_or_array_layers: 1,
+            height: Some(64),
+            depth_or_array_layers: None,
         },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: abi::TextureDimension::D2,
-        format: abi::TextureFormat::Rgba8Unorm,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT.bits(),
-        view_formats: Vec::new(),
-    }));
-    let view = data.put(be_wasm_ops::encode(&abi::TextureViewDescriptor {
-        label: None,
-        format: None,
-        dimension: None,
-        usage: None,
-        aspect: abi::TextureAspect::All,
-        base_mip_level: 0,
         mip_level_count: None,
-        base_array_layer: 0,
-        array_layer_count: None,
-    }));
-    let module = data.put(be_wasm_ops::encode(&abi::ShaderModuleDescriptor {
+        sample_count: None,
+        dimension: None,
+        format: web::GpuTextureFormat::Rgba8unorm,
+        usage: web::GpuTextureUsage::RENDER_ATTACHMENT,
+        view_formats: None,
+        texture_binding_view_dimension: None,
         label: None,
-        wgsl: SHADER.into(),
     }));
-    let layout = data.put(be_wasm_ops::encode(&abi::PipelineLayoutDescriptor {
+    let module = data.put(be_wasm_ops::encode(&web::GpuShaderModuleDescriptor {
+        code: SHADER.to_owned(),
+        compilation_hints: None,
         label: None,
+    }));
+    let layout = data.put(be_wasm_ops::encode(&web::GpuPipelineLayoutDescriptor {
         bind_group_layouts: Vec::new(),
-    }));
-    let pipeline = data.put(be_wasm_ops::encode(&abi::RenderPipelineDescriptor {
+        immediate_size: None,
         label: None,
-        layout: Some(abi::PipelineLayout(1)),
-        vertex: abi::VertexState {
-            module: abi::ShaderModule(1),
-            entry_point: Some("vs_main".into()),
-            constants: Vec::new(),
-            buffers: Vec::new(),
+    }));
+    let stage = |entry_point: &str| (web::GpuShaderModule(1), Some(entry_point.to_owned()));
+    let pipeline = data.put(be_wasm_ops::encode(&web::GpuRenderPipelineDescriptor {
+        vertex: web::GpuVertexState {
+            buffers: None,
+            module: stage("vs_main").0,
+            entry_point: stage("vs_main").1,
+            constants: None,
         },
-        primitive: abi::PrimitiveState {
-            topology: abi::PrimitiveTopology::TriangleList,
-            strip_index_format: None,
-            front_face: abi::FrontFace::Ccw,
-            cull_mode: None,
-            unclipped_depth: false,
-            polygon_mode: abi::PolygonMode::Fill,
-            conservative: false,
-        },
+        primitive: None,
         depth_stencil: None,
-        multisample: abi::MultisampleState {
-            count: 1,
-            mask: !0,
-            alpha_to_coverage_enabled: false,
-        },
-        fragment: Some(abi::FragmentState {
-            module: abi::ShaderModule(1),
-            entry_point: Some("fs_main".into()),
-            constants: Vec::new(),
-            targets: vec![Some(abi::ColorTargetState {
-                format: abi::TextureFormat::Rgba8Unorm,
+        multisample: None,
+        fragment: Some(web::GpuFragmentState {
+            targets: vec![Some(web::GpuColorTargetState {
+                format: web::GpuTextureFormat::Rgba8unorm,
                 blend: None,
-                write_mask: 0xf,
+                write_mask: None,
             })],
+            module: stage("fs_main").0,
+            entry_point: stage("fs_main").1,
+            constants: None,
         }),
-    }));
-    let encoder = data.put(be_wasm_ops::encode(&abi::CommandEncoderDescriptor {
+        layout: web::GpuLayoutMode::Specific(web::GpuPipelineLayout(1)),
         label: None,
     }));
-    let pass = data.put(be_wasm_ops::encode(&abi::RenderPassDescriptor {
-        label: None,
-        color_attachments: vec![Some(abi::ColorAttachment {
-            view: abi::TextureView(1),
-            resolve_target: None,
-            load: abi::ColorLoadOp::Load,
-            store: abi::StoreOp::Store,
+    let pass = data.put(be_wasm_ops::encode(&web::GpuRenderPassDescriptor {
+        color_attachments: vec![Some(web::GpuRenderPassColorAttachment {
+            view: web::GpuTextureView(1),
             depth_slice: None,
+            resolve_target: None,
+            clear_value: None,
+            load_op: web::GpuLoadOp::Load,
+            store_op: web::GpuStoreOp::Store,
         })],
         depth_stencil_attachment: None,
         occlusion_query_set: None,
         timestamp_writes: None,
+        max_draw_count: None,
+        label: None,
     }));
-    let call = |name: &str, this: Option<u32>, (at, length): (usize, usize)| {
-        let this = this.map_or(String::new(), |this| format!("(i32.const {this}) "));
-        format!("(drop (call ${name} {this}(i32.const {at}) (i32.const {length})))")
+    let call = |name: &str, this: u32, (at, length): (usize, usize)| {
+        format!("(drop (call ${name} (i32.const {this}) (i32.const {at}) (i32.const {length})))")
     };
     let start = [
-        call("create_texture", None, texture),
-        call("create_texture_view", Some(1), view),
-        call("create_shader_module", None, module),
-        call("create_pipeline_layout", None, layout),
-        call("create_render_pipeline", None, pipeline),
-        call("create_command_encoder", None, encoder),
-        call("encoder_begin_render_pass", Some(1), pass),
+        call("request_adapter", 1, none),
+        "(drop (call $poll (i32.const 1) (i32.const 0) (i32.const 4096)))".to_owned(),
+        call("request_device", 1, none),
+        "(drop (call $poll (i32.const 1) (i32.const 0) (i32.const 4096)))".to_owned(),
+        call("create_texture", 1, texture),
+        call("create_texture_view", 1, none),
+        call("create_shader_module", 1, module),
+        call("create_pipeline_layout", 1, layout),
+        call("create_render_pipeline", 1, pipeline),
+        call("create_command_encoder", 1, none),
+        call("encoder_begin_render_pass", 1, pass),
     ]
     .join("\n");
     format!(
         r#"(module
             (import "env" "memory" (memory 1 4))
-            (import "{GPU}" "create-texture" (func $create_texture (param i32 i32) (result i32)))
-            (import "{GPU}" "[method]texture.create-view" (func $create_texture_view (param i32 i32 i32) (result i32)))
-            (import "{GPU}" "create-shader-module" (func $create_shader_module (param i32 i32) (result i32)))
-            (import "{GPU}" "create-pipeline-layout" (func $create_pipeline_layout (param i32 i32) (result i32)))
-            (import "{GPU}" "create-render-pipeline" (func $create_render_pipeline (param i32 i32) (result i32)))
-            (import "{GPU}" "create-command-encoder" (func $create_command_encoder (param i32 i32) (result i32)))
-            (import "{GPU}" "[method]command-encoder.begin-render-pass" (func $encoder_begin_render_pass (param i32 i32 i32) (result i32)))
-            (import "{GPU}" "[method]render-pass.set-pipeline" (func $set_pipeline (param i32 i32)))
-            (import "{GPU}" "[method]render-pass.set-viewport" (func $set_viewport (param i32 f32 f32 f32 f32 f32 f32)))
-            (import "{GPU}" "[method]render-pass.set-scissor-rect" (func $set_scissor (param i32 i32 i32 i32 i32)))
-            (import "{GPU}" "[method]render-pass.draw" (func $draw (param i32 i32 i32 i32 i32)))
+            (import "{GPU}" "get-gpu" (func $get_gpu (result i32)))
+            (import "{GPU}" "[method]gpu.request-adapter" (func $request_adapter (param i32 i32 i32) (result i32)))
+            (import "{GPU}" "[method]gpu-adapter.request-device" (func $request_device (param i32 i32 i32) (result i32)))
+            (import "{GPU}" "[poll]" (func $poll (param i32 i32 i32) (result i32)))
+            (import "{GPU}" "[method]gpu-device.create-texture" (func $create_texture (param i32 i32 i32) (result i32)))
+            (import "{GPU}" "[method]gpu-texture.create-view" (func $create_texture_view (param i32 i32 i32) (result i32)))
+            (import "{GPU}" "[method]gpu-device.create-shader-module" (func $create_shader_module (param i32 i32 i32) (result i32)))
+            (import "{GPU}" "[method]gpu-device.create-pipeline-layout" (func $create_pipeline_layout (param i32 i32 i32) (result i32)))
+            (import "{GPU}" "[method]gpu-device.create-render-pipeline" (func $create_render_pipeline (param i32 i32 i32) (result i32)))
+            (import "{GPU}" "[method]gpu-device.create-command-encoder" (func $create_command_encoder (param i32 i32 i32) (result i32)))
+            (import "{GPU}" "[method]gpu-command-encoder.begin-render-pass" (func $encoder_begin_render_pass (param i32 i32 i32) (result i32)))
+            (import "{GPU}" "[method]gpu-render-pass-encoder.set-pipeline" (func $set_pipeline (param i32 i32)))
+            (import "{GPU}" "[method]gpu-render-pass-encoder.set-viewport" (func $set_viewport (param i32 f32 f32 f32 f32 f32 f32)))
+            (import "{GPU}" "[method]gpu-render-pass-encoder.set-scissor-rect" (func $set_scissor (param i32 i32 i32 i32 i32)))
+            (import "{GPU}" "[method]gpu-render-pass-encoder.draw" (func $draw (param i32 i32 i32 i32 i32 i32 i32 i32)))
             (data (i32.const 4096) "{data}")
-            (func (export "app_start") {start})
+            (func (export "app_start") (drop (call $get_gpu)) {start})
             (func (export "app_shutdown"))
             (func (export "app_step") (local $left i32)
                 (local.set $left (i32.const {DRAWS}))
@@ -160,12 +150,12 @@ fn guest() -> String {
                     (call $set_pipeline (i32.const 1) (i32.const 1))
                     (call $set_viewport (i32.const 1) (f32.const 0) (f32.const 0) (f32.const 64) (f32.const 64) (f32.const 0) (f32.const 1))
                     (call $set_scissor (i32.const 1) (i32.const 0) (i32.const 0) (i32.const 32) (i32.const 32))
-                    (call $draw (i32.const 1) (i32.const 3) (i32.const 1) (i32.const 0) (i32.const 0))
+                    (call $draw (i32.const 1) (i32.const 3) (i32.const 1) (i32.const 1) (i32.const 1) (i32.const 0) (i32.const 1) (i32.const 0))
                     (local.set $left (i32.sub (local.get $left) (i32.const 1)))
                     (br_if $draws (local.get $left))))
         )"#,
         data = escaped(&data.bytes),
-        GPU = be_wasm_gpu_abi::embed::device::MODULE,
+        GPU = be_wasm_gpu_abi::embed::webgpu::MODULE,
     )
 }
 
@@ -176,6 +166,9 @@ fn main() {
         .load_bytes(&wat::parse_str(guest()).expect("the guest should assemble"))
         .expect("the guest should load");
     app.start().expect("the guest should start");
+    app.step().expect("the guest should step");
+    let logged = app.take_logged();
+    assert!(logged.is_empty(), "the guest's calls should be answered: {logged:?}");
     let mut fastest = Duration::MAX;
     let mut total = Duration::ZERO;
     for _ in 0..STEPS {

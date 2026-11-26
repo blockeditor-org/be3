@@ -1,7 +1,5 @@
 use super::*;
 
-use be_wasm_gpu_abi::device as abi;
-
 fn host() -> Host {
     let (device, queue) = wgpu::Device::noop(&wgpu::DeviceDescriptor::default());
     Host::new(device, queue).unwrap()
@@ -11,32 +9,27 @@ fn escaped(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("\\{byte:02x}")).collect()
 }
 
-fn buffer_descriptor() -> Vec<u8> {
-    be_wasm_ops::encode(&abi::BufferDescriptor {
-        label: Some("vertices".into()),
-        size: 256,
-        usage: wgpu::BufferUsages::VERTEX.bits(),
-        mapped_at_creation: false,
-    })
-}
-
+/// A guest whose `$ask_adapter` asks wasi:webgpu for an adapter with the options at a pointer
+/// (none, at 0): a gpu call that reads the guest's memory, answering a ticket.
 fn guest(body: &str) -> String {
-    let descriptor = buffer_descriptor();
+    let options = be_wasm_ops::encode(&None::<be_wasm_gpu_abi::webgpu::webgpu::GpuRequestAdapterOptions>);
     format!(
         r#"(module
             (import "env" "memory" (memory 1 4))
-            (import "be3:gpu/device@0.1.0" "create-buffer" (func $create_buffer (param i32 i32) (result i32)))
-            (import "be3:gpu/device@0.1.0" "take-error" (func $take_error (param i32 i32) (result i32)))
+            (import "wasi:webgpu/webgpu@0.3.0-rc.2" "get-gpu" (func $get_gpu (result i32)))
+            (import "wasi:webgpu/webgpu@0.3.0-rc.2" "[method]gpu.request-adapter" (func $request_adapter (param i32 i32 i32) (result i32)))
             (import "be3_host" "host_send" (func $host_send (param i32 i32)))
             (import "be3_host" "host_receive" (func $host_receive (param i32 i32) (result i64)))
-            (data (i32.const 0) "{descriptor}")
+            (data (i32.const 0) "{options}")
             (global $length i32 (i32.const {length}))
+            (func $ask_adapter (param $at i32) (param $length i32) (result i32)
+                (call $request_adapter (call $get_gpu) (local.get $at) (local.get $length)))
             (func (export "app_start"))
             (func (export "app_shutdown"))
             (func (export "app_step") {body})
         )"#,
-        descriptor = escaped(&descriptor),
-        length = descriptor.len(),
+        options = escaped(&options),
+        length = options.len(),
     )
 }
 
@@ -180,7 +173,7 @@ fn echo_frames(
 
 mod a_code_cache_entry_that_is_not_whole_or_not_the_modules_is_refused;
 mod a_code_cache_entry_v8_refuses_costs_only_the_compile;
-mod a_guest_creates_a_buffer_and_reports_its_handle;
+mod a_guest_asks_for_an_adapter_and_reports_its_ticket;
 mod a_guest_drives_wasi_webgpu_through_its_generated_bindings;
 mod a_guest_pointer_past_its_memory_is_refused;
 mod a_guest_reads_a_frame_the_host_queued;

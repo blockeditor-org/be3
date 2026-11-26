@@ -139,7 +139,8 @@ interface app {
 /// of the host, and what it offers. The `be3:desktop` interfaces are an
 /// extension an app uses only when its manifest names it.
 world editor-app {
-    import be3:gpu/device@0.1.0;
+    import wasi:webgpu/webgpu@0.3.0-rc.2;
+    import be3:gpu/host@0.1.0;
     import host;
     import blocks;
     import shell;

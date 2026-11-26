@@ -1,4 +1,6 @@
-use std::collections::HashMap;
+/// foldhash rather than SipHash: handles come from the app, but a table is looked up on every
+/// per-draw call.
+type HashMap<K, V> = std::collections::HashMap<K, V, foldhash::fast::FixedState>;
 
 type Handle = u32;
 
@@ -26,7 +28,7 @@ pub(crate) struct Table<T> {
 impl<T> Table<T> {
     pub(crate) fn new() -> Self {
         Self {
-            entries: HashMap::new(),
+            entries: HashMap::default(),
             counter: Counter::new(),
         }
     }

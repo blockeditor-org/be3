@@ -3,7 +3,6 @@ use std::ops::Range;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::task::Waker;
 
-use be_wasm_gpu_abi::device as abi;
 
 pub type Wake = Arc<dyn Fn() + Send + Sync>;
 
@@ -114,6 +113,11 @@ impl Settling {
         }
     }
 
+    /// Whether the host's device is lost, without reading why.
+    pub(crate) fn is_lost(&self) -> bool {
+        self.shared.held().lost.is_some()
+    }
+
     pub(crate) fn lost(&self) -> Option<String> {
         self.shared.held().lost.clone()
     }
@@ -164,26 +168,6 @@ impl Settling {
         }
     }
 
-    /// A ticket for a map that fails before it starts, settled at once.
-    pub(crate) fn failed_map(&mut self) -> u64 {
-        let ticket = {
-            let mut held = self.shared.held();
-            let ticket = held.ticket();
-            held.maps.push((ticket, false));
-            ticket
-        };
-        self.wake();
-        ticket
-    }
-
-    pub(crate) fn forget_every_map(&mut self) {
-        let mut held = self.shared.held();
-        let buffers: Vec<u32> = held.states.keys().copied().collect();
-        for buffer in buffers {
-            let _ = held.forget(buffer);
-        }
-    }
-
     pub(crate) fn mapped_at_creation(&mut self, buffer: u32, size: u64) {
         self.shared.held().states.insert(
             buffer,
@@ -199,7 +183,7 @@ impl Settling {
         device: &wgpu::Device,
         buffer: &wgpu::Buffer,
         handle: u32,
-        mode: abi::MapMode,
+        mode: wgpu::MapMode,
         range: Range<u64>,
     ) -> Result<u64, String> {
         let number = {
@@ -216,12 +200,8 @@ impl Settling {
         };
         let shared = Arc::clone(&self.shared);
         let wake = self.wake.clone();
-        let writable = mode == abi::MapMode::Write;
+        let writable = mode == wgpu::MapMode::Write;
         let mapped = range.clone();
-        let mode = match mode {
-            abi::MapMode::Read => wgpu::MapMode::Read,
-            abi::MapMode::Write => wgpu::MapMode::Write,
-        };
         buffer.map_async(mode, range, move |result| {
             {
                 let mut held = shared.held();

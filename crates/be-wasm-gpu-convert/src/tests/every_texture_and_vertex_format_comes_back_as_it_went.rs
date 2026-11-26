@@ -1,3 +1,5 @@
+use be_wasm_gpu_abi::webgpu::webgpu as web;
+
 use super::*;
 
 fn round_trips<A, W>(minimum: usize)
@@ -23,6 +25,6 @@ where
 
 #[test]
 fn every_texture_and_vertex_format_comes_back_as_it_went() {
-    round_trips::<abi::TextureFormat, wgpu::TextureFormat>(40);
-    round_trips::<abi::VertexFormat, wgpu::VertexFormat>(30);
+    round_trips::<web::GpuTextureFormat, wgpu::TextureFormat>(40);
+    round_trips::<web::GpuVertexFormat, wgpu::VertexFormat>(30);
 }

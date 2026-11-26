@@ -1,26 +1,21 @@
+use super::web::*;
 use super::*;
 
-/// `set-vertex-buffer` with no buffer unbinds its slot, which wgpu-core and WebGPU allow only
-/// with an offset of 0 and no size.
 #[test]
 fn unbinding_a_vertex_buffer_takes_no_offset_or_size() {
     let mut gpu = gpu();
-    let encoder = gpu
-        .create_render_bundle_encoder(abi::RenderBundleEncoderDescriptor {
-            label: None,
-            color_formats: vec![Some(abi::TextureFormat::Rgba8Unorm)],
-            depth_stencil: None,
-            sample_count: 1,
+    let device = device(&mut gpu, Vec::new()).unwrap();
+    let encoder = bundling(&mut gpu, device);
+    let unbind = |gpu: &mut Gpu, offset, size| {
+        scoped(gpu, device, |gpu| {
+            gpu.gpu_render_bundle_encoder_set_vertex_buffer(encoder, 0, None, offset, size)
         })
-        .unwrap();
+    };
     for size in [None, Some(0)] {
-        gpu.render_bundle_encoder_set_vertex_buffer(encoder, 0, None, 0, size);
-        assert_eq!(gpu.take_error(), None, "unbinding with a size of {size:?}");
+        assert_eq!(unbind(&mut gpu, None, size), None, "unbinding with a size of {size:?}");
     }
-    gpu.render_bundle_encoder_set_vertex_buffer(encoder, 0, None, 8, None);
-    let error = gpu.take_error().expect("the offset is reported");
+    let error = unbind(&mut gpu, Some(8), None).expect("the offset is refused");
     assert!(error.contains("offset of 0, not 8"), "{error}");
-    gpu.render_bundle_encoder_set_vertex_buffer(encoder, 0, None, 0, Some(16));
-    let error = gpu.take_error().expect("the size is reported");
+    let error = unbind(&mut gpu, None, Some(16)).expect("the size is refused");
     assert!(error.contains("no size, not 16"), "{error}");
 }
