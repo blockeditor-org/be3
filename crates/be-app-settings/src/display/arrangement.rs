@@ -371,7 +371,7 @@ fn ArrangedTile(
                             {name}
                         </Text>
                         <Show value={says_main}>
-                            <Text size=TextSize::Xs color=TextColor::Accent>"Main"</Text>
+                            <Text size=TextSize::Xs color=TextColor::Accent align=TextAlign::Center>"Main"</Text>
                         </Show>
                     </List>
                 </Frame>
