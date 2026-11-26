@@ -1838,10 +1838,31 @@ fn place_every_offer(host: &mut Host) {
     }
 }
 
+/// With a driven host's clock stopped, waits until every app's steps on what the host sent
+/// it have finished, up to `STOPPED_CLOCK_FRAME_BUDGET`, so what the poll takes in, and so
+/// which frame shows it, never depends on how fast an app's thread ran (guides/apps/runtime.md,
+/// Frames and pacing).
+fn finish_steps(runtimes: &mut HashMap<String, Runtime>) {
+    let deadline = Deadline::at(Instant::now() + pacing::STOPPED_CLOCK_FRAME_BUDGET);
+    loop {
+        let rung = be_wasm_guest_host::bell::rung();
+        let mut finished = true;
+        for runtime in runtimes.values_mut() {
+            finished &= runtime.error.is_some() || runtime.backend.steps_finished();
+        }
+        if finished || !be_wasm_guest_host::bell::wait(rung, deadline) {
+            return;
+        }
+    }
+}
+
 pub fn poll() {
     let pass = host::pass();
     HOST.with(|host| {
         let mut host = host.borrow_mut();
+        if host::clock_stopped() {
+            finish_steps(&mut host.runtimes);
+        }
         take_phone_asks(&mut host);
         for runtime in host.runtimes.values_mut() {
             runtime.contain(|runtime| {
