@@ -97,9 +97,9 @@ impl<S: ObjectStore> Peer<S> {
     /// follows), and puts them in their places in one refs write, which keeps what replaced
     /// what. A seal of the block that lands meanwhile is among them next time round: the refs
     /// take the rewrite only while the outbox holds what it read (`Refs::replace_publishes`),
-    /// and one that comes after goes on the replacements (`Refs::push_publish`). False if seals
-    /// kept landing through four tries: the caller sets the block aside, as for any rewrite
-    /// that cannot be made.
+    /// and one that comes after goes on the replacements (`Refs::push_publish`). If seals keep
+    /// landing through four tries, `Contended`, and the outbox is left as it is: the drain
+    /// counts the block as failed this round and tries again on the next (`Drained::Failed`).
     async fn seal_waiting_again(
         &self,
         block: Uuid,
@@ -138,7 +138,7 @@ impl<S: ObjectStore> Peer<S> {
                 return Ok(true);
             }
         }
-        Ok(false)
+        Err(ClientError::Contended)
     }
 
     /// The commits `commit` was sealed again in the place of (`reseal`, `restamp`), as the refs

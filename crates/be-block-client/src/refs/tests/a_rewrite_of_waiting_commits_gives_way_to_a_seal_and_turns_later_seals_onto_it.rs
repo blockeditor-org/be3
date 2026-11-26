@@ -82,4 +82,6 @@ fn a_rewrite_of_waiting_commits_gives_way_to_a_seal_and_turns_later_seals_onto_i
 
     let reopened = RefsDb::open(&path).unwrap().scope(scope).unwrap();
     assert_eq!(reopened.replaced(first), again, "kept across a reopen");
+    drop((refs, reopened));
+    let _ = std::fs::remove_file(&path);
 }

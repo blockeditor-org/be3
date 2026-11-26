@@ -500,77 +500,77 @@ names the organization's head in its signed record (`EscrowKey::head`).
   or one the log does not reach even read again, once the log has lowered
   anyone (it counts as named at the root), and a key opened through an
   outdated epoch, whatever it names (`KeyBook::outdated`): otherwise a revoked
-  member could wrap a made-up key under an epoch they hold, which no seal
-  names them in, and have it listed as newest. Key work seals an outdated
-  epoch to no grantee, and treats the scope as due a rotation when it is the
-  scope's newest (`Target::Outdated`); to an administrator the log names now
-  it seals any key, so one made after a demotion still gets the settings'
-  keys. The organization's log outdates the same way every key under the
-  escrow (any but one an owner-only scope covers) naming an organization head
-  before its last demotion (`KeyBook::demoted_since`): the demoted
-  administrator may hold it through escrow, so a demotion makes every scope
-  due a rotation: at its next write, and in each device's `tend` for every
-  such scope it may edit (`Peer::rotate_demoted`), since a grantee inside a
-  scope cannot rotate it (its new epoch is wrapped under the scope above). A
+  member could wrap a made-up key under an epoch they hold, which no seal names
+  them in, and have it listed as newest. Key work seals an outdated epoch to no
+  grantee, and treats the scope as due a rotation when it is the scope's
+  newest (`Target::Outdated`); to an administrator the log names now it seals
+  any key, so one made after a demotion still gets the settings' keys. The
+  organization's log outdates the same way every key under the escrow (any
+  but one an owner-only scope covers) naming an organization head before its
+  last demotion (`KeyBook::demoted_since`):
+  the demoted administrator may hold it through escrow, so a demotion makes
+  every scope due a rotation: at its next write, and in each device's `tend`
+  for every such scope it may edit (`Peer::rotate_demoted`), since a grantee
+  inside a scope cannot rotate it (its new epoch is wrapped under the scope
+  above). A
   device about to write or wrap under a data or scope key its logs outdate
   rotates the scope first (`Peer::sealing_key`, `scope_key`), from the highest
   scope above it whose newest key is outdated too (`Peer::rotation_top`), so
-  one rotation covers a tree a demotion outdated whole, judging by the logs of
-  the scope and of every scope above it the key was opened through, and the
-  organization's (`KeyBook::logs_to_read`, `Roots::through`, at most
-  `keys::MAX_PATH` deep, longer counting as outdated), as it last checked them
-  (key work, sealing, a contact's seal or a rotation reads them; one it never
-  read since starting, it reads first, each once per key in a run). How far it
-  checked each scope's log is kept with the refs (`refs::KeptLog`,
-  `KeyBook::note_log`; `refresh_keys` reads each scope's log once as its keys
-  arrive, and a block made here is kept at its root, eight scopes read at a
-  time): a log served later that does not reach the kept head is withheld, and
-  `checked_access` refuses it (`ClientError::Withheld`), so nothing seals,
-  settles an escrowed key or judges a contact by it. The organization's log is
-  kept the same way, under the organization's id: `checked_organization`
-  refuses one short of it and leaves the organization as held, and with none
-  read this run an escrow epoch is current only if it names a kept entry from
-  the last demotion on, key work seals to no administrator, and a contact
-  counts as administering only as kept. With it, a failed read or offline, an
-  epoch is current only if it names one of the kept entries from the last
-  lowering through the head (`KeptLog::current`), and a contact's seal is
-  judged by the levels kept at that head (`KeptLog::levels`). A scope neither
-  kept nor readable makes a key opened through another outdated. A read before
-  a write is given up after `LOG_READ_LIMIT`, leaving what was kept, and none
-  is made for a scope whose creation still waits in the outbox. A rotation the
-  server refuses fails the save as `Locked`, and so does any write that goes
-  up at once (a part, a relay, a journal entry, metadata:
-  `Peer::sealing_key`); one that cannot reach the server fails it as
-  unreachable. Offline, a person's edit for the outbox is never refused
-  (`sealing_key_kept`, for a commit and the content it holds): it is sealed
-  under the epoch at hand and kept, and judged again before it is sent
-  (`Peer::send_pending`, `KeyBook::shown_outdated`). When the logs show its
-  key outdated, the drain seals every commit of the block waiting in the
-  outbox again (`Peer::reseal`, `Drained::Resealed`): content, commit,
-  metadata and journal state, under the key `sealing_key` gives now (a new
-  epoch, which it makes first), each on the commits it went on as sealed
-  again, in its place in the outbox, and sends it. A write on a commit sealed
-  again goes on the one in its place (`Peer::resealed_as` names what a commit
-  replaced, for a replica that kept them). A commit refused for a time too far
-  ahead is stamped again through the same rewrite (`Peer::restamp`). Only
-  while this account may still write the block as its signed logs show now
-  (Edit or above in its log, administering, or from a block above), and only
-  under an epoch the logs do not outdate; otherwise, or when no epoch can be
-  made, the edit is set aside among the unsent (`refs::Aside::KeyOutdated`).
-  Whatever path uploads (an outbox commit, a snapshot or a fork through
-  `Peer::hold`), an object the server lacks that is sealed under a key the
-  logs show outdated is not uploaded (`ClientError::Outdated`), so what was
-  first sealed never leaves the device. `write_content`, public, is strict;
-  only the outbox's own writes keep. As for an edit the server refuses, what
-  is made of the block after one set aside waits with it until it is
-  discarded. An object whose block's scope cannot be told counts as outdated.
-  A log answer older than one this run already took is stale, not withheld
-  (`keys::Served`). A local account judges nothing (there is no server). An
-  escrow epoch the organization's log outdates is wrapped under no more, so
-  keys wait unescrowed for the next, with no warning (the gap after a demotion
-  is no fault). So an epoch a server got a withheld device to make, naming a
-  head before a revocation, is not written under by a device that holds the
-  revocation.
+  one rotation covers a tree a demotion outdated whole, judging by the
+  logs of the scope and of every scope above it the key was opened through,
+  and the organization's (`KeyBook::logs_to_read`, `Roots::through`, at most `keys::MAX_PATH` deep,
+  longer counting as outdated), as it last checked them (key work, sealing, a
+  contact's seal or a rotation reads them; one it never read since starting,
+  it reads first, each once per key in a run). How far it checked each scope's
+  log is kept with the refs (`refs::KeptLog`, `KeyBook::note_log`;
+  `refresh_keys` reads each scope's log once as its keys arrive, and a block
+  made here is kept at its root, eight scopes read at a time): a log served
+  later that does not reach the kept head is withheld, and `checked_access`
+  refuses it (`ClientError::Withheld`), so nothing seals, settles an escrowed
+  key or judges a contact by it. The organization's log is kept the same way,
+  under the organization's id: `checked_organization` refuses one short of it
+  and leaves the organization as held, and with none read this run an escrow
+  epoch is current only if it names a kept entry from the last demotion on,
+  key work seals to no administrator, and a contact counts as administering
+  only as kept. With it, a failed read or offline, an epoch is current only
+  if it names one of the kept entries from the last lowering through the head
+  (`KeptLog::current`), and a contact's seal is judged by the levels kept at
+  that head (`KeptLog::levels`). A scope neither kept nor readable makes a key opened through
+  another outdated. A read before a write is given up after `LOG_READ_LIMIT`,
+  leaving what was kept, and none is made for a scope whose creation still
+  waits in the outbox. A rotation the server refuses fails the save as
+  `Locked`, and so does any write that goes up at once (a part, a relay, a
+  journal entry, metadata: `Peer::sealing_key`); one that cannot reach the
+  server fails it as unreachable. Offline, a person's edit
+  for the outbox is never refused (`sealing_key_kept`, for a commit and the
+  content it holds): it is sealed under the epoch at hand and kept, and judged
+  again before it is sent (`Peer::send_pending`, `KeyBook::shown_outdated`).
+  When the logs show its key outdated, the drain seals every commit of the
+  block waiting in the outbox again (`Peer::reseal`, `Drained::Resealed`):
+  content, commit, metadata and journal state, under the key `sealing_key`
+  gives now (a new epoch, which it makes first), each on the commits it went
+  on as sealed again, in its place in the outbox, and sends it. A write on a
+  commit sealed again goes on the one in its place (`Peer::resealed_as` names
+  what a commit replaced, for a replica that kept them). A commit refused for a
+  time too far ahead is stamped again through the same rewrite
+  (`Peer::restamp`). Only while this account may still write the block as its
+  signed logs show now (Edit or
+  above in its log, administering, or from a block above), and only under an
+  epoch the logs do not outdate; otherwise, or when no epoch can be made, the
+  edit is set aside among the unsent (`refs::Aside::KeyOutdated`). Whatever
+  path uploads (an outbox commit, a snapshot or a fork through `Peer::hold`),
+  an object the server lacks that is sealed under a key the logs show outdated
+  is not uploaded (`ClientError::Outdated`), so what was first sealed never
+  leaves the device. `write_content`, public, is strict; only the outbox's own
+  writes keep. As for an edit the server refuses, what is made of the block
+  after one set aside waits with it until it is discarded. An object whose block's scope cannot be told
+  counts as outdated. A log answer older
+  than one this run already took is stale, not withheld (`keys::Served`). A
+  local account judges nothing (there is no server). An escrow epoch the organization's log outdates
+  is wrapped under no more, so keys wait unescrowed for the next, with no
+  warning (the gap after a demotion is no fault). So an epoch a server got a
+  withheld device to make, naming a head before a revocation, is not written
+  under by a device that holds the revocation.
 - **Taking a contact's seal.** An escrow key only from a contact the
   organization's log names an administrator at its head now. Any other key
   only from a contact the block's log gives Edit or above, or the
