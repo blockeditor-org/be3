@@ -156,8 +156,7 @@ impl Board {
             last: None,
             aimed: None,
         });
-        self.lifted
-            .update(|lifted| lifted.push((id, Rc::clone(&payload))));
+        self.lifted.borrow_mut().push((id, Rc::clone(&payload)));
         self.wake(&payload);
         self.place(point, false);
         let over = self.over_chosen(point.pointer);
@@ -420,9 +419,10 @@ impl Board {
             .collect()
     }
 
-    /// Whether `pointer`'s carry scrolls the edge scroller holding it (not `scrolls_nothing`).
     /// Subscribes the running computation to the lifts and put-downs of `payload` alone, until
-    /// it runs again or is disposed.
+    /// it runs again or is disposed. `payload` needs only `PartialEq`, so it is not hashed: a
+    /// lift or put-down compares itself with every watch of its type (`wake`), which runs no
+    /// effect but its own readers'.
     fn watch<P: Clone + PartialEq + 'static>(&self, payload: &P) {
         if !tracking() {
             return;
@@ -474,6 +474,7 @@ impl Board {
         }
     }
 
+    /// Whether `pointer`'s carry scrolls the edge scroller holding it (not `scrolls_nothing`).
     pub(crate) fn placing_scrolls(&self, pointer: PointerId) -> bool {
         self.placing
             .borrow()
@@ -492,12 +493,11 @@ impl Board {
                 .or_default()
                 .track();
         }
-        self.lifted.with_untracked(|lifted| {
-            lifted
-                .iter()
-                .filter_map(|(_, payload)| payload.downcast_ref::<P>().cloned())
-                .collect()
-        })
+        self.lifted
+            .borrow()
+            .iter()
+            .filter_map(|(_, payload)| payload.downcast_ref::<P>().cloned())
+            .collect()
     }
 
     /// Whether `payload` is carried; tracked, so a reader wakes only when a payload equal to
@@ -509,12 +509,11 @@ impl Board {
     /// The carry whose payload is `payload`; tracked, as `carries` is.
     fn carry_with<P: Clone + PartialEq + 'static>(&self, payload: &P) -> Option<CarryId> {
         self.watch(payload);
-        self.lifted.with_untracked(|lifted| {
-            lifted
-                .iter()
-                .find(|(_, carried)| carried.downcast_ref::<P>() == Some(payload))
-                .map(|(id, _)| *id)
-        })
+        self.lifted
+            .borrow()
+            .iter()
+            .find(|(_, carried)| carried.downcast_ref::<P>() == Some(payload))
+            .map(|(id, _)| *id)
     }
 
     /// The frame of the carry whose payload is `payload`: where its item draws and whether
@@ -725,14 +724,15 @@ impl Board {
             .then(|| placing.carry.outside.clone().zip(placing.last))
             .flatten();
         let id = placing.id;
-        let payload = self.lifted.with_untracked(|lifted| {
-            lifted
+        let payload = {
+            let mut lifted = self.lifted.borrow_mut();
+            let payload = lifted
                 .iter()
                 .find(|(lifted, _)| *lifted == id)
-                .map(|(_, payload)| Rc::clone(payload))
-        });
-        self.lifted
-            .update(|lifted| lifted.retain(|(lifted, _)| *lifted != id));
+                .map(|(_, payload)| Rc::clone(payload));
+            lifted.retain(|(lifted, _)| *lifted != id);
+            payload
+        };
         if let Some(payload) = payload {
             self.wake(&payload);
         }

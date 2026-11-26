@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use be_sdk_beui::beui::{Pos2, Rect, Vec2, pos2, vec2};
 use tabletop_api::Spot;
@@ -48,11 +49,12 @@ pub(crate) struct Layout {
     pub(crate) unit: f32,
     pub(crate) items: Vec<Placed>,
     pub(crate) spots: Vec<SpotPlace>,
-    /// Where each item is in `items`, the first with its id, built with them, so finding one
+    /// Where each item is in `items`, the first with its id, built with them and shared by
+    /// the layouts made from this one (`centered_in`), so finding one
     /// (`item`) takes a step rather than a scan.
-    places: HashMap<ItemId, usize>,
+    places: Rc<HashMap<ItemId, usize>>,
     /// Where each spot is in `spots`.
-    spot_places: HashMap<Spot, usize>,
+    spot_places: Rc<HashMap<Spot, usize>>,
 }
 
 pub(crate) fn movable(sprite: &Sprite) -> bool {
@@ -120,8 +122,8 @@ impl Layout {
             unit,
             items,
             spots,
-            places,
-            spot_places,
+            places: Rc::new(places),
+            spot_places: Rc::new(spot_places),
         }
     }
 
@@ -184,8 +186,8 @@ impl Layout {
                     ..place.clone()
                 })
                 .collect(),
-            places: self.places.clone(),
-            spot_places: self.spot_places.clone(),
+            places: Rc::clone(&self.places),
+            spot_places: Rc::clone(&self.spot_places),
         }
     }
 

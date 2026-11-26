@@ -47,9 +47,9 @@ pub struct Board {
     placing: RefCell<Vec<sites::Placing>>,
     /// The item a lift is lifting, while the sites give their places for it.
     lifting: Cell<Option<Rect>>,
-    /// Each carry's payload, by the id its lift returned. Readers track `watches` or `kinds`,
-    /// not this, so a lift wakes only the readers of its own payload.
-    lifted: OwnedSignal<Vec<(CarryId, Erased)>>,
+    /// Each carry's payload, by the id its lift returned. It is no signal: readers track
+    /// `watches` or `kinds`, so a lift wakes only the readers of its own payload.
+    lifted: RefCell<Vec<(CarryId, Erased)>>,
     /// Each reader of one payload's carry (`carries`, `frame_of`), by the payload's type and
     /// an id of its own: a lift or put-down wakes only those whose payload equals its own.
     watches: Watches,
@@ -74,7 +74,7 @@ impl Board {
             sites: RefCell::default(),
             placing: RefCell::default(),
             lifting: Cell::default(),
-            lifted: OwnedSignal::new(Vec::new()),
+            lifted: RefCell::default(),
             watches: Rc::default(),
             next_watch: Cell::default(),
             kinds: RefCell::default(),
@@ -312,8 +312,7 @@ impl Driver for Board {
     }
 
     fn holds(&self, carry: CarryId) -> bool {
-        self.lifted
-            .with(|lifted| lifted.iter().any(|(id, _)| *id == carry))
+        self.lifted.borrow().iter().any(|(id, _)| *id == carry)
     }
 
     fn frame(&self, carry: CarryId) -> Option<DragFrame> {

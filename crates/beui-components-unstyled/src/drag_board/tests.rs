@@ -114,6 +114,7 @@ fn rect(x: f32, y: f32, width: f32, height: f32) -> Rect {
 }
 
 mod a_carry_that_scrolls_nothing_leaves_the_scroller_under_it_still;
+mod a_disposed_reader_of_a_carry_leaves_no_watch;
 mod a_lift_wakes_only_the_readers_of_its_own_payload;
 mod a_lifted_carry_scrolls_the_scroller_whose_edge_holds_it;
 mod edge_scrolling_runs_the_topmost_scroller_whose_band_holds_the_pointer;

@@ -47,7 +47,8 @@ impl TextGeometry {
 /// is unplaced. The first call answers where it is now, on every core; a change after
 /// comes on the HTML core (or under `delay_measurement`) a frame after its cause, so
 /// callers must handle a late answer. One signal per node, made on the first call and
-/// dropped with the node, so calling it repeatedly is cheap.
+/// dropped with the node, so calling it again is cheap. On HTML the first call reads the DOM,
+/// which lays the page out at once: don't make it for each node of a loop that builds the tree.
 pub fn measure(node: NodeId) -> ReadSignal<Option<Measured>> {
     crate::core::measure::measure(node)
 }

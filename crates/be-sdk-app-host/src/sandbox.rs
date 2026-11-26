@@ -55,6 +55,12 @@ impl Stopped {
         }
     }
 
+    /// The instances the app made since the stop and has not dropped.
+    #[cfg(test)]
+    pub(crate) fn instances(&self) -> usize {
+        self.instances.len()
+    }
+
     /// An instance the app dropped is let go; answers whether the op was one.
     pub(crate) fn canceled(&mut self, op: OpId, connection: &mut Connection) -> bool {
         if !self.instances.remove(&op) {

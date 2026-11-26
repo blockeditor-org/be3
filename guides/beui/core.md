@@ -241,12 +241,16 @@ had keeps its measurement, placement and paint.
 ## Measurement
 
 `measure(node)`, `measure_text(node)` and `lay_out_text` are in
-`beui-view/src/measure.rs`. The signals may arrive a frame late: the HTML core
-measures after the browser lays out. Native answers in the same frame, which virtual scrolling and scroll anchoring
+`beui-view/src/measure.rs`. The first call for a node answers where it is now,
+on every core, so a handler that reads it at event time (a lift) needs no
+`measure` call at build. Changes after may arrive a frame late: the HTML core
+publishes them after the browser lays out. Native answers in the same frame, which virtual scrolling and scroll anchoring
 rely on. `delay_measurement(true)` (`BEUI_DELAY_MEASUREMENT=1` for a driven
 program) makes native late too; tests named `..._when_measurement_comes_late`
-run key components both ways. A key handler that measures at event time fails
-on HTML the first time; anchor an overlay to the node instead.
+run key components both ways. On HTML that first answer reads the DOM, which
+makes the browser lay out at once: don't call `measure` for each node in a loop
+that builds or changes the tree, where each call lays out again; ask where it is
+read (an event, an effect), or for one root.
 
 A component that builds from its own size measures its root after building it
 and writes a signal its content reads. Keep the last answer when it turns

@@ -39,8 +39,9 @@ thread_local! {
 /// it sends the pane's jobs and hears only their answers, in order.
 pub(crate) struct RenderClient {
     renderer: Shared<Job, Answer>,
-    /// The frame each job still unanswered was sent in, by the frame clock.
-    sent: HashMap<Ticket, Option<Instant>>,
+    /// The frame each job still unanswered was sent in, by the frame clock, and whether it
+    /// carried the PDF's bytes.
+    sent: HashMap<Ticket, (Option<Instant>, bool)>,
     /// This client's id, which its documents carry (`Document::client`).
     client: u64,
     /// The revision whose bytes it sent the renderer last, which the renderer is taken to hold
@@ -87,13 +88,14 @@ impl RenderClient {
             client: self.client,
             revision,
         };
+        let opens = data.is_some();
         let ticket = self.renderer.send(&Job {
             document,
             page,
             target,
             data,
         });
-        self.sent.insert(ticket, frame_time());
+        self.sent.insert(ticket, (frame_time(), opens));
         true
     }
 
@@ -104,7 +106,7 @@ impl RenderClient {
     /// does not hold the job's document answers `Unopened`, and the next job sends its bytes.
     pub(crate) fn receive(&mut self, performance: &PerformanceReporter) -> Option<RenderJobResult> {
         let (ticket, answer) = self.renderer.try_receive()?;
-        let sent = self.sent.remove(&ticket).flatten();
+        let (sent, opened) = self.sent.remove(&ticket).unwrap_or((None, false));
         let answer = match answer {
             Ok(answer) => answer,
             Err(why) => {
@@ -113,8 +115,12 @@ impl RenderClient {
                 return Some(Err(Unrendered::Failed(why)));
             }
         };
-        if matches!(answer.result, Err(Unrendered::Unopened)) {
-            self.opened = None;
+        // A document it does not hold, or one the job sent that could not be opened: the next
+        // job sends the bytes again rather than asking for what is not there.
+        match &answer.result {
+            Err(Unrendered::Unopened) => self.opened = None,
+            Err(Unrendered::Failed(_)) if opened => self.opened = None,
+            _ => {}
         }
         if let (Some(sent), Some(now)) = (sent, frame_time()) {
             performance.record_duration("Round trip", now.saturating_duration_since(sent));
