@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::ops::Bound;
 
 use be_block_graph::BlockGraph;
@@ -1096,21 +1096,30 @@ impl ServerStore {
                 return Ok(None);
             }
             // A block's agent reads the keys of its block and those below it alone
-            // (`blocks::reaches`), so it hears of no other's.
-            let bound = crate::store::bound_agents(database, identity.organization)?;
-            let reaches = |account: Uuid, block: Uuid| {
-                crate::blocks::reaches(graph, bound.get(&account).copied(), block)
+            // (`blocks::reaches`), so it hears of no other's. Looked up for each viewer once,
+            // in any organization: one bound to a block of another reaches none here.
+            let mut bound: HashMap<Uuid, Option<Uuid>> = HashMap::new();
+            let mut reaches = |account: Uuid, block: Uuid| -> Result<bool, ServerError> {
+                let root = match bound.get(&account) {
+                    Some(root) => *root,
+                    None => {
+                        let root = crate::store::bound_block(database, account)?;
+                        bound.insert(account, root);
+                        root
+                    }
+                };
+                Ok(crate::blocks::reaches(graph, root, block))
             };
             let mut told = BTreeSet::new();
             for block in stored.opened {
                 for account in graph.viewers(block) {
-                    if reaches(account, block) {
+                    if reaches(account, block)? {
                         told.insert(account);
                     }
                 }
             }
             for (block, account) in stored.sealed {
-                if graph.viewers(block).contains(&account) && reaches(account, block) {
+                if graph.viewers(block).contains(&account) && reaches(account, block)? {
                     told.insert(account);
                 }
             }

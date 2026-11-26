@@ -87,10 +87,13 @@ pub(crate) enum Table {
     /// The objects this device's part writers sealed that nothing named yet, by hash, each
     /// with the block whose key sealed it (`be_block_store::Ledger`, `Vault::collect`).
     Unnamed,
+    /// The lowering this device last appended to each log that no log it checked held yet
+    /// (`KeyBook::appended`), by the log, so a restart still withholds a log served short of it.
+    Awaited,
 }
 
 impl Table {
-    pub const ALL: [Self; 34] = [
+    pub const ALL: [Self; 35] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -125,6 +128,7 @@ impl Table {
         Self::ListingEntry,
         Self::LogPlace,
         Self::Unnamed,
+        Self::Awaited,
     ];
 
     pub fn code(self) -> u8 {
@@ -163,6 +167,7 @@ impl Table {
             Self::ListingEntry => 32,
             Self::LogPlace => 33,
             Self::Unnamed => 34,
+            Self::Awaited => 35,
         }
     }
 
@@ -568,6 +573,8 @@ struct State {
     log_redactions: HashMap<Uuid, u64>,
     /// The first fork of each block's signed log this device found.
     log_forks: HashMap<Uuid, LogFork>,
+    /// The lowering this device appended to each log that no log it checked holds yet.
+    awaited: HashMap<Uuid, [u8; 32]>,
     /// The places of kept logs as loaded, until `load` joins them to their logs.
     log_places: HashMap<Uuid, BTreeMap<u64, kept_logs::KeptPlace>>,
     next: u64,
@@ -922,6 +929,9 @@ impl State {
             }
             Table::LogForks => {
                 self.log_forks.insert(uuid_key(&row.key)?, decode(value)?);
+            }
+            Table::Awaited => {
+                self.awaited.insert(uuid_key(&row.key)?, decode(value)?);
             }
             Table::Replaced => {
                 let old: [u8; 32] = row
@@ -1887,6 +1897,35 @@ impl Refs {
             block.as_bytes().to_vec(),
             &redactions,
         )])
+    }
+
+    /// The lowering this device appended to each log that no log it checked held yet, as
+    /// `set_awaited` kept them (`KeyBook::appended`).
+    pub fn awaited(&self) -> Vec<(Uuid, [u8; 32])> {
+        let state = self.state.lock().unwrap();
+        state.awaited.iter().map(|(log, entry)| (*log, *entry)).collect()
+    }
+
+    /// Keeps `awaited` as the lowering this device appended to `log` that no log it checked
+    /// holds yet, or none.
+    pub fn set_awaited(&self, log: Uuid, awaited: Option<[u8; 32]>) -> Result<(), StoreError> {
+        let mut state = self.state.lock().unwrap();
+        if state.awaited.get(&log) == awaited.as_ref() {
+            return Ok(());
+        }
+        self.write(vec![match &awaited {
+            Some(entry) => row(Table::Awaited, log.as_bytes().to_vec(), entry),
+            None => Row {
+                table: Table::Awaited,
+                key: log.as_bytes().to_vec(),
+                value: None,
+            },
+        }])?;
+        match awaited {
+            Some(entry) => state.awaited.insert(log, entry),
+            None => state.awaited.remove(&log),
+        };
+        Ok(())
     }
 
     /// The first fork of `block`'s signed log this device found, if any.
