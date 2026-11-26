@@ -66,9 +66,10 @@ async fn hosted() {
             clock.advance(crate::terminal_host::CLAIM_INTERVAL * 2);
             viewer.run("echo held-$((3*3))").await;
             viewer
-                .until("read the first host's shell while the presence was held", |viewer| {
-                    viewer.answered("held-9")
-                })
+                .until(
+                    "read the first host's shell while the presence was held",
+                    |viewer| viewer.answered("held-9"),
+                )
                 .await;
             standing.changed().await.unwrap();
             assert_eq!(
@@ -134,7 +135,11 @@ async fn hosted() {
                 "the host first by client takes the lease back"
             );
             assert_eq!(viewer.machine().as_deref(), Some("first-box"));
-            assert_eq!(*claims.borrow(), before, "the second host never claimed the lease");
+            assert_eq!(
+                *claims.borrow(),
+                before,
+                "the second host never claimed the lease"
+            );
             viewer.leave().await;
             stop_second.send(()).unwrap();
             stop_first.send(()).unwrap();

@@ -567,9 +567,14 @@ impl Outside {
                     .await
                     .expect("the counter is created");
             }
-            be_tool_cli::replica::Session::open(peer, block, super::types::sources().await, Vec::new())
-                .await
-                .expect("the outside peer opens the counter")
+            be_tool_cli::replica::Session::open(
+                peer,
+                block,
+                super::types::sources().await,
+                Vec::new(),
+            )
+            .await
+            .expect("the outside peer opens the counter")
         });
         Self {
             runtime,

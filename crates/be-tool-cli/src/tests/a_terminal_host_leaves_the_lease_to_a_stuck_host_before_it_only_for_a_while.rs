@@ -88,7 +88,11 @@ async fn hosted() {
             viewer.session.settle().await;
             standing.changed().await.unwrap();
             assert_eq!(*standing.borrow_and_update(), Standing::Waiting);
-            assert_eq!(*claims.borrow(), before, "the second host leaves the lease to the first");
+            assert_eq!(
+                *claims.borrow(),
+                before,
+                "the second host leaves the lease to the first"
+            );
 
             // Once `UNHEARD_HOLDER` has passed it claims the lease itself.
             clock.advance(UNHEARD_HOLDER);

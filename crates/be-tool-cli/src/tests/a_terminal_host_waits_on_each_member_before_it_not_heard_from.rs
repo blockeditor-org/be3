@@ -42,12 +42,8 @@ async fn hosted() {
             let mut viewer = setup.viewer().await;
             let mut silent = Vec::new();
             for peer in members {
-                let opened = Session::<_, TerminalContent>::open(
-                    peer,
-                    setup.block,
-                    sources()(),
-                    Vec::new(),
-                );
+                let opened =
+                    Session::<_, TerminalContent>::open(peer, setup.block, sources()(), Vec::new());
                 silent.push(opened.await.unwrap());
             }
             start.send(()).unwrap();

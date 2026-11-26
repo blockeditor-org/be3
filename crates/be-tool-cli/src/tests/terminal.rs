@@ -3,8 +3,8 @@ use std::time::Duration;
 
 use be_block_client::Peer;
 use be_block_content::ObjectId;
-use be_block_graph::Access;
 use be_block_content::presence::{ChannelKind, PresenceKind};
+use be_block_graph::Access;
 use be_block_store::FileStore;
 use be_type_terminal::{
     Key, Modifiers, Terminal, TerminalContent, TerminalHost, TerminalKey, TerminalLine,
@@ -81,8 +81,8 @@ impl Setup {
                 sources()(),
                 Vec::new(),
             )
-                .await
-                .unwrap(),
+            .await
+            .unwrap(),
         }
     }
 

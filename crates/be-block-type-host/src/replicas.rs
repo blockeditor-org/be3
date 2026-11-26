@@ -15,8 +15,8 @@ use be_block_protocol::{ClientId, ErrorCode, Participant, SessionState};
 use be_block_session::Membership;
 use be_sdk_type_api::ops::wire::{self, Decode};
 use be_sdk_type_api::{
-    Change, Description, EditorId, Endpoint, Entries, Opening, PlainFile, PublishOutcome, Recipients,
-    ReplicaId, Resume, Status,
+    Change, Description, EditorId, Endpoint, Entries, Opening, PlainFile, PublishOutcome,
+    Recipients, ReplicaId, Resume, Status,
     embed::{
         exports::replicas::{self, Replica},
         host::Call,
