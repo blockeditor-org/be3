@@ -196,5 +196,6 @@ fn stopped_served(received: Vec<Vec<u8>>, asked: bool) -> Served {
         next: asked.then(|| -> (OpId, Answer<Frames>) {
             (1, Box::new(|_: &Frames| (1, Outcome::Ok(Vec::new()))))
         }),
+        started: None,
     }
 }

@@ -284,6 +284,12 @@ impl Instance {
         self.worker.channel().post(&message, None);
     }
 
+    /// Whether it started: its module is loaded and linked, and it steps from now on, as its
+    /// latest `receive` heard.
+    pub fn started(&self) -> bool {
+        self.worker.ready()
+    }
+
     /// Why it is not settled, if it is not: settled means it has nothing left to do with what it
     /// was sent and nothing it sent waits to be taken (`receive`): no frames wait for it to start
     /// or for a step, and no step on them is in flight. One that stopped has only what it sent
