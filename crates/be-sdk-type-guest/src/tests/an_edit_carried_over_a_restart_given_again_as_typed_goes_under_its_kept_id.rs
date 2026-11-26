@@ -76,8 +76,8 @@ fn an_edit_carried_over_a_restart_given_again_as_typed_goes_under_its_kept_id() 
     // The submissions taken on their way are never answered: the replica they went from is
     // opened again.
     sim.given_again = vec![(1, typed)];
-    sim.reopen(1);
     sim.errors.clear();
+    sim.reopen(1);
     sim.settle();
     // Both copies the crashed process sent reach the server after the one given again: the
     // first, as typed, is passed over as made before the restart.

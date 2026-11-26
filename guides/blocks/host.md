@@ -320,7 +320,11 @@ the connection a stopping stack closed.
   had) holds them rewritten, which the edits given again as typed would not
   encode to. By a part, it goes under its id only if they encode to its payload
   again; otherwise they go as a new submission. One the order
-  numbers meanwhile takes the edits it holds out of what waits. When the order
+  numbers meanwhile takes the edits it holds out of what waits; one it passes
+  over, based before the order's floor (`below_floor`: a copy made before a
+  restart, numbered after it), puts none of its edits in the order, counts
+  nothing in `own_through`, journaled_taken or the origin's `through`, and
+  leaves the kept submission in place. When the order
   restarts, the submissions made before it are passed over: the replica drops
   its kept submissions as it carries its edits over, and reports the restart
   before it submits them again (`Replica::flush`), so the host drops those it
