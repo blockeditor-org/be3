@@ -38,9 +38,12 @@ async fn sealed_past(
 ) -> CommitId {
     let waited = tokio::time::timeout(std::time::Duration::from_secs(30), async {
         laptops.pump((laptop, shared)).await;
-        while laptops
-            .submissions_of(block)
-            .is_none_or(|(submitting, _, kept)| submitting > 0 || kept.is_empty())
+        // Submitted is not yet ordered: a seal asked before the order holds the edit seals
+        // nothing new, and on the laptop's manual clock nothing seals after.
+        while laptops.ordering()
+            || laptops
+                .submissions_of(block)
+                .is_none_or(|(submitting, _, kept)| submitting > 0 || kept.is_empty())
         {
             step_laptop(laptop, shared, laptops, heard).await;
         }
