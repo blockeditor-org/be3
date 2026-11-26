@@ -19,6 +19,7 @@ use crate::unstyled::{
 use beui_components_styled::action_bar::{ActionBar, ActionLabels};
 use beui_components_styled::back_slide::SLIDE_CURVES;
 use beui_components_styled::button::{Button, ButtonSize, ButtonVariant};
+use beui_components_styled::count_badge::CountBadge;
 use beui_components_styled::context_menu::menu_style;
 use beui_components_styled::sheet::ModalSheet;
 use beui_components_styled::text::{Icon, Text, TextColor, TextSize};
@@ -230,6 +231,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
         title,
         icon,
         picture,
+        count,
         selected,
         hovered,
         active,
@@ -256,6 +258,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
                         title
                         icon
                         picture
+                        count
                         grouped
                         vertical
                         selected
@@ -384,6 +387,7 @@ fn DockTabChrome(
     title: Prop<String>,
     icon: Memo<Option<Glyph>>,
     picture: Memo<Option<Image>>,
+    count: Memo<u32>,
     grouped: bool,
     vertical: bool,
     selected: Memo<bool>,
@@ -436,6 +440,9 @@ fn DockTabChrome(
                 <ListItem grow=title_grow shrink=title_shrink>
                     <Text color={label} overflow=Overflow::Ellipsis>{title}</Text>
                 </ListItem>
+                <Show value={move || count.get() > 0}>
+                    <CountBadge count={count} />
+                </Show>
                 <Show value={waiting}>
                     <Frame
                         @test_id={waiting_test_id.clone()}

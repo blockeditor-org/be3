@@ -218,6 +218,7 @@ fn declared(path: DockTabPath, key: &str) -> DockTab {
         glyph: String::new(),
         closable: true,
         back_closes: true,
+        count: 0,
         menu: Vec::new(),
     }
 }

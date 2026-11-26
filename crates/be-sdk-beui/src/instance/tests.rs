@@ -494,6 +494,7 @@ fn joined_dock() -> be_sdk_api::DockDeclaration {
             glyph: String::new(),
             closable: false,
             back_closes: true,
+            count: 0,
             menu: Vec::new(),
         }],
         dialogs: Vec::new(),

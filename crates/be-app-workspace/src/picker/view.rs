@@ -801,10 +801,23 @@ fn LinkBody(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> NodeId {
     }
 }
 
+/// A badge's tooltip: how many things in a block the account has not read.
+fn unread_label(count: u32) -> String {
+    match count {
+        1 => "1 unread".to_owned(),
+        count => format!("{count} unread"),
+    }
+}
+
 #[component]
 fn LinkRowFace(row: Memo<Option<TreeRow>>) -> NodeId {
     let label = create_memo(move || row.get().map(|row| row.name).unwrap_or_default());
     let detail = create_memo(move || row.get().map(|row| row.detail).unwrap_or_default());
+    let unread = create_memo(move || row.with(|row| row.as_ref().map_or(0, |row| row.unread)));
+    let unread_test_id = row
+        .get_untracked()
+        .and_then(|row| row.key.id())
+        .map_or_else(String::new, |id| format!("picker.{id}.unread"));
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
             <Text color=TextColor::Muted size=TextSize::Sm align=TextAlign::Center>
@@ -816,7 +829,7 @@ fn LinkRowFace(row: Memo<Option<TreeRow>>) -> NodeId {
                         true => TextColor::Default,
                         false => TextColor::Muted,
                     }}
-                    weight={move || match row.get().is_some_and(|row| row.section) {
+                    weight={move || match row.get().is_some_and(|row| row.section || row.unread > 0) {
                         true => Weight::Bold,
                         false => Weight::Normal,
                     }}
@@ -826,6 +839,11 @@ fn LinkRowFace(row: Memo<Option<TreeRow>>) -> NodeId {
                 </Text>
             </ListItem>
             <Text size=TextSize::Sm color=TextColor::Muted>{detail}</Text>
+            <Show value={move || unread.get() > 0}>
+                <Tooltip label={move || unread_label(unread.get())} @test_id={unread_test_id.clone()}>
+                    <CountBadge count={unread} />
+                </Tooltip>
+            </Show>
         </List>
     }
 }

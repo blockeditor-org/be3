@@ -242,6 +242,7 @@ pub(crate) enum EntryKind {
         title: Memo<String>,
         icon: Memo<Option<Glyph>>,
         picture: Memo<Option<Image>>,
+        count: Memo<u32>,
         on_close: Option<Callback<()>>,
         back_closes: bool,
         see_through: bool,
@@ -421,13 +422,15 @@ where
 /// `back_closes=false` keeps back from closing a tab it opened (a program's window, whose close ends
 /// the program). `see_through` shows what is drawn under the dock, so nothing fills behind it and it
 /// never floats into a window. `group` names which tabs are one app's, for `next_of_group`.
-/// `picture` is not carried across apps.
+/// `count` shows beside the title as a badge (`CountBadge`) when it is not zero: what is unread in
+/// a tab's block. `picture` is not carried across apps.
 #[component]
 pub fn DockTab(
     id: Option<DockId>,
     #[prop(default = String::new())] title: Prop<String>,
     #[prop(default = None)] icon: Prop<Option<Glyph>>,
     #[prop(default = None)] picture: Prop<Option<Image>>,
+    #[prop(default = 0)] count: Prop<u32>,
     on_close: Option<Callback<()>>,
     #[prop(default = true)] back_closes: bool,
     #[prop(default = false)] see_through: bool,
@@ -441,6 +444,7 @@ pub fn DockTab(
             title: create_memo(move || title.get()),
             icon: create_memo(move || icon.get()),
             picture: create_memo(move || picture.get()),
+            count: create_memo(move || count.get()),
             on_close,
             back_closes,
             see_through,

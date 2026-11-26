@@ -442,6 +442,8 @@ pub(crate) struct TreeRow {
     pub(crate) expanded: bool,
     pub(crate) section: bool,
     pub(crate) enabled: bool,
+    /// What the account has not read in the block (`BlockInfo::unread`).
+    pub(crate) unread: u32,
 }
 
 struct Walk<'a> {
@@ -511,6 +513,7 @@ impl Walk<'_> {
                 expanded: expandable && row.expanded,
                 section: row.depth == 0,
                 enabled: (self.enabled)(&row.block),
+                unread: row.block.unread,
                 name: label.name,
             });
         }
@@ -543,6 +546,7 @@ impl Walk<'_> {
                 expanded,
                 section: true,
                 enabled: false,
+                unread: 0,
             },
         );
     }
