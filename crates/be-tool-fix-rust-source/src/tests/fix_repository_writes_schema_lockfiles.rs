@@ -2,17 +2,18 @@ use super::*;
 use crate::fix_repository as fix;
 use std::fs;
 
+fn point(marker: &str, fields: &str) -> String {
+    format!("#[derive(Schema)]\n#[schema({marker})]\npub struct Point {{\n{fields}}}\n")
+}
+
 #[test]
 fn fix_repository_writes_schema_lockfiles() {
     let root = temporary_directory();
     let source = root.join("crates/widget/src");
     fs::create_dir_all(&source).unwrap();
     let lock = root.join("crates/widget/schema.lock");
-    fs::write(
-        source.join("lib.rs"),
-        "#[derive(Schema)]\npub struct Point {\n    pub x: i32,\n    pub y: i32,\n}\n",
-    )
-    .unwrap();
+    let both = "    pub x: i32,\n    pub y: i32,\n";
+    fs::write(source.join("lib.rs"), point("unfrozen", both)).unwrap();
 
     let stale = fix(&root, true).unwrap_err().to_string();
     assert!(
@@ -29,22 +30,14 @@ fn fix_repository_writes_schema_lockfiles() {
     fix(&root, true).unwrap();
 
     // Freezing it, then removing a field without retiring it, is refused.
-    fs::write(
-        source.join("lib.rs"),
-        "be_wasm_schema::frozen!();\n\n#[derive(Schema)]\npub struct Point {\n    pub x: i32,\n    pub y: i32,\n}\n",
-    )
-    .unwrap();
+    fs::write(source.join("lib.rs"), point("frozen", both)).unwrap();
     fix(&root, false).unwrap();
     assert!(
         fs::read_to_string(&lock)
             .unwrap()
             .contains("struct Point\n  frozen from 3\n")
     );
-    fs::write(
-        source.join("lib.rs"),
-        "be_wasm_schema::frozen!();\n\n#[derive(Schema)]\npub struct Point {\n    pub x: i32,\n}\n",
-    )
-    .unwrap();
+    fs::write(source.join("lib.rs"), point("frozen", "    pub x: i32,\n")).unwrap();
     let refused = fix(&root, false).unwrap_err().to_string();
     assert!(
         refused.contains("Point.y is frozen and no longer in the source"),

@@ -16,10 +16,10 @@ fn some_of_a_default_is_not_none() {
             nested: None,
         },
     ] {
-        assert_eq!(decode::<Opt>(&encode(&value)), Ok(value));
+        assert_eq!(decode::<Opt>(&bytes(&value)), Ok(value));
     }
     assert_eq!(
-        encode(&Opt {
+        bytes(&Opt {
             count: None,
             nested: None
         }),

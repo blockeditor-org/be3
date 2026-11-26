@@ -4,10 +4,10 @@ use super::*;
 fn a_frozen_type_stays_frozen() {
     one_error(
         lock_of(&[("a.rs", PERSON)], &frozen_person()),
-        "no longer calls be_wasm_schema::frozen!()",
+        "is marked #[schema(unfrozen)]: a frozen type stays frozen",
     );
     one_error(
-        lock_of(&[("a.rs", "be_wasm_schema::frozen!();")], &frozen_person()),
+        lock_of(&[("a.rs", "")], &frozen_person()),
         "Person is frozen in schema.lock and no longer in the source",
     );
 }

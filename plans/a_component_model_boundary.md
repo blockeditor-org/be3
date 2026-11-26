@@ -2,7 +2,7 @@
 
 Depends on: plans/be3_gpu_is_wasi_webgpu.md, step 1 (the canonical ABI's lifting and
 lowering), for step 1. Step 2 depends on plans/be3_gpu_is_wasi_webgpu.md, step 3b, and
-plans/unified_serialization.md, step 4.
+plans/unified_serialization.md, step 5.
 
 decisions/wit_describes_the_wasm_boundary_and_rust_the_frames.md: the wasm boundary is WIT,
 bound by wit-bindgen and answered in the component model's canonical ABI, so guests
@@ -27,7 +27,7 @@ constants in `crates/be-wasm-guest-abi` (`host_send`, `host_receive`, `host_wake
    (be-wasm-host, the browser's `guest.js` and `app.js`, tabletop-host's wasmi,
    be-wasm-root-host), and be-wasm-guest-abi's constants go.
 2. **be-wasm-ops-bindgen goes.** With apps on wasi:webgpu (plans/be3_gpu_is_wasi_webgpu.md,
-   3b) and our protocols defined in Rust (plans/unified_serialization.md, step 4), neither its
+   3b) and our protocols defined in Rust (plans/unified_serialization.md, step 5), neither its
    `local` mode nor its op mode is left; decisions/guest_calls_are_async_ops_except_local_ones.md
    is rewritten to say how guest calls travel then.
 3. **What the component model has that we only imitate**, kept as a list in this plan as it is

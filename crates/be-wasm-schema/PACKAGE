@@ -19,6 +19,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-schema-derive:be-wasm-schema-derive",
                 "//third-party/rust:bytemuck-1.25.0",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],
@@ -30,6 +31,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-schema-derive:be-wasm-schema-derive",
                 "//third-party/rust:bytemuck-1.25.0",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],
@@ -41,6 +43,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-schema-derive:be-wasm-schema-derive",
                 "//third-party/rust:bytemuck-1.25.0",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],
@@ -52,6 +55,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-schema-derive:be-wasm-schema-derive",
                 "//third-party/rust:bytemuck-1.25.0",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],
@@ -63,6 +67,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-schema-derive:be-wasm-schema-derive",
                 "//third-party/rust:bytemuck-1.25.0",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],
@@ -74,6 +79,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-schema-derive:be-wasm-schema-derive",
                 "//third-party/rust:bytemuck-1.25.0",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],
@@ -85,6 +91,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-wasm-schema-derive:be-wasm-schema-derive",
                 "//third-party/rust:bytemuck-1.25.0",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],

@@ -2,11 +2,15 @@
 //! never panic when decoded, what decodes encodes canonically, and a value built from arbitrary
 //! bytes reads back as it was written.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use crate::{Decode, Schema, Unknown, UnknownVariant, decode, encode};
+use crate::{
+    Decode, Kept, Reference, Schema, Unknown, UnknownVariant, decode, dump, encode, encoded_len,
+    references,
+};
 
 #[derive(Debug, Schema)]
+#[schema(unfrozen)]
 pub struct FuzzRecord {
     flag: bool,
     small: u8,
@@ -21,11 +25,17 @@ pub struct FuzzRecord {
     maybe: Option<u32>,
     nested: Option<Option<String>>,
     map: BTreeMap<String, Vec<i64>>,
+    set: BTreeSet<u32>,
+    pair: (u8, String),
+    link: Option<Reference>,
+    #[schema(default = 3)]
+    tries: u8,
     shape: FuzzShape,
     children: Vec<FuzzRecord>,
 }
 
 #[derive(Debug, Schema)]
+#[schema(unfrozen)]
 pub enum FuzzShape {
     #[schema(default)]
     Dot,
@@ -46,6 +56,7 @@ impl FuzzRecord {
 
 /// `FuzzRecord`'s first field, keeping the rest.
 #[derive(Debug, Schema)]
+#[schema(unfrozen)]
 pub struct FuzzKeeping {
     flag: bool,
     #[schema(unknown)]
@@ -54,6 +65,7 @@ pub struct FuzzKeeping {
 
 /// `FuzzShape`'s first variant, keeping the others.
 #[derive(Debug, Schema)]
+#[schema(unfrozen)]
 pub enum FuzzOpen {
     Dot,
     #[schema(unknown)]
@@ -61,14 +73,17 @@ pub enum FuzzOpen {
 }
 
 #[derive(Debug, Schema)]
+#[schema(unfrozen)]
 pub struct FuzzBorrowed<'a> {
     name: &'a str,
     data: &'a [u8],
     numbers: Vec<u16>,
+    later: Kept<FuzzShape>,
 }
 
 /// Decodes `data` as each type. None panics, and what decodes is canonical once encoded:
-/// decoding that and encoding it again gives the same bytes.
+/// decoding that and encoding it again gives the same bytes. Walking and dumping it never
+/// panic either.
 pub fn decode_any(data: &[u8]) {
     stable::<FuzzRecord>(data);
     stable::<FuzzShape>(data);
@@ -78,17 +93,21 @@ pub fn decode_any(data: &[u8]) {
     stable::<BTreeMap<u32, String>>(data);
     stable::<Option<Vec<bool>>>(data);
     if let Ok(value) = decode::<FuzzBorrowed>(data) {
-        let once = encode(&value);
+        let once = encode(&value).expect("what decoded encodes");
         let again: FuzzBorrowed = decode(&once).expect("an encoding reads back");
-        assert_eq!(encode(&again), once);
+        assert_eq!(encode(&again).expect("encodes"), once);
+        let _ = value.later.get();
     }
+    let _ = references(data);
+    let _ = dump(data);
 }
 
 fn stable<T: for<'a> Decode<'a>>(data: &[u8]) {
     if let Ok(value) = decode::<T>(data) {
-        let once = encode(&value);
+        let once = encode(&value).expect("what decoded encodes");
+        assert_eq!(encoded_len(&value), Ok(once.len()));
         let again: T = decode(&once).expect("an encoding reads back");
-        assert_eq!(encode(&again), once);
+        assert_eq!(encode(&again).expect("encodes"), once);
     }
 }
 
@@ -96,14 +115,17 @@ fn stable<T: for<'a> Decode<'a>>(data: &[u8]) {
 /// only its first field keeps the rest and writes the same bytes.
 pub fn round_trip(data: &[u8]) {
     let record = FuzzRecord::built(data);
-    let bytes = encode(&record);
+    let bytes = encode(&record).expect("a record encodes");
+    assert_eq!(encoded_len(&record), Ok(bytes.len()));
     let back: FuzzRecord = decode(&bytes).expect("what was written reads back");
-    assert_eq!(encode(&back), bytes);
+    assert_eq!(encode(&back).expect("encodes"), bytes);
     let kept: FuzzKeeping = decode(&bytes).expect("unknown fields are kept");
-    assert_eq!(encode(&kept), bytes);
-    let shape = encode(&record.shape);
+    assert_eq!(encode(&kept).expect("encodes"), bytes);
+    let shape = encode(&record.shape).expect("a shape encodes");
     let open: FuzzOpen = decode(&shape).expect("unknown variants are kept");
-    assert_eq!(encode(&open), shape);
+    assert_eq!(encode(&open).expect("encodes"), shape);
+    references(&bytes).expect("a record can be walked");
+    dump(&bytes).expect("a record can be dumped");
 }
 
 /// Values drawn from bytes, zeros once they run out.
@@ -170,6 +192,10 @@ impl Input<'_> {
                     )
                 })
                 .collect(),
+            set: (0..self.count(5)).map(|_| self.u64() as u32).collect(),
+            pair: (self.byte(), self.text()),
+            link: (self.byte() % 2 == 1).then(|| Reference([self.byte(); 16])),
+            tries: self.byte() % 5,
             shape: self.shape(0),
             children: if depth < 3 {
                 (0..self.count(3)).map(|_| self.record(depth + 1)).collect()

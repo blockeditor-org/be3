@@ -12,6 +12,7 @@ fuzzing = []
 [dependencies]
 be-wasm-schema-derive = { path = "../be-wasm-schema-derive" }
 bytemuck = "1"
+uuid = "1"
 
 [lints]
 workspace = true

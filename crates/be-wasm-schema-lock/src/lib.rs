@@ -1,21 +1,31 @@
 //! `schema.lock`: the ids of a crate's `Schema` types (be-wasm-schema).
 //!
-//! The source says what a type is and whether it is frozen (its file calls
-//! `be_wasm_schema::frozen!()`); the lockfile says which id each field and variant has, so the
-//! source may reorder them freely. ./scripts/verify rewrites the lockfile from the source and
-//! the lockfile before it (`update`), and the derive numbers a type from the lockfile checked in
-//! (`numbered`) the same way, so a build never waits for the lockfile to catch up.
+//! The source says what a type is and whether it is frozen: every `Schema` type is marked
+//! `#[schema(frozen)]` (no breaking changes) or `#[schema(unfrozen)]` (change it however it
+//! needs). The lockfile says which id each field and variant has, so the source may reorder
+//! them freely. ./scripts/verify rewrites the lockfile from the source and the lockfile before it
+//! (`update`), and the derive numbers a type from the lockfile checked in (`numbered`) the same
+//! way, so a build never waits for the lockfile to catch up. That a frozen type holds only frozen
+//! types is the compiler's to check (be-wasm-schema's `Encode::FROZEN`), across crates.
 //!
-//! Every entry is updated incrementally: a member keeps its id while its name stays, a new one
-//! takes the next unused id, and a removed one stays as `retired` so its id is never given
-//! again. An unfrozen entry accepts every change. A frozen one refuses what an older build could
-//! not read: a retyped member, a frozen type made unfrozen or removed, a variant added to an
-//! enum with no unknown case, and a retired name given again. A frozen member is removed or
-//! renamed only with a hand edit here, so neither happens by accident: removing one means
-//! marking it `retired` (an API that forgot a field that meant something would answer wrongly
-//! rather than fail), and renaming one means renaming it.
+//! Every entry is updated incrementally, frozen or not: a member keeps its id while its name
+//! stays, a new one takes the next unused id, and a removed one stays as `retired`, with its
+//! type, so its id is never given again. An unfrozen entry accepts every change. A frozen one
+//! refuses what an older build could not read:
+//!
+//! - a member retyped, or given or relieved of `critical`, `no_copy` or a default (a member's
+//!   shape is its type and those, as written);
+//! - a frozen type marked unfrozen again, or removed;
+//! - a frozen enum that says neither whether it keeps unknown variants (a `#[schema(unknown)]`
+//!   case) nor that it never will (`#[schema(closed)]`); a variant added to a closed one; an
+//!   open one closed; a struct that kept unknown fields no longer keeping them;
+//! - a retired name given again.
+//!
+//! A frozen member is removed or renamed only with a hand edit here, so neither happens by
+//! accident: removing one means marking it `retired` (an API that forgot a field that meant
+//! something would answer wrongly rather than fail), and renaming one means renaming it.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use proc_macro2::{Delimiter, TokenStream, TokenTree};
@@ -26,7 +36,8 @@ pub const FILE: &str = "schema.lock";
 
 const HEADER: &str = "\
 # Written by ./scripts/verify from this crate's Schema types (be-wasm-schema): the id of each
-# field and variant. Rename a member of a frozen type here when you rename it in the source.
+# field and variant. Rename a member of a frozen type here when you rename it in the source, and
+# confirm a frozen member's removal by writing `retired` before its name.
 ";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -53,7 +64,8 @@ pub struct Member {
     pub id: u32,
     pub name: String,
     /// `: Type` for a field, empty for a unit variant, `(Type)` for a newtype variant and `{}`
-    /// for a struct variant (whose fields are the entry `Enum::Variant`). Empty when retired.
+    /// for a struct variant (whose fields are the entry `Enum::Variant`), then any of
+    /// ` [critical, no_copy, default = ...]`. A retired member keeps the shape it had.
     pub shape: String,
     pub retired: bool,
 }
@@ -65,6 +77,10 @@ pub struct Entry {
     pub inner: String,
     /// Whether an enum keeps variants it does not know (a `#[schema(unknown)]` case).
     pub open: bool,
+    /// Whether an enum says it never will (`#[schema(closed)]`).
+    pub closed: bool,
+    /// Whether a struct keeps fields it does not know (a `#[schema(unknown)]` field).
+    pub keeps_unknown: bool,
     /// Set once frozen: the first id given after freezing. A member with this id or above was
     /// added to a frozen type, so it must decode when missing.
     pub frozen_from: Option<u32>,
@@ -113,34 +129,36 @@ impl Lock {
                 let Some((_, entry)) = current.as_mut() else {
                     return Err(fail("a member outside a type"));
                 };
-                if member == "open" {
-                    entry.open = true;
-                    continue;
+                match member {
+                    "open" => entry.open = true,
+                    "closed" => entry.closed = true,
+                    "keeps unknown" => entry.keeps_unknown = true,
+                    _ => {
+                        if let Some(from) = member.strip_prefix("frozen from ") {
+                            entry.frozen_from = Some(from.parse().map_err(|_| fail("not an id"))?);
+                            continue;
+                        }
+                        let (id, rest) = member.split_once(' ').ok_or_else(|| fail("no id"))?;
+                        let id: u32 = id.parse().map_err(|_| fail("not an id"))?;
+                        let (retired, rest) = match rest.strip_prefix("retired ") {
+                            Some(rest) => (true, rest),
+                            None => (false, rest),
+                        };
+                        let end = rest
+                            .find(|c: char| !(c.is_alphanumeric() || c == '_' || c == '#'))
+                            .unwrap_or(rest.len());
+                        let (name, shape) = rest.split_at(end);
+                        if id == 0 || entry.members.iter().any(|member| member.id == id) {
+                            return Err(fail("an id given twice, or zero"));
+                        }
+                        entry.members.push(Member {
+                            id,
+                            name: name.to_owned(),
+                            shape: shape.to_owned(),
+                            retired,
+                        });
+                    }
                 }
-                if let Some(from) = member.strip_prefix("frozen from ") {
-                    entry.frozen_from = Some(from.parse().map_err(|_| fail("not an id"))?);
-                    continue;
-                }
-                let (id, rest) = member.split_once(' ').ok_or_else(|| fail("no id"))?;
-                let id: u32 = id.parse().map_err(|_| fail("not an id"))?;
-                let end = rest
-                    .find(|c: char| !(c.is_alphanumeric() || c == '_' || c == '#'))
-                    .unwrap_or(rest.len());
-                let (name, shape) = rest.split_at(end);
-                let retired = shape == " retired";
-                if id == 0 || entry.members.iter().any(|member| member.id == id) {
-                    return Err(fail("an id given twice, or zero"));
-                }
-                entry.members.push(Member {
-                    id,
-                    name: name.to_owned(),
-                    shape: if retired {
-                        String::new()
-                    } else {
-                        shape.to_owned()
-                    },
-                    retired,
-                });
                 continue;
             }
             if let Some((name, entry)) = current.take() {
@@ -163,6 +181,8 @@ impl Lock {
                 kind,
                 inner: inner.to_owned(),
                 open: false,
+                closed: false,
+                keeps_unknown: false,
                 frozen_from: None,
                 members: Vec::new(),
             };
@@ -188,19 +208,25 @@ impl Lock {
                 let _ = write!(text, ": {}", entry.inner);
             }
             text.push('\n');
-            if entry.open {
-                text.push_str("  open\n");
+            for (flag, set) in [
+                ("open", entry.open),
+                ("closed", entry.closed),
+                ("keeps unknown", entry.keeps_unknown),
+            ] {
+                if set {
+                    let _ = writeln!(text, "  {flag}");
+                }
             }
             if let Some(from) = entry.frozen_from {
                 let _ = writeln!(text, "  frozen from {from}");
             }
             for member in &entry.members {
-                let shape = if member.retired {
-                    " retired"
-                } else {
-                    &member.shape
-                };
-                let _ = writeln!(text, "  {} {}{shape}", member.id, member.name);
+                let retired = if member.retired { "retired " } else { "" };
+                let _ = writeln!(
+                    text,
+                    "  {} {retired}{}{}",
+                    member.id, member.name, member.shape
+                );
             }
         }
         text
@@ -213,7 +239,11 @@ pub struct Described {
     pub name: String,
     pub kind: Kind,
     pub inner: String,
+    /// `#[schema(frozen)]`, or a struct variant of a frozen enum.
+    pub frozen: bool,
     pub open: bool,
+    pub closed: bool,
+    pub keeps_unknown: bool,
     /// By name, with their shapes (`Member::shape`), in source order.
     pub members: Vec<(String, String)>,
 }
@@ -226,6 +256,28 @@ pub fn has_schema_word(attributes: &[syn::Attribute], word: &str) -> bool {
             let _ = attribute.parse_nested_meta(|meta| {
                 if meta.path.is_ident(word) {
                     found = true;
+                }
+                if meta.input.peek(syn::Token![=]) {
+                    let _: syn::Expr = meta.value()?.parse()?;
+                }
+                Ok(())
+            });
+        }
+    }
+    found
+}
+
+/// The expression of `#[schema(default = ...)]`, if `attributes` hold one.
+pub fn schema_default(attributes: &[syn::Attribute]) -> Option<syn::Expr> {
+    let mut found = None;
+    for attribute in attributes {
+        if attribute.path().is_ident("schema") {
+            let _ = attribute.parse_nested_meta(|meta| {
+                if meta.input.peek(syn::Token![=]) {
+                    let value: syn::Expr = meta.value()?.parse()?;
+                    if meta.path.is_ident("default") {
+                        found = Some(value);
+                    }
                 }
                 Ok(())
             });
@@ -255,8 +307,9 @@ pub fn derives_schema(attributes: &[syn::Attribute]) -> bool {
     found
 }
 
-/// A type as the lockfile writes it: tokens with spaces only between words.
-pub fn shape_of(ty: &syn::Type) -> String {
+/// Tokens as the lockfile writes them: spaces only between words, after commas and
+/// semicolons, and before a bracket that follows a word.
+pub fn tokens_text(tokens: TokenStream) -> String {
     fn walk(tokens: TokenStream, out: &mut String, word: &mut bool) {
         for token in tokens {
             match token {
@@ -301,24 +354,59 @@ pub fn shape_of(ty: &syn::Type) -> String {
         }
     }
     let mut out = String::new();
-    walk(ty.to_token_stream(), &mut out, &mut false);
+    walk(tokens, &mut out, &mut false);
     out
 }
 
-/// What `input` is, refused where the format cannot carry it: a type with generics other
-/// than one lifetime, a tuple struct or variant of more than one field, more than one unknown
-/// case or field, or a default case that carries data. A struct variant adds an entry of its
-/// own, `Enum::Variant`, after its enum.
+/// A type as the lockfile writes it.
+pub fn shape_of(ty: &syn::Type) -> String {
+    tokens_text(ty.to_token_stream())
+}
+
+/// A member's flags as the lockfile writes them after its shape.
+fn flags_of(attributes: &[syn::Attribute]) -> String {
+    let mut flags = Vec::new();
+    if has_schema_word(attributes, "critical") {
+        flags.push("critical".to_owned());
+    }
+    if has_schema_word(attributes, "no_copy") {
+        flags.push("no_copy".to_owned());
+    }
+    if let Some(default) = schema_default(attributes) {
+        flags.push(format!(
+            "default = {}",
+            tokens_text(default.to_token_stream())
+        ));
+    }
+    if flags.is_empty() {
+        String::new()
+    } else {
+        format!(" [{}]", flags.join(", "))
+    }
+}
+
+/// What `input` is, refused where the format cannot carry it: a type marked neither frozen nor
+/// unfrozen (or both), with const generics or more than one lifetime, a tuple struct or variant
+/// of more than one field, more than one unknown case or field, a default case that carries
+/// data, or a pointer-sized integer. A struct variant adds an entry of its own,
+/// `Enum::Variant`, after its enum.
 pub fn describe(input: &syn::DeriveInput) -> Result<Vec<Described>, String> {
     let name = input.ident.to_string();
+    let frozen = has_schema_word(&input.attrs, "frozen");
+    if frozen == has_schema_word(&input.attrs, "unfrozen") {
+        return Err(format!(
+            "{name}: a Schema type says whether it is #[schema(frozen)] (no breaking changes: older builds keep reading it) or #[schema(unfrozen)] (change it however it needs)"
+        ));
+    }
     let generics = &input.generics.params;
-    if generics
-        .iter()
-        .any(|param| !matches!(param, syn::GenericParam::Lifetime(_)))
-        || generics.len() > 1
+    let lifetimes = input.generics.lifetimes().count();
+    if lifetimes > 1
+        || generics
+            .iter()
+            .any(|param| matches!(param, syn::GenericParam::Const(_)))
     {
         return Err(format!(
-            "{name}: a Schema type takes at most one lifetime and no type parameters"
+            "{name}: a Schema type takes at most one lifetime, and no const parameters"
         ));
     }
     let portable = |ty: &syn::Type, of: &str| -> Result<String, String> {
@@ -331,50 +419,51 @@ pub fn describe(input: &syn::DeriveInput) -> Result<Vec<Described>, String> {
         }
         Ok(shape)
     };
-    let fields = |fields: &syn::FieldsNamed, of: &str| -> Result<Vec<(String, String)>, String> {
-        let mut members = Vec::new();
-        let mut unknown = 0;
-        for field in &fields.named {
-            if has_schema_word(&field.attrs, "unknown") {
-                unknown += 1;
-                continue;
+    let fields =
+        |fields: &syn::FieldsNamed, of: &str| -> Result<(Vec<(String, String)>, bool), String> {
+            let mut members = Vec::new();
+            let mut unknown = 0;
+            for field in &fields.named {
+                if has_schema_word(&field.attrs, "unknown") {
+                    unknown += 1;
+                    continue;
+                }
+                let ident = field
+                    .ident
+                    .as_ref()
+                    .map(ToString::to_string)
+                    .unwrap_or_default();
+                let shape = portable(&field.ty, &format!("{of}.{ident}"))?;
+                members.push((ident, format!(": {shape}{}", flags_of(&field.attrs))));
             }
-            let ident = field
-                .ident
-                .as_ref()
-                .map(ToString::to_string)
-                .unwrap_or_default();
-            let shape = portable(&field.ty, &format!("{of}.{ident}"))?;
-            members.push((ident, format!(": {shape}")));
-        }
-        if unknown > 1 {
-            return Err(format!("{of}: at most one field keeps unknown fields"));
-        }
-        Ok(members)
+            if unknown > 1 {
+                return Err(format!("{of}: at most one field keeps unknown fields"));
+            }
+            Ok((members, unknown == 1))
+        };
+    let plain = |name: String, kind, members, keeps_unknown| Described {
+        name,
+        kind,
+        inner: String::new(),
+        frozen,
+        open: false,
+        closed: false,
+        keeps_unknown,
+        members,
     };
     match &input.data {
         syn::Data::Struct(data) => match &data.fields {
-            syn::Fields::Named(named) => Ok(vec![Described {
-                name: name.clone(),
-                kind: Kind::Struct,
-                inner: String::new(),
-                open: false,
-                members: fields(named, &name)?,
-            }]),
-            syn::Fields::Unit => Ok(vec![Described {
-                name,
-                kind: Kind::Struct,
-                inner: String::new(),
-                open: false,
-                members: Vec::new(),
-            }]),
-            syn::Fields::Unnamed(unnamed) if unnamed.unnamed.len() == 1 => Ok(vec![Described {
-                inner: portable(&unnamed.unnamed[0].ty, &name)?,
-                name,
-                kind: Kind::Newtype,
-                open: false,
-                members: Vec::new(),
-            }]),
+            syn::Fields::Named(named) => {
+                let (members, keeps_unknown) = fields(named, &name)?;
+                Ok(vec![plain(name, Kind::Struct, members, keeps_unknown)])
+            }
+            syn::Fields::Unit => Ok(vec![plain(name, Kind::Struct, Vec::new(), false)]),
+            syn::Fields::Unnamed(unnamed) if unnamed.unnamed.len() == 1 => {
+                let inner = portable(&unnamed.unnamed[0].ty, &name)?;
+                let mut described = plain(name, Kind::Newtype, Vec::new(), false);
+                described.inner = inner;
+                Ok(vec![described])
+            }
             syn::Fields::Unnamed(_) => Err(format!(
                 "{name}: a tuple struct of more than one field has no names to number; name its fields"
             )),
@@ -411,50 +500,56 @@ pub fn describe(input: &syn::DeriveInput) -> Result<Vec<Described>, String> {
                     }
                     syn::Fields::Named(named) => {
                         let of = format!("{name}::{variant_name}");
-                        nested.push(Described {
-                            name: of.clone(),
-                            kind: Kind::Struct,
-                            inner: String::new(),
-                            open: false,
-                            members: fields(named, &of)?,
-                        });
+                        let (fields, keeps_unknown) = fields(named, &of)?;
+                        nested.push(plain(of, Kind::Struct, fields, keeps_unknown));
                         "{}".to_owned()
                     }
                 };
-                members.push((variant_name, shape));
+                let mut flags = flags_of(&variant.attrs);
+                if has_schema_word(&variant.attrs, "default") {
+                    flags = if flags.is_empty() {
+                        " [default]".to_owned()
+                    } else {
+                        flags.replace(']', ", default]")
+                    };
+                }
+                members.push((variant_name, format!("{shape}{flags}")));
             }
             if unknown > 1 || defaults > 1 {
                 return Err(format!(
                     "{name}: at most one variant keeps unknown variants, and at most one is the default"
                 ));
             }
-            let mut described = vec![Described {
-                name,
-                kind: Kind::Enum,
-                inner: String::new(),
-                open: unknown == 1,
-                members,
-            }];
-            described.extend(nested);
-            Ok(described)
+            let closed = has_schema_word(&input.attrs, "closed");
+            if closed && unknown == 1 {
+                return Err(format!(
+                    "{name}: an enum with a #[schema(unknown)] case is not #[schema(closed)]"
+                ));
+            }
+            let mut described = plain(name, Kind::Enum, members, false);
+            described.open = unknown == 1;
+            described.closed = closed;
+            let mut all = vec![described];
+            all.extend(nested);
+            Ok(all)
         }
         syn::Data::Union(_) => Err(format!("{name}: a union cannot be a Schema type")),
     }
 }
 
-/// `now`'s entry, from `old` (the lockfile's before the change), frozen when its file is.
-/// What a frozen entry cannot take is added to `errors`.
-pub fn update_entry(
-    old: Option<&Entry>,
-    now: &Described,
-    frozen: bool,
-    errors: &mut Vec<String>,
-) -> Entry {
+/// `now`'s entry, from `old` (the lockfile's before the change). What a frozen entry cannot
+/// take is added to `errors`.
+pub fn update_entry(old: Option<&Entry>, now: &Described, errors: &mut Vec<String>) -> Entry {
     let key = &now.name;
     let was_frozen = old.is_some_and(Entry::is_frozen);
-    if was_frozen && !frozen {
+    if was_frozen && !now.frozen {
         errors.push(format!(
-            "{key} is frozen in {FILE}, but its file no longer calls be_wasm_schema::frozen!(): a frozen type stays frozen, in a frozen file"
+            "{key} is frozen in {FILE}, but is marked #[schema(unfrozen)]: a frozen type stays frozen"
+        ));
+    }
+    if now.frozen && now.kind == Kind::Enum && !now.open && !now.closed {
+        errors.push(format!(
+            "{key} is a frozen enum, so it says whether a later build may add variants: a #[schema(unknown)] case keeps those an older build does not know, #[schema(closed)] says there will be none"
         ));
     }
     let old = old.filter(|old| {
@@ -482,12 +577,17 @@ pub fn update_entry(
                 "{key} is frozen keeping unknown variants, so it keeps its #[schema(unknown)] case"
             ));
         }
+        if old.keeps_unknown && !now.keeps_unknown {
+            errors.push(format!(
+                "{key} is frozen keeping unknown fields, so it keeps its #[schema(unknown)] field"
+            ));
+        }
     }
     let mut next = old.map_or(1, Entry::next);
     let mut members = Vec::new();
     let mut added = Vec::new();
+    let old_members = old.map_or(&[][..], |old| &old.members);
     for (name, shape) in &now.members {
-        let old_members = old.map_or(&[][..], |old| &old.members);
         let kept = old_members
             .iter()
             .find(|member| !member.retired && &member.name == name);
@@ -522,21 +622,21 @@ pub fn update_entry(
             retired: false,
         });
     }
-    for member in old.map_or(&[][..], |old| &old.members) {
+    for member in old_members {
         if member.retired {
             members.push(member.clone());
         } else if !now.members.iter().any(|(name, _)| name == &member.name) {
             if was_frozen {
                 errors.push(format!(
-                    "{key}.{} is frozen and no longer in the source: if it was renamed, rename it in {FILE} too; if it was removed, confirm it there by replacing `{} {}{}` with `{} {} retired`",
-                    member.name, member.id, member.name, member.shape, member.id, member.name
+                    "{key}.{name} is frozen and no longer in the source: if it was renamed, rename it in {FILE} too; if it was removed, confirm it there by writing `{id} retired {name}{shape}` in place of `{id} {name}{shape}`",
+                    name = member.name,
+                    id = member.id,
+                    shape = member.shape,
                 ));
             }
             members.push(Member {
-                id: member.id,
-                name: member.name.clone(),
-                shape: String::new(),
                 retired: true,
+                ..member.clone()
             });
         }
     }
@@ -553,21 +653,22 @@ pub fn update_entry(
     members.sort_by_key(|member| member.id);
     let frozen_from = match old.and_then(|old| old.frozen_from) {
         Some(from) => Some(from),
-        None if frozen => Some(next),
+        None if now.frozen => Some(next),
         None => None,
     };
     Entry {
         kind: now.kind,
         inner: now.inner.clone(),
         open: now.open,
+        closed: now.closed,
+        keeps_unknown: now.keeps_unknown,
         frozen_from,
         members,
     }
 }
 
 /// The entries the derive numbers `input` by: the lockfile's, updated as ./scripts/verify will
-/// update them, so the ids it gives are the ones the next lockfile holds. A type counts as
-/// frozen here once the lockfile says so; only `update` sees the file's `frozen!()`.
+/// update them, so the ids it gives are the ones the next lockfile holds.
 pub fn numbered(
     input: &syn::DeriveInput,
     lock: &Lock,
@@ -577,8 +678,7 @@ pub fn numbered(
     let entries = described
         .into_iter()
         .map(|now| {
-            let old = lock.types.get(&now.name);
-            let entry = update_entry(old, &now, old.is_some_and(Entry::is_frozen), &mut errors);
+            let entry = update_entry(lock.types.get(&now.name), &now, &mut errors);
             (now, entry)
         })
         .collect();
@@ -596,11 +696,10 @@ pub struct Source<'a> {
 }
 
 /// The crate's lockfile after a change: `old` updated from every `Schema` type in `sources`.
-/// Fails with every reason a frozen type refuses the change, and when a frozen type holds a
-/// type of the crate that is not frozen.
+/// Fails with every reason a frozen type refuses the change.
 pub fn update(sources: &[Source], old: &Lock) -> Result<Lock, Vec<String>> {
     let mut errors = Vec::new();
-    let mut found: Vec<(Described, bool, &str)> = Vec::new();
+    let mut found: Vec<(Described, &str)> = Vec::new();
     for source in sources {
         let file = match syn::parse_file(source.text) {
             Ok(file) => file,
@@ -609,25 +708,12 @@ pub fn update(sources: &[Source], old: &Lock) -> Result<Lock, Vec<String>> {
                 continue;
             }
         };
-        let frozen = file.items.iter().any(|item| {
-            let syn::Item::Macro(call) = item else {
-                return false;
-            };
-            let path: Vec<String> = call
-                .mac
-                .path
-                .segments
-                .iter()
-                .map(|segment| segment.ident.to_string())
-                .collect();
-            path == ["frozen"] || path == ["be_wasm_schema", "frozen"]
-        });
         let mut inputs = Vec::new();
         collect(&file.items, &mut inputs);
         for input in inputs {
             match describe(&input) {
                 Ok(described) => {
-                    found.extend(described.into_iter().map(|d| (d, frozen, source.path)));
+                    found.extend(described.into_iter().map(|d| (d, source.path)));
                 }
                 Err(error) => errors.push(format!("{}: {error}", source.path)),
             }
@@ -635,7 +721,7 @@ pub fn update(sources: &[Source], old: &Lock) -> Result<Lock, Vec<String>> {
     }
     let mut lock = Lock::default();
     let mut paths: BTreeMap<&str, &str> = BTreeMap::new();
-    for (described, frozen, path) in &found {
+    for (described, path) in &found {
         if let Some(first) = paths.insert(&described.name, path) {
             errors.push(format!(
                 "{} is a Schema type in both {first} and {path}: a crate's Schema types have one name each",
@@ -643,12 +729,7 @@ pub fn update(sources: &[Source], old: &Lock) -> Result<Lock, Vec<String>> {
             ));
             continue;
         }
-        let entry = update_entry(
-            old.types.get(&described.name),
-            described,
-            *frozen,
-            &mut errors,
-        );
+        let entry = update_entry(old.types.get(&described.name), described, &mut errors);
         lock.types.insert(described.name.clone(), entry);
     }
     for (name, entry) in &old.types {
@@ -659,31 +740,6 @@ pub fn update(sources: &[Source], old: &Lock) -> Result<Lock, Vec<String>> {
             errors.push(format!(
                 "{name} is frozen in {FILE} and no longer in the source: if it was renamed, rename it in {FILE} too; a frozen type is never removed"
             ));
-        }
-    }
-    let names: BTreeSet<&str> = lock
-        .types
-        .keys()
-        .filter(|name| !name.contains("::"))
-        .map(String::as_str)
-        .collect();
-    for (name, entry) in &lock.types {
-        if !entry.is_frozen() {
-            continue;
-        }
-        let shapes = entry
-            .members
-            .iter()
-            .map(|member| member.shape.as_str())
-            .chain([entry.inner.as_str()]);
-        for shape in shapes {
-            for word in shape.split(|c: char| !(c.is_alphanumeric() || c == '_')) {
-                if names.contains(word) && !lock.types[word].is_frozen() {
-                    errors.push(format!(
-                        "{name} is frozen and holds {word}, which is not: freeze {word} too (call be_wasm_schema::frozen!() in its file)"
-                    ));
-                }
-            }
         }
     }
     if errors.is_empty() {

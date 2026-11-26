@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_missing_field_decodes_as_its_default() {
-    let old = encode(&PersonV1 {
+    let old = bytes(&PersonV1 {
         name: "Ada".into(),
         age: 36,
     });
