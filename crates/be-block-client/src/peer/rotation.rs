@@ -476,10 +476,11 @@ impl<S: ObjectStore> Peer<S> {
         )
         .await??;
         self.recorded(&keys);
-        // The new epochs go at once to each viewer the old ones went to, as key work lists them,
-        // rather than wait for an editor's next `tend`: a viewer whose access was lowered (the
-        // lowering is what outdated the old epoch) would otherwise be locked out of every edit
-        // made under them until then. Best-effort: the next `tend` seals what this misses.
+        // The new epochs go at once to whom key work lists them unsealed for and the signed logs
+        // name (`seals`, as `tend` seals), rather than wait for an editor's next `tend`: a viewer
+        // whose access was lowered (the lowering is what outdated the old epoch) would otherwise
+        // be locked out of every edit made under them until then. Best-effort: the next `tend`
+        // seals what this misses.
         let minted: Vec<Uuid> = fresh.into_values().collect();
         if let Ok(work) = self.key_work().await
             && let Ok((sealed, _)) = self.seals(&work, |key| minted.contains(&key)).await
@@ -658,16 +659,14 @@ impl<S: ObjectStore> Peer<S> {
     /// unmake one, those the log names).
     pub async fn set_role(&self, account: Uuid, role: OrganizationRole) -> Result<(), ClientError> {
         let signed = self.administrator_record(account, role).await?;
-        be_block_protocol::write::<(), _>(
-            &self.connection(),
-            Some(self.organization),
-            be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Role {
-                account: account,
-                role: role,
-                signed: signed,
-            }),
-        )
-        .await??;
+        let op = be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Role {
+            account: account,
+            role: role,
+            signed: signed,
+        });
+        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), op.clone())
+            .await??;
+        self.appended(&op);
         Ok(())
     }
 
@@ -764,8 +763,9 @@ impl<S: ObjectStore> Peer<S> {
                 })
             }
         };
-        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), op)
+        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), op.clone())
             .await??;
+        self.appended(&op);
         Ok(())
     }
 
@@ -807,12 +807,10 @@ impl<S: ObjectStore> Peer<S> {
                 .map(|entry| entry.encode()),
             _ => None,
         };
-        be_block_protocol::write::<(), _>(
-            &self.connection(),
-            Some(self.organization),
-            be_block_protocol::Op::DeleteLink { link, signed },
-        )
-        .await??;
+        let op = be_block_protocol::Op::DeleteLink { link, signed };
+        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), op.clone())
+            .await??;
+        self.appended(&op);
         Ok(())
     }
 
@@ -820,15 +818,13 @@ impl<S: ObjectStore> Peer<S> {
     /// grants on blocks the other manages that blocks' logs name.
     pub async fn remove_contact(&self, account: Uuid) -> Result<(), ClientError> {
         let revocations = self.removal_revocations(account, true).await?;
-        be_block_protocol::write::<(), _>(
-            &self.connection(),
-            Some(self.organization),
-            be_block_protocol::Op::RemoveContact {
-                account: account,
-                revocations: revocations,
-            },
-        )
-        .await??;
+        let op = be_block_protocol::Op::RemoveContact {
+            account: account,
+            revocations: revocations,
+        };
+        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), op.clone())
+            .await??;
+        self.appended(&op);
         Ok(())
     }
 
@@ -1049,15 +1045,17 @@ impl<S: ObjectStore> Peer<S> {
             }
             let checked = self.checked_organization().await?;
             if let Some(signed) = self.member_record(checked.as_ref(), account, None, true) {
+                let op = be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Member {
+                    signed,
+                    revocations: Vec::new(),
+                });
                 be_block_protocol::write::<(), _>(
                     &self.connection(),
                     Some(self.organization),
-                    be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Member {
-                        signed,
-                        revocations: Vec::new(),
-                    }),
+                    op.clone(),
                 )
                 .await??;
+                self.appended(&op);
             }
         }
         Ok(())

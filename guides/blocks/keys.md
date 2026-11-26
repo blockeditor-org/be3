@@ -581,7 +581,13 @@ names the organization's head in its signed record (`EscrowKey::head`).
   and the organization's (`KeyBook::logs_to_read`, `Roots::through`, at most `keys::MAX_PATH` deep,
   longer counting as outdated), as it last checked them (key work, sealing, a
   contact's seal or a rotation reads them; one it never read since starting,
-  it reads first, each once per key in a run). How far it checked each scope's
+  it reads first, each once per key in a run). A lowering this device appended
+  itself (a revocation, a downgrade, a closing, a sign-out: `Peer::appended`,
+  `KeyBook::appended`) outdates the epochs before it here at once: until a log
+  checked here holds it, every epoch that log judges is outdated, the log is
+  read again before the next seal, and one served short of it is withheld. So a
+  manager never seals on by the log it read before signing the lowering, even if
+  key work leaves the rotation out. How far it checked each scope's
   log is kept with the refs (`refs::KeptLog`, `KeyBook::note_log`;
   `refresh_keys` reads each scope's log once as its keys arrive, and a block
   made here is kept at its root, eight scopes read at a time): a log served
@@ -691,10 +697,11 @@ each level, since a scope's new epoch is wrapped under a new one of the scope
 above. So within one round of key work every tree some connected editor at
 its top can rotate is rotated, the organization's content keys once over. An
 administrator's device holds most scopes through escrow and tries every
-outdated tree in one `tend`; administrators tending at once race, and each
-reads a tree's keys again just before rotating it (`refresh_keys`) and skips
-one already rotated, so the later ones mostly skip, though two at the same
-moment can both rotate it. A member who reaches a scope only from inside it
+outdated tree in one `tend`; administrators tending at once race. So an
+editor about to rotate, at a write or in `tend`, first asks for the tree's keys
+again (`refresh_keys`), one round trip more per rotation, and skips one already
+rotated (a write takes the newer epoch), so the later ones mostly skip, though
+two at the same moment can both rotate it. A member who reaches a scope only from inside it
 cannot rotate it: until an editor above tends, their saves there are refused
 as `Locked` (the host submits them again as keys arrive), and an edit made
 offline is set aside (`Aside::KeyOutdated`) if no rotation reached the scope

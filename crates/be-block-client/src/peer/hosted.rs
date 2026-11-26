@@ -274,16 +274,14 @@ impl<S: ObjectStore> Peer<S> {
                 )
             })?
             .encode();
-        be_block_protocol::write::<(), _>(
-            &self.connection(),
-            Some(self.organization),
-            be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Ban {
-                block,
-                account,
-                signed,
-            }),
-        )
-        .await??;
+        let op = be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Ban {
+            block,
+            account,
+            signed,
+        });
+        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), op.clone())
+            .await??;
+        self.appended(&op);
         Ok(())
     }
 
