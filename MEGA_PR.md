@@ -189,6 +189,7 @@ Landed on 2026-11-24:
 - `backlog-17-refit`: the display settings' camera fits the displays, and from a carried display's lift on, every place it can go; a carried source is measured at each point and held where it was grabbed (`Carry::lifted_from`), and keyboard carries retrack when it is laid out again; Canvas consumers use `local_view`.
 - `owner-lowering-rereads`: an owner lowering writes and persists its unsure mark ahead of the send, generations tell a stale reread from a fresh one, withheld drains are capped, and a failed read rereads rather than guessing.
 - `peers-preview-held-edits`: peers see a held edit as a tentative layer (by client, then layer number) before it is released; an absorbed operation drops an earlier set only when nothing else reads the field; layers leave once the order passes their commit, and oversized layers (count or bytes) are not shown.
+- `unnamed-parts-ledger`: a collection passes over parts claimed or pinned while it walked; the ledger keeps an object's first note; presence walks count as one access; a store with no identity is never collected.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
