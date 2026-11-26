@@ -53,21 +53,26 @@ impl DrawsCanvases for Drawer<'_> {
             }
             Key::App {
                 instance, surface, ..
-            } => self.0.show_app_surface(id, canvas, instance, surface),
+            } => self.0.show_app_surface(id, Some(canvas), instance, surface),
         }
     }
 
-    /// A canvas of an app's stays its worker's: it shows another surface of the same app's.
+    /// A canvas of an app's stays its worker's: it shows another surface of the same app's, of
+    /// the same kind, since its `data-kind` (`kind`) is set only as it is made.
     fn retarget(&self, id: u32, from: Key, to: Key) -> Option<Result<(), String>> {
         match (from, to) {
             (
-                Key::App { instance, .. },
+                Key::App {
+                    instance, anchored, ..
+                },
                 Key::App {
                     instance: to,
                     surface,
-                    ..
+                    anchored: kind,
                 },
-            ) if instance == to => Some(self.0.retarget_app_surface(id, instance, surface)),
+            ) if instance == to && anchored == kind => {
+                Some(self.0.show_app_surface(id, None, instance, surface))
+            }
             _ => None,
         }
     }

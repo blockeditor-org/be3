@@ -281,7 +281,14 @@ async fn an_app_a_linked_root_spawns_draws_into_a_canvas_its_worker_is_handed()
     // Whatever the test finds, the canvas leaves the page with it.
     let shown = async {
         let canvas = element.transfer_control_to_offscreen()?;
-        root.show_app_surface(2, &canvas, instance, surface)?;
+        root.show_app_surface(2, Some(&canvas), instance, surface)?;
+        // The app holds what it was shown on until it lets it go, and nothing else.
+        check(root.holds_app_surface(instance, surface), || {
+            "the triangle does not hold the surface its canvas was handed for".to_owned()
+        })?;
+        check(!root.holds_app_surface(instance, surface + 1), || {
+            "the triangle holds a surface no canvas was handed for".to_owned()
+        })?;
         // The worker draws into it what the triangle presents, from its next step on, in its
         // own time: the page sees it once the worker's frame reaches the screen.
         let mut shown = [0; 4];

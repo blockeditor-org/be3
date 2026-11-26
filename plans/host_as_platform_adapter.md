@@ -2575,13 +2575,19 @@ Each step lands on its own.
                    then the host menu's Contacts, pressed, leaves the menu open with the row
                    focused and opens no dialog, on either page. Both pages hear the press and
                    release whole (no focus change or pointer cancel between), so the root
-                   does not dismiss a dialog for an unfocused window.
+                   does not dismiss a dialog for an unfocused window. The picker's Text,
+                   pressed as soon as it shows, makes no creation the same way now and then;
+                   pressed again a moment later it does, so `:root-tab-switches-web-host-test`
+                   (tabs switched often leave no hidden canvases behind, which hears the
+                   releases `holds_app_surface` follows) presses it again while it shows.
                  - `a_grown_page_shows_the_workspaces_backdrop_beyond_its_last_frame` reads the
                    root's canvas under the root (`test.root`), in the first frame it shows at
                    the grown size, and fails there: beyond the workspace's old frame the root
                    shows its own clear colour, since be-root draws no backdrop behind a child (be-host's
                    `Backdrop`, from the child's reported backdrop), so its target is left out
-                   until it does. Its own target (`:grown-web-host-test`) fails on its base
+                   until it does; reading the root's canvas with `drawImage` after its
+                   control moved to an offscreen canvas gives the frame it last committed.
+                   Its own target (`:grown-web-host-test`) fails on its base
                    too: the host's renderer makes no opaque WebGL clear before the test reads it.
            With counterparts whose paintings match be-host's: the desktop shell, F6 between
            views, the lock screen on Super+L (4g7g1), the groups 4g7g2a and 4g7g2b built, and the

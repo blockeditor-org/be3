@@ -294,6 +294,9 @@ impl Instance {
 
     /// Whether the instance still holds `surface`, which a canvas was handed for (`show`): it
     /// runs and has not let go of it since, so what it last drew there is still what it shows.
+    /// A release still on its way from the worker when the surface is shown again takes it out
+    /// once it arrives, so its canvas may leave the page rather than stay hidden later on, which
+    /// costs only a fresh canvas when it is shown again.
     pub fn holds(&self, surface: u32) -> bool {
         self.failure.is_none() && self.held.borrow().contains(&surface)
     }

@@ -267,12 +267,13 @@ impl Root {
     /// Shows on `canvas` what the app the root spawned as the instance `instance` presents to its
     /// surface `surface`, as the layer list names it (`Surface::Screen` and
     /// `Surface::Anchored`), under the canvas's `id`: the canvas moves to the app's worker, which
-    /// draws into it as it presents. Says why it cannot: an instance that stopped, or one of a
-    /// pure root, whose apps draw nothing.
+    /// draws into it as it presents. With no canvas, the one handed under `id` before shows
+    /// `surface` instead, keeping what it shows until the app's worker draws that there. Says why
+    /// it cannot: an instance that stopped, or one of a pure root, whose apps draw nothing.
     pub fn show_app_surface(
         &self,
         id: u32,
-        canvas: &web_sys::OffscreenCanvas,
+        canvas: Option<&web_sys::OffscreenCanvas>,
         instance: u64,
         surface: u32,
     ) -> Result<(), String> {
@@ -280,18 +281,7 @@ impl Root {
             .core
             .borrow()
             .sandbox
-            .show(instance, id, Some(canvas), surface)
-    }
-
-    /// Has the canvas `id` of the app the root spawned as `instance` (`show_app_surface`) show
-    /// what the app presents to its surface `surface` instead, keeping what it shows until the
-    /// app's worker draws that there.
-    pub fn retarget_app_surface(&self, id: u32, instance: u64, surface: u32) -> Result<(), String> {
-        self.shared
-            .core
-            .borrow()
-            .sandbox
-            .show(instance, id, None, surface)
+            .show(instance, id, canvas, surface)
     }
 
     /// Whether the app the root spawned as the instance `instance` runs and still holds its

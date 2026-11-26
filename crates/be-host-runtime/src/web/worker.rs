@@ -123,9 +123,6 @@ impl WorkerChannel {
             .ok_or_else(|| "an app's layers could not be handed to its worker".to_owned())
     }
 
-}
-
-impl WorkerChannel {
     /// Has the worker draw `surface` into the canvas `id`: `canvas`, handed to it, or the one it
     /// was handed under that id before.
     fn show_on(
