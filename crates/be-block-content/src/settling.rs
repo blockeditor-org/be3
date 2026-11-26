@@ -13,6 +13,13 @@ pub enum Landed<Op> {
         unsettled: u64,
         local: Vec<Op>,
     },
+    /// A local edit made beneath the last `above` unsettled ones (a held tentative layer,
+    /// which stays on top): unsettled itself, with `unsettled` left in all.
+    Under {
+        operation: Op,
+        unsettled: u64,
+        above: u64,
+    },
 }
 
 impl<Op> Landed<Op> {
@@ -33,6 +40,15 @@ impl<Op> Landed<Op> {
                 operation: map(operation),
                 unsettled: *unsettled,
                 local: local.iter().map(map).collect(),
+            },
+            Self::Under {
+                operation,
+                unsettled,
+                above,
+            } => Landed::Under {
+                operation: map(operation),
+                unsettled: *unsettled,
+                above: *above,
             },
         }
     }
@@ -71,6 +87,17 @@ impl<C: LiveEdit> Settling<C> {
     pub fn push(&mut self, operation: C::Op, unsettled: u64) {
         self.unsettled.push_back(operation);
         self.settle_to(unsettled);
+    }
+
+    /// Puts the local edit `operation` beneath the last `above` unsettled ones, then settles to
+    /// `unsettled`: false when fewer than `above` are unsettled.
+    pub fn under(&mut self, operation: C::Op, unsettled: u64, above: u64) -> bool {
+        let Some(at) = (self.unsettled.len() as u64).checked_sub(above) else {
+            return false;
+        };
+        self.unsettled.insert(at as usize, operation);
+        self.settle_to(unsettled);
+        true
     }
 
     pub fn beneath(
@@ -117,6 +144,11 @@ impl<C: LiveEdit> Settling<C> {
                 self.unsettled = local.into();
                 true
             }
+            Landed::Under {
+                operation,
+                unsettled,
+                above,
+            } => self.under(operation, unsettled, above),
         }
     }
 

@@ -274,6 +274,12 @@ enum Journaled<Op> {
         unsettled: u64,
         local: Vec<Op>,
     },
+    /// A local edit made beneath the tentative layer's `above` edits, which stay on top.
+    Under {
+        operation: Op,
+        unsettled: u64,
+        above: u64,
+    },
     Replaced,
 }
 
@@ -1983,12 +1989,15 @@ where
         }
     }
 
-    /// Tells the editor of `gesture` this replica ended it, keeping none of its edits.
+    /// Tells the editor of `gesture` this replica ended it, keeping none of its edits: after
+    /// what landed before, so the editor knows the edits of the gesture still unanswered are
+    /// dropped (`EditorMirror`).
     fn gesture_ended(&mut self, gesture: GestureId) {
         let Some(editor) = gesture.editor else {
             return;
         };
         if self.editors.contains_key(&editor) {
+            self.flush_landed();
             self.tell_editor(
                 editor,
                 &ToEditor::GestureEnded {
@@ -3899,7 +3908,11 @@ where
         self.described = true;
         let replaced = matches!(entry, Journaled::Replaced);
         if self.landed.len() >= JOURNAL_LIMIT || replaced {
-            let adds = matches!(entry, Journaled::Edited { unsettled, .. } if unsettled > 0);
+            let adds = matches!(
+                entry,
+                Journaled::Edited { unsettled, .. } | Journaled::Under { unsettled, .. }
+                    if unsettled > 0
+            );
             self.covered = self.unsettled() == 0 && !adds;
             self.reproject();
             return;
@@ -3927,6 +3940,15 @@ where
                 operation,
                 unsettled,
                 local,
+            },
+            Journaled::Under {
+                operation,
+                unsettled,
+                above,
+            } => Landed::Under {
+                operation,
+                unsettled,
+                above,
             },
             Journaled::Replaced => return,
         };
@@ -3961,14 +3983,44 @@ where
         }
         // Made while a tentative layer is held: it goes beneath the layer, which stays on top.
         if !self.tentative.is_empty() {
-            match self.doubtful_now {
-                true => {
-                    self.first_doubtful.get_or_insert(self.edit_number());
-                    self.doubtful.push(operation);
-                }
-                false => self.queue(operation, self.edit_number()),
+            if self.doubtful_now {
+                self.first_doubtful.get_or_insert(self.edit_number());
+                self.doubtful.push(operation);
+                self.rebuild_visible();
+                self.flush();
+                return true;
             }
-            self.rebuild_visible();
+            // The editors are told it lands beneath the layer, unless what they show does not
+            // follow this replica's own edits one by one (`covered`), when they are shown it
+            // afresh.
+            if !self.covered || !self.doubtful.is_empty() {
+                self.queue(operation, self.edit_number());
+                self.rebuild_visible();
+                self.flush();
+                return true;
+            }
+            let above: Vec<C::Op> = self
+                .tentative
+                .iter()
+                .map(|held| held.operation.clone())
+                .collect();
+            let mut beneath = match self.beneath.take() {
+                Some(beneath) => beneath,
+                None => self.layer_free(),
+            };
+            self.visible
+                .apply_beneath(&mut beneath, &operation, &above, &mut Vec::new());
+            self.beneath = Some(beneath);
+            let unsettled = self.unsettled() + 1;
+            self.journal(
+                Journaled::Under {
+                    operation: operation.clone(),
+                    unsettled,
+                    above: above.len() as u64,
+                },
+                origin,
+            );
+            self.queue(operation, self.edit_number());
             self.flush();
             return true;
         }
@@ -4419,6 +4471,10 @@ where
             } => {
                 // Counted taken or refused, as the host counts what it relays (`attach`).
                 *self.acknowledged.entry(editor).or_default() += 1;
+                // Made in a gesture this replica ended: its editor, told, lets it go itself.
+                let voided = self
+                    .held_now
+                    .is_some_and(|(gesture, _)| self.voided.contains(&gesture));
                 // The host's own edits are no one's to undo (`HOST_EDITOR`).
                 let took = editable
                     && C::decode_operation(&bytes).is_ok_and(|operation| {
@@ -4441,7 +4497,7 @@ where
                     });
                 // A refused operation never lands as the editor's, so it is told what holds
                 // now: otherwise it would take a later one landing as its own for this one.
-                if !took && !self.holding.contains(&editor) {
+                if !took && !voided && !self.holding.contains(&editor) {
                     self.snapshot_to(editor);
                 }
             }
@@ -5033,43 +5089,7 @@ where
                 self.snapshot_to(*editor);
             }
         }
-        let landed = std::mem::take(&mut self.landed);
-        if !landed.is_empty() {
-            let encoded: Vec<(Landed<Vec<u8>>, Option<EditorId>)> = landed
-                .iter()
-                .map(|(landed, origin)| (landed.map(C::encode_operation), *origin))
-                .collect();
-            for editor in &shown {
-                let operations = encoded
-                    .iter()
-                    .map(|(landed, origin)| {
-                        let mine = *origin == Some(*editor);
-                        match landed {
-                            Landed::On {
-                                operation,
-                                unsettled,
-                            } => EditorOperation {
-                                operation: operation.clone(),
-                                mine,
-                                unsettled: *unsettled,
-                                beneath: None,
-                            },
-                            Landed::Beneath {
-                                operation,
-                                unsettled,
-                                local,
-                            } => EditorOperation {
-                                operation: operation.clone(),
-                                mine,
-                                unsettled: *unsettled,
-                                beneath: Some(local.clone()),
-                            },
-                        }
-                    })
-                    .collect();
-                self.tell_editor(*editor, &ToEditor::Operations(operations));
-            }
-        }
+        self.flush_landed();
         if std::mem::take(&mut self.presence_changed) && !editors.is_empty() {
             let presence = self.peer_presence();
             for editor in &editors {
@@ -5081,6 +5101,67 @@ where
             for editor in &editors {
                 self.tell_editor(*editor, &ToEditor::PeerMessages(channel.clone()));
             }
+        }
+    }
+
+    /// Tells the editors shown content what landed since.
+    fn flush_landed(&mut self) {
+        let landed = std::mem::take(&mut self.landed);
+        if landed.is_empty() {
+            return;
+        }
+        let shown: Vec<EditorId> = self
+            .editors
+            .keys()
+            .copied()
+            .filter(|editor| !self.holding.contains(editor))
+            .collect();
+        let encoded: Vec<(Landed<Vec<u8>>, Option<EditorId>)> = landed
+            .iter()
+            .map(|(landed, origin)| (landed.map(C::encode_operation), *origin))
+            .collect();
+        for editor in &shown {
+            let operations = encoded
+                .iter()
+                .map(|(landed, origin)| {
+                    let mine = *origin == Some(*editor);
+                    match landed {
+                        Landed::On {
+                            operation,
+                            unsettled,
+                        } => EditorOperation {
+                            operation: operation.clone(),
+                            mine,
+                            unsettled: *unsettled,
+                            beneath: None,
+                            above: 0,
+                        },
+                        Landed::Beneath {
+                            operation,
+                            unsettled,
+                            local,
+                        } => EditorOperation {
+                            operation: operation.clone(),
+                            mine,
+                            unsettled: *unsettled,
+                            beneath: Some(local.clone()),
+                            above: 0,
+                        },
+                        Landed::Under {
+                            operation,
+                            unsettled,
+                            above,
+                        } => EditorOperation {
+                            operation: operation.clone(),
+                            mine,
+                            unsettled: *unsettled,
+                            beneath: None,
+                            above: *above,
+                        },
+                    }
+                })
+                .collect();
+            self.tell_editor(*editor, &ToEditor::Operations(operations));
         }
     }
 

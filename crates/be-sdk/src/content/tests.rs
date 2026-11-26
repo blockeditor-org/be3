@@ -14,6 +14,7 @@ fn arrived(operation: Vec<u8>, mine: bool) -> crate::EditorOperation {
         mine,
         unsettled: 0,
         beneath: None,
+        above: 0,
     }
 }
 

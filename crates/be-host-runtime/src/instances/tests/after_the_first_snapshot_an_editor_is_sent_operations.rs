@@ -63,6 +63,7 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
             // Its own edit stays unsettled until the server's order holds it.
             unsettled: 1,
             beneath: None,
+            above: 0,
         }]
     );
 
@@ -83,6 +84,7 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
             // The host's edit is this device's too: unsettled until the server orders it.
             unsettled: 1,
             beneath: None,
+            above: 0,
         }]
     );
     assert!(replica_sends(&mut instances, block).is_empty());
