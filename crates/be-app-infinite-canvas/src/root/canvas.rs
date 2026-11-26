@@ -19,11 +19,11 @@ use super::menu::CanvasMenu;
 use super::overlay::{Badge, FrameBackdrop, Hint, Live, Overlay, PathGrips};
 use super::paint::{EntityPaint, Palette, arrowhead_size, resolve_color};
 use super::raster::{RasterGuideDrawing, raster_image, rastering};
-use crate::raster::PixelTool;
 use super::sketch::{Sketch, SketchKey, rough_reach};
 use super::state::{CanvasState, Gesture, Tool};
 use super::text::{EntityText, path_label_reach, text_region, writes};
 use crate::freehand::LiveStroke;
+use crate::raster::PixelTool;
 use beui::clipboard::formats;
 use beui::{ClipItem, Sides};
 
