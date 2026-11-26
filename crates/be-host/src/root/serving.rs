@@ -1230,6 +1230,7 @@ pub(super) fn open_editor(
     Ok(OpenedEditor {
         editor: instance.0,
         frames,
+        name: app.identity.name.clone(),
     })
 }
 

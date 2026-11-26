@@ -21,7 +21,8 @@ fn be_root_in_place_of_the_hosts_ui_makes_a_block_in_my_files() {
     host.click(NEW_IN_MY_FILES);
     host.wait("#picker.more");
     host.click("MenuItem \"Canvas\"");
-    host.wait("Tab \"Canvas\"");
+    // The root names the canvas's pane after its app, as be-host does.
+    host.wait("Pane \"Canvas\"");
     host.wait("#infinite-canvas.dock.block");
     host.wait(NAME);
     host.key("Enter");
