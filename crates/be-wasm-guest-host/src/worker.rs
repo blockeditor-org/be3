@@ -257,6 +257,12 @@ impl<C: Channel> Worker<C> {
         self.unsettled().is_none()
     }
 
+    /// Whether the guest has no step in flight, not even one it woke itself for, and no frames
+    /// wait for one or for it to start.
+    pub fn idle(&self) -> bool {
+        !self.stepping && self.pending.is_empty()
+    }
+
     /// Whether frames wait for the guest to start, which `unsettled` leaves to whoever starts
     /// it to say.
     pub fn starting_with_frames(&self) -> bool {

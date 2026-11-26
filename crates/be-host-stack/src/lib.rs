@@ -2004,6 +2004,34 @@ pub fn wait_until<T>(what: &str, read: impl Fn(&Shared) -> Option<T>) -> T {
     }
 }
 
+/// Waits, up to `limit`, until the worker has run every command the page sent it and no type
+/// module is still working (not for the server): a driven host whose clock is stopped does at each frame's start, so
+/// what the frame takes in never depends on how fast the worker's thread ran (guides/apps/
+/// runtime.md, Settling). Nothing to wait on when the stack is not running.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn finish_commands(limit: std::time::Duration) {
+    let Some((shared, changed)) = stack()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_ref()
+        .map(|stack| (Arc::clone(&stack.shared), Arc::clone(&stack.changed)))
+    else {
+        return;
+    };
+    let deadline = std::time::Instant::now() + limit;
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    while held.pending() > 0 || !held.typing.is_empty() {
+        let left = deadline.saturating_duration_since(std::time::Instant::now());
+        if left.is_zero() {
+            return;
+        }
+        held = changed
+            .wait_timeout(held, left)
+            .unwrap_or_else(PoisonError::into_inner)
+            .0;
+    }
+}
+
 /// Takes the worker's updates and, unless `done` then holds, waits for the worker to hand over
 /// more and takes those: one step of a test whose stack is taken by frames
 /// (`take_updates_in_frame`) and that waits on what a reply's callback does. The callback runs

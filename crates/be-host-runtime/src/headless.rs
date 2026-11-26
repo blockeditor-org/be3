@@ -14,6 +14,10 @@ use be_host_base::host::{self, Frame};
 /// frame's clock and the letters waiting for it. Every frame of the runtime begins here, under
 /// beui or headless.
 pub fn begin_host_frame(frame: Frame) {
+    #[cfg(not(target_arch = "wasm32"))]
+    if frame.clock_stopped {
+        be_host_stack::finish_commands(be_sdk_app_host::pacing::STOPPED_CLOCK_FRAME_BUDGET);
+    }
     be_host_stack::take_updates_in_frame();
     host::start(frame);
 }
