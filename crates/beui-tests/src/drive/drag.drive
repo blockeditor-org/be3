@@ -4,13 +4,16 @@ wait 'value="Dropped nothing"'
 drag '#drag.apple' '#drag.basket' 4
 wait 'value="Dropped apple"'
 # Carried out of its scroll, the pear is drawn whole over the page as its own face, a copy
-# of its elements in the browser, gone once it is let go.
+# of its elements in the browser, which follows the pear as it changes (it says when it is
+# over a place), gone once it is let go.
 down '#drag.pear'
 move '#drag.apple'
+#web elements '.beui-replica *' 4
 move '#drag.basket'
 #web elements '[data-beui-lent]' 1
 #web elements '.beui-replica' 1
 #web elements '.beui-replica > *' 1
+#web elements '.beui-replica *' 5
 up '#drag.basket'
 wait 'value="Dropped pear"'
 #web elements '.beui-replica' 0

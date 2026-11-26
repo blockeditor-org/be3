@@ -1230,9 +1230,6 @@ pub fn paint(doc: &Document, painter: &Painter, rects: &Rects, id: NodeId) {
             ctx.measure_paint(|| {
                 for (child, state) in children {
                     if rects.contains_key(&child) {
-                        if doc.paint_cache.borrow().replica_of(child) == Some(id) {
-                            doc.replicating.set(Some(child));
-                        }
                         paint(doc, &Painter::resumed(ctx.clone(), state), rects, child);
                     }
                 }

@@ -326,6 +326,9 @@ fn carrying(
             .filter(|driver| driver.lifts(press.pointer) && !held_here(driver))
             .and_then(|_| drag.call(press))
     };
+    // Where the children are laid out, measured once the wrapper below is built.
+    let measured =
+        create_signal(None::<crate::reactive::ReadSignal<Option<crate::measure::Measured>>>);
     // Lifts `carry` at `press`.
     let lift = {
         let (origin, show_face, lifted) = (
@@ -340,12 +343,16 @@ fn carrying(
                 return;
             };
             // Unless the carry says otherwise, the item is this node, held where it was
-            // pressed.
+            // pressed, at the size it shows at (through a zoom around it, in window points).
             if carry.item.is_none() {
                 let at = origin.get().unwrap_or(press);
+                let size = measured
+                    .get_untracked()
+                    .and_then(|measured| measured.get_untracked())
+                    .map_or(at.size, |measured| measured.rect.size());
                 carry.item = Some(Rect::from_min_size(
-                    Pos2::ZERO - at.local.to_vec2(),
-                    at.size,
+                    Pos2::ZERO - Vec2::new(at.fraction.x * size.x, at.fraction.y * size.y),
+                    size,
                 ));
             }
             let face = carry.face().clone();
@@ -441,9 +448,6 @@ fn carrying(
     // the pointer or on the place chosen (where a site that shows it there, a list in its new
     // order, lays it out), in a top layer where nothing clips it.
     let replicated = create_memo(move || frame.get().is_some() && !previewed.get());
-    // Where the children are laid out, measured once the wrapper below is built.
-    let measured =
-        create_signal(None::<crate::reactive::ReadSignal<Option<crate::measure::Measured>>>);
     let size = create_memo(move || {
         measured
             .get()
