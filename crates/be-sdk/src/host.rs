@@ -1789,13 +1789,16 @@ impl EditorHost {
 
     /// The projection of `block` (none for the instance's own): the one an editor of this
     /// instance holds already, or a new one. A block is projected once, as one content type,
-    /// since its projection takes all of its updates.
-    pub(crate) fn projection<C>(&self, block: Option<Uuid>) -> crate::LiveContent<C>
+    /// since its projection takes all of its updates: none when it is held as another (block
+    /// data can name a block of another type). The
+    /// instance's own block is not shared here: the editors that show it share their whole
+    /// cache (`EditorCore::scaled`), and one made for another block must not take it over.
+    pub(crate) fn projection<C>(&self, block: Option<Uuid>) -> Option<crate::LiveContent<C>>
     where
         C: be_block_content::LiveEdit + Clone + Default + 'static,
     {
         let Some(id) = block else {
-            return crate::LiveContent::new(self.clone(), None);
+            return Some(crate::LiveContent::new(self.clone(), None));
         };
         let held = self
             .projections
@@ -1803,13 +1806,24 @@ impl EditorHost {
             .get(&id)
             .and_then(crate::LiveContent::<C>::upgrade);
         match held {
-            Some(Ok(live)) => return live,
-            Some(Err(())) => panic!("block {id} is projected already as another content type"),
+            Some(Ok(live)) => return Some(live),
+            Some(Err(())) => return None,
             None => {}
         }
         let live = crate::LiveContent::new(self.clone(), block);
         self.projections.borrow_mut().insert(id, live.hold());
-        live
+        Some(live)
+    }
+
+    /// Lets go of `block`'s projection once nothing holds it.
+    pub(crate) fn forget_projection(&self, block: Uuid) {
+        let mut projections = self.projections.borrow_mut();
+        if projections
+            .get(&block)
+            .is_some_and(|held| held.strong_count() == 0)
+        {
+            projections.remove(&block);
+        }
     }
 
     pub fn seed_content<C: be_block_content::BlockContent>(&self, block: Uuid, content: &C) {
@@ -3035,3 +3049,8 @@ impl EditorHost {
 
 #[cfg(test)]
 mod tests;
+
+/// Why a block asked for as a content type other than the one it is projected as reads failed.
+pub(crate) fn another_type(block: Uuid) -> String {
+    format!("Block {block} is projected already as another content type")
+}

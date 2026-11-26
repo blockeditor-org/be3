@@ -1076,11 +1076,21 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
             let Some(confirmed) = self.confirmed.as_mut() else {
                 return false;
             };
-            if !confirmed.under(operation, landed.unsettled, landed.above) {
-                return false;
+            let landed = confirmed.under_shown(
+                &mut self.visible,
+                &operation,
+                landed.unsettled,
+                landed.above,
+                self.pending
+                    .iter()
+                    .filter(|sent| !sent.voided)
+                    .map(|sent| sent.operation.clone()),
+                &mut self.touched,
+            );
+            if landed {
+                self.changed(Projected::Rebuilt);
             }
-            self.rebuild();
-            return true;
+            return landed;
         }
         if landed.mine {
             // The replica may have taken it otherwise than it went (carried over a reload this

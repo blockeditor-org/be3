@@ -100,6 +100,38 @@ impl<C: LiveEdit> Settling<C> {
         true
     }
 
+    /// As `under`, and makes `visible` (what this shows with `above` on top) show it too, as
+    /// `beneath` does, saying what that touched.
+    pub fn under_shown(
+        &mut self,
+        visible: &mut C,
+        operation: &C::Op,
+        unsettled: u64,
+        above: u64,
+        pending: impl IntoIterator<Item = C::Op>,
+        touched: &mut Vec<Touched>,
+    ) -> bool
+    where
+        C: Clone,
+    {
+        let Some(at) = (self.unsettled.len() as u64).checked_sub(above) else {
+            return false;
+        };
+        let mut beneath = self.settled.clone();
+        for operation in self.unsettled.iter().take(at as usize) {
+            beneath.apply(operation);
+        }
+        let ahead: Vec<C::Op> = self
+            .unsettled
+            .iter()
+            .skip(at as usize)
+            .cloned()
+            .chain(pending)
+            .collect();
+        visible.apply_beneath(&mut beneath, operation, &ahead, touched);
+        self.under(operation.clone(), unsettled, above)
+    }
+
     pub fn beneath(
         &mut self,
         visible: &mut C,
