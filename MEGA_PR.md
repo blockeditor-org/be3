@@ -128,6 +128,7 @@ Landed on 2026-11-24:
 - `host-adapter-4g7g1`: be-host serves the screen lock and displays' keep changes under --root; under the root the host's frame is begun for its clock but not ended; survey of the host tests 4g7g2 must pass.
 - `host-adapter-4g7e2`: the root floats the windows its desktop shell opens, moves and resizes them as their apps ask (touch and pen included), keeps them within their opener's work area and clear of the bar; root tests for a joined canvas's tab menu and a joined block's details.
 - `host-adapter-4g7b3f-4g7d1`: files dropped from outside reach the view under the pointer under the root, and quick open runs under the root, the host finding blocks and opening the one chosen.
+- `host-adapter-4g7g2b`: host tests for the root's own members, invite, agents, contacts and share-link UI, using be-host's test ids and layout.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
