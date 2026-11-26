@@ -197,6 +197,10 @@ struct State {
     described: HashMap<ScreenId, Graft>,
     /// Whether the app was told to describe its screens, as `describing` said when it last was.
     told_describing: bool,
+    /// Whether a screen's tree changed since the root last described itself (`read_trees`): a
+    /// frame that shows the change is owed, as a press that only moves the focus changes no
+    /// pixel but the tree drive and screen readers read.
+    redescribed: bool,
     /// The editors the person picked from a frame menu of, each with how many of its layout
     /// commits the pick still lets it open the palette (`MENU_PICK_COMMITS`).
     menu_picked: HashMap<EditorInstanceId, u32>,
@@ -561,6 +565,7 @@ impl Embedded {
             keyboard: HashSet::default(),
             described: HashMap::default(),
             told_describing: false,
+            redescribed: false,
             menu_picked: HashMap::default(),
             drag: None,
             accepting: HashSet::default(),
@@ -801,7 +806,8 @@ impl Embedded {
             || !state.docks.is_empty()
             || !state.told.is_empty()
             || state.drag.is_some()
-            || state.restyled;
+            || state.restyled
+            || state.redescribed;
         match owes {
             true => Wants {
                 next: Some(state.now),
@@ -1104,7 +1110,7 @@ impl Embedded {
         let mut state = self.state.borrow_mut();
         let placement = state.surfaces.get(&surface)?;
         let (screen, raster) = (placement.screen, raster(placement));
-        let focused = state.keyboard.contains(&screen);
+        let focused = state.has_keyboard(screen);
         // A pane named for the app, as be-host names each of its views but a view it anchored
         // and a dock bar, which holds no content.
         let titled = !state.anchored.contains_key(&screen)
@@ -1123,6 +1129,12 @@ impl Embedded {
             focused,
             full,
         ))
+    }
+
+    /// The root described itself (or was asked for no tree): what its screens' trees changed
+    /// until now is shown, and owes no frame.
+    pub(crate) fn read_trees(&self) {
+        self.state.borrow_mut().redescribed = false;
     }
 
     /// The person picked from a frame menu of its editor `editor` (`editor.menu-pick`), which
@@ -1411,6 +1423,33 @@ pub(crate) fn wants(
 }
 
 impl State {
+    /// Whether `screen` has the keyboard, as the root's router last said: a view it anchored
+    /// has it while the view it hangs from does, as under be-host (be-host-runtime's
+    /// `view_focused`), since the app's one focus may be in either.
+    fn has_keyboard(&self, screen: ScreenId) -> bool {
+        let layout = self.run.layout();
+        let mut at = screen;
+        // Each step climbs to the view a view hangs from; a cycle cannot climb past every screen.
+        for _ in 0..=layout.screens.len() {
+            if self.keyboard.contains(&at) {
+                return true;
+            }
+            let Some(hanging) = self.anchored.get(&at) else {
+                return false;
+            };
+            let Some(instance) = layout.placement(at).map(|placement| placement.instance) else {
+                return false;
+            };
+            let Some(parent) = layout.screens.iter().find(|placement| {
+                placement.instance == instance && placement.view == hanging.placement.parent
+            }) else {
+                return false;
+            };
+            at = parent.screen;
+        }
+        false
+    }
+
     /// Asks the app for the screens the root asks for and the windows it floats, unless it was
     /// asked for those already.
     fn ask_screens(&mut self) {
@@ -1672,6 +1711,7 @@ impl State {
                             .entry(report.screen)
                             .or_insert_with(|| Graft::new(next_document()))
                             .update(tree);
+                        self.redescribed = true;
                     }
                     match &report.anchored {
                         Some(anchored) => {
