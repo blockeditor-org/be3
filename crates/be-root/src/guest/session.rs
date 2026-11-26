@@ -150,11 +150,14 @@ impl Root {
                     // An app that stopped once it ran ends the session, as be-host's own shell
                     // does: it says so unless it was killed, and asks which session to show,
                     // where keeping this one starts its app again.
+                    // A kill is heard once: the app is let go of with it.
+                    let killed = {
+                        let mut killed = self.killed.borrow_mut();
+                        let was = killed.contains(&hosted.app.instance());
+                        killed.retain(|instance| *instance != hosted.app.instance());
+                        was
+                    };
                     if hosted.app.started() {
-                        let killed = self
-                            .killed
-                            .borrow()
-                            .contains(&hosted.app.instance());
                         if !killed {
                             self.toast_stopped(&hosted.name, &why);
                         }
@@ -200,6 +203,14 @@ impl Root {
     /// Stops the app the Running Apps panel names, `app`, as be-host's panel stops one of its
     /// own: crashed, which says it stopped, or killed, which does not.
     pub(super) fn stop_app(&self, app: &str, crash: bool) {
+        // The kills of apps let go of since say nothing any more.
+        self.killed.borrow_mut().retain(|instance| {
+            self.embedding
+                .borrow()
+                .apps()
+                .iter()
+                .any(|app| app.instance() == *instance)
+        });
         let apps: Vec<Embedded> = self
             .embedding
             .borrow()

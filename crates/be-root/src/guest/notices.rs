@@ -37,21 +37,35 @@ const OWN_TOASTS: u64 = 1 << 63;
 /// The key of a toast's action that copies its report.
 const COPY_REPORT: &str = "copy-report";
 
+/// A toast of the root's own, with the report its Copy report copies.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct OwnToast {
+    toast: Toast,
+    report: String,
+}
+
 /// A toast of the root's own saying the app `name` stopped for `why`, as be-host says one of
 /// its own did: its first line, and Copy report, which copies all of it. Each is numbered
 /// after those in `own`.
-pub(super) fn stopped_toast(own: &[Toast], name: &str, why: &str) -> Toast {
+pub(super) fn stopped_toast(own: &[OwnToast], name: &str, why: &str) -> OwnToast {
     let first = why.lines().next().unwrap_or_default();
-    let id = own.iter().map(|toast| toast.id + 1).max().unwrap_or(OWN_TOASTS);
-    Toast {
-        id,
-        message: format!("{name} stopped: {first}"),
-        danger: true,
-        actions: vec![ToastAction {
-            key: format!("{COPY_REPORT}:{why}"),
-            label: "Copy report".to_owned(),
-        }],
-        ..Toast::default()
+    let id = own
+        .iter()
+        .map(|own| own.toast.id + 1)
+        .max()
+        .unwrap_or(OWN_TOASTS);
+    OwnToast {
+        toast: Toast {
+            id,
+            message: format!("{name} stopped: {first}"),
+            danger: true,
+            actions: vec![ToastAction {
+                key: COPY_REPORT.to_owned(),
+                label: "Copy report".to_owned(),
+            }],
+            ..Toast::default()
+        },
+        report: why.to_owned(),
     }
 }
 
@@ -61,14 +75,14 @@ pub(super) fn stopped_toast(own: &[Toast], name: &str, why: &str) -> Toast {
 #[component]
 pub(super) fn Notices(
     toasts: Signal<Vec<Toast>>,
-    own: Signal<Vec<Toast>>,
+    own: Signal<Vec<OwnToast>>,
     saving: Signal<SavingState>,
     area: Signal<Rect>,
 ) -> NodeId {
     let slow = slow_save(saving);
     let shown = create_memo(move || {
         let mut shown = toasts.get();
-        shown.extend(own.get());
+        own.with(|own| shown.extend(own.iter().map(|own| own.toast.clone())));
         if slow.shown.get() {
             shown.insert(
                 0,
@@ -96,7 +110,7 @@ pub(super) fn Notices(
                     return;
                 }
                 if id >= OWN_TOASTS {
-                    own.update(|own| own.retain(|toast| toast.id != id));
+                    own.update(|own| own.retain(|own| own.toast.id != id));
                     return;
                 }
                 toasts.update(|toasts| toasts.retain(|toast| toast.id != id));
@@ -107,8 +121,13 @@ pub(super) fn Notices(
                     answer(id, Some(key));
                     return;
                 }
-                if let Some(report) = key.strip_prefix(COPY_REPORT).and_then(|key| key.strip_prefix(':')) {
-                    let item = be_lib_ui_types::ClipItem::text(report.to_owned());
+                let report = own.with_untracked(|own| {
+                    own.iter()
+                        .find(|own| own.toast.id == id)
+                        .map(|own| own.report.clone())
+                });
+                if let (COPY_REPORT, Some(report)) = (key.as_str(), report) {
+                    let item = be_lib_ui_types::ClipItem::text(report);
                     be_wasm_ops::guest::spawn(async move {
                         // A host that cannot hear it has stopped, which the root hears from its
                         // frames.
