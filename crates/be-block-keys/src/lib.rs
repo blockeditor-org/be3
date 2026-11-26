@@ -780,6 +780,18 @@ impl fmt::Debug for EscrowSecret {
 thread_local! {
     /// Signatures verified on this thread (`verify_signature`).
     static VERIFIED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    /// Access log entries hashed on this thread (`Reduced::hash`, which an entry's hash is).
+    static HASHED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// How many access log entries this thread has hashed: what a test of how much of a log a check
+/// reads again counts, as `signatures_verified` counts what it verifies.
+pub fn entries_hashed() -> u64 {
+    HASHED.with(std::cell::Cell::get)
+}
+
+pub(crate) fn count_hashed() {
+    HASHED.with(|hashed| hashed.set(hashed.get() + 1));
 }
 
 /// How many signatures this thread has verified: what a test of how often logs are checked

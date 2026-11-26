@@ -142,6 +142,10 @@ fn every_record_reads_back_with_each_option_none_and_some() {
                 )
                 .unwrap()
             }),
+            steps: match some {
+                true => vec![be_block_keys::Step::from(root.clone())],
+                false => Vec::new(),
+            },
         });
         reads_back(&KeptLogHead {
             size: 1,

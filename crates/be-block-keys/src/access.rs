@@ -693,6 +693,7 @@ pub struct Reduced {
 
 impl Reduced {
     pub fn hash(&self) -> EntryHash {
+        crate::count_hashed();
         let mut hash = Sha256::new().chain_update(ACCESS_HASH_INFO);
         match self.previous {
             Some(previous) => hash = hash.chain_update([1]).chain_update(previous),
@@ -1839,6 +1840,30 @@ impl Checked {
         }
         let held = self.positions.len();
         self.extend(kind, log, &served[held..], outside)
+    }
+
+    /// `resume`, where the first `trusted` entries of `served` are a prefix this device kept as
+    /// served before and checked (`Peer::served_access`): when they hold this whole log, only
+    /// the last of it is hashed, to tie the two, rather than every entry of it.
+    pub fn resume_trusting(
+        self,
+        kind: LogKind,
+        log: [u8; 16],
+        served: &[impl Logged],
+        trusted: usize,
+        outside: &dyn Fn(&Asked) -> Option<SigningPublic>,
+    ) -> Result<Checked, KeyError> {
+        let held = self.positions.len();
+        let ties = !self.partial
+            && held > 0
+            && held <= trusted
+            && served
+                .get(held - 1)
+                .is_some_and(|last| last.step().hash() == self.head);
+        match ties {
+            true => self.extend(kind, log, &served[held..], outside),
+            false => self.resume(kind, log, served, outside),
+        }
     }
 
     /// Whether `served`, a log from its root, holds this whole log as its prefix: each of its

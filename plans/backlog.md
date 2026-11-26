@@ -654,19 +654,16 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
 
 ## 26. Server protocol
 
-- **Access logs checked once, what is left.** A device checks each entry of
-  a whole log once and reads only what was appended, and the server checks an
-  append alone, but: a device's first read after a restart is whole and
-  hashed against `KeptLog::checked` (keeping the entries with the refs would
-  drop that); authority from another log (`be_block_keys::answer`) checks that
-  log from its root as of the entry a record names, each time (keeping states
-  as of the heads records name would drop that); a hosted block's log checked
-  from an unpinned root (`joined_log`) keeps nothing; the server still loads
-  and hashes every entry of a log on each check (keeping the head's place and
-  hash in the database would drop that); and `Checked::positions` grows by an
-  entry's hash for each entry, since epochs name their heads by hash. Done:
-  each with a test that counts the work it drops, as be-server
-  `an_append_checks_only_the_appended_entry_on_the_server` does.
+- **Access logs: `Checked::positions` keeps every entry's hash.** A device and
+  the server check each entry of a log once, but the state they keep of a
+  checked log (`Checked::positions`, and `KeptLog::checked` with it) grows by
+  an entry's hash for each entry, since epochs name their heads by hash and
+  `holds`, `current_at` and `outdates` look any of them up. Keeping only the
+  entries since the last lowering does not bound it: a log of grants alone
+  never lowers. Bounding it needs epochs to name a head by its place with a
+  proof the log holds it there (an accumulator of the entries' hashes, as the
+  signed logs' Merkle tree is). Done: a decision on that, and the kept state
+  bounded, with a test that counts what it keeps for a long log.
 
 ## 27. Unread counts
 

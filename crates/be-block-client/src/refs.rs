@@ -557,6 +557,11 @@ pub struct KeptLog {
     /// (`be_block_keys::Checked::resume`). None for a proof path, which is checked whole, and
     /// for a block made here and not yet read back.
     pub checked: Option<be_block_keys::Checked>,
+    /// The whole log's entries as served to `head`, with `checked`, so a read after a restart
+    /// names its last and is sent only those after it (`Peer::served_access`). Empty for a
+    /// proof path.
+    #[serde(default)]
+    pub steps: Vec<be_block_keys::Step>,
 }
 
 /// The head of a block's signed log this device last verified: a log the server serves later

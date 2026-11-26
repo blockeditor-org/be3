@@ -437,7 +437,15 @@ pub struct Peer<S: ObjectStore> {
 /// The access logs a peer holds for reading again (`Peer::served_access`), weighed by their
 /// entries: at most `SERVED_ENTRIES` in all, the log read longest ago let go first, so a run that
 /// reads many logs holds no more than the ones it reads again.
-pub(crate) type ServedLogs = be_block_keys::lru::Lru<Uuid, Arc<Vec<be_block_keys::Step>>>;
+pub(crate) type ServedLogs = be_block_keys::lru::Lru<Uuid, HeldLog>;
+
+/// A whole access log as served, and how many of its first entries this device checked: those a
+/// check goes on from without hashing them again (`Checked::resume_trusting`).
+#[derive(Clone)]
+pub(crate) struct HeldLog {
+    steps: Arc<Vec<be_block_keys::Step>>,
+    checked: usize,
+}
 
 /// How many entries of the access logs a peer holds for reading again (`ServedLogs`).
 pub(crate) const SERVED_ENTRIES: usize = 1 << 16;
@@ -1043,7 +1051,7 @@ impl<S: ObjectStore> Peer<S> {
                 taken += 1;
                 continue;
             }
-            let Ok(entries) = self.served_log(escrowed.block).await else {
+            let Ok((entries, trusted)) = self.served_access_held(Some(escrowed.block)).await else {
                 continue;
             };
             let Ok(around) = self.logs_around(escrowed.block, &entries).await else {
@@ -1054,7 +1062,7 @@ impl<S: ObjectStore> Peer<S> {
                 .kept_checked(escrowed.block, pinned)
                 .filter(|kept| kept.positions.len() <= entries.len());
             let checked = around
-                .check(self.organization, escrowed.block, pinned, kept, &entries)
+                .check(self.organization, escrowed.block, pinned, kept, &entries, trusted)
                 // A log short of what an earlier check kept is withheld: the key waits.
                 .and_then(|checked| match self.keys.served(escrowed.block, &checked) {
                     crate::keys::Served::Take => Some(checked),
@@ -1085,28 +1093,41 @@ impl<S: ObjectStore> Peer<S> {
     /// invitation it joined by. The personal organization has none. Whole to an administrator,
     /// else a proof path.
     pub async fn organization_log(&self) -> Result<Vec<be_block_keys::Step>, ClientError> {
-        let served = self.served_access(None).await?;
+        Ok(self.organization_log_checked().await?.0)
+    }
+
+    /// `organization_log`, and the log as it checked, none for the personal organization.
+    /// Checked on from what this device kept, without hashing again the prefix it checked
+    /// before (`Checked::resume_trusting`).
+    pub(crate) async fn organization_log_checked(
+        &self,
+    ) -> Result<(Vec<be_block_keys::Step>, Option<be_block_keys::Checked>), ClientError> {
+        let (served, trusted) = self.served_access_held(None).await?;
         let organization = self.organization;
         let Some(pinned) = self.keys.organization_root() else {
             return match served.is_empty() {
-                true => Ok(Vec::new()),
+                true => Ok((Vec::new(), None)),
                 false => Err(ClientError::Locked(organization)),
             };
         };
-        // Checked on from what this device kept, as `checked_organization` does.
         let kept = self
             .keys
             .kept_checked(organization, pinned)
             .filter(|kept| kept.positions.len() <= served.len());
-        kept.unwrap_or_else(|| be_block_keys::Checked::unchecked(pinned))
-            .resume(
+        let checked = kept
+            .unwrap_or_else(|| be_block_keys::Checked::unchecked(pinned))
+            .resume_trusting(
                 be_block_keys::LogKind::Organization,
                 organization.into_bytes(),
                 &served,
+                trusted,
                 &|_| None,
             )
             .map_err(|_| ClientError::Forged(organization))?;
-        Ok(served)
+        if !checked.partial {
+            self.served_checked(organization, served.len());
+        }
+        Ok((served, Some(checked)))
     }
 
     pub(crate) fn adopt_contacts(&self, contacts: &[crate::Contact]) {
@@ -2660,23 +2681,39 @@ impl<S: ObjectStore> Peer<S> {
         block: Uuid,
         pinned: be_block_keys::EntryHash,
     ) -> Result<(Vec<be_block_keys::Step>, be_block_keys::Checked), ClientError> {
-        let entries = self.served_log(block).await?;
+        let (entries, trusted) = self.served_access_held(Some(block)).await?;
         let around = match cites(&entries) {
             true => self.logs_around(block, &entries).await?,
             false => Around::default(),
         };
         // Checked on from what this device kept, when the log still reaches it: only the
-        // entries after are checked. One cut short is checked whole, and found withheld below.
+        // entries after are checked, and those it checked before not hashed again. One cut
+        // short is checked whole, and found withheld below.
         let kept = self
             .keys
             .kept_checked(block, pinned)
             .filter(|kept| kept.positions.len() <= entries.len());
         let checked = around
-            .check(self.organization, block, pinned, kept, &entries)
+            .check(self.organization, block, pinned, kept, &entries, trusted)
             .ok_or(ClientError::Forged(block))?;
+        self.take_checked(block, entries, checked)
+    }
+
+    /// `block`'s log `entries`, checked as `checked`, taken as `checked_rooted` takes one:
+    /// refused when it stops short of what this device kept of it, and kept, so the next check
+    /// goes on from it.
+    pub(crate) fn take_checked(
+        &self,
+        block: Uuid,
+        entries: Vec<be_block_keys::Step>,
+        checked: be_block_keys::Checked,
+    ) -> Result<(Vec<be_block_keys::Step>, be_block_keys::Checked), ClientError> {
         // A log short of what an earlier check kept is withheld: nothing acts on it, and what
         // waits on it (a seal to judge, an escrowed key to take) waits for a whole one.
         match self.keys.served(block, &checked) {
+            crate::keys::Served::Take if !checked.partial => {
+                self.served_checked(block, entries.len());
+            }
             crate::keys::Served::Take => {}
             // An older answer than one this run already took: that one stands, with its
             // entries, so a record signed on it names the newer head.
@@ -2709,12 +2746,29 @@ impl<S: ObjectStore> Peer<S> {
         &self,
         log: Option<Uuid>,
     ) -> Result<Vec<be_block_keys::Step>, ClientError> {
+        Ok(self.served_access_held(log).await?.0)
+    }
+
+    /// `served_access`, and how many of the first entries are a prefix this device checked
+    /// before: from this run, or kept with the refs from an earlier one (`KeptLog::steps`), so
+    /// the first read after a restart names its last entry too, and is sent only those after.
+    async fn served_access_held(
+        &self,
+        log: Option<Uuid>,
+    ) -> Result<(Vec<be_block_keys::Step>, usize), ClientError> {
         let id = log.unwrap_or(self.organization);
-        let held = self.served_logs.lock().unwrap().get(&id).cloned();
-        let held_entry = held.as_ref().and_then(|steps| {
+        let cached = self.served_logs.lock().unwrap().get(&id).cloned();
+        let held = cached.or_else(|| {
+            let steps = self.keys.kept_steps(id)?;
+            Some(HeldLog {
+                checked: steps.len(),
+                steps: Arc::new(steps),
+            })
+        });
+        let held_entry = held.as_ref().and_then(|held| {
             Some(be_block_protocol::HeldEntry {
-                place: steps.len().checked_sub(1)? as u64,
-                hash: steps.last()?.hash(),
+                place: held.steps.len().checked_sub(1)? as u64,
+                hash: held.steps.last()?.hash(),
             })
         });
         let page = crate::ask(
@@ -2734,14 +2788,49 @@ impl<S: ObjectStore> Peer<S> {
             .map(|step| be_block_keys::Step::decode(step))
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| ClientError::Forged(id))?;
-        let steps = extended(held.as_deref().map(Vec::as_slice), page.from, sent)
-            .ok_or(ClientError::Forged(id))?;
+        let steps = extended(
+            held.as_ref().map(|held| held.steps.as_slice()),
+            page.from,
+            sent,
+        )
+        .ok_or(ClientError::Forged(id))?;
+        let trusted = match page.from {
+            0 => 0,
+            _ => held.map_or(0, |held| held.checked),
+        };
         let mut served = self.served_logs.lock().unwrap();
         match steps.iter().all(|step| step.entry().is_some()) {
-            true => served.insert(id, Arc::new(steps.clone()), steps.len().max(1)),
+            true => served.insert(
+                id,
+                HeldLog {
+                    steps: Arc::new(steps.clone()),
+                    checked: trusted,
+                },
+                steps.len().max(1),
+            ),
             false => served.remove(&id),
         }
-        Ok(steps)
+        Ok((steps, trusted))
+    }
+
+    /// `log`'s whole log, as `served_access` holds it, checked through its first `checked`
+    /// entries: a later read goes on from them without hashing them again.
+    fn served_checked(&self, log: Uuid, checked: usize) {
+        let mut served = self.served_logs.lock().unwrap();
+        let Some(held) = served.get(&log).cloned() else {
+            return;
+        };
+        if held.checked < checked && checked <= held.steps.len() {
+            let weight = held.steps.len().max(1);
+            served.insert(
+                log,
+                HeldLog {
+                    checked,
+                    ..held
+                },
+                weight,
+            );
+        }
     }
 
     /// The logs a record in `block`'s log may name its authority in, as far as this device is
@@ -5142,6 +5231,7 @@ impl Around {
         pinned: be_block_keys::EntryHash,
         kept: Option<be_block_keys::Checked>,
         entries: &[be_block_keys::Step],
+        trusted: usize,
     ) -> Option<be_block_keys::Checked> {
         let log = |kind, log| self.log(kind, log);
         let mut logs = be_block_keys::Logs::new(
@@ -5155,10 +5245,11 @@ impl Around {
         let outside =
             |asked: &be_block_keys::Asked| be_block_keys::answer(&logs, block.into_bytes(), asked);
         kept.unwrap_or_else(|| be_block_keys::Checked::unchecked(pinned))
-            .resume(
+            .resume_trusting(
                 be_block_keys::LogKind::Block,
                 block.into_bytes(),
                 entries,
+                trusted,
                 &outside,
             )
             .ok()

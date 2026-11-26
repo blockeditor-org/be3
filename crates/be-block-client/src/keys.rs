@@ -1218,6 +1218,10 @@ impl KeyBook {
                 .map(|kept| kept.vouched.clone())
                 .unwrap_or_default(),
             checked: (!checked.partial).then(|| checked.clone()),
+            steps: match checked.partial {
+                true => Vec::new(),
+                false => entries.to_vec(),
+            },
         };
         match roots.kept.insert(block, kept.clone()) == Some(kept.clone()) {
             true => None,
@@ -1267,6 +1271,14 @@ impl KeyBook {
 
     /// `block`'s whole log as this device last checked it from `root`, to check on from
     /// (`Checked::resume`): none when it kept none, or kept it from another root.
+    /// The whole log of `log` (a block's, or the organization's under its id) as this device
+    /// kept it served and checked (`KeptLog::steps`): none for a proof path.
+    pub fn kept_steps(&self, log: Uuid) -> Option<Vec<be_block_keys::Step>> {
+        let roots = self.roots.lock().unwrap();
+        let kept = roots.kept.get(&log)?;
+        (!kept.steps.is_empty()).then(|| kept.steps.clone())
+    }
+
     pub fn kept_checked(&self, block: Uuid, root: EntryHash) -> Option<Checked> {
         self.roots
             .lock()
@@ -1294,6 +1306,7 @@ impl KeyBook {
             levels: vec![(self.account.into_bytes(), Level::Manage)],
             vouched: Vec::new(),
             checked: None,
+            steps: Vec::new(),
         };
         self.roots
             .lock()
