@@ -51,6 +51,9 @@ pub const USAGE: &str = "Session:
   present late / present now  take in what the program's own programs present (be-host's apps)
                             only at the next frame, so a frame is drawn between an app's layout
                             and its present; or as soon as it comes
+  hold NAME / hold off      hold back everything the program's own program NAME sends it (a be-host
+                            app, by its id) as though it were slow to answer, counting it settled,
+                            until hold off hands it all over in order
   frames                    how many frames ran since the last frames, and the longest one's wall time:
                             the window's, and those the program ran elsewhere, such as an app's
   close                     ask the window to close, as its close button does; a program that stays
@@ -176,8 +179,8 @@ enum Kind {
 
 fn kind(command: &str) -> Option<Kind> {
     Some(match command {
-        "help" | "settle" | "pause" | "clock" | "hurry" | "present" | "frames" | "close"
-        | "synced" | "offline" | "network" => Kind::Session,
+        "help" | "settle" | "pause" | "clock" | "hurry" | "present" | "hold" | "frames"
+        | "close" | "synced" | "offline" | "network" => Kind::Session,
         "tree" | "ids" | "find" | "comps" | "hit" | "actions" | "act" | "a11y" | "wait" | "env"
         | "windows" | "paint" | "overflows" => Kind::Reading,
         // Old names, here only so the parser refuses them with a pointer to the new forms.
@@ -513,6 +516,7 @@ struct Session {
     in_step_due: Option<Instant>,
     unhurried: bool,
     presents_late: bool,
+    held: Option<String>,
     focused: bool,
     picks: Vec<(u64, FilePickRequest, FilePickAnswer)>,
     saves: Vec<(u64, FileSaveRequest, FileSaveAnswer)>,
@@ -553,6 +557,7 @@ impl Session {
             in_step_due: None,
             unhurried: false,
             presents_late: false,
+            held: None,
             focused: true,
             picks: Vec::new(),
             saves: Vec::new(),
@@ -1392,6 +1397,14 @@ impl Session {
                 frame.context.set_presents_late(self.presents_late);
                 Ok(Started::Phase(Phase::Settling { before: None }))
             }
+            "hold" => {
+                self.held = match argument(0)? {
+                    "off" => None,
+                    name => Some(name.to_owned()),
+                };
+                frame.context.set_held(self.held.clone());
+                Ok(Started::Phase(Phase::Settling { before: None }))
+            }
             other => Err(format!("unknown command {other}\n{USAGE}")),
         }
     }
@@ -1937,6 +1950,9 @@ impl Session {
         }
         if self.presents_late {
             text.push_str("present late: apps' presents are taken in at the next frame\n");
+        }
+        if let Some(held) = &self.held {
+            text.push_str(&format!("hold {held}: what it sends is held back\n"));
         }
         if let Some(progress) = gestures.back {
             text.push_str(&format!("back gesture at {progress}\n"));

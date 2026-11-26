@@ -214,6 +214,7 @@ pub(crate) fn begin(context: &beui::native::Context) {
         seen: context.seen(),
         clock_stopped: context.clock_stopped(),
         presents_late: context.presents_late(),
+        held: context.held(),
         ..Frame::default()
     };
     frame.preferences = context.preferences();

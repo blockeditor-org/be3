@@ -137,6 +137,7 @@ struct Inner {
     overflows_wanted: Cell<bool>,
     unhurried: Cell<bool>,
     presents_late: Cell<bool>,
+    held: RefCell<Option<String>>,
     waker: RefCell<Option<Waker>>,
     in_frame: Cell<bool>,
     woken: Cell<bool>,
@@ -447,6 +448,7 @@ impl Context {
                 overflows_wanted: Cell::new(false),
                 unhurried: Cell::new(false),
                 presents_late: Cell::new(false),
+                held: RefCell::new(None),
                 waker: RefCell::new(None),
                 in_frame: Cell::new(false),
                 woken: Cell::new(false),
@@ -549,6 +551,20 @@ impl Context {
 
     pub fn presents_late(&self) -> bool {
         self.automated() && self.inner.presents_late.get()
+    }
+
+    /// Has a driven program hold back everything one of its own programs sends it (a be-host
+    /// app, by its id) until this is cleared, as though that program were slow to answer
+    /// (`drive hold`): a test's way to make what it sends arrive late.
+    pub fn set_held(&self, held: Option<String>) {
+        *self.inner.held.borrow_mut() = held;
+    }
+
+    pub fn held(&self) -> Option<String> {
+        match self.automated() {
+            true => self.inner.held.borrow().clone(),
+            false => None,
+        }
     }
 
     pub fn set_seen(&self, seen: bool) {

@@ -313,6 +313,7 @@ struct Host {
     seen: bool,
     clock_stopped: bool,
     presents_late: bool,
+    held: Option<String>,
     pixels_per_point: f32,
     screen_scale: f32,
     opens_windows: bool,
@@ -331,6 +332,7 @@ impl Default for Host {
             seen: true,
             clock_stopped: false,
             presents_late: false,
+            held: None,
             pixels_per_point: 1.0,
             screen_scale: 1.0,
             opens_windows: false,
@@ -353,6 +355,9 @@ pub struct Frame {
     /// A driven program's apps' presents are taken in only at the next frame's poll
     /// (`drive present late`), so a frame is drawn between an app's layout and its present.
     pub presents_late: bool,
+    /// The app a driven program holds back everything from (`drive hold`), as though it were
+    /// slow to answer.
+    pub held: Option<String>,
     pub preferences: be_sdk_api::Preferences,
     pub pixels_per_point: f32,
     pub screen_scale: f32,
@@ -367,6 +372,7 @@ impl Default for Frame {
             seen: true,
             clock_stopped: false,
             presents_late: false,
+            held: None,
             preferences: be_sdk_api::Preferences::default(),
             pixels_per_point: 1.0,
             screen_scale: 1.0,
@@ -382,6 +388,7 @@ pub fn start(frame: Frame) {
         host.seen = frame.seen;
         host.clock_stopped = frame.clock_stopped;
         host.presents_late = frame.presents_late;
+        host.held = frame.held;
         if let Some(now) = frame.now {
             let started = *host.started.get_or_insert(now);
             host.now = now.saturating_duration_since(started);
@@ -429,6 +436,11 @@ pub fn clock_stopped() -> bool {
 /// Whether this frame takes in apps' presents only at the next frame's poll (`Frame::presents_late`).
 pub fn presents_late() -> bool {
     with(|host| host.presents_late)
+}
+
+/// Whether this frame holds back everything the app `app` sends (`Frame::held`).
+pub fn holds(app: &str) -> bool {
+    with(|host| host.held.as_deref() == Some(app))
 }
 
 pub fn now() -> Duration {
