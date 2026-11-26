@@ -1,8 +1,9 @@
 //! How a canvas's configuration asks its pixels to be shown (alpha mode, color space, tone
 //! mapping), turned into what every compositor of the host shows: premultiplied, sRGB-encoded
-//! values in [0, 1]. A canvas already so is shown as it is; any other is drawn at each present
-//! into textures the host keeps beside it, which its compositors show instead, so none of them
-//! needs to know.
+//! values in [0, 1]. A canvas already so is shown as it is; any other is drawn, at each present,
+//! into rgba8unorm textures the host keeps beside it, which its compositors show instead, so
+//! none of them needs to know. Every present's drawing waits for the host to take what was
+//! presented (`Gpu::take_presented`), and goes in one submit.
 
 use crate::tables::HashMap;
 
@@ -73,31 +74,84 @@ fn fragment(@builtin(position) at: vec4<f32>) -> @location(0) vec4<f32> {
 }
 ";
 
-/// The pipelines that show canvases, one per format and look, made when first needed.
+/// What one of a canvas's textures is shown as: an rgba8unorm texture of its size, which the
+/// look's pass reads the canvas texture into, with the views and bind group the pass uses,
+/// made once.
+pub(crate) struct Shown {
+    pub(crate) texture: (wgpu::Texture, u64),
+    target: wgpu::TextureView,
+    group: wgpu::BindGroup,
+}
+
+/// The pass that shows canvases: its layout, made when first needed, and a pipeline per look.
 #[derive(Default)]
 pub(crate) struct Looks {
-    module: Option<wgpu::ShaderModule>,
-    pipelines: HashMap<(wgpu::TextureFormat, Look), wgpu::RenderPipeline>,
+    made: Option<(wgpu::ShaderModule, wgpu::BindGroupLayout, wgpu::PipelineLayout)>,
+    pipelines: HashMap<Look, wgpu::RenderPipeline>,
 }
 
 impl Looks {
-    /// Draws `canvas` as `look` asks into `shown`, a texture of its size and format.
-    pub(crate) fn show(
-        &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        look: Look,
-        canvas: &wgpu::Texture,
-        shown: &wgpu::Texture,
-    ) {
-        let format = canvas.format();
-        let module = self.module.get_or_insert_with(|| {
-            device.create_shader_module(wgpu::ShaderModuleDescriptor {
+    fn made(&mut self, device: &wgpu::Device) -> &(wgpu::ShaderModule, wgpu::BindGroupLayout, wgpu::PipelineLayout) {
+        self.made.get_or_insert_with(|| {
+            let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("canvas look"),
                 source: wgpu::ShaderSource::Wgsl(SHADER.into()),
-            })
+            });
+            let group = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("canvas look"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                }],
+            });
+            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("canvas look"),
+                bind_group_layouts: &[Some(&group)],
+                immediate_size: 0,
+            });
+            (module, group, layout)
+        })
+    }
+
+    /// The texture `canvas` is shown as.
+    pub(crate) fn shown(&mut self, device: &wgpu::Device, canvas: &wgpu::Texture, generation: u64) -> Shown {
+        let (_, layout, _) = self.made(device);
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("app canvas, shown"),
+            size: canvas.size(),
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: crate::SURFACE_USAGE,
+            view_formats: &[],
         });
-        let pipeline = self.pipelines.entry((format, look)).or_insert_with(|| {
+        let source = canvas.create_view(&wgpu::TextureViewDescriptor::default());
+        let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("canvas look"),
+            layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(&source),
+            }],
+        });
+        Shown {
+            target: texture.create_view(&wgpu::TextureViewDescriptor::default()),
+            texture: (texture, generation),
+            group,
+        }
+    }
+
+    /// Records drawing a canvas into what shows it, as `look` asks.
+    pub(crate) fn show(&mut self, device: &wgpu::Device, encoder: &mut wgpu::CommandEncoder, look: Look, shown: &Shown) {
+        if !self.pipelines.contains_key(&look) {
+            let (module, _, layout) = self.made(device);
             let flag = |on: bool| f64::from(u8::from(on));
             let constants = [
                 ("OPAQUE", flag(look.opaque)),
@@ -108,9 +162,9 @@ impl Looks {
                 constants: &constants,
                 ..Default::default()
             };
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some("canvas look"),
-                layout: None,
+                layout: Some(layout),
                 vertex: wgpu::VertexState {
                     module,
                     entry_point: Some("vertex"),
@@ -124,43 +178,28 @@ impl Looks {
                     module,
                     entry_point: Some("fragment"),
                     compilation_options: options,
-                    targets: &[Some(format.into())],
+                    targets: &[Some(wgpu::TextureFormat::Rgba8Unorm.into())],
                 }),
                 multiview_mask: None,
                 cache: None,
-            })
-        });
-        let source = canvas.create_view(&wgpu::TextureViewDescriptor::default());
-        let target = shown.create_view(&wgpu::TextureViewDescriptor::default());
-        let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("canvas look"),
-            layout: &pipeline.get_bind_group_layout(0),
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: wgpu::BindingResource::TextureView(&source),
-            }],
-        });
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("canvas look"),
-        });
-        {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("canvas look"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &target,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                ..Default::default()
             });
-            pass.set_pipeline(pipeline);
-            pass.set_bind_group(0, &group, &[]);
-            pass.draw(0..3, 0..1);
+            self.pipelines.insert(look, pipeline);
         }
-        queue.submit([encoder.finish()]);
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("canvas look"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &shown.target,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            ..Default::default()
+        });
+        pass.set_pipeline(&self.pipelines[&look]);
+        pass.set_bind_group(0, &shown.group, &[]);
+        pass.draw(0..3, 0..1);
     }
 }

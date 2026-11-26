@@ -2828,11 +2828,29 @@ impl Host for Gpu {
         &mut self,
         this: web::GpuCanvasContext,
     ) -> Option<web::GpuCanvasConfigurationOwned> {
-        self.web
+        // What was configured, with WebGPU's defaults for what was not.
+        let configured = self
+            .web
             .contexts
             .get(this.0, "canvas context")
-            .ok()
-            .and_then(|context| context.configuration.clone())
+            .ok()?
+            .configuration
+            .clone()?;
+        Some(web::GpuCanvasConfigurationOwned {
+            usage: Some(configured.usage.unwrap_or(web::GpuTextureUsage::RENDER_ATTACHMENT)),
+            view_formats: Some(configured.view_formats.unwrap_or_default()),
+            color_space: Some(configured.color_space.unwrap_or(web::PredefinedColorSpace::Srgb)),
+            tone_mapping: Some(web::GpuCanvasToneMapping {
+                mode: Some(
+                    configured
+                        .tone_mapping
+                        .and_then(|tone_mapping| tone_mapping.mode)
+                        .unwrap_or(web::GpuCanvasToneMappingMode::Standard),
+                ),
+            }),
+            alpha_mode: Some(configured.alpha_mode.unwrap_or(web::GpuCanvasAlphaMode::Opaque)),
+            ..configured
+        })
     }
 
     fn gpu_canvas_context_get_current_texture(

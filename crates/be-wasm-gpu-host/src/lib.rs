@@ -66,6 +66,8 @@ pub struct Gpu {
     /// The state of wasi:webgpu's objects beyond the tables above (webgpu.rs).
     web: webgpu::Web,
     looks: looks::Looks,
+    /// Surfaces presented since `take_presented` whose look draws what shows them.
+    looking: Vec<u32>,
 }
 
 type Outcome<T> = Result<T, String>;
@@ -77,7 +79,7 @@ struct Surface {
     /// How its configuration asks it to be shown, and, unless as it is, the textures each of
     /// `textures` is drawn into at its present, which are what is shown (looks.rs).
     look: looks::Look,
-    shown: Vec<(wgpu::Texture, u64)>,
+    shown: Vec<looks::Shown>,
     drawn: usize,
     ages: Ages,
 }
@@ -115,7 +117,9 @@ impl Surface {
     /// The texture last presented, as it is shown.
     fn shown(&self) -> &(wgpu::Texture, u64) {
         let last = (self.drawn + 1) % self.textures.len();
-        self.shown.get(last).unwrap_or(&self.textures[last])
+        self.shown
+            .get(last)
+            .map_or(&self.textures[last], |shown| &shown.texture)
     }
 }
 
@@ -175,6 +179,7 @@ impl Gpu {
             error: None,
             web: webgpu::Web::default(),
             looks: looks::Looks::default(),
+            looking: Vec::new(),
         }
     }
 
@@ -254,35 +259,32 @@ impl Gpu {
                 .textures
                 .iter()
                 .map(|(canvas, _)| {
-                    let shown = self.device.create_texture(&wgpu::TextureDescriptor {
-                        label: Some("app canvas, shown"),
-                        size: canvas.size(),
-                        mip_level_count: 1,
-                        sample_count: 1,
-                        dimension: wgpu::TextureDimension::D2,
-                        format: canvas.format(),
-                        usage: SURFACE_USAGE,
-                        view_formats: &[],
-                    });
                     let generation = GENERATIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    (shown, generation)
+                    self.looks.shown(&self.device, canvas, generation)
                 })
                 .collect(),
         };
     }
 
-    /// Draws the texture `surface` just presented into what shows it, when its look asks.
-    fn show(&mut self, surface: u32) {
-        let Some(target) = self.surfaces.get(&surface) else {
+    /// Draws what every surface presented since the last call shows, when its look asks, in
+    /// one submit.
+    fn show_presented(&mut self) {
+        if self.looking.is_empty() {
             return;
-        };
-        let last = (target.drawn + 1) % target.textures.len();
-        let (Some((shown, _)), (canvas, _)) = (target.shown.get(last), &target.textures[last])
-        else {
-            return;
-        };
-        self.looks
-            .show(&self.device, &self.queue, target.look, canvas, shown);
+        }
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("canvas looks"),
+        });
+        for surface in std::mem::take(&mut self.looking) {
+            let Some(target) = self.surfaces.get(&surface) else {
+                continue;
+            };
+            let last = (target.drawn + 1) % target.textures.len();
+            if let Some(shown) = target.shown.get(last) {
+                self.looks.show(&self.device, &mut encoder, target.look, shown);
+            }
+        }
+        self.queue.submit([encoder.finish()]);
     }
 
     pub fn detach_surface(&mut self, surface: u32) {
@@ -310,7 +312,9 @@ impl Gpu {
         Some((texture, *generation))
     }
 
+    /// The surfaces presented since the last call, each as it is now shown.
     pub fn take_presented(&mut self) -> Vec<u32> {
+        self.show_presented();
         std::mem::take(&mut self.presented)
     }
 
