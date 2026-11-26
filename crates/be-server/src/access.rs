@@ -381,10 +381,14 @@ pub(crate) fn served_log(
     also: Vec<Uuid>,
     held: Option<be_block_protocol::HeldEntry>,
 ) -> Result<be_block_protocol::AccessLogPage, ServerError> {
-    // Only when the log as stored holds the held entry at its place: the reader goes on from its
-    // own prefix, which the entries sent after must name, so nothing before it is read or hashed
-    // here. Every stored entry was appended checked at the head before it (`append_stored`).
+    // Only when the log as stored holds the held entry at its place, from the root the reader
+    // holds: the reader goes on from its own prefix, which the entries sent after must name, so
+    // nothing between is read or hashed here. Every stored entry was appended checked at the head
+    // before it (`append_stored`); a root stored in another's place is sent, for the reader to
+    // refuse.
     if let Some(held) = held.filter(|_| reader.is_none())
+        && stored_head(connection, kind, organization, log)?
+            .is_some_and(|stored| stored.root == held.root)
         && let Ok(place) = usize::try_from(held.place)
         && let Some(at) = entries_from(connection, kind, organization, log, place, Some(1))?.pop()
         && at.hash() == held.hash

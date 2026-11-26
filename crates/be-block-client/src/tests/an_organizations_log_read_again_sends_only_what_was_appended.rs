@@ -18,6 +18,7 @@ async fn an_organizations_log_read_again_sends_only_what_was_appended() {
     let held = be_block_protocol::HeldEntry {
         place: first.len() as u64 - 1,
         hash: first.last().unwrap().hash(),
+        root: first[0].hash(),
     };
 
     let member = harness.member(&owner, "member@example.com").await;
@@ -80,6 +81,7 @@ async fn an_organizations_log_read_again_sends_only_what_was_appended() {
     let held = be_block_protocol::HeldEntry {
         place: before.len() as u64 - 1,
         hash: before.last().unwrap().hash(),
+        root: before[0].hash(),
     };
     owner
         .grant(shared, member.account(), be_block_graph::Access::Edit)
