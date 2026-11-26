@@ -49,11 +49,14 @@ Nothing uses them yet.
 
 ## Steps
 
-1. **Decide the one definition language.** Rust (derives, and an attribute macro over traits
-   for interfaces, with a WIT or other description generated for readers) or WIT for
-   everything (which needs a dialect for document semantics and field annotations). Record it
-   in decisions/. Either way the bindgen or macro reads other crates' types from their
-   `schema.lock`, not their source.
+1. **Protocols are defined in Rust** (decisions/wit_describes_the_wasm_boundary_and_rust_the_frames.md):
+   an `#[interface]` attribute macro over traits takes over from be-wasm-ops-bindgen for our own
+   protocols, generating what it generates now (the guest's `Pending` and `Stream` calls, the
+   `Guest` traits for exports, the host's `embed::Call`), with each method's id and its
+   arguments' and results' ids in the lockfile, so an argument list grows as a record does. A
+   description of the protocols for other languages is generated. The macro reads other
+   crates' types from their `schema.lock`, not their source. WIT stays only for the wasm
+   boundary (plans/a_component_model_boundary.md).
 2. **Saved data.** Move registers, commits, manifests, metadata and be-server's rows onto
    `Schema`, and `be_block_model`'s stored form onto its encoding, keeping the model's own
    rules (list ids, `Text`, `#[critical]`, kept data). Retire `Kind::registers_accept_missing_fields`
@@ -67,13 +70,15 @@ Nothing uses them yet.
    own, which the lockfile already guarantees (a frozen type is never removed) and the attribute
    names. Ids are the versions, so no version number travels. `be_block_model`'s
    `#[model(format = N, migrate = path)]` becomes this, migrating the document's root.
-4. **Protocols.** The bindgen writes the format in place of postcard; method ids come from the
-   lockfile, not hashes of names; `with` becomes a check against the mapped type's lockfile
-   entry, and `encodings`, `lenient`, `inline` and `be_wasm_ops::wire`'s byte encodings go.
+4. **Protocols.** Every interface in `be-sdk-api`, `be-sdk-type-api`, `be-wasm-root-api` and
+   the server protocol rewritten from WIT to Rust (the shapes match one to one, so a one-time
+   converter can do most of it), carried in the format in place of postcard. Method ids come from
+   the lockfile, not hashes of names; the stack's types are used directly, so `with`,
+   `encodings`, `lenient`, `inline` and `be_wasm_ops::wire`'s byte encodings go.
    Decide whether every protocol variant is open. Reading in place (aligned views, as rkyv or
    Cap'n Proto do) stays possible later, since the format is ours; compression wins size back
-   (plans/deferred/compression.md). Local interfaces (the GPU) stay flattened
-   wasm calls; the lockfile checks that a frozen one only gains functions.
+   (plans/deferred/compression.md). The GPU leaves this plan: it moves to wasi:webgpu
+   (plans/a_component_model_boundary.md).
 5. **The rest.** bincode (be-lib-remap, tabletop) and remaining postcard. JSON for files people
    edit and tools' output stays.
 6. **Transport.** Encode straight into a guest's memory, decode borrowed in the guest, and
