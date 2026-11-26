@@ -427,6 +427,14 @@ Peers' derived views of a held edit: plans/peers_preview_held_edits.md.
   signer's record that names a head before the revocation, or a retired key's
   that names a head before the retirement, with a be-block-keys test.
 
+- **A bound agent whose access is lowered loses the block's key.** A block's
+  bound agent given `share(View)` after it was made with Edit never opens the
+  block again ("this block is locked: its key has not been shared with this
+  account yet"), seen building be-tool-cli's terminal tests (`Setup::agent_with`
+  uses an unbound agent instead). Lowering access should keep the key it reads
+  with. Done: a be-block-client test that lowers a bound agent to View and
+  opens the block read-only.
+
 ## 27. Unread counts
 
 - **An open block counted live, for a type that counts from its content.** A
