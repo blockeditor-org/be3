@@ -63,6 +63,16 @@ Fixed items are removed as they land.
   counts exactly what was made through it, or the walk removed with a test that
   shows every seal on the journal's base trims it.
 
+- **A prose edit carried over a restart behind one in flight is lost.** An edit
+  typed before a restart, still waiting behind one in flight, and given again as
+  typed after the reopen applies nowhere: the restart reloads the whole text with
+  new positions, and the edit's carried form existed only in the crashed process.
+  The host keeps it under the replica's latest restart, so the reopened replica
+  doesn't mark it stale either, and it is dropped silently. Done: the host keeps
+  each edit's restart (or its carried form), and a be-block-type-host test on the
+  text type restarts with an edit queued behind one in flight and finds both
+  applied.
+
 ## 12. Large folders
 
 - **A listing read again is applied whole in memory.** A listing now writes only the
