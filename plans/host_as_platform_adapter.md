@@ -497,7 +497,7 @@ Costs:
 - **Accessibility:** the compositor grafts the apps' trees, taking the host's renumbering and
   repair code with it. The host passes the one tree to its AccessKit adapter and routes actions
   back.
-- **Sound:** decoding (rodio in `be-host-runtime/src/audio.rs`) moves into guests, and the host
+- **Sound:** decoding (rodio in `be-host-audio`) moves into guests, and the host
   offers PCM output. Hardware video decoding into textures, if it comes, stays in the host.
 - **The clock:** the host owns the frame clock and hands it to every guest directly. drive's
   stopped and hurried clock, its pinned wall clock and `STOPPED_CLOCK_FRAME_BUDGET` apply to all
