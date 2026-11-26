@@ -11,11 +11,12 @@
 //! own scopes are per thread natively and resolve later in a browser, so a scope's error may
 //! settle after the call: an app's pop waits until every call made inside it has settled.
 
+mod limits;
 mod objects;
 mod passes;
 mod surfaces;
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -59,6 +60,32 @@ pub(crate) enum Kind {
     QuerySet,
     BundleEncoder,
     Bundle,
+}
+
+impl Kind {
+    fn name(self) -> &'static str {
+        match self {
+            Kind::Device => "a device",
+            Kind::Queue => "a queue",
+            Kind::Buffer => "a buffer",
+            Kind::Texture => "a texture",
+            Kind::View => "a texture view",
+            Kind::Sampler => "a sampler",
+            Kind::GroupLayout => "a bind group layout",
+            Kind::Group => "a bind group",
+            Kind::PipelineLayout => "a pipeline layout",
+            Kind::Module => "a shader module",
+            Kind::RenderPipeline => "a render pipeline",
+            Kind::ComputePipeline => "a compute pipeline",
+            Kind::Encoder => "a command encoder",
+            Kind::CommandBuffer => "a command buffer",
+            Kind::RenderPass => "a render pass",
+            Kind::ComputePass => "a compute pass",
+            Kind::QuerySet => "a query set",
+            Kind::BundleEncoder => "a render bundle encoder",
+            Kind::Bundle => "a render bundle",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -195,16 +222,55 @@ pub(crate) struct Web {
     scopes: u64,
     settled: Vec<Settled>,
     tickets: u32,
+    /// Whether `tickets` has wrapped, after which a ticket may still be held.
+    wrapped: bool,
     /// Uncaptured errors no listener heard, for the host's log of the app.
     logged: Vec<String>,
+    /// Textures the host shares between apps (`import-texture`), which an app only samples.
+    imported: HashSet<u32>,
+    /// The app device the call being answered is made on, whose objects alone it may use.
+    acting: Option<u32>,
 }
 
+/// How many unheard errors a host keeps between reads of its log: an app that raises one a
+/// frame with nobody reading would otherwise grow it without end.
+const LOGGED: usize = 256;
+
 impl Web {
-    /// A ticket for the host's own calls to the guest (`Caller::ticket`).
+    fn log(&mut self, message: String) {
+        if self.logged.len() < LOGGED {
+            self.logged.push(message);
+        }
+    }
+
+    /// A ticket for the host's own calls to the guest (`Caller::ticket`): never `REFUSED` (0),
+    /// and, once the count has wrapped, never one still waiting to settle (a device's `lost`
+    /// waits for the app's whole life).
     pub(crate) fn ticket(&mut self) -> u32 {
-        // Never `REFUSED` (0), even once the count wraps.
-        self.tickets = self.tickets.wrapping_add(1).max(1);
-        self.tickets
+        loop {
+            let (next, wrapped) = self.tickets.overflowing_add(1);
+            self.wrapped |= wrapped;
+            self.tickets = next.max(1);
+            if !self.wrapped || !self.waiting(self.tickets) {
+                return self.tickets;
+            }
+        }
+    }
+
+    /// Whether a promise or sender the host holds has `ticket`.
+    fn waiting(&self, ticket: u32) -> bool {
+        self.maps.values().any(|(_, promise)| promise.ticket() == ticket)
+            || self.work.values().any(|promise| promise.ticket() == ticket)
+            || self.compiling.iter().any(|(_, promise)| promise.ticket() == ticket)
+            || self.devices.values().any(|device| {
+                device.losing.iter().any(|promise| promise.ticket() == ticket)
+                    || device.uncaptured.iter().any(|sender| sender.ticket() == ticket)
+                    || device
+                        .popped
+                        .iter()
+                        .filter_map(|scope| scope.popped.as_ref())
+                        .any(|promise| promise.ticket() == ticket)
+            })
     }
 }
 
@@ -277,7 +343,7 @@ impl Gpu {
     /// or else to its uncaptured errors. A lost device raises nothing.
     pub(crate) fn raise(&mut self, device: Option<u32>, failure: Failure) {
         let Some(device) = device else {
-            self.web.logged.push(failure.message);
+            self.web.log(failure.message);
             return;
         };
         if self.device_lost(device) {
@@ -313,7 +379,7 @@ impl Gpu {
             }
         }
         if state.uncaptured.is_empty() {
-            self.web.logged.push(failure.message);
+            self.web.log(failure.message);
             return;
         }
         let senders: Vec<u32> = state.uncaptured.iter().map(Sender::ticket).collect();
@@ -336,7 +402,9 @@ impl Gpu {
             .iter()
             .map(|kind| (*kind, self.device.push_error_scope(kind.filter())))
             .collect();
+        let outer = std::mem::replace(&mut self.web.acting, device);
         let result = act(self);
+        self.web.acting = outer;
         let mut pops = Vec::new();
         for (kind, guard) in guards.into_iter().rev() {
             let target = device.and_then(|device| self.target(device, kind));
@@ -361,7 +429,7 @@ impl Gpu {
                                 self.file(device, target, Failure::of(error))
                             }
                             Some(_) => {}
-                            None => self.web.logged.push(error.to_string()),
+                            None => self.web.log(error.to_string()),
                         }
                     }
                 }
@@ -466,8 +534,16 @@ impl Gpu {
         promise: Promise<Result<Option<web::GpuError>, web::PopErrorScopeError>>,
     ) {
         let lost = self.device_lost(device);
-        let Ok(state) = self.web.devices.get_mut(device, "device") else {
-            return;
+        let state = match self.web.devices.get_mut(device, "device") {
+            Ok(state) => state,
+            Err(message) => {
+                let refused = web::PopErrorScopeError {
+                    kind: web::PopErrorScopeErrorKind::OperationError,
+                    message,
+                };
+                self.web.settled.push(promise.settle(&Err(refused)));
+                return;
+            }
         };
         match state.scopes.pop() {
             // A lost device's pops answer no error, as WebGPU's do.
@@ -519,8 +595,10 @@ impl Gpu {
     }
 
     pub(crate) fn settle_web(&mut self, wait: bool) -> Vec<Settled> {
+        // Something settled already answers a waiting poll.
+        let wait = wait && self.web.settled.is_empty();
         if let Err(error) = self.settling.poll(&self.device, wait) {
-            self.web.logged.push(format!("the gpu could not be polled: {error}"));
+            self.web.log(format!("the gpu could not be polled: {error}"));
         }
         let (maps, work_done) = self.settling.take_settled();
         let mut device_maps = Vec::new();
@@ -621,7 +699,7 @@ impl Gpu {
             }
         }
         let host = self.device.limits();
-        let mut limits = wgpu::Limits::default();
+        let mut limits = floor(&host);
         if let Some(record) = descriptor.required_limits {
             let asked = self.web.sizes.get(record.0, "record").cloned().map_err(|message| {
                 refuse(web::RequestDeviceErrorKind::TypeError, message)
@@ -697,25 +775,91 @@ impl Gpu {
     }
 }
 
+/// Calls `$then!` with every limit wgpu has a field for, by its WebGPU name.
+macro_rules! each_limit {
+    ($then:ident) => {
+        $then! {
+            "maxTextureDimension1D" => max_texture_dimension_1d,
+            "maxTextureDimension2D" => max_texture_dimension_2d,
+            "maxTextureDimension3D" => max_texture_dimension_3d,
+            "maxTextureArrayLayers" => max_texture_array_layers,
+            "maxBindGroups" => max_bind_groups,
+            "maxBindGroupsPlusVertexBuffers" => max_bind_groups_plus_vertex_buffers,
+            "maxBindingsPerBindGroup" => max_bindings_per_bind_group,
+            "maxDynamicUniformBuffersPerPipelineLayout" => max_dynamic_uniform_buffers_per_pipeline_layout,
+            "maxDynamicStorageBuffersPerPipelineLayout" => max_dynamic_storage_buffers_per_pipeline_layout,
+            "maxSampledTexturesPerShaderStage" => max_sampled_textures_per_shader_stage,
+            "maxSamplersPerShaderStage" => max_samplers_per_shader_stage,
+            "maxStorageBuffersPerShaderStage" => max_storage_buffers_per_shader_stage,
+            "maxStorageTexturesPerShaderStage" => max_storage_textures_per_shader_stage,
+            "maxUniformBuffersPerShaderStage" => max_uniform_buffers_per_shader_stage,
+            "maxUniformBufferBindingSize" => max_uniform_buffer_binding_size,
+            "maxStorageBufferBindingSize" => max_storage_buffer_binding_size,
+            "minUniformBufferOffsetAlignment" => min_uniform_buffer_offset_alignment,
+            "minStorageBufferOffsetAlignment" => min_storage_buffer_offset_alignment,
+            "maxVertexBuffers" => max_vertex_buffers,
+            "maxBufferSize" => max_buffer_size,
+            "maxVertexAttributes" => max_vertex_attributes,
+            "maxVertexBufferArrayStride" => max_vertex_buffer_array_stride,
+            "maxInterStageShaderVariables" => max_inter_stage_shader_variables,
+            "maxColorAttachments" => max_color_attachments,
+            "maxColorAttachmentBytesPerSample" => max_color_attachment_bytes_per_sample,
+            "maxComputeWorkgroupStorageSize" => max_compute_workgroup_storage_size,
+            "maxComputeInvocationsPerWorkgroup" => max_compute_invocations_per_workgroup,
+            "maxComputeWorkgroupSizeX" => max_compute_workgroup_size_x,
+            "maxComputeWorkgroupSizeY" => max_compute_workgroup_size_y,
+            "maxComputeWorkgroupSizeZ" => max_compute_workgroup_size_z,
+            "maxComputeWorkgroupsPerDimension" => max_compute_workgroups_per_dimension,
+            "maxImmediateSize" => max_immediate_size,
+        }
+    };
+}
+
+/// The limits a device is made with when it asks for none: WebGPU's defaults, or the adapter's
+/// where it has worse.
+fn floor(host: &wgpu::Limits) -> wgpu::Limits {
+    let mut limits = wgpu::Limits::default();
+    macro_rules! floored {
+        ($($name:literal => $field:ident),* $(,)?) => {
+            $(
+                limits.$field = match $name.starts_with("min") {
+                    true => limits.$field.max(host.$field),
+                    false => limits.$field.min(host.$field),
+                };
+            )*
+        };
+    }
+    each_limit!(floored);
+    limits
+}
+
 /// Raises one limit of `limits` to `value`, as `requiredLimits` asks: no further than the
-/// adapter's, and never below the default (an alignment, the other way).
+/// adapter's, and a value worse than the default keeps the default. An alignment is better
+/// the smaller it is, and is a power of two.
 fn limit(limits: &mut wgpu::Limits, host: &wgpu::Limits, name: &str, value: u64) -> Result<(), String> {
-    macro_rules! limits {
+    macro_rules! raised {
         ($($name:literal => $field:ident),* $(,)?) => {
             match name {
                 $($name => {
                     let offered = u64::from(host.$field);
-                    let better = if $name.starts_with("min") {
-                        value >= offered
-                    } else {
-                        value <= offered
+                    let alignment = $name.starts_with("min");
+                    if alignment && !value.is_power_of_two() {
+                        return Err(format!("{} must be a power of two, not {value}", $name));
+                    }
+                    let allowed = match alignment {
+                        true => value >= offered,
+                        false => value <= offered,
                     };
-                    if !better {
+                    if !allowed {
                         return Err(format!("the adapter's {} is {offered}, not {value}", $name));
                     }
-                    limits.$field = value
+                    let value = value
                         .try_into()
                         .map_err(|_| format!("{value} is too large for {}", $name))?;
+                    limits.$field = match alignment {
+                        true => limits.$field.min(value),
+                        false => limits.$field.max(value),
+                    };
                     Ok(())
                 })*
                 // A limit wgpu has no field for: WebGPU's per-stage storage limits, which a
@@ -728,40 +872,7 @@ fn limit(limits: &mut wgpu::Limits, host: &wgpu::Limits, name: &str, value: u64)
             }
         };
     }
-    limits! {
-        "maxTextureDimension1D" => max_texture_dimension_1d,
-        "maxTextureDimension2D" => max_texture_dimension_2d,
-        "maxTextureDimension3D" => max_texture_dimension_3d,
-        "maxTextureArrayLayers" => max_texture_array_layers,
-        "maxBindGroups" => max_bind_groups,
-        "maxBindGroupsPlusVertexBuffers" => max_bind_groups_plus_vertex_buffers,
-        "maxBindingsPerBindGroup" => max_bindings_per_bind_group,
-        "maxDynamicUniformBuffersPerPipelineLayout" => max_dynamic_uniform_buffers_per_pipeline_layout,
-        "maxDynamicStorageBuffersPerPipelineLayout" => max_dynamic_storage_buffers_per_pipeline_layout,
-        "maxSampledTexturesPerShaderStage" => max_sampled_textures_per_shader_stage,
-        "maxSamplersPerShaderStage" => max_samplers_per_shader_stage,
-        "maxStorageBuffersPerShaderStage" => max_storage_buffers_per_shader_stage,
-        "maxStorageTexturesPerShaderStage" => max_storage_textures_per_shader_stage,
-        "maxUniformBuffersPerShaderStage" => max_uniform_buffers_per_shader_stage,
-        "maxUniformBufferBindingSize" => max_uniform_buffer_binding_size,
-        "maxStorageBufferBindingSize" => max_storage_buffer_binding_size,
-        "minUniformBufferOffsetAlignment" => min_uniform_buffer_offset_alignment,
-        "minStorageBufferOffsetAlignment" => min_storage_buffer_offset_alignment,
-        "maxVertexBuffers" => max_vertex_buffers,
-        "maxBufferSize" => max_buffer_size,
-        "maxVertexAttributes" => max_vertex_attributes,
-        "maxVertexBufferArrayStride" => max_vertex_buffer_array_stride,
-        "maxInterStageShaderVariables" => max_inter_stage_shader_variables,
-        "maxColorAttachments" => max_color_attachments,
-        "maxColorAttachmentBytesPerSample" => max_color_attachment_bytes_per_sample,
-        "maxComputeWorkgroupStorageSize" => max_compute_workgroup_storage_size,
-        "maxComputeInvocationsPerWorkgroup" => max_compute_invocations_per_workgroup,
-        "maxComputeWorkgroupSizeX" => max_compute_workgroup_size_x,
-        "maxComputeWorkgroupSizeY" => max_compute_workgroup_size_y,
-        "maxComputeWorkgroupSizeZ" => max_compute_workgroup_size_z,
-        "maxComputeWorkgroupsPerDimension" => max_compute_workgroups_per_dimension,
-        "maxImmediateSize" => max_immediate_size,
-    }
+    each_limit!(raised)
 }
 
 use be_wasm_gpu_convert::Convert;

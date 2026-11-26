@@ -150,7 +150,7 @@ prints:
 ./scripts/buck build //crates/be-wasm-gpu-abi:webgpu.wit --show-output
 ```
 
-Step 2 adds this to guides/app_libraries.md ("The gpu").
+guides/app_libraries.md ("The gpu") says the same.
 
 ## Not in wasi:webgpu, and deferred
 

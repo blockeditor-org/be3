@@ -416,7 +416,7 @@ fn vertex_slice(
     }
 }
 
-fn caught(popped: impl Future<Output = Option<wgpu::Error>>) -> Option<String> {
+pub(crate) fn caught(popped: impl Future<Output = Option<wgpu::Error>>) -> Option<String> {
     match pin!(popped).poll(&mut Context::from_waker(Waker::noop())) {
         Poll::Ready(error) => error.map(|error| error.to_string()),
         Poll::Pending => None,

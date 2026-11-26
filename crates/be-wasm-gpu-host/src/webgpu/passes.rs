@@ -95,10 +95,10 @@ impl Gpu {
                     colors.push(None);
                     continue;
                 };
-                let view = found(gpu.views.get(attachment.view.0, "texture view"))?.clone();
+                let view = gpu.held(&gpu.views, Kind::View, attachment.view.0, "texture view")?.clone();
                 let resolve = attachment
                     .resolve_target
-                    .map(|view| found(gpu.views.get(view.0, "texture view")).cloned())
+                    .map(|view| gpu.held(&gpu.views, Kind::View, view.0, "texture view").cloned())
                     .transpose()?;
                 colors.push(Some((attachment, view, resolve)));
             }
@@ -106,17 +106,17 @@ impl Gpu {
                 .depth_stencil_attachment
                 .as_ref()
                 .map(|attachment| {
-                    found(gpu.views.get(attachment.view.0, "texture view")).map(|view| (attachment, view.clone()))
+                    gpu.held(&gpu.views, Kind::View, attachment.view.0, "texture view").map(|view| (attachment, view.clone()))
                 })
                 .transpose()?;
             let occlusion = descriptor
                 .occlusion_query_set
-                .map(|set| found(gpu.query_sets.get(set.0, "query set")).map(|set| set.set.clone()))
+                .map(|set| gpu.held(&gpu.query_sets, Kind::QuerySet, set.0, "query set").map(|set| set.set.clone()))
                 .transpose()?;
             let timestamps = descriptor
                 .timestamp_writes
                 .map(|writes| {
-                    found(gpu.query_sets.get(writes.query_set.0, "query set")).map(|set| (set.set.clone(), writes))
+                    gpu.held(&gpu.query_sets, Kind::QuerySet, writes.query_set.0, "query set").map(|set| (set.set.clone(), writes))
                 })
                 .transpose()?;
             let color_attachments: Vec<_> = colors
@@ -201,7 +201,7 @@ impl Gpu {
                 .as_ref()
                 .and_then(|descriptor| descriptor.timestamp_writes)
                 .map(|writes| {
-                    found(gpu.query_sets.get(writes.query_set.0, "query set")).map(|set| (set.set.clone(), writes))
+                    gpu.held(&gpu.query_sets, Kind::QuerySet, writes.query_set.0, "query set").map(|set| (set.set.clone(), writes))
                 })
                 .transpose()?;
             let encoder = found(gpu.encoders.get_mut(encoder, "command encoder"))?;
@@ -222,9 +222,9 @@ impl Gpu {
     /// `be3:gpu/device`'s are (queries.rs).
     pub(super) fn resolve(&mut self, encoder: u32, set: u32, first: u32, count: u32, destination: u32, offset: u64) {
         self.record(encoder, |gpu| {
-            let found_set = found(gpu.query_sets.get(set, "query set"))?;
+            let found_set = gpu.held(&gpu.query_sets, Kind::QuerySet, set, "query set")?;
             let (queries, timestamps) = (found_set.set.clone(), found_set.timestamps);
-            let to = found(gpu.buffers.get(destination, "buffer"))?.clone();
+            let to = gpu.held(&gpu.buffers, Kind::Buffer, destination, "buffer")?.clone();
             let coarsen = timestamps && Coarsening::fits(&to, offset, count);
             let coarsening = coarsen.then(|| (gpu.coarsening().clone(), gpu.device.clone()));
             Ok(Box::new(move |encoder: &mut wgpu::CommandEncoder| {

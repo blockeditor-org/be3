@@ -822,6 +822,16 @@ impl App {
         )
     }
 
+    /// The gpu errors the app raised since the last call that no error scope or listener of its
+    /// caught, which its host writes to its log.
+    pub fn take_logged(&mut self) -> Vec<String> {
+        self.state_mut()
+            .device
+            .ready_mut()
+            .map(Gpu::take_logged)
+            .unwrap_or_default()
+    }
+
     pub fn take_presented(&mut self) -> Vec<u32> {
         self.state_mut()
             .device
@@ -991,6 +1001,9 @@ impl Presenting {
         let app = &mut self.0;
         let (gpu, submit) = app.take_gpu_time();
         let released = app.take_released();
+        for error in app.take_logged() {
+            eprintln!("an app's uncaught gpu error: {error}");
+        }
         let mut presented: Vec<PresentedTexture> = Vec::new();
         for surface in app.take_presented() {
             let Some((texture, generation)) = app.presented_surface(surface) else {

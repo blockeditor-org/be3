@@ -116,6 +116,9 @@ mod only_a_texture_the_app_created_is_destroyed;
 mod only_the_calls_that_record_into_a_pass_go_untimed;
 mod submitted_work_wakes_the_app_once_the_gpu_has_done_it;
 mod unbinding_a_vertex_buffer_takes_no_offset_or_size;
+mod an_object_of_one_webgpu_device_is_refused_on_another;
+mod a_webgpu_limit_asked_worse_than_the_default_keeps_the_default;
+mod a_webgpu_canvas_its_device_cannot_make_is_refused;
 
 /// wasi:webgpu's side of the host: a device requested as an app would, and what its promises
 /// settle to.
