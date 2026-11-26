@@ -76,9 +76,11 @@ pub enum SessionMessage {
         #[serde(with = "serde_bytes")]
         payload: Vec<u8>,
     },
-    /// Everything the sender shows has been sent to this recipient, after the `Presence` of
-    /// each kind it shows, nothing when it shows nothing: a replica sends it to each client it
-    /// sees join, so the joiner can tell one that shows nothing from one whose presence is late.
+    /// Everything the sender shows as of now has been sent to this recipient, after the
+    /// `Presence` of each kind it shows, nothing when it shows nothing; what it shows later goes
+    /// to everyone as a `Presence` as it changes. A replica sends it to each client it sees
+    /// join, and as it opens to each already in the session, so each can tell one that shows
+    /// nothing from one whose presence is late.
     Shown,
 }
 

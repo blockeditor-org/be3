@@ -19,7 +19,7 @@ pub use modules::{
     is_known, kind_of, known, known_revision, plain_of, started, tag_of,
 };
 pub use replicas::{
-    Ctx, EARLY_OPEN, HOST_EDITOR, JOIN_PAUSE, LOG_SEARCHED, LogChange, LogSearched, Merged, NotSearched, Owing,
+    Ctx, EARLY_OPEN, HOST_EDITOR, LOG_SEARCHED, LogChange, LogSearched, Merged, NotSearched, Owing,
     Replicas, Searched,
 };
 
