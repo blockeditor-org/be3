@@ -2094,7 +2094,7 @@ impl Session<'_> {
                 self.replicas.stop_keeping(block);
                 set_marked(shared, block, peer.discarded(block));
             }
-            let typing = self.replicas.modules.unsettled();
+            let typing = self.replicas.unsettled();
             // A held clock is moved to a module's timer only when nothing but that timer can
             // make progress: the line is up, nothing sent waits for an answer, and no module is
             // still working. Offline, the reconnect is what's next, not a module's timer.
@@ -3301,7 +3301,7 @@ impl Ran<'_> {
             held.undurable_blocks = undurable;
             held.seals_owed += u64::from(sealed_owed);
             held.recounting = true;
-            held.typing = self.replicas.modules.unsettled();
+            held.typing = self.replicas.unsettled();
         }
         crate::changes::wake();
     }
