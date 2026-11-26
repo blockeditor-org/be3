@@ -33,7 +33,8 @@ pub trait ObjectStore: Send + Sync {
     /// Which objects this is, the same for every handle on them (a clone, or a `FileStore`
     /// opened on the same directory) and for none other: the vaults over one store share what
     /// their part writers left unnamed (`Unnamed`), and be-block-client keeps it per store
-    /// (`RefsDb::unnamed`). None for a store no vault shares.
+    /// (`RefsDb::unnamed`). None for a store that cannot tell: a vault over it never collects
+    /// (`Vault::collect`), since it cannot know which vaults share what it noted.
     fn identity(&self) -> Option<Vec<u8>> {
         None
     }

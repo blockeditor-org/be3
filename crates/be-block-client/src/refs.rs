@@ -245,7 +245,8 @@ impl RefsDb {
     /// `ObjectStore::identity`) sealed that nothing named yet: the vaults share the store, so
     /// they share this too, each as its scope (`Scope::owner`), and a collection of one scope's
     /// never removes an object another's reached (guides/blocks/client.md, "Unnamed parts").
-    /// A store with no identity shares nothing and keeps nothing across restarts.
+    /// A store with no identity shares nothing, keeps nothing across restarts and is never
+    /// collected (`Vault::collect`).
     pub(crate) fn unnamed(
         &self,
         store: Option<Vec<u8>>,
@@ -362,11 +363,16 @@ impl be_block_store::Ledger for DeviceLedger {
             .collect()
     }
 
-    fn note(&self, object: Hash, noted: be_block_store::Noted) -> Result<(), StoreError> {
-        self.backend.write(
-            &RefsDb::DEVICE,
-            &[row(Table::Unnamed, self.key(&object), &noted)],
-        )
+    fn note(
+        &self,
+        object: Hash,
+        noted: be_block_store::Noted,
+    ) -> Result<Option<be_block_store::Noted>, StoreError> {
+        let row = row(Table::Unnamed, self.key(&object), &noted);
+        self.backend
+            .insert_new(&RefsDb::DEVICE, &row)?
+            .map(|held| decode(&held))
+            .transpose()
     }
 
     fn forget(&self, objects: &[Hash]) -> Result<(), StoreError> {
