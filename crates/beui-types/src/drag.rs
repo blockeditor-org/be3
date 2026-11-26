@@ -148,6 +148,9 @@ pub trait Driver {
     /// Moves the keyboard's carry to the nearest place `toward` from where it is; whether one
     /// was there.
     fn step(&self, toward: Vec2) -> bool;
+    /// Chooses again where each carry's pointer last was: what is under it, or the carried
+    /// source itself, was laid out anew though the pointer did not move.
+    fn retrack(&self);
     /// What the last carry said for a screen reader (lifted, each place a step chooses, put
     /// down), and which carry; tracked.
     fn said(&self) -> Option<(CarryId, String)>;

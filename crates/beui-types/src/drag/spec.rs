@@ -492,6 +492,10 @@ impl<D: 'static> DragSpec<D> {
 pub struct Carry {
     pub payload: Rc<dyn std::any::Any>,
     pub item: Option<Rect>,
+    /// The node the item is (`of_source`): measured at each point, so a source drawn at
+    /// another size while carried (a canvas refitting under it) is held at the fraction of
+    /// it that was grabbed, at the size it is drawn now.
+    pub source: Option<NodeId>,
     face: CarryFace,
     pub outside: Option<Rc<dyn Fn(DragPoint)>>,
     /// The window the carry is read in, whatever window the pointer is over (`kept_in`).
@@ -522,6 +526,7 @@ impl Carry {
         Self {
             payload: Rc::new(payload),
             item: None,
+            source: None,
             face: CarryFace::Source,
             outside: None,
             window: None,
@@ -597,6 +602,32 @@ impl Carry {
             item: Some(item),
             ..self
         }
+    }
+
+    /// The item is `node`, grabbed where `item` (relative to the pointer, as `node` was drawn
+    /// at the lift) says: the board measures `node` at each point and holds it at the
+    /// fraction of it that was grabbed, so a source that changes size while carried stays
+    /// under the pointer, and the places compare against the rect that is drawn.
+    pub fn of_source(self, node: NodeId, item: Rect) -> Self {
+        Self {
+            item: Some(item),
+            source: Some(node),
+            ..self
+        }
+    }
+
+    /// The item relative to the pointer, at `size` (its source as drawn now): held at the
+    /// fraction of the lifted item that was grabbed.
+    pub fn held_at(item: Rect, size: Vec2) -> Rect {
+        let fraction = |at: f32, length: f32| match length > 0.0 {
+            true => (-at / length).clamp(0.0, 1.0),
+            false => 0.5,
+        };
+        let held = Vec2::new(
+            fraction(item.min.x, item.width()) * size.x,
+            fraction(item.min.y, item.height()) * size.y,
+        );
+        Rect::from_min_size(Pos2::ZERO - held, size)
     }
 }
 
@@ -995,17 +1026,8 @@ fn walk<'s, D: Clone>(
             }
             // Held at the fraction of the item it was grabbed at, so the pointer stays on
             // the same part of it whatever its size.
-            let grabbed = evaluation.point.item;
-            let fraction = |at: f32, length: f32| match length > 0.0 {
-                true => (-at / length).clamp(0.0, 1.0),
-                false => 0.5,
-            };
-            let size = found.item.size();
-            let held = Vec2::new(
-                fraction(grabbed.min.x, grabbed.width()) * size.x,
-                fraction(grabbed.min.y, grabbed.height()) * size.y,
-            );
-            let item = Rect::from_min_size(evaluation.point.pos - held, size);
+            let item = Carry::held_at(evaluation.point.item, found.item.size())
+                .translate(evaluation.point.pos.to_vec2());
             let item = match within.try_get().and_then(evaluation.placed) {
                 Some((area, _)) => clamp_into(item, area),
                 None => item,

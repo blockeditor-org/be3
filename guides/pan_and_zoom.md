@@ -134,7 +134,14 @@ in its content's points; Settings' display arrangement, fitted to its displays
 inside a scrolled page) sets `local_view`, which puts the view's origin in the
 canvas's own points, so its items move with the layout. Never fold a measured
 rect's `min` into a view instead: that follows the layout a frame late, and
-inside a scroll the measure and the view chase each other. Placing is not
+inside a scroll the measure and the view chase each other.
+
+An editor's `editor.canvas()` stays in its frame's points, and its canvas leaves
+`local_view` off, for now: be-sdk knows where the editor's content is but not where
+each of its canvases sits in it (the PDF's beside its sidebar, the video's timeline in
+a row), and a child that took the frame is mapped by the host from the view in frame
+points (`follows_view`, above). Making local the only meaning is in plans/backlog.md
+(34). Placing is not
 transforming: text in an ordinary item keeps its size, so an item that should
 grow with the zoom reads `scale` and sizes itself (the pan-zoom example's
 cards), and is laid out and painted again on every frame of a zoom.

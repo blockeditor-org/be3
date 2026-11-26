@@ -332,6 +332,9 @@ fn Stage(review: Review) -> NodeId {
                         >|handle: PanZoomHandle| {
                             let PanZoomHandle { view, scale, focused, .. } = handle;
                             // The press is in the handle's own points, the handle centred on the split.
+                            // Each drag's `local` is measured against the handle where the last step
+                            // moved it, so this adds only how far the pointer is from its centre now:
+                            // the split lands under the pointer however many steps the drag took.
                             let drag = move |press: PointerPress| {
                                 let Some(content) = content.get_untracked() else {
                                     return;
