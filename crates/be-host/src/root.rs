@@ -1334,22 +1334,32 @@ fn open_block(
 /// typed, which is wanted until then; and opens the blocks it chose (`host.open-block`) as the
 /// editor it opened from asked to.
 fn quick_open(core: &crate::HostCore, root: &mut Root, editors: &mut Editors) {
+    // Those the root stopped waiting for go first, and their searches with them.
+    let cancelled = root.take_cancelled_finds();
+    editors.finds.retain(|(id, _)| !cancelled.contains(id));
     editors.finds.extend(root.take_block_finds());
-    let asked: Vec<String> = editors.finds.iter().map(|(_, text)| text.clone()).collect();
-    // The blocks the root shows in an editor, which it lists first.
-    let open: Vec<Uuid> = editors
-        .opened
-        .values()
-        .filter_map(|opened| opened.block)
+    let wanted: Vec<be_host_stack::SearchAsk> = editors
+        .finds
+        .iter()
+        .filter_map(|(_, text)| crate::compositor::search_ask(text))
         .collect();
-    for (id, text) in std::mem::take(&mut editors.finds) {
-        match crate::compositor::quick_open(be_host_stack::Owner::Root, &asked, &text, &open) {
-            Some(blocks) => root.answer_block_find(id, blocks.into_iter().map(openable).collect()),
-            None => editors.finds.push((id, text)),
+    be_host_stack::want_searches(be_host_stack::Owner::Root, wanted);
+    let (ready, waiting): (Vec<_>, Vec<_>) = std::mem::take(&mut editors.finds)
+        .into_iter()
+        .partition(|(_, text)| crate::compositor::quick_open_ready(text));
+    editors.finds = waiting;
+    if !ready.is_empty() {
+        // The blocks the root shows in an editor, which it lists first; read once for them all.
+        let open: Vec<Uuid> = editors
+            .opened
+            .values()
+            .filter_map(|opened| opened.block)
+            .collect();
+        let blocks = crate::compositor::quick_open_blocks(&open);
+        for (id, text) in ready {
+            let found = crate::compositor::quick_open(&blocks, &text);
+            root.answer_block_find(id, found.into_iter().map(openable).collect());
         }
-    }
-    if editors.finds.is_empty() {
-        be_host_stack::want_searches(be_host_stack::Owner::Root, Vec::new());
     }
     for (from, block) in root.take_block_opens() {
         let open = be_host_runtime::BlockOpen {

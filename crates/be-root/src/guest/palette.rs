@@ -43,15 +43,42 @@ enum Run {
 /// Quick open while the palette shows it: what is typed, the rows it shows, the editor it was
 /// asked from, and the host's answers.
 struct Blocks {
-    /// What is typed and the rows shown, the palette document's own, once it ran.
-    query: Rc<Cell<Option<Signal<String>>>>,
+    /// The rows shown, the palette document's own, once it ran.
     items: Rc<Cell<Option<Signal<Vec<PaletteItem>>>>>,
+    /// What is typed, as it changed since the root last asked the host for it, which the
+    /// palette document's search field sets.
+    typed: Rc<RefCell<Option<String>>>,
     /// The editor that asked for it, which the block chosen opens as.
     from: Option<OpenedIn>,
-    /// What was typed when the host was last asked (`host.find-blocks`).
-    asked: Option<String>,
-    /// The host's last answer and what it answered, until shown.
-    found: Rc<RefCell<Option<(String, Vec<OpenableBlock>)>>>,
+    /// The host's answer to the find under way, once it answered, until shown.
+    found: Rc<RefCell<Option<Vec<OpenableBlock>>>>,
+    /// The find under way (`host.find-blocks`), which stops, and with it the host's search, as
+    /// what is typed changes or the palette closes.
+    finding: Option<Rc<Stop>>,
+}
+
+impl Drop for Blocks {
+    fn drop(&mut self) {
+        if let Some(finding) = self.finding.take() {
+            finding.stop();
+        }
+    }
+}
+
+/// Stops a find under way: its call to the host, dropped, is cancelled.
+#[derive(Default)]
+struct Stop {
+    stopped: Cell<bool>,
+    waker: RefCell<Option<std::task::Waker>>,
+}
+
+impl Stop {
+    fn stop(&self) {
+        self.stopped.set(true);
+        if let Some(waker) = self.waker.take() {
+            waker.wake();
+        }
+    }
 }
 
 /// The palette while it is open.
@@ -114,22 +141,23 @@ impl Root {
             return;
         };
         let blocks = (mode == PaletteMode::Blocks).then(|| Blocks {
-            query: Rc::default(),
             items: Rc::default(),
+            // Every block, by name, for nothing typed yet.
+            typed: Rc::new(RefCell::new(Some(String::new()))),
             from: from.as_ref().map(|(app, editor, _)| OpenedIn {
                 instance: app.instance(),
                 editor: editor.0,
             }),
-            asked: None,
             found: Rc::default(),
+            finding: None,
         });
         let rows = Rc::new(match mode {
             PaletteMode::Actions => self.palette_rows(from),
             PaletteMode::Blocks => Vec::new(),
         });
         let items: Vec<PaletteItem> = rows.iter().map(|row| row.item.clone()).collect();
-        let (query_out, items_out) = match &blocks {
-            Some(blocks) => (Some(Rc::clone(&blocks.query)), Some(Rc::clone(&blocks.items))),
+        let (typed_out, items_out) = match &blocks {
+            Some(blocks) => (Some(Rc::clone(&blocks.typed)), Some(Rc::clone(&blocks.items))),
             None => (None, None),
         };
         let (placeholder, label) = match mode {
@@ -151,9 +179,17 @@ impl Root {
                 let open = create_signal(true);
                 let query = create_signal(String::new());
                 let shown = create_signal(items.clone());
-                if let (Some(query_out), Some(items_out)) = (&query_out, &items_out) {
-                    query_out.set(Some(query));
+                if let (Some(typed_out), Some(items_out)) = (typed_out.clone(), &items_out) {
                     items_out.set(Some(shown));
+                    // Quick open asks the host again as what is typed changes.
+                    let asks = wakes.clone();
+                    create_effect_on(
+                        move || query.get(),
+                        move |typed, _| {
+                            *typed_out.borrow_mut() = Some(typed.clone());
+                            asks.wake();
+                        },
+                    );
                 }
                 let items = create_memo(move || shown.get());
                 let wakes_too = wakes.clone();
@@ -331,8 +367,8 @@ impl Root {
     }
 
     /// Keeps quick open's rows to what the host finds for what is typed: asks it again as that
-    /// changes (`host.find-blocks`), and shows each answer still for what is typed, in the
-    /// host's order.
+    /// changes (`host.find-blocks`), stopping the find under way, and shows the answer to the
+    /// last, in the host's order.
     fn find_blocks(&self) {
         let mut palette = self.palette.borrow_mut();
         let Some(palette) = palette.as_mut() else {
@@ -341,26 +377,40 @@ impl Root {
         let Some(blocks) = palette.blocks.as_mut() else {
             return;
         };
-        let (Some(query), Some(items)) = (blocks.query.get(), blocks.items.get()) else {
+        let Some(items) = blocks.items.get() else {
             return;
         };
-        let typed = palette.surface.enter(|| query.get_untracked());
-        if blocks.asked.as_ref() != Some(&typed) {
-            blocks.asked = Some(typed.clone());
-            let finding = host::find_blocks(typed.clone());
+        let typed = blocks.typed.borrow_mut().take();
+        if let Some(typed) = typed {
+            if let Some(finding) = blocks.finding.take() {
+                finding.stop();
+            }
+            // An answer the last find gave that is not shown yet is for what was typed before.
+            blocks.found.borrow_mut().take();
+            let stop = Rc::new(Stop::default());
+            blocks.finding = Some(Rc::clone(&stop));
+            let finding = host::find_blocks(typed);
             let found = Rc::clone(&blocks.found);
             let waker = self.waker.clone();
             be_wasm_ops::guest::spawn(async move {
-                // A host that stopped answering stops the root too.
-                if let Ok(answer) = finding.await {
-                    *found.borrow_mut() = Some((typed, answer));
+                let mut finding = std::pin::pin!(finding);
+                let answer = std::future::poll_fn(|context| {
+                    if stop.stopped.get() {
+                        return std::task::Poll::Ready(None);
+                    }
+                    *stop.waker.borrow_mut() = Some(context.waker().clone());
+                    finding.as_mut().poll(context).map(Some)
+                })
+                .await;
+                // Stopped, the find is dropped, which cancels it; a host that stopped answering
+                // stops the root too.
+                if let Some(Ok(answer)) = answer {
+                    *found.borrow_mut() = Some(answer);
                     waker.wake();
                 }
             });
         }
-        let answer = blocks.found.borrow_mut().take();
-        let Some((_, found)) = answer.filter(|(text, _)| Some(text) == blocks.asked.as_ref())
-        else {
+        let Some(found) = blocks.found.borrow_mut().take() else {
             return;
         };
         let count = found.len();

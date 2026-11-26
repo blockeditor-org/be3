@@ -266,6 +266,11 @@ impl Root {
         }
     }
 
+    /// The finds taken that the root cancelled since the last call, which need no answer.
+    pub fn take_cancelled_finds(&mut self) -> Vec<u64> {
+        self.core.take_cancelled_finds()
+    }
+
     /// What the root asked quick open to find since the last call (`host.find-blocks`), each by
     /// the id `answer_block_find` answers it by.
     pub fn take_block_finds(&mut self) -> Vec<(u64, String)> {

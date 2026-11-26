@@ -48,6 +48,21 @@ fn be_root_in_place_of_the_hosts_ui_quick_opens_a_file_from_the_workspace() {
         "quick open lists both texts: {rows:?}"
     );
     host.snapshot("be_root_quick_open_lists_the_blocks_the_host_finds");
+    // The open text is listed first: choosing it opens no other tab.
+    host.key("Enter");
+    host.gone("#root.palette.search");
+    host.run(&["settle"]);
+    assert_eq!(
+        host.count("Tab \"Text\""),
+        1,
+        "the first row is the text already open"
+    );
+    host.click("#dock.editors.menu");
+    host.key("Escape");
+    host.key("ctrl+p");
+    host.wait("#root.palette.search");
+    host.type_text("text");
+    host.run(&["settle"]);
     host.key("Down");
     host.key("Enter");
     host.gone("#root.palette.search");

@@ -292,37 +292,36 @@ fn with_hits(
     blocks
 }
 
-/// Quick open's blocks for `text` as be-host's own palette finds them (`found_blocks`), for an
-/// ask that cannot watch them (a root's `host.find-blocks`): the blocks the graph holds whose
-/// names match, those `open` in an editor first, then the search index's hits, once it answered
-/// `owner`'s ask for `text`, which is wanted until then; none until it has. Every block by name
-/// for no text.
-pub(crate) fn quick_open(
-    owner: be_host_stack::Owner,
-    asks: &[String],
-    text: &str,
-    open: &[Uuid],
-) -> Option<Vec<OpenableBlock>> {
-    let wanted: Vec<be_host_stack::SearchAsk> = asks
-        .iter()
-        .map(|text| text.trim())
-        .filter(|text| !text.is_empty())
-        .map(|text| be_host_stack::SearchAsk {
-            text: text.to_owned(),
-            within: None,
-        })
-        .collect();
-    be_host_stack::want_searches(owner, wanted);
-    let named = named(&graph_blocks_open(open), text);
-    let text = text.trim();
-    if text.is_empty() {
-        return Some(named);
-    }
-    let found = be_host_stack::searched(&be_host_stack::SearchAsk {
+/// The search index's ask for what is `typed` into quick open, none for nothing typed.
+pub(crate) fn search_ask(typed: &str) -> Option<be_host_stack::SearchAsk> {
+    let text = typed.trim();
+    (!text.is_empty()).then(|| be_host_stack::SearchAsk {
         text: text.to_owned(),
         within: None,
-    })?;
-    Some(with_hits(named, found.hits))
+    })
+}
+
+/// Whether quick open can answer what is `typed` now, as `quick_open` would: at once for
+/// nothing typed, else once the search index answered it.
+pub(crate) fn quick_open_ready(typed: &str) -> bool {
+    search_ask(typed).is_none_or(|ask| be_host_stack::searched(&ask).is_some())
+}
+
+/// The blocks quick open offers by name before anything is typed (`graph_blocks`), those `open`
+/// in an editor first.
+pub(crate) fn quick_open_blocks(open: &[Uuid]) -> Vec<OpenableBlock> {
+    graph_blocks_open(open)
+}
+
+/// Quick open's blocks for what is `typed`, as be-host's own palette finds them (`found_blocks`),
+/// for an ask that cannot watch them (a root's `host.find-blocks`): those of `blocks` whose names
+/// match, then the search index's hits once it answered (`quick_open_ready`).
+pub(crate) fn quick_open(blocks: &[OpenableBlock], typed: &str) -> Vec<OpenableBlock> {
+    let named = named(blocks, typed);
+    match search_ask(typed).and_then(|ask| be_host_stack::searched(&ask)) {
+        Some(found) => with_hits(named, found.hits),
+        None => named,
+    }
 }
 
 /// The host's quick open by name: the blocks its graph holds, read again each time quick open
