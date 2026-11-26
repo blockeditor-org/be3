@@ -1844,8 +1844,19 @@ Each step lands on its own.
                while they hover, with the files once dropped (a `Files` clip, as a copy). A view
                a dock shows an editor's content in (a tab's body) hears them as its main view
                would, under be-host too (be-sdk's `EditorHost::files`, which looked only in the
-               main view, so a canvas in a workspace never took a dropped image). Host test
+               main view, so a canvas in a workspace never took a dropped image). No pointer
+               moves come while the system carries files, so the platforms say where they are as
+               the pointer's (beui-platform-winit from `DragEntered` and `DragPosition`, the web
+               from `dragover` and `drop`), which be-host's own views read too, and the root finds
+               what is under the pointer as the files arrive and as they drop
+               (`Embedding::files_at_pointer`). A drop of nothing that could be read (a folder)
+               ends the drag where it is. Host test
                `be_root_in_place_of_the_hosts_ui_lands_a_file_dropped_from_outside_on_a_canvas`.
+               - Left: a `FileDrag` names no window, so files dropped on a window of the root's
+                 other than its main one do not land; the files are read whole on the frame's
+                 thread and copied through the root's memory, with no cap on their size; and a
+                 drop on a view other than the one an editor shows (a tab's body) is placed by
+                 that one's scale, as a block dragged there is (be-sdk's `editor_state`).
                - Left: a pick through a child's menu that its placer shows (`child-menu-pick`)
                  has no host test, and no editor found shows one: a pan and zoom editor, a text
                  and a checklist on a canvas each leave the canvas's tab menu as it was when they

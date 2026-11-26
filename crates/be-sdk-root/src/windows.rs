@@ -121,6 +121,13 @@ impl Windows {
         routing.layers.layer(routing.router.hovered()?)
     }
 
+    /// The layer a pointer at `at` in `window`, in its points, lands on, as it was drawn last.
+    pub fn layer_at(&self, window: Option<u64>, at: be_lib_geometry::Pos2) -> Option<&Layer> {
+        use be_lib_input_router::HitTest;
+        let routing = self.routing(window)?;
+        routing.layers.layer(routing.layers.hit(at)?)
+    }
+
     /// Starts carrying something from the layer showing a screen of the app `instance` that
     /// holds the mouse's press, in whichever window it is held (be-lib-input-router's
     /// `start_drag`): its press ends cancelled, and from then on the layer under the pointer

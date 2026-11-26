@@ -826,7 +826,7 @@ impl ApplicationHandler for Runner {
                 self.push(Input::Ime(ImeEvent::SetComposingText(String::new())));
                 self.push(Input::Ime(ImeEvent::Disabled));
             }
-            WindowEvent::DragEntered { id, .. } => {
+            WindowEvent::DragEntered { id, position } => {
                 let files = event_loop
                     .data_transfer(id)
                     .is_ok_and(|transfer| transfer.has_type(&TypeHint::UriList));
@@ -835,8 +835,18 @@ impl ApplicationHandler for Runner {
                         .set_valid_dnd_actions(id, &[DndAction::Copy])
                         .is_ok()
                 {
+                    // Where the files are is the pointer's: no pointer moves come while the
+                    // system carries them.
+                    if let Some(position) = position {
+                        self.pointer = physical(position);
+                        self.push(Input::PointerMoved(self.pointer));
+                    }
                     self.push(FileDrag::Hovered);
                 }
+            }
+            WindowEvent::DragPosition { position, .. } => {
+                self.pointer = physical(position);
+                self.push(Input::PointerMoved(self.pointer));
             }
             WindowEvent::DragLeft { .. } => {
                 self.dropping = None;
