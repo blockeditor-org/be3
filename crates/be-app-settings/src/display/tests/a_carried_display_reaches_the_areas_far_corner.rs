@@ -25,7 +25,7 @@ fn a_carried_display_reaches_the_areas_far_corner() {
         "the area refit for the carry: {carried:?} from {lifted:?}"
     );
     assert!(
-        (carried.max - desk.max).abs().max_elem() < 1.5,
+        (carried.max.x - desk.max.x).abs() < 1.5 && (carried.max.y - desk.max.y).abs() < 1.5,
         "the monitor reaches the area's bottom right corner: {carried:?} in {desk:?}"
     );
     settings.editor.up(to, PointerButton::Primary);
