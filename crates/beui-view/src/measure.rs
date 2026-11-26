@@ -44,9 +44,10 @@ impl TextGeometry {
 }
 
 /// Where `node` was laid out. `None` until it is first laid out and again once it
-/// is unplaced, and on the HTML core (or under `delay_measurement`) a frame after
-/// its cause, so callers must handle a late answer. One signal per node, made on
-/// the first call and dropped with the node, so calling it repeatedly is cheap.
+/// is unplaced. The first call answers where it is now, on every core; a change after
+/// comes on the HTML core (or under `delay_measurement`) a frame after its cause, so
+/// callers must handle a late answer. One signal per node, made on the first call and
+/// dropped with the node, so calling it repeatedly is cheap.
 pub fn measure(node: NodeId) -> ReadSignal<Option<Measured>> {
     crate::core::measure::measure(node)
 }

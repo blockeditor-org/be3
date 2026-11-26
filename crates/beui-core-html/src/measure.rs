@@ -69,15 +69,19 @@ thread_local! {
     static TEXTS: Watched<TextGeometry> = RefCell::default();
 }
 
+/// The signal of what is measured of `node`, made on the first ask and seeded then from `read`,
+/// so a first ask (a lift reading where its item is) has the answer at once rather than a frame
+/// later; what changes after is published each frame (`pass`).
 fn watch<T: 'static>(
     store: &'static std::thread::LocalKey<Watched<T>>,
     node: NodeId,
+    read: impl FnOnce(NodeId) -> Option<T>,
 ) -> ReadSignal<Option<T>> {
     let held = store.with(|held| held.borrow().get(&node).map(|signal| signal.handle()));
     let signal = match held {
         Some(signal) => signal,
         None => {
-            let owned = OwnedSignal::new(None);
+            let owned = OwnedSignal::new(read(node));
             let signal = owned.handle();
             store.with(|held| held.borrow_mut().insert(node, owned));
             crate::frame::request_frame();
@@ -88,11 +92,19 @@ fn watch<T: 'static>(
 }
 
 pub fn measure(node: NodeId) -> ReadSignal<Option<Measured>> {
-    watch(&RECTS, node)
+    watch(&RECTS, node, measured)
 }
 
 pub fn measure_text(node: NodeId) -> ReadSignal<Option<TextGeometry>> {
-    watch(&TEXTS, node)
+    watch(&TEXTS, node, text_geometry)
+}
+
+fn text_geometry(node: NodeId) -> Option<TextGeometry> {
+    rect(node).map(|rect| TextGeometry {
+        bounds: text_bounds(node, rect),
+        node,
+        revision: crate::text::revision(node),
+    })
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -140,13 +152,7 @@ fn text_bounds(_node: NodeId, rect: Rect) -> Rect {
 
 pub(crate) fn pass() -> bool {
     let rects = publish(&RECTS, measured);
-    let texts = publish(&TEXTS, |node| {
-        rect(node).map(|rect| TextGeometry {
-            bounds: text_bounds(node, rect),
-            node,
-            revision: crate::text::revision(node),
-        })
-    });
+    let texts = publish(&TEXTS, text_geometry);
     rects | texts
 }
 

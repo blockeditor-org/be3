@@ -862,8 +862,6 @@ where
             </Overlay>
         </Layers>
     };
-    // Measured from the start, so a held row is kept within the list from its first frame.
-    measure(shown);
     shown
 }
 
@@ -1163,9 +1161,6 @@ where
         </Frame>
     };
     root.fill(glide);
-    for node in [glide, inner, face] {
-        measure(node);
-    }
     state.with(|state| state.glides.borrow_mut().insert(glide, (inner, api.get())));
     // A row the list reports with other nodes than this glide is wired wrong: the `Reorder`
     // could not find it to measure or glide it.

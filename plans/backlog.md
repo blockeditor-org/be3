@@ -462,6 +462,13 @@ Depends on #686 (session catch-ups replaced by server ordering).
   `DRAG_THRESHOLD` (or `TOUCH_DRAG_THRESHOLD`), but a plain `on_drag` user
   (a slider, a pan, the dock's grips) applies its own or none. Done: the core
   starts a press's drag at the threshold, and the components' own checks go.
+  The components' own checks today: toast.rs (`DRAG_THRESHOLD` on x),
+  number_input.rs (its own 2.0), tree.rs (`ROW_DRAG_THRESHOLD`, 6.0),
+  beui-dock styled.rs (`DRAG_THRESHOLD`), and the core's touch checks in
+  beui-core interact/pointer.rs. A slider must still land where it was pressed
+  and move by the whole distance once the threshold is passed, so the core
+  hands the first `on_drag` the movement from the press, not from the
+  threshold; expect paintings of slider and splitter drags to move.
 - **A carry's first place in a window the host opens.** The board learns each
   place's window from the core's `Order` at the first point it tracks after a lift,
   so the lift's own choice takes a place whose window it does not know yet to be
@@ -494,7 +501,11 @@ Depends on #686 (session catch-ups replaced by server ordering).
   carried to a place beyond that fit (below a display beside it) is cut off at
   the area's edge. Done: the area refits to the arrangement the chosen place
   makes, with places read relative to the refit, shown by a painting of a
-  display carried below another.
+  display carried below another. The places' rests are in area points of the view (`arrangement_spec`
+  in be-app-settings display/arrangement.rs), so a refit that follows the
+  chosen place moves the rests the choice is made among: the refit needs the
+  rests in desktop pixels mapped through the view at each point (a `free`-like
+  spec of its own), or a view that only grows while a carry lasts.
 
 ## 18. Keys
 

@@ -2550,13 +2550,9 @@ impl Document {
         if let Some(watched) = self.measured.get(&id) {
             return watched.read_only();
         }
-        let initial = match delaying_measurement() {
-            true => {
-                self.measure_pending = true;
-                None
-            }
-            false => self.measure_now(id),
-        };
+        // The first ask is answered at once, as the HTML core answers it: only what changes
+        // after comes a frame late under `delay_measurement`.
+        let initial = self.measure_now(id);
         let watched = ::beui_reactive::OwnedSignal::new(initial);
         let read = watched.read_only();
         self.measured.insert(id, watched);
@@ -2570,13 +2566,9 @@ impl Document {
         if let Some(watched) = self.measured_text.get(&id) {
             return watched.read_only();
         }
-        let initial = match delaying_measurement() {
-            true => {
-                self.measure_pending = true;
-                None
-            }
-            false => self.measure_text_now(id),
-        };
+        // The first ask is answered at once, as the HTML core answers it: only what changes
+        // after comes a frame late under `delay_measurement`.
+        let initial = self.measure_text_now(id);
         let watched = ::beui_reactive::OwnedSignal::new(initial);
         let read = watched.read_only();
         self.measured_text.insert(id, watched);
