@@ -138,17 +138,16 @@ Depends on #686 (session catch-ups replaced by server ordering).
 
 ## 12. Large folders
 
-- **The rest of a large folder's change.** A change of a folder now reaches a
-  watcher as what it did to the references, but each end still does O(N) work
-  per change: the client's refs write the block's whole summary row on every
-  change (`Refs::keep`, then `Peer::note`), so a watcher seeing N entries added
-  one at a time writes O(N²) bytes to disk, and the server's `graph_views`
-  clones every reference into each member's summary only for `WatchHub::tell`
-  to empty them. Done: the refs keep a block's references apart from its
-  summary row and write only what a change moved, the server makes a summary
-  without references for a change it tells as `moved`, and a client test
-  adding thousands of entries to a watched folder writes refs bytes linear in
-  them.
+- **The rest of a large folder's change.** Summaries no longer carry references
+  and a watcher reads a tree's changes as pages (`tree-advanced`, `changed-page`),
+  so what is left O(N) per change is the client's listing rows: `Refs::put_listing`
+  writes a listing's whole id list (`Table::Listing`) whenever it changes, and
+  `add_to_listing` and `listed` call it per change, so a watcher of a folder that
+  gains N children one at a time writes O(N²) bytes to disk. Check the server's
+  side for any remaining per-member O(N) copy as well. Done: a listing is kept as
+  rows per entry (or another form written in proportion to what moved), shown by
+  a client test adding thousands of children to a watched folder that writes refs
+  bytes linear in them.
 
 ## 13. Settings
 
