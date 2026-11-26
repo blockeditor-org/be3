@@ -1030,6 +1030,7 @@ impl PageGuest {
         .map_err(|error| format!("the root could not be linked: {}", describe(&error)))?;
         let linked: js_sys::Array = linked.unchecked_into();
         if transport.memory.borrow().is_none() {
+            call_shim(&linked.get(1), "stop", &[]);
             return Err("the root has no memory".to_owned());
         }
         held.push(Box::new(calls));
@@ -1042,7 +1043,12 @@ impl PageGuest {
             _imports: held,
             stopped: false,
         };
-        guest.call("app_start")?;
+        if let Err(failure) = guest.call("app_start") {
+            // The shim lets go of what the root bound to it, as for a root that stopped.
+            guest.stopped = true;
+            guest.stop();
+            return Err(failure);
+        }
         Ok(guest)
     }
 

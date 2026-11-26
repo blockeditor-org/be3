@@ -358,9 +358,9 @@ async fn a_root_with_something_to_step_between_frames_wakes_its_page() -> Result
     let root = Rc::new(root().await?.with_patience(PATIENT));
     // The frame ends at its deadline, which has passed: the child it spawned answers after it,
     // between frames, which the page hears of.
-    let woken = next_wake(&root);
+    let woken = next_wake(&root, "for the child's answer after the frame");
     frame(&root, 1, Duration::ZERO).await??;
-    woken.await;
+    woken.await?;
     // The frame the page draws for it steps the root with what arrived.
     let done = frame(&root, 2, PATIENT).await??;
     let shown = shown(&done)?;
@@ -369,9 +369,9 @@ async fn a_root_with_something_to_step_between_frames_wakes_its_page() -> Result
     })?;
     // A root that wakes itself in the step that answers its frame has something to step for
     // once the frame ends, though the wake came while it was stepped.
-    let woken = next_wake(&root);
+    let woken = next_wake(&root, "for the step the root owed once its frame ended");
     frame(&root, WAKES_ONCE, PATIENT).await??;
-    woken.await;
+    woken.await?;
     Ok(
         "a root with something to step between frames, or once its frame ended, woke its page, \
         which drew it a frame"
@@ -379,16 +379,29 @@ async fn a_root_with_something_to_step_between_frames_wakes_its_page() -> Result
     )
 }
 
-/// Answers the first time the root's `on_wake` is called from now on.
-fn next_wake(root: &Root) -> impl Future<Output = ()> {
-    let (woken, answer) = promised::<()>();
-    let answer = RefCell::new(Some(answer));
+/// Answers the first time the root's `on_wake` is called from now on, or says `what` it was for
+/// once `PATIENT` passes without one, so a lost wake fails the test rather than hanging it.
+fn next_wake(root: &Root, what: &'static str) -> impl Future<Output = Result<(), JsValue>> {
+    let (woken, answer) = promised::<Result<(), String>>();
+    let answer = Rc::new(RefCell::new(Some(answer)));
+    let woke = Rc::clone(&answer);
     root.on_wake(move || {
-        if let Some(answer) = answer.borrow_mut().take() {
-            answer(());
+        if let Some(answer) = woke.borrow_mut().take() {
+            answer(Ok(()));
         }
     });
-    woken
+    let late = Closure::once_into_js(move || {
+        if let Some(answer) = answer.borrow_mut().take() {
+            answer(Err(format!("the page heard no wake {what} within {PATIENT:?}")));
+        }
+    });
+    let global = js_sys::global();
+    if let Ok(set) = js_sys::Reflect::get(&global, &"setTimeout".into())
+        && let Ok(set) = set.dyn_into::<Function>()
+    {
+        let _ = set.call2(&global, &late, &(PATIENT.as_millis() as f64).into());
+    }
+    async move { woken.await.map_err(JsValue::from) }
 }
 
 async fn a_root_that_keeps_waking_itself_stops_at_its_patience() -> Result<String, JsValue> {

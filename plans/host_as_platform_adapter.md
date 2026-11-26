@@ -2543,7 +2543,13 @@ Each step lands on its own.
                  retains, as be-host-runtime's `Canvases` keeps it (so a tab shown again shows
                  nothing until its app draws it anew); drive's `paint` reads nothing of the
                  root on the web; the root's canvases follow its frames, not the host's
-                 present.
+                 present. `web_host_test`'s `root` runs a page script under the root once each
+                 account signed in. Run so, `a_child_placed_in_a_popover_shows_above_it` waits
+                 in vain for `Pane "Canvas"` after the picker's Canvas, the two-pages chat test
+                 finds no `#host.contacts.new-link` in the Contacts the menu opens, and the
+                 grown page's test reads the host's canvas, which under the root shows only the
+                 background: not found yet whether the first two fail natively under the root
+                 too (no be-root host test runs those flows).
            With counterparts whose paintings match be-host's: the desktop shell, F6 between
            views, the lock screen on Super+L (4g7g1), the groups 4g7g2a and 4g7g2b built, and the
            palette. The test
