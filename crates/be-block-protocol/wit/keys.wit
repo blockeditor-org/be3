@@ -52,6 +52,19 @@ interface keys {
         /// Every access log the account signed a record in, which a new key
         /// must retire the old one in (`set-recovery-key`).
         logs: list<signed-log>,
+        /// For each organization's log among `logs`, that log from its root as
+        /// the account's proof path, served though the account may no longer
+        /// be a member: the device learns from it whether the account
+        /// administers the organization as of the head its retirement follows
+        /// (`be_block_keys::Retirement::administrator`).
+        organization-logs: list<organization-path>,
+    }
+
+    /// An organization's access log from its root, as a proof path for the
+    /// account it is served to (`be_block_keys::proof_path`).
+    record organization-path {
+        organization: organization-id,
+        steps: list<list<u8>>,
     }
 
     /// A scope or escrow key not yet sealed to an account that should hold

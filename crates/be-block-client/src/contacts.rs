@@ -1264,37 +1264,31 @@ pub fn new_identity(
     })
 }
 
-/// The organizations among `logs` whose log `account` administers as of the head named: each
-/// organization's log as the server serves it, checked from its root to that head. A log that
-/// reaches the head is the one the retirement follows, whatever root it has, so the server
+/// The organizations among the answer's `logs` whose log `account` administers as of the head
+/// named: each organization's log as the answer carries it (`organization_logs`, the account's
+/// proof path, served to an account that left the organization too), checked from its root to
+/// that head. A log that reaches the head is the one the retirement follows, whatever root it
+/// has, and no path reduces an administrator record (`Reduced::administers`), so the server
 /// cannot pass an administrator off as a member, whose retirement a path may hide
 /// (`Reduced::retires_administrator`).
-pub(crate) async fn administered(
-    connection: &Arc<Connection>,
+pub(crate) fn administered(
     account: Uuid,
-    logs: &[be_block_protocol::SignedLog],
+    answer: &be_block_protocol::RecoveryKey,
 ) -> Result<HashSet<Uuid>, ClientError> {
     let mut administered = HashSet::new();
-    for log in logs {
+    for log in &answer.logs {
         if log.kind != be_block_protocol::LogKind::Organization {
             continue;
         }
         let organization = log.organization;
-        let page = crate::ask(be_block_protocol::read::<
-            be_block_protocol::AccessLogPage,
-            _,
-        >(
-            connection,
-            Some(organization),
-            be_block_protocol::Query::Log {
-                log: None,
-                held: None,
-            },
-        ))
-        .await?;
         let forged = || ClientError::Forged(organization);
-        let steps = page
-            .entries
+        let path = answer
+            .organization_logs
+            .iter()
+            .find(|path| path.organization == organization)
+            .ok_or_else(forged)?;
+        let steps = path
+            .steps
             .iter()
             .map(|step| be_block_keys::Step::decode(step))
             .collect::<Result<Vec<_>, _>>()
@@ -1311,7 +1305,7 @@ pub(crate) async fn administered(
         .map_err(|_| forged())?;
         // A path that hides a lowering names no one's administering (`Checked::hides_lowering`):
         // an honest server reduces none in an organization's log.
-        if page.from != 0 || checked.hides_lowering || !checked.holds(&head) {
+        if checked.hides_lowering || !checked.holds(&head) {
             return Err(forged());
         }
         if checked.level_as_of(account.into_bytes(), &head) == Some(be_block_keys::Level::Manage) {
@@ -1372,7 +1366,7 @@ pub(crate) async fn set_recovery_key_in(
             "be-block-client: a new phrase goes on without following the contacts' key changes: {error}"
         );
     }
-    let be_block_protocol::RecoveryKey { sealed, logs, .. } = crate::ask(
+    let answer = crate::ask(
         be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
             connection,
             None,
@@ -1381,7 +1375,7 @@ pub(crate) async fn set_recovery_key_in(
     )
     .await?;
     let Some(old) = old else {
-        if !(sealed.is_empty() && logs.is_empty()) {
+        if !(answer.sealed.is_empty() && answer.logs.is_empty()) {
             return Ok(Err(CannotReseal::NoOldPhrase));
         }
         crate::ask(be_block_protocol::write::<(), _>(
@@ -1410,7 +1404,8 @@ pub(crate) async fn set_recovery_key_in(
         },
         None => (HashMap::new(), Vec::new()),
     };
-    let administered = administered(connection, account, &logs).await?;
+    let administered = administered(account, &answer)?;
+    let be_block_protocol::RecoveryKey { sealed, logs, .. } = answer;
     let Some(resealed) = new_identity(
         account,
         old,

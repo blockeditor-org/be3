@@ -83,8 +83,30 @@ fn authority_from_an_organization_path_that_hides_an_administrators_retirement_i
         bob_retired.hash(),
         false,
     );
-    let organization_log = [before, vec![bob_retired, dana_retired.clone()]].concat();
+    let organization_log = [before, vec![bob_retired.clone(), dana_retired.clone()]].concat();
     assert!(check(&organization_log).is_ok());
+    // A path cannot pass Bob's retirement off, reduced, as a member's: its hash commits to the bit.
+    let passed_off: Vec<Step> = organization_log
+        .iter()
+        .map(|entry| match entry.record {
+            Record::Retirement(_) if entry.signer == bob_id => Step::Reduced(Reduced {
+                retires_administrator: false,
+                ..entry.reduced()
+            }),
+            _ => Step::Entry(entry.clone()),
+        })
+        .collect();
+    assert!(
+        check_log(
+            LogKind::Organization,
+            organization,
+            root.hash(),
+            &passed_off,
+            &|_| None,
+        )
+        .is_err(),
+        "a reduced administrator's retirement that says it retires a member is refused"
+    );
 
     // Alice's note, which Bob grants Carol as an administrator, signing with `key`.
     let note_root = Entry::root(&alice, alice_id, LogKind::Block, note);

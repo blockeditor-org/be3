@@ -426,8 +426,8 @@ served whole to a member with Edit or above (on the block or a block below it;
 the organization's, only to an administrator), who seals, and to anyone else as
 a proof path (`be_block_keys::proof_path`): `Step`s, each an
 entry whole or reduced (`Reduced`: the hash of the entry before it, whether it
-lowered anyone, whether it is a parent, owner or retirement record, whether
-it retires an administrator, and the digest of the rest), which hashes as the whole entry does. Whole on a path: the root; every entry naming the reader or an account
+lowered anyone, whether it is a parent, owner, administrator or retirement
+record, whether it retires an administrator, and the digest of the rest), which hashes as the whole entry does. Whole on a path: the root; every entry naming the reader or an account
 that sealed it a key of the block (of any block, in the organization's log),
 and so on for each whole entry's signer, so each checks at its place; what the
 reader signed (its agents); every opening and parent record (a parent record
@@ -454,10 +454,16 @@ it is so), and its reduced step carries that (`Reduced::retires_administrator`):
 `answer` takes no authority from an organization path that reduces an
 administrator's retirement, while a path may still reduce a member's, whose
 old key signs nothing on the organization's authority. The device taking a new
-phrase learns whether it administers from the organization's log as served,
-checked to the head its retirement follows (`contacts::administered`): a log
-that reaches that head is the real one, so the server cannot pass an
-administrator off as a member.
+phrase learns whether it administers from the organization's log as the
+`recovery-key` answer carries it (its proof path, served to an account that
+left the organization too), checked to the head its retirement follows
+(`contacts::administered`). A log that reaches that head is the real one, and
+`check_log` refuses a path that reduces an administrator record
+(`Reduced::administers`), which no honest path does, so the server cannot hide
+the account's promotion and pass an administrator off as a member. What this
+holds for records naming a head at or after the retirement, in an
+organization's log and a block's alike: one naming an earlier head is stale
+authority (Accepted limits).
 Otherwise a reader learns no other member's grant. Every entry says whether it
 lowered anyone (`Entry::lowers`, covered by its hash outside the digest),
 which `check_log` refuses unless it is so and devices set by signing through
@@ -1170,9 +1176,17 @@ who lost access. Cited from code by these names.
   as of an entry of its signer's choosing (`Authority`, `Link`); the server
   takes it only at that log's head, but one colluding with a demoted
   administrator, or a manager since revoked above, can append one naming an
-  entry from before, and devices take it. A record resting on a block no
-  longer above anything the reader views does not check for that reader until
-  a manager signs it again from where it lies.
+  entry from before, and devices take it. So can one colluding with whoever
+  stole a retired key: a record it signs naming a head before the retirement
+  (`Authority::Organization` or a `Link` to an earlier entry) checks against
+  the honest whole log, so a retirement, an organization's or a block's, bars
+  the old key only from records naming a head at or after it. A record
+  resting on a block no longer above anything the reader views does not check
+  for that reader until a manager signs it again from where it lies.
+- **Which logs a retirement is made in.** A device taking a new phrase retires
+  the old key in the logs the `recovery-key` answer lists
+  (`access::signed_logs`): a server that leaves one out, an organization's
+  log among them, leaves the old key current there.
 - **What a parent record proves on a device**: that its signer held Edit or
   above on the moved block. Edit on the destination, and Manage where
   `BlockGraph::move_refusal` asks for it, are the server's checks alone, so an

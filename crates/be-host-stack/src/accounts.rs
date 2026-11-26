@@ -499,6 +499,7 @@ pub async fn keys(server_url: String, token: String) -> Result<Keys, AccountErro
             public,
             sealed,
             logs,
+            ..
         },
     ) = read_signed_in(&server_url, &token, |link| async move {
         let key = ask(
