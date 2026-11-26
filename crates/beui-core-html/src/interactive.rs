@@ -550,7 +550,7 @@ mod web {
         fn drags_at(&self, at: &PointerPress) -> bool {
             // A node that keeps every sample (a pen's stroke) drags from the first move, so a
             // short stroke keeps every point.
-            if self.dragging.get() || self.switches.every_sample.get() {
+            if self.dragging.get() {
                 return true;
             }
             let past = self
@@ -558,7 +558,7 @@ mod web {
                 .get()
                 .is_none_or(|origin| (at.pos - origin).length() >= threshold(at));
             self.dragging.set(past);
-            past
+            past || self.switches.every_sample.get()
         }
 
         /// Captures the pointer of an uncaptured press once it has moved a drag's

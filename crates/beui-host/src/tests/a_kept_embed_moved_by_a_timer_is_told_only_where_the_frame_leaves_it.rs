@@ -33,7 +33,7 @@ fn a_kept_embed_moved_by_a_timer_is_told_only_where_the_frame_leaves_it() {
             slot.on_place(move |placement| {
                 let top = placement.map(|placement| placement.rect.min.y);
                 heard.borrow_mut().push(top);
-                if top.is_some_and(|top| top >= 100.0) && first.get_untracked() {
+                if top.is_some_and(|top| top > 100.0) && first.get_untracked() {
                     timer.start(Duration::ZERO);
                 }
             });

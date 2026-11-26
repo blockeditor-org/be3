@@ -52,6 +52,8 @@ pub fn Interactive(
     #[prop(default = TouchDrags::None)] touch_drags: Prop<TouchDrags>,
     #[prop(default = true)] claims_touch: Prop<bool>,
     #[prop(default = Area::Nowhere)] drawing: Prop<Area>,
+    /// Hears every pointer sample, uncoalesced, and drags from the first move without waiting
+    /// for the drag threshold, so a short pen stroke keeps every point.
     #[prop(default = false)] every_sample: Prop<bool>,
     #[prop(default = false)] grabs_pointer: Prop<bool>,
     on_click: Callback<()>,
