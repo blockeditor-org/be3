@@ -25,21 +25,21 @@ names the version itself, and changes with it:
 ## 2. Asynchronous pipelines in the browser
 
 Natively the host makes `create-*-pipeline-async`'s pipelines on threads of the app's own
-(be-wasm-gpu-host `webgpu/pipelines.rs`). The shim still makes them at once: make them through
-the browser's `createRenderPipelineAsync` and `createComputePipelineAsync` with web-sys,
-settling through the poll as now.
+(be-wasm-gpu-host `webgpu/pipelines.rs`). The shim still makes them at once. Making them
+through the browser's `createRenderPipelineAsync` and `createComputePipelineAsync` waits on
+wgpu: its webgpu backend gives the browser's objects only for devices, queues, buffers,
+textures and views (`as_webgpu`), so the shim can reach neither the shader module and layout a
+pipeline is made from nor make a `wgpu::RenderPipeline` from the browser's. Take it once wgpu
+can do both.
 
 A pipeline asked for on a lost device, or made as its device was lost, is refused as internal;
 WebGPU resolves it with an invalid pipeline instead. Do the same.
 
-## 3. One poll per app, and cancelling
+## 3. One poll per app
 
-- Each ticketed local interface has its own `[poll]`; an app's executor would rather make one
-  call per wake for all of them. wasi:webgpu is the only ticketed interface, so this waits
-  until there is a second.
-- A dropped `Ticket` or `Items` stops waiting on the guest, but the host keeps its `Promise` or
-  `Sender` until it settles; listing dropped tickets in the next poll would let it let them
-  go.
+Each ticketed local interface has its own `[poll]`; an app's executor would rather make one
+call per wake for all of them. wasi:webgpu is the only ticketed interface, so this waits until
+there is a second.
 
 ## Reading the pinned WIT
 

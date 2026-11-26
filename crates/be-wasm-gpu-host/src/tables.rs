@@ -54,6 +54,10 @@ impl<T> Table<T> {
         self.entries.values()
     }
 
+    pub(crate) fn values_mut(&mut self) -> impl Iterator<Item = &mut T> {
+        self.entries.values_mut()
+    }
+
     pub(crate) fn get(&self, handle: Handle, kind: &str) -> Result<&T, String> {
         self.entries
             .get(&handle)

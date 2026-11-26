@@ -38,13 +38,13 @@ fn a_map_cut_short_settles_failed_once_and_never_settles_a_later_one() {
         second.is_ok(),
         "the first map's late callback settles nothing of the second"
     );
-    assert!(gpu.settle(false).is_empty(), "each ticket is answered once");
+    assert!(gpu.settle(false, &[]).is_empty(), "each ticket is answered once");
     gpu.gpu_buffer_unmap(GpuBuffer(buffer.0)).unwrap();
 
     map(&mut gpu, 3);
     gpu.gpu_device_lost(device, be_wasm_ops::local::Promise::new(4));
     gpu.gpu_device_destroy(device);
-    let settled = gpu.settle(true);
+    let settled = gpu.settle(true, &[]);
     let value = |ticket: u32| {
         settled
             .iter()

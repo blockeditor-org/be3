@@ -41,5 +41,5 @@ fn wasi_webgpus_calls_made_per_draw_take_only_wasm_values() {
         signature("[method]gpu-compute-pass-encoder.dispatch-workgroups"),
         ("u32, u32, u32, u32, u32, u32", "")
     );
-    assert_eq!(signature("[poll]"), ("u32, u32, u32", "u32"));
+    assert_eq!(signature("[poll]"), ("u32, u32, u32, u32, u32", "u32"));
 }

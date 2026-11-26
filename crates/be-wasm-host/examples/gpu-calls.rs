@@ -111,9 +111,9 @@ fn guest() -> String {
     };
     let start = [
         call("request_adapter", 1, none),
-        "(drop (call $poll (i32.const 1) (i32.const 0) (i32.const 4096)))".to_owned(),
+        "(drop (call $poll (i32.const 1) (i32.const 0) (i32.const 0) (i32.const 0) (i32.const 4096)))".to_owned(),
         call("request_device", 1, none),
-        "(drop (call $poll (i32.const 1) (i32.const 0) (i32.const 4096)))".to_owned(),
+        "(drop (call $poll (i32.const 1) (i32.const 0) (i32.const 0) (i32.const 0) (i32.const 4096)))".to_owned(),
         call("create_texture", 1, texture),
         call("create_texture_view", 1, none),
         call("create_shader_module", 1, module),
@@ -129,7 +129,7 @@ fn guest() -> String {
             (import "{GPU}" "get-gpu" (func $get_gpu (result i32)))
             (import "{GPU}" "[method]gpu.request-adapter" (func $request_adapter (param i32 i32 i32) (result i32)))
             (import "{GPU}" "[method]gpu-adapter.request-device" (func $request_device (param i32 i32 i32) (result i32)))
-            (import "{GPU}" "[poll]" (func $poll (param i32 i32 i32) (result i32)))
+            (import "{GPU}" "[poll]" (func $poll (param i32 i32 i32 i32 i32) (result i32)))
             (import "{GPU}" "[method]gpu-device.create-texture" (func $create_texture (param i32 i32 i32) (result i32)))
             (import "{GPU}" "[method]gpu-texture.create-view" (func $create_texture_view (param i32 i32 i32) (result i32)))
             (import "{GPU}" "[method]gpu-device.create-shader-module" (func $create_shader_module (param i32 i32 i32) (result i32)))
