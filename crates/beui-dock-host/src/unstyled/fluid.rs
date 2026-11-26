@@ -15,7 +15,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::*;
 use beui_view::types::window::WindowId;
 use beui_view::types::{
-    CanvasArrangement, Direction, Measured, Modifiers, Pos2, Rect, Spring, SpringMotion, Vec2,
+    CanvasArrangement, Direction, Modifiers, Pos2, Rect, Spring, SpringMotion, Vec2,
 };
 
 use beui_dock_state::*;
@@ -766,18 +766,16 @@ fn collapsed(rect: Rect, direction: Direction, first: bool) -> Rect {
 #[component]
 pub(super) fn DockHeldSize(dock: State, children: Child) -> NodeId {
     let held = create_signal(None::<Vec2>);
-    // Measured from the start, so the lift reads the size at once, also where measurement
-    // comes a frame late.
-    let measured = create_signal(None::<ReadSignal<Option<Measured>>>);
+    let canvas = NodeRef::new();
     // A carried tool bar only opens and closes bands, so the panels beside them resize then.
     let carrying = create_memo(move || dock.carried().is_some());
     create_effect_on(
         move || carrying.get(),
         move |&carrying, _| {
             let size = carrying
-                .then(|| measured.get_untracked())
+                .then(|| canvas.try_get())
                 .flatten()
-                .and_then(|measured| measured.get_untracked())
+                .and_then(|canvas| measure(canvas).get_untracked())
                 .map(|measured| measured.rect.size());
             held.set(size);
         },
@@ -788,13 +786,13 @@ pub(super) fn DockHeldSize(dock: State, children: Child) -> NodeId {
             vec![(0, Rect::from_min_size(Pos2::ZERO, held.unwrap_or(size)))]
         }))
     });
-    let canvas = view! {
+    let built = view! {
         <Canvas arrangement>
             <CanvasItem arranged=0u64 clip=false>{children}</CanvasItem>
         </Canvas>
     };
-    measured.set(Some(measure(canvas)));
-    canvas
+    canvas.fill(built);
+    built
 }
 
 /// The carried tab or pane over one of `surface`'s places, drawn the size of where it

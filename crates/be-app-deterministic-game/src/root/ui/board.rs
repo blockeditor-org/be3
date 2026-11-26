@@ -444,10 +444,6 @@ pub(crate) fn Stage(
             </Layers>
         </Interactive>
     };
-    // Measured from the start, so a lift reads where the stage is.
-    if let Some(node) = stage.try_get() {
-        measure(node);
-    }
     built
 }
 
