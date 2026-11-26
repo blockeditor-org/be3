@@ -897,24 +897,12 @@ impl<S: ObjectStore> Peer<S> {
     pub async fn checked_organization(
         &self,
     ) -> Result<Option<be_block_keys::Checked>, ClientError> {
-        let Some(pinned) = self.keys.organization_root() else {
+        if self.keys.organization_root().is_none() {
             return Ok(None);
-        };
-        let entries = self.organization_log().await?;
+        }
         // Checked on from what this device kept, as a block's is (`Peer::checked_access`).
-        let kept = self
-            .keys
-            .kept_checked(self.organization, pinned)
-            .filter(|kept| kept.positions.len() <= entries.len());
-        let checked = kept
-            .unwrap_or_else(|| be_block_keys::Checked::unchecked(pinned))
-            .resume(
-                be_block_keys::LogKind::Organization,
-                self.organization.into_bytes(),
-                &entries,
-                &|_| None,
-            )
-            .map_err(|_| ClientError::Forged(self.organization))?;
+        let (entries, checked) = self.organization_log_checked().await?;
+        let checked = checked.ok_or(ClientError::Forged(self.organization))?;
         // Kept as a block's is (`KeyBook::note_log`): one short of what was kept is withheld,
         // and changes nothing here.
         match self.keys.served(self.organization, &checked) {

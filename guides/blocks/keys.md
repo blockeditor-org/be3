@@ -370,16 +370,26 @@ the log served next on from it (`Checked::resume`). That takes the served
 prefix only when every entry names the one before and the last kept hashes to
 the kept head, verifying no signature there, and refuses the log as forged
 otherwise, as it does a log at least as long that does not reach the kept
-head (one shorter is checked whole, and withheld). Within a run, a device
-reads a whole log again by naming its last entry (`Peer::served_access`,
-holding those it read last, up to `SERVED_ENTRIES` entries): the server sends only the entries
-after it while its stored log chains to that entry, and the first must name it
-as the one before. The server checks each log once too (`access::checked`): an
-append is checked against the head it kept alone. A proof path is read and
-checked whole each time ("Proof paths"). Authority from another log (`answer`)
-is still checked from that log's root as of the entry a record names, and a
-device's first read after a restart is whole (plans/backlog.md, "Server
-protocol").
+head (one shorter is checked whole, and withheld). A device reads a whole log
+again by naming its last entry (`Peer::served_access`, holding those it read
+last, up to `SERVED_ENTRIES` entries, and after a restart the whole log it
+kept checked with the refs, `KeptLog::steps`): the server sends only the
+entries after it while it stores that entry there, and the first must name it
+as the one before. A prefix the device checked before is not hashed again
+(`Checked::resume_trusting`, `HeldLog::checked`): only its last, to tie it to
+the kept head. A hosted block's log checked from a root a contact's grant
+vouches for (`joined_log`) is kept the same way. The server checks each log
+once too (`access::checked_stored`): the head it kept checked is taken while
+it is the stored head, read from the log's first and last rows
+(`access::stored_head`), so a read or an append loads and hashes nothing else
+of the log, and an append checks the appended entry alone; it serves a reader
+the entries after the one it names without reading the rest. Authority from
+another log (`answer`) is checked once as of each head a record names
+(`CheckedAsOf`, kept by the device and the server across checks): a head's
+hash names every entry before it, so the log as of it checks the same
+whoever serves it later. A proof path is read and checked whole each time
+("Proof paths"). `Checked::positions` still keeps every entry's hash, since
+epochs name their heads by hash (plans/backlog.md, "Server protocol").
 
 **Who is served what.** A sealer must see every entry up to the head, since
 an entry reduced to its hash could be the revocation of whom it seals to, or of

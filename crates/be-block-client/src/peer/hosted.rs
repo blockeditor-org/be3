@@ -383,7 +383,7 @@ impl<S: ObjectStore> Peer<S> {
         if !matches!(self.keys.root_pin(block), crate::keys::RootPin::Unknown) {
             return Ok(self.checked_access(block).await?.1);
         }
-        let entries = self.served_log(block).await?;
+        let (entries, trusted) = self.served_access_held(Some(block)).await?;
         let root = entries.first().ok_or(ClientError::Forged(block))?.hash();
         // The root a share link this account opened handed it, which its maker pinned: the log
         // must start there, whatever the server serves.
@@ -397,8 +397,14 @@ impl<S: ObjectStore> Peer<S> {
             true => self.logs_around(block, &entries).await?,
             false => Around::default(),
         };
-        around
-            .check(self.organization, block, root, None, &entries)
+        // Checked on from what this device kept of a log from this root (an earlier run's, or
+        // this run's), so only the entries after it are checked.
+        let kept = self
+            .keys
+            .kept_checked(block, root)
+            .filter(|kept| kept.positions.len() <= entries.len());
+        let checked = around
+            .check(self.organization, block, root, kept, &entries, trusted)
             .ok_or(ClientError::Forged(block))?;
         let me = self.account.into_bytes();
         let vouched = linked
@@ -415,7 +421,8 @@ impl<S: ObjectStore> Peer<S> {
             return Err(ClientError::Forged(block));
         }
         self.keys.pin_vouched(block, root);
-        Ok(self.checked_access(block).await?.1)
+        // Taken and kept as checked: read again, the log is checked on from it.
+        Ok(self.take_checked(block, entries, checked)?.1)
     }
 
     /// Forgets the share links this account opened on `block` once it holds nothing there: the

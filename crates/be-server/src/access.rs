@@ -60,6 +60,126 @@ pub(crate) fn checked(
 static CHECKED_AS_OF: std::sync::LazyLock<be_block_keys::CheckedAsOf> =
     std::sync::LazyLock::new(|| be_block_keys::CheckedAsOf::new(CHECKED_ENTRIES));
 
+/// Where a log's head is stored: its place, its hash and its root's, read from the log's last
+/// row and its first, two entries however long the log. None for a log with no entries.
+pub(crate) struct StoredHead {
+    pub(crate) place: usize,
+    pub(crate) head: be_block_keys::EntryHash,
+    pub(crate) root: be_block_keys::EntryHash,
+}
+
+/// The `kind` log of `log`'s head and root as stored (`StoredHead`).
+pub(crate) fn stored_head(
+    connection: &Connection,
+    kind: LogKind,
+    organization: Uuid,
+    log: Uuid,
+) -> Result<Option<StoredHead>, ServerError> {
+    let (last, first) = match kind {
+        LogKind::Block => (
+            "SELECT position, entry FROM access_log WHERE organization_id = ?1 AND block_id = ?2
+             ORDER BY position DESC LIMIT 1",
+            "SELECT position, entry FROM access_log WHERE organization_id = ?1 AND block_id = ?2
+             ORDER BY position LIMIT 1",
+        ),
+        LogKind::Organization => (
+            "SELECT position, entry FROM organization_log
+             WHERE organization_id = ?1 AND organization_id = ?2 ORDER BY position DESC LIMIT 1",
+            "SELECT position, entry FROM organization_log
+             WHERE organization_id = ?1 AND organization_id = ?2 ORDER BY position LIMIT 1",
+        ),
+    };
+    let row = |sql: &str| -> Result<Option<(usize, Entry)>, ServerError> {
+        let row: Option<(i64, Vec<u8>)> = connection
+            .prepare_cached(sql)?
+            .query_row(params![organization.to_string(), log.to_string()], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })
+            .optional()?;
+        row.map(|(place, entry)| {
+            let place = usize::try_from(place).map_err(|_| ServerError::Corrupt)?;
+            let entry = Entry::decode(&entry).map_err(|_| ServerError::Corrupt)?;
+            Ok((place, entry))
+        })
+        .transpose()
+    };
+    let Some((place, last)) = row(last)? else {
+        return Ok(None);
+    };
+    let root = match place {
+        0 => last.hash(),
+        _ => row(first)?.ok_or(ServerError::Corrupt)?.1.hash(),
+    };
+    Ok(Some(StoredHead {
+        place,
+        head: last.hash(),
+        root,
+    }))
+}
+
+/// Why a stored log did not check: the server's storage failed, or the log (with what is
+/// appended) does not.
+pub(crate) enum NotChecked {
+    Storage(ServerError),
+    Refused,
+}
+
+impl From<ServerError> for NotChecked {
+    fn from(error: ServerError) -> Self {
+        Self::Storage(error)
+    }
+}
+
+/// The `kind` log of `log` as stored, checked from its root to its head, and on through
+/// `appended` when given; none for a log with no entries. When what the server kept checked of
+/// it (`CHECKED`) is at the stored head, nothing of the log is loaded or hashed but its first and
+/// last rows (`stored_head`), and only `appended` is checked: an append costs the same however
+/// long the log. Else the log is loaded and checked as `checked` checks it.
+pub(crate) fn checked_stored(
+    connection: &Connection,
+    kind: LogKind,
+    organization: Uuid,
+    log: Uuid,
+    appended: Option<&Entry>,
+    outside: &dyn Fn(&Asked) -> Option<be_block_keys::SigningPublic>,
+) -> Result<Option<Checked>, NotChecked> {
+    let Some(stored) = stored_head(connection, kind, organization, log)? else {
+        return Ok(None);
+    };
+    let key = (kind, organization, log);
+    let kept = CHECKED.lock().unwrap().get(&key).cloned();
+    let at_head = kept.filter(|kept| {
+        !kept.partial
+            && kept.root == stored.root
+            && kept.head == stored.head
+            && kept.positions.len() == stored.place + 1
+    });
+    let checked = match at_head {
+        Some(kept) => {
+            let kept = (*kept).clone();
+            match appended {
+                Some(entry) => kept
+                    .extend(kind, log.into_bytes(), std::slice::from_ref(entry), outside)
+                    .map_err(|_| NotChecked::Refused)?,
+                None => return Ok(Some(kept)),
+            }
+        }
+        None => {
+            let mut entries = entries(connection, kind, organization, log)?;
+            entries.extend(appended.cloned());
+            return checked(kind, organization, log, stored.root, &entries, outside)
+                .map(Some)
+                .map_err(|_| NotChecked::Refused);
+        }
+    };
+    let weight = checked.positions.len();
+    CHECKED
+        .lock()
+        .unwrap()
+        .insert(key, std::sync::Arc::new(checked.clone()), weight);
+    Ok(Some(checked))
+}
+
 /// Lets go of every log the server kept checked, so the next check of each is from its root.
 #[cfg(test)]
 pub(crate) fn forget_checked() {
@@ -146,9 +266,8 @@ fn placement_of(
         BlockParent::Detached => Placement::Detached,
         BlockParent::Block(above) => Placement::Block {
             block: above.into_bytes(),
-            root: entries(connection, LogKind::Block, organization, above)?
-                .first()
-                .map(Entry::hash)
+            root: stored_head(connection, LogKind::Block, organization, above)?
+                .map(|stored| stored.root)
                 .ok_or_else(|| refused("the parent has no access log"))?,
         },
     })
@@ -189,7 +308,7 @@ fn authority_current(
     authority: &Authority,
 ) -> Result<(), ServerError> {
     let head = |kind, log| {
-        entries(connection, kind, organization, log).map(|entries| entries.last().map(Entry::hash))
+        stored_head(connection, kind, organization, log).map(|stored| stored.map(|at| at.head))
     };
     let current = match authority {
         Authority::Log => true,
@@ -217,20 +336,13 @@ fn append_checked(
     block: Uuid,
     entry: Entry,
 ) -> Result<(), ServerError> {
-    let mut entries = entries(connection, LogKind::Block, organization, block)?;
-    if entries.is_empty() {
-        return Err(refused("the block has no access log"));
-    }
-    let position = entries.len();
-    entries.push(entry.clone());
-    checked_block_log(connection, organization, block, &entries)?;
-    insert_entry(
+    append_stored(
         connection,
         LogKind::Block,
         organization,
         block,
-        position,
         &entry,
+        "the record does not follow the log it goes in",
     )
 }
 
@@ -269,29 +381,23 @@ pub(crate) fn served_log(
     also: Vec<Uuid>,
     held: Option<be_block_protocol::HeldEntry>,
 ) -> Result<be_block_protocol::AccessLogPage, ServerError> {
-    let mut entries = entries(connection, kind, organization, log)?;
-    // Only when the log as stored still chains from its root to the held entry: one whose
-    // prefix was rewritten after the reader held it is sent from its root, for the reader to
-    // refuse.
-    let after = held.and_then(|held| {
-        let place = usize::try_from(held.place).ok()?;
-        let prefix = entries.get(..=place)?;
-        let chained = prefix[0].previous.is_none()
-            && prefix
-                .windows(2)
-                .all(|pair| pair[1].previous == Some(pair[0].hash()));
-        (reader.is_none() && chained && prefix[place].hash() == held.hash).then_some(place + 1)
-    });
-    if let Some(after) = after {
+    // Only when the log as stored holds the held entry at its place: the reader goes on from its
+    // own prefix, which the entries sent after must name, so nothing before it is read or hashed
+    // here. Every stored entry was appended checked at the head before it (`append_stored`).
+    if let Some(held) = held.filter(|_| reader.is_none())
+        && let Ok(place) = usize::try_from(held.place)
+        && let Some(at) = entries_from(connection, kind, organization, log, place, Some(1))?.pop()
+        && at.hash() == held.hash
+    {
         return Ok(be_block_protocol::AccessLogPage {
-            from: after as u64,
-            entries: entries
-                .split_off(after)
+            from: place as u64 + 1,
+            entries: entries_from(connection, kind, organization, log, place + 1, None)?
                 .into_iter()
                 .map(|entry| Step::from(entry).encode())
                 .collect(),
         });
     }
+    let entries = entries(connection, kind, organization, log)?;
     let steps: Vec<Step> = match reader {
         None => entries.into_iter().map(Step::from).collect(),
         Some(reader) => be_block_keys::proof_path(
@@ -450,6 +556,40 @@ fn log_kind(kind: be_block_protocol::LogKind) -> LogKind {
 }
 
 /// The entries of a log, root first.
+/// The `kind` log of `log`'s entries from `from` on, at most `limit` of them.
+fn entries_from(
+    connection: &Connection,
+    kind: LogKind,
+    organization: Uuid,
+    log: Uuid,
+    from: usize,
+    limit: Option<usize>,
+) -> Result<Vec<Entry>, ServerError> {
+    let sql = match kind {
+        LogKind::Block => {
+            "SELECT entry FROM access_log WHERE organization_id = ?1 AND block_id = ?2
+             AND position >= ?3 ORDER BY position LIMIT ?4"
+        }
+        LogKind::Organization => {
+            "SELECT entry FROM organization_log WHERE organization_id = ?1
+             AND organization_id = ?2 AND position >= ?3 ORDER BY position LIMIT ?4"
+        }
+    };
+    let from = i64::try_from(from).map_err(|_| ServerError::Corrupt)?;
+    let limit = limit.map_or(-1, |limit| i64::try_from(limit).unwrap_or(i64::MAX));
+    let encoded: Vec<Vec<u8>> = connection
+        .prepare_cached(sql)?
+        .query_map(
+            params![organization.to_string(), log.to_string(), from, limit],
+            |row| row.get::<_, Vec<u8>>(0),
+        )?
+        .collect::<Result<_, _>>()?;
+    encoded
+        .iter()
+        .map(|entry| Entry::decode(entry).map_err(|_| ServerError::Corrupt))
+        .collect()
+}
+
 fn entries(
     connection: &Connection,
     kind: LogKind,
@@ -492,9 +632,8 @@ pub(crate) fn signed_logs(
         for (organization, log) in rows {
             let organization = crate::store::parse_uuid(&organization)?;
             let log = crate::store::parse_uuid(&log)?;
-            let head = entries(connection, kind, organization, log)?
-                .last()
-                .map(Entry::hash)
+            let head = stored_head(connection, kind, organization, log)?
+                .map(|stored| stored.head)
                 .ok_or(ServerError::Corrupt)?;
             found.push(SignedLog {
                 organization,
@@ -620,11 +759,6 @@ pub(crate) fn append_retirements(
                 refused("a new recovery key retires the old one in every log it signed in")
             })?;
         let kind = log_kind(log.kind);
-        let mut entries = entries(connection, kind, log.organization, log.log)?;
-        let pinned = entries
-            .first()
-            .map(Entry::hash)
-            .ok_or(ServerError::Corrupt)?;
         let entry = Entry::decode(&retirement.entry)
             .map_err(|_| refused("the retirement does not read"))?;
         let retires = matches!(
@@ -637,33 +771,15 @@ pub(crate) fn append_retirements(
                 "a retirement retires the account's keys for its new ones",
             ));
         }
-        let position = entries.len();
-        entries.push(entry.clone());
         // A block's log is checked with the authority its records name, as every check of it is,
         // so what it accepts never hangs on what was checked of it before.
-        // A failure of the server's own storage is that, not a refusal.
-        let follows = match kind {
-            LogKind::Block => {
-                match checked_block_log(connection, log.organization, log.log, &entries) {
-                    Ok(_) => true,
-                    Err(ServerError::Refused(..)) => false,
-                    Err(error) => return Err(error),
-                }
-            }
-            LogKind::Organization => {
-                checked(kind, log.organization, log.log, pinned, &entries, &|_| None).is_ok()
-            }
-        };
-        if !follows {
-            return Err(refused("the retirement does not follow the log it goes in"));
-        }
-        insert_entry(
+        append_stored(
             connection,
             kind,
             log.organization,
             log.log,
-            position,
             &entry,
+            "the retirement does not follow the log it goes in",
         )?;
     }
     Ok(())
@@ -702,32 +818,68 @@ pub(crate) fn checked_block_log(
     connection: &Connection,
     organization: Uuid,
     block: Uuid,
-    entries: &[Entry],
-) -> Result<Checked, ServerError> {
+    appended: Option<&Entry>,
+) -> Result<Option<Checked>, NotChecked> {
     let log =
         |kind: LogKind, log: [u8; 16]| held(connection, kind, organization, Uuid::from_bytes(log));
-    let organization_root = held(
+    let organization_root = stored_head(
         connection,
         LogKind::Organization,
         organization,
         organization,
-    )
-    .and_then(|steps| steps.first().map(Step::hash));
+    )?
+    .map(|stored| stored.root);
     let logs = Logs::new(organization.into_bytes(), organization_root, &log).keeping(&CHECKED_AS_OF);
-    let pinned = entries
-        .first()
-        .map(Entry::hash)
-        .ok_or(ServerError::Corrupt)?;
     let outside = |asked: &Asked| be_block_keys::answer(&logs, block.into_bytes(), asked);
-    checked(
+    checked_stored(
+        connection,
         LogKind::Block,
         organization,
         block,
-        pinned,
-        entries,
+        appended,
         &outside,
     )
-    .map_err(|_| refused("the record does not follow the log it goes in"))
+}
+
+/// `block`'s log checked to its head as `checked_block_log` checks it, none for a block with
+/// no log: a log the server stored that no longer checks is its storage's failure.
+fn stored_block_log(
+    connection: &Connection,
+    organization: Uuid,
+    block: Uuid,
+) -> Result<Option<Checked>, ServerError> {
+    match checked_block_log(connection, organization, block, None) {
+        Ok(checked) => Ok(checked),
+        Err(NotChecked::Storage(error)) => Err(error),
+        Err(NotChecked::Refused) => Err(ServerError::Corrupt),
+    }
+}
+
+/// Appends `entry` to the `kind` log of `log` once the log checks with it at its head.
+fn append_stored(
+    connection: &Connection,
+    kind: LogKind,
+    organization: Uuid,
+    log: Uuid,
+    entry: &Entry,
+    refusal: &str,
+) -> Result<(), ServerError> {
+    let Some(stored) = stored_head(connection, kind, organization, log)? else {
+        return Err(refused("the log has no root"));
+    };
+    let checked = match kind {
+        LogKind::Block => checked_block_log(connection, organization, log, Some(entry)),
+        LogKind::Organization => {
+            checked_stored(connection, kind, organization, log, Some(entry), &|_| None)
+        }
+    };
+    match checked {
+        Ok(Some(_)) => {}
+        Ok(None) => return Err(refused("the log has no root")),
+        Err(NotChecked::Storage(error)) => return Err(error),
+        Err(NotChecked::Refused) => return Err(refused(refusal)),
+    }
+    insert_entry(connection, kind, organization, log, stored.place + 1, entry)
 }
 
 /// The level `block`'s log grants `account`, if it names them (for anyone inside, its last
@@ -738,11 +890,9 @@ pub(crate) fn granted_level(
     block: Uuid,
     account: Uuid,
 ) -> Result<Option<Level>, ServerError> {
-    let entries = entries(connection, LogKind::Block, organization, block)?;
-    if entries.is_empty() {
+    let Some(checked) = stored_block_log(connection, organization, block)? else {
         return Ok(None);
-    }
-    let checked = checked_block_log(connection, organization, block, &entries)?;
+    };
     if account == ANYONE_INSIDE {
         return Ok(Some(checked.open_inside));
     }
@@ -893,11 +1043,9 @@ pub(crate) fn linked(
     organization: Uuid,
     block: Uuid,
 ) -> Result<Vec<(Uuid, SigningPublic)>, ServerError> {
-    let entries = entries(connection, LogKind::Block, organization, block)?;
-    if entries.is_empty() {
+    let Some(checked) = stored_block_log(connection, organization, block)? else {
         return Ok(Vec::new());
-    }
-    let checked = checked_block_log(connection, organization, block, &entries)?;
+    };
     Ok(checked
         .linked
         .into_iter()
@@ -911,9 +1059,7 @@ pub(crate) fn block_head(
     organization: Uuid,
     block: Uuid,
 ) -> Result<Option<be_block_keys::EntryHash>, ServerError> {
-    Ok(entries(connection, LogKind::Block, organization, block)?
-        .last()
-        .map(Entry::hash))
+    Ok(stored_head(connection, LogKind::Block, organization, block)?.map(|stored| stored.head))
 }
 
 /// Appends `record`, signed by `signer`, to `block`'s log once it checks at its head: a ban
@@ -948,15 +1094,8 @@ pub(crate) fn banned(
     account: Uuid,
 ) -> Result<bool, ServerError> {
     // Checked on from where the server last checked the log (`CHECKED`).
-    let entries = entries(connection, LogKind::Block, organization, block)?;
-    if entries.is_empty() {
-        return Ok(false);
-    }
-    Ok(
-        checked_block_log(connection, organization, block, &entries)?
-            .banned
-            .contains(&account.into_bytes()),
-    )
+    Ok(stored_block_log(connection, organization, block)?
+        .is_some_and(|checked| checked.banned.contains(&account.into_bytes())))
 }
 
 /// Whom `block` is offered to and by whom (`append-log(owner)`), while its log still offers it.
@@ -970,11 +1109,11 @@ pub(crate) fn offered(
     };
     // Standing only while the log still offers it: a revocation, a ban or a grant naming other
     // keys since ends it there (`Checked::offered`).
-    let entries = entries(connection, LogKind::Block, organization, block)?;
-    let standing = !entries.is_empty()
-        && checked_block_log(connection, organization, block, &entries)?
+    let standing = stored_block_log(connection, organization, block)?.is_some_and(|checked| {
+        checked
             .offered
-            .is_some_and(|(account, _)| account == to.into_bytes());
+            .is_some_and(|(account, _)| account == to.into_bytes())
+    });
     Ok(standing.then_some((to, from)))
 }
 
@@ -1096,24 +1235,9 @@ pub(crate) fn administrator_signing(
     organization: Uuid,
     account: Uuid,
 ) -> Result<Option<SigningPublic>, ServerError> {
-    let entries = entries(
-        connection,
-        LogKind::Organization,
-        organization,
-        organization,
-    )?;
-    let Some(pinned) = entries.first().map(Entry::hash) else {
+    let Some(checked) = checked_organization_log(connection, organization)? else {
         return Ok(None);
     };
-    let checked = checked(
-        LogKind::Organization,
-        organization,
-        organization,
-        pinned,
-        &entries,
-        &|_| None,
-    )
-    .map_err(|_| ServerError::Corrupt)?;
     Ok(checked.manager(LogKind::Organization, account.into_bytes()))
 }
 
@@ -1123,25 +1247,18 @@ pub(crate) fn checked_organization_log(
     connection: &Connection,
     organization: Uuid,
 ) -> Result<Option<Checked>, ServerError> {
-    let entries = entries(
+    match checked_stored(
         connection,
         LogKind::Organization,
         organization,
         organization,
-    )?;
-    let Some(pinned) = entries.first().map(Entry::hash) else {
-        return Ok(None);
-    };
-    checked(
-        LogKind::Organization,
-        organization,
-        organization,
-        pinned,
-        &entries,
+        None,
         &|_| None,
-    )
-    .map(Some)
-    .map_err(|_| ServerError::Corrupt)
+    ) {
+        Ok(checked) => Ok(checked),
+        Err(NotChecked::Storage(error)) => Err(error),
+        Err(NotChecked::Refused) => Err(ServerError::Corrupt),
+    }
 }
 
 /// The hash of the organization's log's head: none for one with no log.
@@ -1149,15 +1266,13 @@ pub(crate) fn organization_head(
     connection: &Connection,
     organization: Uuid,
 ) -> Result<Option<[u8; 32]>, ServerError> {
-    let head = entries(
+    Ok(stored_head(
         connection,
         LogKind::Organization,
         organization,
         organization,
     )?
-    .last()
-    .map(Entry::hash);
-    Ok(head)
+    .map(|stored| stored.head))
 }
 
 /// Appends `record`, signed by `signer`, to the organization's log once it checks at its head,
@@ -1179,34 +1294,13 @@ fn append_organization(
     {
         return Err(refused("a record names the keys its account holds now"));
     }
-    let mut entries = entries(
+    append_stored(
         connection,
         LogKind::Organization,
         organization,
         organization,
-    )?;
-    let pinned = entries
-        .first()
-        .map(Entry::hash)
-        .ok_or_else(|| refused("the organization has no access log"))?;
-    let position = entries.len();
-    entries.push(entry.clone());
-    checked(
-        LogKind::Organization,
-        organization,
-        organization,
-        pinned,
-        &entries,
-        &|_| None,
-    )
-    .map_err(|_| refused("the record does not follow the log it goes in"))?;
-    insert_entry(
-        connection,
-        LogKind::Organization,
-        organization,
-        organization,
-        position,
         &entry,
+        "the record does not follow the log it goes in",
     )
 }
 
