@@ -267,6 +267,15 @@ interface types {
         parts: list<loaded-part>,
     }
 
+    /// A submission a replica made of its local edits: its counter under the
+    /// replica's origin, the last local edit it holds (`through`), and its
+    /// payload as the module wrote it.
+    record kept-submission {
+        counter: u64,
+        through: u64,
+        payload: list<u8>,
+    }
+
     record status {
         head: option<commit-id>,
         /// Holds the lease, so seals.

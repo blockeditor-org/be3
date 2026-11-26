@@ -621,6 +621,7 @@ impl Inner {
             }
             Call::Send { reply, .. }
             | Call::RebaseJournal { reply, .. }
+            | Call::KeepCarried { reply, .. }
             | Call::Claim { reply }
             | Call::ReportStatus { reply, .. }
             | Call::InStepAt { reply, .. }

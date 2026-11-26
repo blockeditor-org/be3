@@ -6,8 +6,8 @@ package be3:block-type@0.1.0;
 /// request has that request as its parent (only `read-part`).
 interface host {
     use types.{
-        along, announcement, byte-range, commit-id, description, journal-base, load-error, loaded,
-        log-page, merging,
+        along, announcement, byte-range, commit-id, description, journal-base, kept-submission,
+        load-error, loaded, log-page, merging,
         submission, part-ref, recipients, resume, status, written,
     };
     use be3:shared/ids@0.1.0.{uuid};
@@ -162,6 +162,15 @@ interface host {
         /// order passed over.
         refused(string),
     }
+
+    /// The submissions of the local edits this replica carried over a
+    /// restart of the order (`status.restarts`, reported first), made as it
+    /// carried them and submitted in turn: the host keeps them with those
+    /// submitted (`opening.kept-submissions`), not as sent. Opened again
+    /// after a stop, a replica sends each carried edit as it holds it, since
+    /// the edits given again as typed were made on content the restart
+    /// replaced.
+    keep-carried: async func(submissions: list<kept-submission>);
 
     /// The journal starts from `base` with no new commit: the last one out
     /// restarting it, or a new build starting it over. `restarts` is the run

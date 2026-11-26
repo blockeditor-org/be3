@@ -63,15 +63,14 @@ Fixed items are removed as they land.
   counts exactly what was made through it, or the walk removed with a test that
   shows every seal on the journal's base trims it.
 
-- **A prose edit carried over a restart behind one in flight is lost.** An edit
-  typed before a restart, still waiting behind one in flight, and given again as
-  typed after the reopen applies nowhere: the restart reloads the whole text with
-  new positions, and the edit's carried form existed only in the crashed process.
-  The host keeps it under the replica's latest restart, so the reopened replica
-  doesn't mark it stale either, and it is dropped silently. Done: the host keeps
-  each edit's restart (or its carried form), and a be-block-type-host test on the
-  text type restarts with an edit queued behind one in flight and finds both
-  applied.
+- **A large edit carried over a restart is lost across a crash.** A replica makes
+  and has the host keep the submission of each edit it carries over a restart of
+  the order (`Replica::keep_carried`), but not of one that goes by a part, whose
+  part is not put yet: given again as typed after a stop, it was made on content
+  the restart replaced and applies nowhere. Done: a carried edit by a part is
+  kept too (its part put first, or its carried bytes kept), and a
+  be-block-type-host test restarts the text type with a large paste queued
+  behind one in flight and finds both applied after a crash.
 
 ## 12. Large folders
 
