@@ -39,8 +39,7 @@ impl<S: ObjectStore> Peer<S> {
         if self.keys.outdated(key, scope_of(&summary)?) {
             return Ok(false);
         }
-        self.seal_waiting_again(block, key, None).await?;
-        Ok(true)
+        self.seal_waiting_again(block, key, None).await
     }
 
     /// Stamps the commits of `block` waiting in the outbox again, when the server refused one
@@ -79,8 +78,7 @@ impl<S: ObjectStore> Peer<S> {
                 back: newest - latest,
             }),
         )
-        .await?;
-        Ok(true)
+        .await
     }
 
     fn waiting_publishes(&self, block: Uuid) -> Vec<(u64, Pending)> {
@@ -95,28 +93,34 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// Seals every commit of `block` waiting in the outbox again under `key`, each on the
-    /// commits it went on as sealed again and `retime` moving its time, and puts them in their
-    /// places in one refs write. A seal of the block that lands meanwhile is among them next
-    /// time round: the refs take the rewrite only while the outbox holds what it read
-    /// (`Refs::replace_publishes`).
+    /// commits it went on as sealed again and `retime` moving its time (never before a commit it
+    /// follows), and puts them in their places in one refs write, which keeps what replaced
+    /// what. A seal of the block that lands meanwhile is among them next time round: the refs
+    /// take the rewrite only while the outbox holds what it read (`Refs::replace_publishes`),
+    /// and one that comes after goes on the replacements (`Refs::push_publish`). False if seals
+    /// kept landing through four tries: the caller sets the block aside, as for any rewrite
+    /// that cannot be made.
     async fn seal_waiting_again(
         &self,
         block: Uuid,
         key: Uuid,
         retime: Option<Retime>,
-    ) -> Result<(), ClientError> {
-        loop {
+    ) -> Result<bool, ClientError> {
+        for _ in 0..4 {
             let waiting = self.waiting_publishes(block);
             let mut moved: HashMap<CommitId, CommitId> = HashMap::new();
             let mut times: HashMap<CommitId, i64> = HashMap::new();
             let mut rewritten = Vec::with_capacity(waiting.len());
             for (sequence, pending) in waiting {
-                let parents_at = pending
-                    .parents
-                    .iter()
-                    .filter_map(|parent| times.get(&moved.get(parent).copied().unwrap_or(*parent)))
-                    .copied()
-                    .max();
+                // The commits it follows, as stamped again, or as this device holds them.
+                let mut parents_at = None;
+                for parent in &pending.parents {
+                    let at = match moved.get(parent) {
+                        Some(again) => times.get(again).copied(),
+                        None => self.commits.try_get(*parent)?.map(|commit| commit.time),
+                    };
+                    parents_at = parents_at.max(at);
+                }
                 let time = match retime {
                     Some(retime) if pending.time > retime.latest => {
                         pending.time.saturating_sub(retime.back)
@@ -130,45 +134,18 @@ impl<S: ObjectStore> Peer<S> {
                 rewritten.push((sequence, pending.commit, again));
             }
             self.commits.vault().store().sync()?;
-            if !self.refs.replace_publishes(block, rewritten, &moved)? {
-                continue;
+            if self.refs.replace_publishes(block, rewritten, &moved)? {
+                return Ok(true);
             }
-            let mut resealed = self.resealed.lock().unwrap();
-            // A write a replica bases on a commit sealed again goes on the one in its place.
-            for (before, after) in &moved {
-                resealed.insert(*before, *after);
-            }
-            return Ok(());
         }
+        Ok(false)
     }
 
-    /// The commits `commit` was sealed again in the place of in this run (`reseal`), for a
-    /// host whose replica kept them: they reach the server as it does.
+    /// The commits `commit` was sealed again in the place of (`reseal`, `restamp`), as the refs
+    /// keep them across restarts, for a host whose replica kept them: they reach the server as
+    /// it does.
     pub fn resealed_as(&self, commit: CommitId) -> Vec<CommitId> {
-        let resealed = self.resealed.lock().unwrap();
-        let mut found = vec![commit];
-        let mut next = 0;
-        while let Some(after) = found.get(next).copied() {
-            next += 1;
-            found.extend(
-                resealed
-                    .iter()
-                    .filter(|(_, into)| **into == after)
-                    .map(|(before, _)| *before),
-            );
-        }
-        found.remove(0);
-        found
-    }
-
-    /// The commit sealed again in `commit`'s place (`reseal`), or `commit` itself.
-    pub(super) fn resealed(&self, commit: CommitId) -> CommitId {
-        let resealed = self.resealed.lock().unwrap();
-        let mut commit = commit;
-        while let Some(after) = resealed.get(&commit) {
-            commit = *after;
-        }
-        commit
+        self.refs.replaced_by(commit)
     }
 
     /// `pending`, its content, commit, metadata and journal state sealed again under `key`, on

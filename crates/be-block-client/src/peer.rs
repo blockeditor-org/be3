@@ -423,9 +423,10 @@ pub struct Peer<S: ObjectStore> {
     /// The scope logs read in this run to judge each key (`Peer::outdated`), each asked for
     /// once.
     log_reads: Mutex<HashSet<(Uuid, Uuid)>>,
-    /// Each commit waiting in the outbox that was sealed again in this run (`Peer::reseal`),
-    /// with the one in its place: a write on the first goes on the second.
-    resealed: Mutex<HashMap<CommitId, CommitId>>,
+    /// How far this device's clock reads past `now_milliseconds` (`local_now`): a test's fast
+    /// clock, beside a server in the same process that reads the true one.
+    #[cfg(test)]
+    clock_ahead: std::sync::atomic::AtomicI64,
     /// The whole access logs served in this run, those read last, by log (the organization's
     /// under its id): a read names the last entry held and is sent only the
     /// entries after it (`served_access`).
@@ -677,7 +678,8 @@ impl<S: ObjectStore> Peer<S> {
             account_records: false,
             settled_here: Mutex::new(HashSet::new()),
             log_reads: Mutex::new(HashSet::new()),
-            resealed: Mutex::new(HashMap::new()),
+            #[cfg(test)]
+            clock_ahead: std::sync::atomic::AtomicI64::new(0),
         };
         for summary in peer.refs.summaries() {
             if let Some(key) = summary.key {
@@ -714,7 +716,7 @@ impl<S: ObjectStore> Peer<S> {
     /// (`be_block_commit::commit_time`).
     pub fn commit_time(&self, parent: Option<&Commit>) -> i64 {
         be_block_commit::commit_time(
-            now_milliseconds(),
+            self.local_now(),
             self.server_now(),
             parent.map(|parent| parent.time),
         )
@@ -722,7 +724,24 @@ impl<S: ObjectStore> Peer<S> {
 
     /// The latest commit time this device believes (`be_block_commit::latest_believed`).
     pub fn latest_believed(&self) -> i64 {
-        be_block_commit::latest_believed(now_milliseconds(), self.server_now())
+        be_block_commit::latest_believed(self.local_now(), self.server_now())
+    }
+
+    /// This device's clock, which commits are stamped by until the server's is measured.
+    pub(crate) fn local_now(&self) -> i64 {
+        #[cfg(test)]
+        return now_milliseconds()
+            .saturating_add(self.clock_ahead.load(std::sync::atomic::Ordering::Relaxed));
+        #[cfg(not(test))]
+        now_milliseconds()
+    }
+
+    /// Makes this device's clock read `ahead` past the true one (`local_now`), as a device
+    /// whose clock runs fast; the server, and every other peer in the process, keep theirs.
+    #[cfg(test)]
+    pub(crate) fn set_clock_ahead(&self, ahead: i64) {
+        self.clock_ahead
+            .store(ahead, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// The server's clock now, as estimated: from when this run's session opened by the
@@ -743,14 +762,14 @@ impl<S: ObjectStore> Peer<S> {
             }
             _ => held
                 .offset
-                .map(|offset| now_milliseconds().saturating_add(offset)),
+                .map(|offset| self.local_now().saturating_add(offset)),
         }
     }
 
     /// Takes the server's clock it answered with as the session opened, unless it would pull
     /// commit times back too far (`be_block_commit::trusts_measurement`).
     fn measured_server(&self, server: i64, clock: &crate::Clock) {
-        let local = now_milliseconds();
+        let local = self.local_now();
         if !be_block_commit::trusts_measurement(local, server) {
             return;
         }
@@ -3836,9 +3855,9 @@ impl<S: ObjectStore> Peer<S> {
             };
         }
         // A write on a commit sealed again since (`reseal`) goes on the one in its place.
-        write.expected = write.expected.map(|expected| self.resealed(expected));
+        write.expected = write.expected.map(|expected| self.refs.replaced(expected));
         if let Some((_, ours)) = &mut write.merging {
-            *ours = self.resealed(*ours);
+            *ours = self.refs.replaced(*ours);
         }
         let (manifest, extra_parents, metadata) = self.prepare_write(block, &mut write).await?;
         let Write {
@@ -3870,6 +3889,7 @@ impl<S: ObjectStore> Peer<S> {
         {
             return Ok(Sealed::Unchanged(expected.expect("a previous commit")));
         }
+        let mut expected = expected;
         let mut parents: Vec<_> = expected.into_iter().collect();
         let mut chunks = self.objects_of(&manifest).await?;
         let mut listed = references.clone();
@@ -3891,8 +3911,7 @@ impl<S: ObjectStore> Peer<S> {
         };
         // Into the outbox, judged again before it is sent (`send_pending`).
         let key = self.sealing_key_kept(block).await?;
-        let commit = Commit::new(manifest, self.account, time)
-            .with_parents(parents.clone())
+        let made = Commit::new(manifest, self.account, time)
             .with_kind(kind)
             .with_references(references.clone())
             .with_metadata(encoded)
@@ -3904,42 +3923,69 @@ impl<S: ObjectStore> Peer<S> {
                     signature: signed.signature,
                 }
             }));
-        let id = self.commits.put(key, &commit)?;
         let sealed = self.commits.vault().seal(key, &metadata.encode())?;
-        let journal = journal
-            .map(|seal| {
-                Ok::<_, ClientError>(JournalSeal {
-                    tag: seal.tag,
-                    run: seal.run,
-                    base: JournalBase {
-                        commit: Some(id),
-                        sequence: seal.through,
-                        state: self.commits.vault().seal(key, &seal.state)?,
-                        parts: seal.parts.clone(),
-                    },
+        // A commit it goes on may be sealed again (`reseal`, `restamp`) while this one is made:
+        // the refs refuse it then, and it goes on the replacement instead.
+        let mut tries = 0;
+        let id = loop {
+            let commit = made.clone().with_parents(parents.clone());
+            let id = self.commits.put(key, &commit)?;
+            let journal = journal
+                .as_ref()
+                .map(|seal| {
+                    Ok::<_, ClientError>(JournalSeal {
+                        tag: seal.tag,
+                        run: seal.run,
+                        base: JournalBase {
+                            commit: Some(id),
+                            sequence: seal.through,
+                            state: self.commits.vault().seal(key, &seal.state)?,
+                            parts: seal.parts.clone(),
+                        },
+                    })
                 })
-            })
-            .transpose()?;
-        self.commits.vault().store().sync()?;
-        let queued = self.refs.push_publish(Pending {
-            block,
-            commit: id,
-            expected,
-            parents,
-            chunks,
-            time,
-            pinned,
-            references: listed,
-            metadata: sealed.clone(),
-            journal,
-        })?;
-        // Discarded while it was sealed: as if the discard had come first.
-        if queued.is_none() {
-            return match expected {
-                Some(head) => Ok(Sealed::Unchanged(head)),
-                None => Err(ClientError::Discarded(block)),
-            };
-        }
+                .transpose()?;
+            self.commits.vault().store().sync()?;
+            let pushed = self.refs.push_publish(Pending {
+                block,
+                commit: id,
+                expected,
+                parents: parents.clone(),
+                chunks: chunks.clone(),
+                time,
+                pinned,
+                references: listed.clone(),
+                metadata: sealed.clone(),
+                journal,
+            })?;
+            match pushed {
+                crate::refs::Pushed::Queued(_) => break id,
+                // Discarded while it was sealed: as if the discard had come first.
+                crate::refs::Pushed::Dropped => {
+                    return match expected {
+                        Some(head) => Ok(Sealed::Unchanged(head)),
+                        None => Err(ClientError::Discarded(block)),
+                    };
+                }
+                crate::refs::Pushed::OnReplaced if tries < 4 => {
+                    tries += 1;
+                    let moved: Vec<(CommitId, CommitId)> = parents
+                        .iter()
+                        .map(|parent| (*parent, self.refs.replaced(*parent)))
+                        .collect();
+                    expected = expected.map(|head| self.refs.replaced(head));
+                    for (parent, (was, now)) in parents.iter_mut().zip(&moved) {
+                        *parent = *now;
+                        if was != now
+                            && let Some(chunk) = chunks.iter_mut().find(|hash| **hash == was.hash())
+                        {
+                            *chunk = now.hash();
+                        }
+                    }
+                }
+                crate::refs::Pushed::OnReplaced => return Err(ClientError::Contended),
+            }
+        };
         if !self.is_attached()
             && let Some(mut summary) = self.refs.summary(block)
         {
