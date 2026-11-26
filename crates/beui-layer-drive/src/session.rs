@@ -43,11 +43,14 @@ const PAUSE_FRAMES: u32 = 64;
 const CLIPBOARD_WAIT: Duration = Duration::from_secs(5);
 
 pub const USAGE: &str = "Session:
-  settle                    wait until nothing is left to draw
+  settle                    wait until nothing is left to draw; --no-settle settle runs one frame
   pause MILLISECONDS        let that much time pass, by the program's clock
   clock stop / clock run    stop the program's clock, so time passes only with pause, frame by frame
   hurry off / hurry on      stop or start the program's shortcuts for a driven run, such as saving at once,
                             so it waits as it does for a person
+  present late / present now  take in what the program's own programs present (be-host's apps)
+                            only at the next frame, so a frame is drawn between an app's layout
+                            and its present; or as soon as it comes
   frames                    how many frames ran since the last frames, and the longest one's wall time:
                             the window's, and those the program ran elsewhere, such as an app's
   close                     ask the window to close, as its close button does; a program that stays
@@ -172,8 +175,8 @@ enum Kind {
 
 fn kind(command: &str) -> Option<Kind> {
     Some(match command {
-        "help" | "settle" | "pause" | "clock" | "hurry" | "frames" | "close" | "synced"
-        | "offline" | "network" => Kind::Session,
+        "help" | "settle" | "pause" | "clock" | "hurry" | "present" | "frames" | "close"
+        | "synced" | "offline" | "network" => Kind::Session,
         "tree" | "ids" | "find" | "comps" | "hit" | "actions" | "act" | "a11y" | "wait" | "env"
         | "windows" | "paint" | "overflows" => Kind::Reading,
         // Old names, here only so the parser refuses them with a pointer to the new forms.
@@ -508,6 +511,7 @@ struct Session {
     /// program is quiet.
     in_step_due: Option<Instant>,
     unhurried: bool,
+    presents_late: bool,
     focused: bool,
     picks: Vec<(u64, FilePickRequest, FilePickAnswer)>,
     saves: Vec<(u64, FileSaveRequest, FileSaveAnswer)>,
@@ -547,6 +551,7 @@ impl Session {
             quiet: true,
             in_step_due: None,
             unhurried: false,
+            presents_late: false,
             focused: true,
             picks: Vec::new(),
             saves: Vec::new(),
@@ -1053,8 +1058,16 @@ impl Session {
         let reply = match failed {
             Some(error) => Some(Reply::Error(error)),
             None => match &mut active.phase {
-                Phase::Settling { before } | Phase::Closing { before }
-                    if quiet || (immediate && before.is_some()) =>
+                // `--no-settle settle` steps one frame.
+                Phase::Settling { before } if quiet || immediate => {
+                    Some(Reply::Text(match (before.as_deref(), limit) {
+                        (None, _) | (Some(_), Some(0)) => String::new(),
+                        (Some(before), limit) => {
+                            capped(changes(before.text(), view.rendered().text()), limit)
+                        }
+                    }))
+                }
+                Phase::Closing { before } if quiet || (immediate && before.is_some()) =>
                 {
                     Some(Reply::Text(match (before.as_deref(), limit) {
                         (None, _) | (Some(_), Some(0)) => String::new(),
@@ -1368,6 +1381,15 @@ impl Session {
                     other => return Err(format!("hurry takes on or off, not {other}")),
                 };
                 frame.context.set_hurried(!self.unhurried);
+                Ok(Started::Phase(Phase::Settling { before: None }))
+            }
+            "present" => {
+                self.presents_late = match argument(0)? {
+                    "late" => true,
+                    "now" => false,
+                    other => return Err(format!("present takes late or now, not {other}")),
+                };
+                frame.context.set_presents_late(self.presents_late);
                 Ok(Started::Phase(Phase::Settling { before: None }))
             }
             other => Err(format!("unknown command {other}\n{USAGE}")),
@@ -1912,6 +1934,9 @@ impl Session {
         }
         if self.unhurried {
             text.push_str("hurry off: the program waits as it does for a person\n");
+        }
+        if self.presents_late {
+            text.push_str("present late: apps' presents are taken in at the next frame\n");
         }
         if let Some(progress) = gestures.back {
             text.push_str(&format!("back gesture at {progress}\n"));

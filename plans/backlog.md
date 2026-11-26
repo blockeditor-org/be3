@@ -17,6 +17,14 @@ Fixed items are removed as they land.
   form (a path through the hosting tab, or each bar's slot across layers).
   Done: both survive a save and restore, shown by a beui-host dock test.
 
+- **A stacked dock's old bar over the child that replaced it.** On a phone, with presents
+  late (`drive present late`), the frame after a document is opened from the files shows the
+  files' bar over the document's undrawn view: the children of the root's layout are applied
+  before the present that paints its new bar (frame 2 of
+  `on_a_phone_opening_a_document_from_the_files_steps_frame_by_frame_with_presents_late`), as
+  happens whenever a present misses its frame. Done: that frame shows the files under their
+  own bar, or the document's bar over its view, and the painting is accepted again.
+
 ## 3. beui platforms
 
 - **A live resize on macOS.** `CAMetalLayer`'s default `contentsGravity` (resize) may stretch
@@ -392,18 +400,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   `be_root_in_place_of_the_hosts_ui_shows_the_children_its_session_places`, `..._lands_a_block_dragged_from_the_files_on_a_canvas`
   and `..._shows_a_picker_a_canvas_places` (50 of 50 each, 6 at a time with `--apart`), which
   verify has seen fail too: their next failure's output is what to read.
-
-## 16. Host test tools
-
-- **Stepping an app's present apart from the poll.** With the clock stopped,
-  `drive` runs each frame only once the apps have answered, so an app's
-  present and the `poll` that applies its held children always land in the
-  same host frame. A host test can't show a frame drawn between them (a
-  stacked dock's bar over the children it replaces); only the runtime's unit
-  test `a_frame_whose_children_wait_for_the_poll_is_shown_with_them` does.
-  Done: a `drive` step that lets an app's present arrive before the next poll,
-  and a host test at phone size that opens a document from the files and
-  shows each frame between.
 
 ## 17. Dragging
 

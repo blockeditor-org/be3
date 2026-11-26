@@ -579,6 +579,25 @@ impl HostTest {
         }
     }
 
+    /// Adds what the window shows now to the recording, without settling first: a frame of a
+    /// sequence stepped one at a time (`--no-settle settle`), which the next `snapshot` ends.
+    pub fn record_frame(&mut self) {
+        let mut words = vec!["paint"];
+        words.extend(self.crop.as_deref());
+        self.steps
+            .push(line(&words).replacen("paint", "paint painted.paint", 1));
+        let painted = match self.driven().request(&words) {
+            Ok(Reply::Painting(bytes)) => Painting::decode(&bytes).and_then(Snapshot::of_painting),
+            Ok(_) => Err("paint answered with something other than a painting".to_owned()),
+            Err(error) => Err(error),
+        };
+        let painted = painted.unwrap_or_else(|error| self.fail(&error));
+        match &mut self.recorded {
+            Some(recorded) => recorded.append(painted),
+            None => self.recorded = Some(painted),
+        }
+    }
+
     pub fn snapshot(&mut self, name: &str) {
         self.record();
         let recorded = self.recorded.take().expect("a painting was just recorded");

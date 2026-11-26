@@ -213,6 +213,7 @@ pub(crate) fn begin(context: &beui::native::Context) {
         wall: Some(beui::reactive::wall_clock()),
         seen: context.seen(),
         clock_stopped: context.clock_stopped(),
+        presents_late: context.presents_late(),
         ..Frame::default()
     };
     frame.preferences = context.preferences();
