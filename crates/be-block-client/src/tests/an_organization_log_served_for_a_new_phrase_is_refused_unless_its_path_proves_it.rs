@@ -108,13 +108,11 @@ fn an_organization_log_served_for_a_new_phrase_is_refused_unless_its_path_proves
         forged(&answer(organization, [5; 32], Some(&steps))),
         "a path that does not hold the head named is forged"
     );
-    let reduced_promotion = vec![
-        root.clone().into(),
-        Step::Reduced(promotion.reduced()),
-        demotion.clone().into(),
-    ];
+    // The deputy's own promotion reduced: the path reaches the head, hides no lowering, and
+    // would name them no level there.
+    let reduced_promotion = vec![root.clone().into(), Step::Reduced(promotion.reduced())];
     assert!(
-        forged(&answer(organization, demoted, Some(&reduced_promotion))),
+        forged(&answer(organization, promoted, Some(&reduced_promotion))),
         "a path that reduces an administrator record is forged"
     );
     assert!(
