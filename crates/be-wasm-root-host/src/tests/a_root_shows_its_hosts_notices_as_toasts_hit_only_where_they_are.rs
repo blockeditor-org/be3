@@ -182,6 +182,7 @@ fn draw(root: &mut Root, time: u64) -> FrameDone {
             time,
             wall_clock: 0,
             utc_offset: 0,
+            preferences: Default::default(),
             window: window(),
             describe: false,
         },

@@ -16,6 +16,7 @@ fn describe(root: &mut Root, time: u64, tree: &mut HashMap<NodeId, Node>) {
                 time,
                 wall_clock: 0,
                 utc_offset: 0,
+                preferences: Default::default(),
                 window: window(),
                 describe: true,
             },

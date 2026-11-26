@@ -374,6 +374,7 @@ impl RootShell {
             time: nanos(time),
             wall_clock: nanos(beui::reactive::wall_clock()),
             utc_offset: be_host_base::platform::utc_offset(),
+            preferences: be_sdk_api::ops::encode(&context.preferences()),
             window: WindowSize {
                 width: area.width(),
                 height: area.height(),
@@ -571,6 +572,12 @@ impl beui::native::Program for RootShell {
             Host::before(context, rect, &mut self.document);
         }
         self.core.frame();
+        // The display settings' preferences (the theme among them) over the system's, as
+        // be-host's own UI applies them (`Shell::update`): the root is told them as resolved.
+        self.core.sync_ui_settings();
+        if let Some(preferences) = self.core.preferences.take() {
+            context.set_preference_layer(beui::PreferenceSource::Program, preferences);
+        }
         // Programs own their windows' input while the session's editor shows, as be-host's own
         // UI says while it shows the organization's screen.
         let owned = self.core.desktop && self.core.root_session.is_some();

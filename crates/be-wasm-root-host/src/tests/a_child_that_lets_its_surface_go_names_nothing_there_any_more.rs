@@ -10,6 +10,7 @@ fn a_child_that_lets_its_surface_go_names_nothing_there_any_more() {
                     time: PAINTS,
                     wall_clock: 0,
                     utc_offset: 0,
+                    preferences: Default::default(),
                     window: window(),
                     describe: false,
                 },

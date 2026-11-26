@@ -472,6 +472,17 @@ impl Root {
         self.palette_resize(whole, raster);
     }
 
+    /// Draws its own surfaces in the person's preferences as the host resolves them: each draws
+    /// again once they change.
+    fn prefer(&self, preferences: be_lib_ui_types::Preferences) {
+        let Some(beui) = &*self.beui.borrow() else {
+            return;
+        };
+        if beui.set_preferences(preferences) {
+            self.each_surface(&mut |surface| surface.enter(|| ()));
+        }
+    }
+
     /// Hands beui the host's clocks for the frame, and makes its surfaces the first time: its
     /// own, filled with `ROOT_COLOR`, and its toasts, which beui draws in the host's fonts.
     async fn own(&self, time: Duration, wall_clock: Duration) -> Result<(), String> {
@@ -1505,9 +1516,12 @@ impl frames::Guest for Root {
                 Duration::from_nanos(request.wall_clock),
                 request.utc_offset,
             );
+            let preferences = be_wasm_ops::decode(&request.preferences).unwrap_or_default();
+            be_sdk_root::set_preferences(preferences);
             root.own(time, Duration::from_nanos(request.wall_clock))
                 .await
                 .expect("the root's host gives it fonts and a device to draw its own surface on");
+            root.prefer(preferences);
             root.settle_dialog()
                 .expect("the root draws its dialog with beui");
             root.settle_lock()

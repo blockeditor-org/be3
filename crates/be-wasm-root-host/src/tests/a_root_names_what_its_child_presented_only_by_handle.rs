@@ -9,6 +9,7 @@ fn a_root_names_what_its_child_presented_only_by_handle() {
                 time: PAINTS,
                 wall_clock: 0,
                 utc_offset: 0,
+                preferences: Default::default(),
                 window: window(),
                 describe: false,
             },

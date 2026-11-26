@@ -22,6 +22,7 @@ fn input_reaches_the_child_under_it_by_the_layers_drawn_last() {
                 time,
                 wall_clock: 0,
                 utc_offset: 0,
+                preferences: Default::default(),
                 window: window(),
                 describe: false,
             },

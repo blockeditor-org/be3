@@ -1432,6 +1432,12 @@ interface frames {
         /// The host's time zone at `wall-clock`: seconds east of UTC, which a
         /// root adds to it to show the person's local time.
         utc-offset: s32,
+        /// The person's preferences as the host resolves them (its display
+        /// settings, the theme among them, over the system's), which the root
+        /// draws in and tells the apps it embeds: be-sdk-api's `Preferences`
+        /// in be-wasm-ops' encoding (`be_wasm_ops::encode`), as `host.fonts`
+        /// answers its record; the defaults for empty.
+        preferences: list<u8>,
         /// The host's one window as it is drawn this frame, which the root
         /// lays its surfaces out in. One window is the case until the
         /// compositor's own windows come (plans/host_as_platform_adapter.md,

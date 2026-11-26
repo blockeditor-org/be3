@@ -10,6 +10,7 @@ fn a_frame_waits_for_its_child_and_shows_it() {
                     time,
                     wall_clock: 0,
                     utc_offset: 0,
+                    preferences: Default::default(),
                     window: window(),
                     describe: false,
                 },
