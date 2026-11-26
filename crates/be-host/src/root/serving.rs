@@ -233,20 +233,12 @@ pub(super) fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors
             Ok(frames) => root.relay(instance, frames),
             Err(why) => {
                 // Stopped toward the root too, which shows that it stopped.
-                if let Some(mut forwarded) = served.remove(&instance) {
-                    forwarded.close_all();
-                }
+                served.remove(&instance);
                 root.stop_instance(instance, &format!("it broke the app protocol: {why}"));
             }
         }
     }
-    served.retain(|instance, forwarded| {
-        let kept = root.app_of(*instance).is_some();
-        if !kept {
-            forwarded.close_all();
-        }
-        kept
-    });
+    served.retain(|instance, _| root.app_of(*instance).is_some());
     editors.opened.retain(|(instance, editor), opened| {
         let kept = served.contains_key(instance);
         if !kept {
@@ -781,11 +773,67 @@ pub(super) fn unlisted_yet(core: &crate::HostCore, block: [u8; 16]) -> bool {
     (core.root_session_pending || reading) && be_host_stack::node(block).is_none()
 }
 
+/// The `Forwarded` be-host serves for each of the root's instances. Each leaves only by being
+/// closed (`Forwarded::close_all`), which an app that goes with its editors open must do before
+/// it is dropped, so this has no way to let one go without: `remove`, `retain` and `close_all`
+/// close what they let go of, and dropping the whole is left to `close_all` alone.
+#[derive(Default)]
+pub(super) struct Served(HashMap<u64, Forwarded>);
+
+impl Served {
+    pub(super) fn get_or_insert_with(
+        &mut self,
+        instance: u64,
+        make: impl FnOnce() -> Forwarded,
+    ) -> &mut Forwarded {
+        self.0.entry(instance).or_insert_with(make)
+    }
+
+    pub(super) fn get_mut(&mut self, instance: &u64) -> Option<&mut Forwarded> {
+        self.0.get_mut(instance)
+    }
+
+    pub(super) fn iter_mut(&mut self) -> impl Iterator<Item = (&u64, &mut Forwarded)> {
+        self.0.iter_mut()
+    }
+
+    /// Stops serving `instance`, closing its editors first.
+    pub(super) fn remove(&mut self, instance: &u64) {
+        if let Some(mut forwarded) = self.0.remove(instance) {
+            forwarded.close_all();
+        }
+    }
+
+    /// Stops serving the instances `keep` says no to, closing their editors first.
+    pub(super) fn retain(&mut self, mut keep: impl FnMut(&u64, &Forwarded) -> bool) {
+        self.0.retain(|instance, forwarded| {
+            let kept = keep(instance, forwarded);
+            if !kept {
+                forwarded.close_all();
+            }
+            kept
+        });
+    }
+
+    /// Stops serving every instance, closing their editors first.
+    pub(super) fn close_all(&mut self) {
+        self.retain(|..| false);
+    }
+}
+
+impl std::ops::Deref for Served {
+    type Target = HashMap<u64, Forwarded>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 /// The editors be-host serves the root's apps, by the root's instance each runs in, and the
 /// root's asks for editors of blocks the stack does not list yet, which wait until it does.
 #[derive(Default)]
 pub(super) struct Editors {
-    pub(super) served: HashMap<u64, Forwarded>,
+    pub(super) served: Served,
     /// Each editor opened, by the root's instance and the editor: what its app's manifest says
     /// of it, for the statuses of the children it shows.
     pub(super) opened: HashMap<(u64, u64), OpenedFor>,
@@ -852,7 +900,7 @@ pub(super) struct RootCreation {
 /// changed how far it got, which its placer's status says.
 pub(super) fn step_creations(
     opened: &mut HashMap<(u64, u64), OpenedFor>,
-    served: &mut HashMap<u64, Forwarded>,
+    served: &mut Served,
 ) -> bool {
     let mut changed = false;
     for ((instance, editor), opened) in opened.iter_mut() {
@@ -903,7 +951,7 @@ pub(super) fn step_creations(
 pub(super) fn close_window(
     core: &crate::HostCore,
     shown: &HashMap<(u64, u64, u64), Vec<be_wasm_root_api::ShownChild>>,
-    served: &HashMap<u64, Forwarded>,
+    served: &Served,
     placer: (u64, u64),
     child: ChildId,
 ) {
@@ -938,7 +986,7 @@ pub(super) fn window_status(window: u64) -> Option<WindowStatus> {
 /// worded, which it notes as worded; it forgets the views no longer shown.
 pub(super) fn windows_restated(
     shown: &HashMap<(u64, u64, u64), Vec<be_wasm_root_api::ShownChild>>,
-    served: &HashMap<u64, Forwarded>,
+    served: &Served,
     worded: &mut HashMap<(u64, u64, u64), Vec<Option<WindowStatus>>>,
 ) -> Vec<(u64, u64, u64)> {
     worded.retain(|view, _| shown.contains_key(view));
@@ -981,7 +1029,7 @@ pub(super) const CHILD_OPENING: &str = "the block's editor is opening";
 pub(super) fn child_status(
     core: &crate::HostCore,
     opened: &HashMap<(u64, u64), OpenedFor>,
-    served: &HashMap<u64, Forwarded>,
+    served: &Served,
     child: &be_wasm_root_api::ShownChild,
     by_shell: bool,
 ) -> HostChildStatus {
@@ -1146,7 +1194,7 @@ pub(super) fn window_child_status(
 pub(super) fn open_editor(
     core: &crate::HostCore,
     opening: &EditorOpening,
-    served: &mut HashMap<u64, Forwarded>,
+    served: &mut Served,
     opened_for: &mut HashMap<(u64, u64), OpenedFor>,
 ) -> Result<OpenedEditor, String> {
     let (app, editor, shows) = shown_editor(core, &opening.shown)?;
@@ -1211,9 +1259,7 @@ pub(super) fn open_editor(
             artifact: artifact.as_ref().map(|(id, ..)| *id),
         },
     );
-    let forwarded = served
-        .entry(opening.instance)
-        .or_insert_with(|| Forwarded::new(&app));
+    let forwarded = served.get_or_insert_with(opening.instance, || Forwarded::new(&app));
     // The session's own editor is the shell, as be-host's own UI makes it (`set_shell`): what
     // only the shell hears (be3:desktop's windows, contacts, the screen's input) is its.
     if block.is_some() && block == core.root_session {

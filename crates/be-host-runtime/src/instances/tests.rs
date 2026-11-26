@@ -39,8 +39,19 @@ fn placed() -> Instances {
 }
 
 fn placed_on(block: Uuid, block_type: Uuid) -> Instances {
-    let rect = Rect::from_min_size(pos2(10.0, 10.0), SIZE);
     let mut instances = Instances::default();
+    place_editor(&mut instances, INSTANCE, block, block_type);
+    instances
+}
+
+/// Places another editor of `block` as `instance`, beside the others in `instances`.
+fn place_editor(
+    instances: &mut Instances,
+    instance: EditorInstanceId,
+    block: Uuid,
+    block_type: Uuid,
+) {
+    let rect = Rect::from_min_size(pos2(10.0, 10.0), SIZE);
     let block_types = Arc::new(crate::AppCatalog::default());
     let role = InstanceRole::Editor(
         Uuid::nil(),
@@ -51,7 +62,7 @@ fn placed_on(block: Uuid, block_type: Uuid) -> Instances {
         },
     );
     instances.report(
-        INSTANCE,
+        instance,
         View::MAIN,
         Uuid::nil(),
         role,
@@ -62,8 +73,7 @@ fn placed_on(block: Uuid, block_type: Uuid) -> Instances {
         1.0,
         PASS,
     );
-    instances.place(INSTANCE, REGION, Placement { rect, clip: rect });
-    instances
+    instances.place(instance, REGION, Placement { rect, clip: rect });
 }
 
 fn forwarded(
