@@ -54,9 +54,10 @@ interface keys {
         logs: list<signed-log>,
         /// For each organization's log among `logs`, that log from its root as
         /// the account's proof path, served though the account may no longer
-        /// be a member: the device learns from it whether the account
-        /// administers the organization as of the head its retirement follows
-        /// (`be_block_keys::Retirement::administrator`).
+        /// be a member: the device signs that its retirement retires a member
+        /// only where this proves the account does not administer the
+        /// organization as of the head it follows, and that it may administer
+        /// everywhere else (`be_block_keys::Retirement::administrator`).
         organization-logs: list<organization-path>,
     }
 
