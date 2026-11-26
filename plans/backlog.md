@@ -403,13 +403,16 @@ Peers' derived views of a held edit: plans/peers_preview_held_edits.md.
   signer's record that names a head before the revocation, or a retired key's
   that names a head before the retirement, with a be-block-keys test.
 
-- **A bound agent whose access is lowered loses the block's key.** A block's
-  bound agent given `share(View)` after it was made with Edit never opens the
-  block again ("this block is locked: its key has not been shared with this
-  account yet"), seen building be-tool-cli's terminal tests (`Setup::agent_with`
-  uses an unbound agent instead). Lowering access should keep the key it reads
-  with. Done: a be-block-client test that lowers a bound agent to View and
-  opens the block read-only.
+- **A relay refused while an editor rotates is lost.** A viewer whose epoch a
+  lowering outdated, relaying in the block's session while an editor's
+  rotation is under way, finds no newer epoch, may not rotate, and is refused
+  (`Locked`); be-block-type-host's `Replicas::relay` records the error and
+  drops the message, so what the module showed (a terminal host's presence)
+  never reaches the session. Locking the block there, as a locked read does,
+  has the keys reopen the replica, but the session still never heard the host
+  in be-tool-cli's `a_terminal_host_without_edit_access_holds_no_other_host_off`
+  with a bound agent lowered to View, which is why `Setup::agent_with` makes an
+  unbound one. Done: that test with a bound agent lowered to View.
 
 ## 27. Unread counts
 

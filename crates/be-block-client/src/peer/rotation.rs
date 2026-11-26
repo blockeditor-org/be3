@@ -79,29 +79,7 @@ impl<S: ObjectStore> Peer<S> {
             }
             self.adopt_escrows(work.escrows.clone());
         }
-        let mut keys = KeySet::default();
-        let organization = match work.unsealed.is_empty() {
-            true => None,
-            false => self.checked_organization().await.ok().flatten(),
-        };
-        let mut outdated = Vec::new();
-        for unsealed in &work.unsealed {
-            // An owner-only block's keys are its author's alone, whoever the server lists.
-            if !self.keys.trusted(unsealed.key) || self.keys.owner_only_covers(unsealed.key) {
-                continue;
-            }
-            match self
-                .sealing_target(unsealed.key, unsealed.account, organization.as_ref())
-                .await
-            {
-                Target::Seal(public) => {
-                    keys.wrapped
-                        .push(self.keys.seal_to(unsealed.key, unsealed.account, &public)?)
-                }
-                Target::Outdated(scope) if !outdated.contains(&scope) => outdated.push(scope),
-                Target::Outdated(_) | Target::Nobody => {}
-            }
-        }
+        let (mut keys, outdated) = self.seals(&work, |_| true).await?;
         for key in &work.unescrowed {
             if self.keys.trusted(*key)
                 && let Some(wrap) = self.keys.escrow_wrap(*key)?
@@ -123,6 +101,44 @@ impl<S: ObjectStore> Peer<S> {
             failed.get_or_insert(error);
         }
         failed.map_or(Ok(()), Err)
+    }
+
+    /// The seals `work` lists as due of the keys `wanted` takes, each to whom the logs say it
+    /// goes (`sealing_target`), and the scopes whose newest epoch a log outdates instead.
+    async fn seals(
+        &self,
+        work: &KeyWork,
+        wanted: impl Fn(Uuid) -> bool,
+    ) -> Result<(KeySet, Vec<Uuid>), ClientError> {
+        let mut keys = KeySet::default();
+        let due: Vec<_> = work
+            .unsealed
+            .iter()
+            .filter(|unsealed| wanted(unsealed.key))
+            .collect();
+        let organization = match due.is_empty() {
+            true => None,
+            false => self.checked_organization().await.ok().flatten(),
+        };
+        let mut outdated = Vec::new();
+        for unsealed in due {
+            // An owner-only block's keys are its author's alone, whoever the server lists.
+            if !self.keys.trusted(unsealed.key) || self.keys.owner_only_covers(unsealed.key) {
+                continue;
+            }
+            match self
+                .sealing_target(unsealed.key, unsealed.account, organization.as_ref())
+                .await
+            {
+                Target::Seal(public) => {
+                    keys.wrapped
+                        .push(self.keys.seal_to(unsealed.key, unsealed.account, &public)?)
+                }
+                Target::Outdated(scope) if !outdated.contains(&scope) => outdated.push(scope),
+                Target::Outdated(_) | Target::Nobody => {}
+            }
+        }
+        Ok((keys, outdated))
     }
 
     /// Gives a new epoch, from the top, to every scope this device holds and may edit whose
@@ -460,6 +476,16 @@ impl<S: ObjectStore> Peer<S> {
         )
         .await??;
         self.recorded(&keys);
+        // The new epochs go at once to each viewer the old ones went to, as key work lists them,
+        // rather than wait for an editor's next `tend`: a viewer whose access was lowered (the
+        // lowering is what outdated the old epoch) would otherwise be locked out of every edit
+        // made under them until then. Best-effort: the next `tend` seals what this misses.
+        let minted: Vec<Uuid> = fresh.into_values().collect();
+        if let Ok(work) = self.key_work().await
+            && let Ok((sealed, _)) = self.seals(&work, |key| minted.contains(&key)).await
+        {
+            let _ = self.put_keys(sealed).await;
+        }
         Ok(())
     }
 

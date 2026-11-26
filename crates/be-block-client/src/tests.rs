@@ -69,6 +69,7 @@ async fn upload(peer: &Peer<MemoryStore>, objects: Vec<Vec<u8>>) -> Result<(), C
 
 mod a_banned_member_is_refused_until_a_grant_lifts_the_ban;
 mod a_block_a_shared_one_links_to_shows_only_that_it_exists;
+mod a_bound_agent_lowered_to_view_still_opens_its_block;
 mod a_block_deleted_after_its_folder_was_listed_is_listed_only_as_deleted_offline;
 mod a_block_file_with_another_blocks_entry_after_its_own_does_not_read;
 mod a_block_known_only_through_a_reference_is_told_when_it_changes;
