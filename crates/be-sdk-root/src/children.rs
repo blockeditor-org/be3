@@ -256,6 +256,8 @@ pub struct Around {
     pub editor: EditorInstanceId,
     /// Its app's name.
     pub name: String,
+    /// The block it edits, which the palette names its rows after once the host names it.
+    pub block: Option<[u8; 16]>,
     /// The view of it placing the editor listed before it; none for the first.
     pub placing: Option<ViewId>,
 }
@@ -1733,6 +1735,7 @@ impl Children {
         instance: u64,
         editor: EditorInstanceId,
         outermost: &str,
+        outermost_block: Option<[u8; 16]>,
     ) -> Vec<Around> {
         let mut around = vec![(instance, editor, None)];
         while let Some((placer_app, placer, view)) = around
@@ -1754,6 +1757,10 @@ impl Children {
                 name: match at == last {
                     true => outermost.to_owned(),
                     false => self.name_of(editor).unwrap_or_default(),
+                },
+                block: match at == last {
+                    true => outermost_block,
+                    false => self.block_of(editor),
                 },
                 placing,
             })
@@ -1787,6 +1794,16 @@ impl Children {
                 _ => {}
             }
             child.editor.nested.borrow().name_of(editor)
+        })
+    }
+
+    /// The block the editor `editor` a place shows edits, any number of levels deep.
+    fn block_of(&self, editor: EditorInstanceId) -> Option<[u8; 16]> {
+        self.shown.iter().find_map(|child| {
+            if child.hosted().is_some_and(|(_, shown)| shown == editor) {
+                return child.block;
+            }
+            child.editor.nested.borrow().block_of(editor)
         })
     }
 
