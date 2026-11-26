@@ -163,6 +163,7 @@ Landed on 2026-11-24:
 - `backlog-20`: a view given the keyboard before its app has a window for it focuses once it has one, and a catcher taken down with the keyboard tells its app the view lost it.
 - `root-picker-creation-2`: the root names each app's pane after its app; what the host forwards an app the root spawned waits behind the frames that open its editors; the popover and chat web tests run under the root.
 - `backlog-24`: `./scripts/buck` restarts buck2's daemon and tries again when re-relay forgot a lost blob during a failed run.
+- `streamed-merges`: a compaction writes its merged search segments through a part sink, a window and a term at a time, so the idle pass merges tiers of any size; plans/streamed_part_writes.md steps 1-3.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
