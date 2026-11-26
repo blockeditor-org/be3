@@ -413,7 +413,10 @@ administrator record whole. That is all an editor needs: it seals to
 administrators through the escrow key, which an honest path vouches for (it
 reduces no entry that lowered anyone), and seals to a block's grantees by the
 keys the block's own log names. Readers below Edit never seal and are served proof paths
-(decisions/editors_are_served_whole_access_logs.md). No log goes to
+(decisions/editors_are_served_whole_access_logs.md). An account that left the
+organization is still served its proof path up to the current head when it
+takes a new phrase (`recovery-key`), which shows it the administrator history
+since it left and the count and timing of the other entries. No log goes to
 `KnowExists`, which anyone gets by naming an id in their own block's
 references: the log names every grantee. A `Join` member is served a proof
 path of its own right and of the session's lease holder's ("Hosted channels").
@@ -447,20 +450,26 @@ is a retirement, `Reduced::retires`), which could be the signer's own
 revocation or the retirement of the key they signed with
 (decisions/authority_rests_only_on_paths_that_hide_no_lowering.md). The price,
 accepted: a reader learns every revocation, downgrade and retirement on such a
-block, and the level history of whom they name. In the organization's log a
-retirement says whether its account administers the organization as of the
-entry before it (`Retirement::administrator`, which `check_log` refuses unless
-it is so), and its reduced step carries that (`Reduced::retires_administrator`):
-`answer` takes no authority from an organization path that reduces an
-administrator's retirement, while a path may still reduce a member's, whose
-old key signs nothing on the organization's authority. The device taking a new
-phrase learns whether it administers from the organization's log as the
-`recovery-key` answer carries it (its proof path, served to an account that
-left the organization too), checked to the head its retirement follows
-(`contacts::administered`). A log that reaches that head is the real one, and
-`check_log` refuses a path that reduces an administrator record
-(`Reduced::administers`), which no honest path does, so the server cannot hide
-the account's promotion and pass an administrator off as a member. What this
+block, and the level history of whom they name. A retirement says whether its
+account may administer the organization as of the entry before it
+(`Retirement::administrator`): `check_log` refuses false from an administrator
+of the organization whose log it is and takes true from anyone, in a block's
+log too. Its reduced step carries the bit (`Reduced::retires_administrator`),
+an honest organization path keeps one saying true whole, and `answer` takes no
+authority from an organization path that reduces one, while a path may still
+reduce a member's, whose old key signs nothing on the organization's
+authority. The device taking a new phrase signs false only in a log whose
+`recovery-key` answer proves, at the head its retirement follows, that the
+account does not administer it (`contacts::not_administered`): an
+organization's log, listed as the organization's own id, with its proof path
+from its root (served to an account that left the organization too). It signs
+true in every other log, so a server that labels an organization's log a
+block's (`SignedLog::kind`) gains nothing; an organization's log listed
+without a path that proves what it says is forged. A log that reaches that
+head is the real one, and `check_log` refuses a path that reduces an
+administrator record (`Reduced::administers`), which no honest path does, so
+the server cannot hide the account's promotion and pass an administrator off
+as a member. What this
 holds for records naming a head at or after the retirement, in an
 organization's log and a block's alike: one naming an earlier head is stale
 authority (Accepted limits).

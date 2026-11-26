@@ -1157,8 +1157,9 @@ pub struct NewIdentity {
 /// a key change for each contact, and a retirement in each of `logs`. A contact's key opens with
 /// `old`, or one of `retired` while the contact may hold a key it replaced (`behind`), and is
 /// sealed again as still the contact's (`RecoverySecret::seal_as_from`), so the `KeyBook` checks
-/// the contact may hand it over. A retirement in an organization's log says whether the account
-/// administers it (`Retirement::administrator`): it does in those of `administered`. None when a
+/// the contact may hand it over. A retirement says the account may administer the organization
+/// whose log it is in (`Retirement::administrator`) unless that log at that head is among
+/// `not_administered`, which a path proved, so a log whatever its label fails safe. None when a
 /// log's head is malformed.
 #[allow(clippy::too_many_arguments)]
 pub fn new_identity(
@@ -1169,7 +1170,7 @@ pub fn new_identity(
     held: Vec<SealedKey>,
     records: &HashMap<Uuid, OwnContact>,
     logs: Vec<be_block_protocol::SignedLog>,
-    administered: &HashSet<Uuid>,
+    not_administered: &HashSet<(Uuid, be_block_keys::EntryHash)>,
 ) -> Option<NewIdentity> {
     let me = Party {
         account: account.into_bytes(),
@@ -1246,8 +1247,7 @@ pub fn new_identity(
                 account.into_bytes(),
                 log.log.into_bytes(),
                 head,
-                log.kind == be_block_protocol::LogKind::Organization
-                    && administered.contains(&log.organization),
+                !not_administered.contains(&(log.log, head)),
             );
             Some(be_block_protocol::Retirement {
                 organization: log.organization,
@@ -1264,24 +1264,31 @@ pub fn new_identity(
     })
 }
 
-/// The organizations among the answer's `logs` whose log `account` administers as of the head
-/// named: each organization's log as the answer carries it (`organization_logs`, the account's
-/// proof path, served to an account that left the organization too), checked from its root to
-/// that head. A log that reaches the head is the one the retirement follows, whatever root it
-/// has, and no path reduces an administrator record (`Reduced::administers`), so the server
-/// cannot pass an administrator off as a member, whose retirement a path may hide
-/// (`Reduced::retires_administrator`).
-pub(crate) fn administered(
+/// The organization logs among the answer's `logs`, with the head each names, whose log proves
+/// that `account` does not administer the organization as of that head: each organization's log
+/// as the answer carries it (`organization_logs`, the account's proof path, served to an account
+/// that left the organization too), checked from its root to that head. A log that reaches the
+/// head is the one the retirement follows, whatever root it has, and no path reduces an
+/// administrator record (`Reduced::administers`), so the server cannot pass an administrator off
+/// as a member, whose retirement a path may hide (`Reduced::retires_administrator`). Every other
+/// retirement says it may administer (`new_identity`), so a log the server labels a block's
+/// (`SignedLog::kind`) fails safe. Forged when an organization's log is listed without a path
+/// that proves what it says.
+pub(crate) fn not_administered(
     account: Uuid,
     answer: &be_block_protocol::RecoveryKey,
-) -> Result<HashSet<Uuid>, ClientError> {
-    let mut administered = HashSet::new();
+) -> Result<HashSet<(Uuid, be_block_keys::EntryHash)>, ClientError> {
+    let mut members = HashSet::new();
     for log in &answer.logs {
         if log.kind != be_block_protocol::LogKind::Organization {
             continue;
         }
         let organization = log.organization;
         let forged = || ClientError::Forged(organization);
+        // An organization's log is the organization's own id.
+        if log.log != organization {
+            return Err(forged());
+        }
         let path = answer
             .organization_logs
             .iter()
@@ -1309,11 +1316,11 @@ pub(crate) fn administered(
         if checked.hides_lowering || !checked.holds(&head) {
             return Err(forged());
         }
-        if checked.level_as_of(account.into_bytes(), &head) == Some(be_block_keys::Level::Manage) {
-            administered.insert(organization);
+        if checked.level_as_of(account.into_bytes(), &head) != Some(be_block_keys::Level::Manage) {
+            members.insert((organization, head));
         }
     }
-    Ok(administered)
+    Ok(members)
 }
 
 /// Why a device cannot take a new phrase (`set_recovery_key`).
@@ -1405,7 +1412,7 @@ pub(crate) async fn set_recovery_key_in(
         },
         None => (HashMap::new(), Vec::new()),
     };
-    let administered = administered(account, &answer)?;
+    let not_administered = not_administered(account, &answer)?;
     let be_block_protocol::RecoveryKey { sealed, logs, .. } = answer;
     let Some(resealed) = new_identity(
         account,
@@ -1415,7 +1422,7 @@ pub(crate) async fn set_recovery_key_in(
         sealed,
         &records,
         logs,
-        &administered,
+        &not_administered,
     ) else {
         return Ok(Err(CannotReseal::Unreadable));
     };
