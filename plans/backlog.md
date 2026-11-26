@@ -559,11 +559,8 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
   before hearing `GestureEnded` counts its operations though they were dropped.
   Done: decided whether either needs more than the editor's prompt cancel, and
   if so a be-sdk-type-guest test of it.
-- **Peers' derived views of a held edit.** Peers see a tentative edit only
-  through presence (the drag board's frames), so their derived views (bound
-  lines, z-order) do not follow it. Done: presence carries the held edits and a
-  peer's replica previews them as a layer of its own, shown by a canvas test
-  with a bound line.
+
+Peers' derived views of a held edit: plans/peers_preview_held_edits.md.
 
 ## 26. Server protocol
 
