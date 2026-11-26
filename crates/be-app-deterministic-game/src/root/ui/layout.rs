@@ -48,6 +48,11 @@ pub(crate) struct Layout {
     pub(crate) unit: f32,
     pub(crate) items: Vec<Placed>,
     pub(crate) spots: Vec<SpotPlace>,
+    /// Where each item is in `items`, the first with its id, built with them, so finding one
+    /// (`item`) takes a step rather than a scan.
+    places: HashMap<ItemId, usize>,
+    /// Where each spot is in `spots`.
+    spot_places: HashMap<Spot, usize>,
 }
 
 pub(crate) fn movable(sprite: &Sprite) -> bool {
@@ -80,23 +85,32 @@ impl Layout {
             })
             .collect();
         let mut spots: Vec<SpotPlace> = Vec::new();
+        let mut spot_places: HashMap<Spot, usize> = HashMap::new();
         for placed in &items {
             let Some(spot) = placed.spot else {
                 continue;
             };
             let piece = matches!(placed.sprite, Sprite::Piece(_));
-            match spots.iter_mut().find(|known| known.spot == spot) {
-                Some(known) => {
+            match spot_places.get(&spot) {
+                Some(&known) => {
+                    let known = &mut spots[known];
                     known.rect = known.rect.union(placed.rect);
                     known.occupied |= piece;
                 }
-                None => spots.push(SpotPlace {
-                    spot,
-                    rect: placed.rect,
-                    look: Look::of(&placed.sprite),
-                    occupied: piece,
-                }),
+                None => {
+                    spot_places.insert(spot, spots.len());
+                    spots.push(SpotPlace {
+                        spot,
+                        rect: placed.rect,
+                        look: Look::of(&placed.sprite),
+                        occupied: piece,
+                    });
+                }
             }
+        }
+        let mut places = HashMap::with_capacity(items.len());
+        for (index, placed) in items.iter().enumerate() {
+            places.entry(placed.id).or_insert(index);
         }
         Self {
             size: vec2(
@@ -106,6 +120,8 @@ impl Layout {
             unit,
             items,
             spots,
+            places,
+            spot_places,
         }
     }
 
@@ -127,11 +143,11 @@ impl Layout {
     }
 
     pub(crate) fn find(&self, spot: Spot) -> Option<&SpotPlace> {
-        self.spots.iter().find(|place| place.spot == spot)
+        self.spots.get(*self.spot_places.get(&spot)?)
     }
 
     pub(crate) fn item(&self, id: ItemId) -> Option<&Placed> {
-        self.items.iter().find(|placed| placed.id == id)
+        self.items.get(*self.places.get(&id)?)
     }
 
     pub(crate) fn lifted(&self, spot: Spot) -> Option<&Placed> {
@@ -168,6 +184,8 @@ impl Layout {
                     ..place.clone()
                 })
                 .collect(),
+            places: self.places.clone(),
+            spot_places: self.spot_places.clone(),
         }
     }
 
