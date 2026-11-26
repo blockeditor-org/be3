@@ -717,7 +717,10 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     told: held::Told,
     /// Each peer's tentative layer previewed here, by client: shown in this order above this
     /// replica's own unconfirmed edits and beneath its own tentative layer, never written.
-    peer_layers: BTreeMap<ClientId, held::PeerLayer<C::Op>>,
+    peer_layers: held::PeerLayers<C::Op>,
+    /// The peers whose layer was too large to show here, and which: none of it shows, nor of an
+    /// earlier one, until a newer layer.
+    unpreviewed: BTreeMap<ClientId, u64>,
     /// The peers asked for their layer whole (`SessionMessage::HeldAgain`), and which layer.
     asked_layers: BTreeMap<ClientId, u64>,
     /// The open tentative gestures this replica ended itself (an edit of theirs did not carry
@@ -1217,6 +1220,7 @@ where
             holds: Holds::default(),
             told: held::Told::default(),
             peer_layers: BTreeMap::new(),
+            unpreviewed: BTreeMap::new(),
             asked_layers: BTreeMap::new(),
             voided: BTreeSet::new(),
             held_now: None,
@@ -2391,10 +2395,20 @@ where
                 to,
                 operations,
                 commits_through,
-            } => self.heard_held(from, layer, origin, start, to, operations, commits_through),
+            } => self.heard_held(
+                from,
+                held::HeardHeld {
+                    layer,
+                    origin,
+                    from: start,
+                    to,
+                    operations,
+                    commits_through,
+                },
+            ),
             SessionMessage::HeldAgain => {
                 if from != self.client {
-                    self.tell_layer_to(from);
+                    self.answer_held_again(from);
                 }
             }
         }
@@ -3584,8 +3598,10 @@ where
             return self.passed(&op, mine);
         };
         let passed = below_floor(op.base, op.floor, &entry);
-        if !passed {
-            self.note_origin(op.id.origin, through, op.sequence);
+        match passed {
+            false => self.note_origin(op.id.origin, through, op.sequence),
+            // What a peer's layer was to go out as is gone with it.
+            true => self.drop_passed_layers(op.id.origin, through),
         }
         if mine {
             if !passed {
@@ -3638,6 +3654,7 @@ where
                     self.keep.push(commit);
                 }
                 self.applied = op.sequence;
+                self.drop_reached_layers();
                 self.take_heard_seal();
                 self.seal_if_owed();
             }
@@ -3647,6 +3664,9 @@ where
     /// The order passed over `op`: every replica does alike. One of this replica's own is gone.
     fn passed(&mut self, op: &SessionOp, mine: bool) {
         self.applied = op.sequence;
+        // A peer's layer that the order holds through earlier entries leaves, even when this
+        // one is passed over.
+        self.drop_reached_layers();
         if mine && let Some(sent) = self.forget_sent(op.id) {
             self.lacking.dropped(op.id.counter);
             if let Some(id) = sent.reply {
@@ -3771,6 +3791,7 @@ where
         // holder, reloaded too, tells it whole.
         self.peer_layers.clear();
         self.asked_layers.clear();
+        self.unpreviewed.clear();
         if !self.tentative.is_empty() {
             self.layer_changed();
         }
@@ -5522,10 +5543,10 @@ where
             .filter(|client| *client != self.client && !known.contains(client))
             .collect();
         // A layer whose holder left, or may no longer edit, leaves with it.
-        let gone: Vec<ClientId> = self
+        let gone: BTreeSet<ClientId> = self
             .peer_layers
             .keys()
-            .copied()
+            .map(|(client, _)| *client)
             .filter(|client| !held::may_hold(&state, *client))
             .collect();
         for client in gone {
@@ -5533,6 +5554,9 @@ where
         }
         self.asked_layers
             .retain(|client, _| held::may_hold(&state, *client));
+        self.unpreviewed
+            .retain(|client, _| held::may_hold(&state, *client));
+        self.forget_answered(&state);
         let before = self.presence.len();
         self.presence.retain(|(client, _), _| state.has(*client));
         self.presence_changed |= self.presence.len() != before;

@@ -208,6 +208,21 @@ impl<R: Root> LiveEdit for Document<R> {
                 }
                 operation.0.retain(|held| same(held).is_none());
             }
+            // A later set of a field leaves an earlier one in the edit nothing to do, unless
+            // something in it reads the field (a conditional set, an add): a drag's frames are
+            // one write.
+            if let Change::Set { object, field, .. } = &change {
+                let reads = operation.0.iter().any(|held| {
+                    matches!(held, Change::SetIf { object: o, field: f, .. }
+                        | Change::Add { object: o, field: f, .. } if o == object && f == field)
+                });
+                if !reads {
+                    operation.0.retain(|held| {
+                        !matches!(held, Change::Set { object: o, field: f, .. }
+                            if o == object && f == field)
+                    });
+                }
+            }
             let leftover = match (operation.0.last_mut(), change) {
                 (
                     Some(Change::Text { object, field, op }),

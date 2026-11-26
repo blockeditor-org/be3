@@ -108,3 +108,38 @@ pub(super) fn landings(
         .collect();
     (snapshots, landed)
 }
+
+/// Hands `to` a `Held` as `from` would tell it: layer `layer` whole, its edits `operations`.
+pub(super) fn relay_held(
+    sim: &mut Sim<ChecklistContent>,
+    to: usize,
+    from: usize,
+    layer: u64,
+    operations: &[Edit],
+    commits_through: Option<u64>,
+) {
+    let held = SessionMessage::Held {
+        layer,
+        origin: sim.devices[from].origin,
+        from: 0,
+        to: operations.len() as u64,
+        operations: operations
+            .iter()
+            .map(|operation| ChecklistContent::encode_operation(operation).into())
+            .collect(),
+        commits_through,
+    };
+    let client = sim.devices[from].client;
+    sim.relay_as(to, client, crate::wire::encode(&held));
+    sim.settle();
+}
+
+/// How many times `device` asked its peers for a layer whole since `sim.sent` was cleared.
+pub(super) fn asked_again(sim: &Sim<ChecklistContent>, device: usize) -> usize {
+    sim.sent
+        .iter()
+        .filter(|(from, bytes)| {
+            *from == device && crate::wire::decode(bytes) == Some(SessionMessage::HeldAgain)
+        })
+        .count()
+}

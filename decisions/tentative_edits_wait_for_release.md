@@ -39,13 +39,17 @@ Peers preview held layers), and each peer shows it on top of what it holds, neve
 - **Leaving.** `commits_through` names the last local edit the layer goes out as, not the first:
   a long layer may go as several submissions, and the layer leaves only once the order holds
   all of it, in the landing of the entry that does, so no frame shows the edit twice or not at
-  all. A cancel, the holder leaving or losing edit access, a reload, or a newer layer drops it.
+  all. Until then it stays beneath the holder's next layer, should another drag start first. A
+  cancel, the holder leaving or losing edit access, or a reload drops it.
 - **Cost.** One `Held` a frame of a drag, appending that frame's edit: measured on the canvas
   (`a_held_resize_relays_one_small_message_a_frame`), about 70 bytes a frame against about 125
   for the same frame's presence, and one landing at each peer. Input comes a frame at a time,
-  so held layers relay no faster than presence and are not throttled. Only a layer told whole
-  (a late joiner, a peer that missed a frame, a cancel of one of several gestures) is absorbed
-  and sent at once.
+  so held layers relay no faster than presence and are not throttled. Every
+  `APPENDS_BETWEEN_WHOLE` frames, and for a late joiner, a peer that missed a frame or a
+  cancel of one of several gestures, the layer goes whole, absorbed, which a model document
+  absorbs into one write of each field, so what a peer holds of a long drag stays small; a
+  peer stops showing a layer past `LARGEST_PEER_LAYER` edits or `LARGEST_RELAYED_OPERATION`
+  bytes until the next.
 - **The canvas's carry** goes through the hold like any other gesture, so its presence
   (`CanvasCursor::carried`, `carry_for_peers`) went: bound lines follow it from the block.
 - **Types that rebase.** No type opts out. A held edit only moves or changes what exists, by id,
