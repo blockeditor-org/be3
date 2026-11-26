@@ -581,7 +581,8 @@ names the organization's head in its signed record (`EscrowKey::head`).
   and the organization's (`KeyBook::logs_to_read`, `Roots::through`, at most `keys::MAX_PATH` deep,
   longer counting as outdated), as it last checked them (key work, sealing, a
   contact's seal or a rotation reads them; one it never read since starting,
-  it reads first, each once per key in a run). A lowering this device appended
+  it reads first, each once per key in a run, one that failed asked for again
+  at the next seal). A lowering this device appended
   itself (a revocation, a downgrade, a closing, a sign-out: `Peer::appended`,
   `KeyBook::appended`) outdates the epochs before it here at once: until a log
   checked here holds it, every epoch that log judges is outdated, the log is
@@ -594,9 +595,17 @@ names the organization's head in its signed record (`EscrowKey::head`).
   then would be outdated at once. A lost append (an honest server restored from
   a backup made before it) leaves the block withheld on this device, its
   saves there refused, until a log holding the lowering is served: it fails
-  closed. An append whose answer never
-  came (the connection dropped) drops the log this run checked
-  (`KeyBook::unsure`), so the next seal reads it, without awaiting anything. How far it checked each scope's
+  closed. An append whose answer never came (the connection dropped) drops the
+  log this run checked and marks it unsure, kept with the refs
+  (`KeyBook::unsure`, `refs::Table::Unsure`): as while awaiting, every epoch it
+  judges is outdated, the log is read again before each seal, and nothing under
+  its scope is rotated. The first read sent after the mark that answers clears
+  it (`KeyBook::answered`), whether or not that log holds the lowering: one
+  without it means the append never landed, or the server withholds it, as it
+  could by refusing the append. Until a read answers, the block fails closed.
+  While a log is awaited or unsure, an edit sealed offline that the drain finds
+  outdated is tried again at the next drain (`Peer::reseal`,
+  `Drained::Failed`), not set aside. How far it checked each scope's
   log is kept with the refs (`refs::KeptLog`, `KeyBook::note_log`;
   `refresh_keys` reads each scope's log once as its keys arrive, and a block
   made here is kept at its root, eight scopes read at a time): a log served

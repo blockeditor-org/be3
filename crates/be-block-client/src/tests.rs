@@ -312,6 +312,9 @@ mod an_outbox_entrys_parts_survive_a_collection_until_and_after_it_publishes;
 mod an_owner_only_block_is_read_by_its_author_alone;
 mod an_owner_restarted_after_it_revokes_a_member_is_withheld_a_log_without_the_revocation;
 mod an_owner_s_saves_while_the_server_withholds_its_revocation_are_locked_and_mint_nothing;
+mod an_owner_s_save_after_its_revocation_s_answer_was_lost_reads_the_log_again;
+mod an_owner_s_offline_save_after_its_revocation_s_answer_was_lost_is_never_sent_under_the_old_epoch;
+mod an_owner_s_offline_save_while_the_server_withholds_its_revocation_is_kept_and_sent_once_served;
 mod an_owner_s_save_after_it_revokes_a_member_is_sealed_under_a_new_epoch;
 mod an_owner_s_save_after_it_revokes_a_member_rotates_though_key_work_lists_no_rotation;
 mod an_owner_only_blocks_keys_are_sealed_to_nobody_key_work_lists;
@@ -979,6 +982,125 @@ impl Withheld {
             ),
         }
         .unwrap();
+    }
+}
+
+/// An owner's second device connected through a fault relay, with a team the owner granted
+/// `bob` View in and a note in it the device saved once (so it checked and kept the team's
+/// log), and the relay; then the device revokes bob, the server takes it, and the relay holds
+/// the answer and cuts the connection, so the device never learns whether it landed
+/// (`KeyBook::unsure`).
+struct LostRevocation {
+    harness: Harness,
+    bob: Peer<MemoryStore>,
+    team: Uuid,
+    note: Uuid,
+    /// The note's head as the device saved it before the revocation.
+    before: Option<be_block_commit::CommitId>,
+    tablet: Peer<MemoryStore>,
+    relay: std::sync::Arc<be_block_fault_relay::Relay>,
+}
+
+impl LostRevocation {
+    async fn start() -> Self {
+        let harness = Harness::start().await;
+        let admin = harness.owner("admin@example.com").await;
+        let bob = harness.member(&admin, "bob@example.com").await;
+        let team = workspace(&admin, "Team").await;
+        let note = admin
+            .create::<TextContent>(BlockParent::Block(team))
+            .await
+            .unwrap();
+        admin
+            .grant(team, bob.account(), Access::View)
+            .await
+            .unwrap();
+        admin.tend().await.unwrap();
+        let server = harness
+            .url
+            .trim_start_matches("ws://")
+            .parse()
+            .expect("the server listens on an address");
+        let relay = std::sync::Arc::new(be_block_fault_relay::Relay::start(server));
+        let tablet = Peer::connect(
+            PeerConfig::new(
+                &relay.url(),
+                admin.keys().identity().clone(),
+                Credentials::Token(admin.token().to_owned()),
+            )
+            .organization(Some(admin.organization())),
+            MemoryStore::new(),
+        )
+        .await
+        .unwrap();
+        tablet.refresh_keys(None).await.unwrap();
+        let before = tablet
+            .save(note, &TextBlock::of("before"), None)
+            .await
+            .unwrap()
+            .published();
+        assert_eq!(text(&bob, note).await, "before");
+        bob.refresh_keys(None).await.unwrap();
+
+        let logged = admin.access_log(team).await.unwrap().len();
+        // The first write the device sends from here (the revocation) holds every answer after
+        // it, so the server takes it and its answer never arrives.
+        let watching = std::sync::Arc::downgrade(&relay);
+        let _writes = relay.count(move |method, _| {
+            if method == be_block_protocol::__args::SERVER_WRITE
+                && let Some(relay) = watching.upgrade()
+            {
+                relay.hold_answers(true);
+            }
+            false
+        });
+        let held = relay.held();
+        let (revoked, ()) = tokio::join!(tablet.grant(team, bob.account(), Access::None), async {
+            relay.held_beyond(held).await;
+            relay.cut();
+        });
+        relay.hold_answers(false);
+        assert!(revoked.is_err(), "the revocation's answer never arrived");
+        assert_eq!(
+            admin.access_log(team).await.unwrap().len(),
+            logged + 1,
+            "the server took the revocation"
+        );
+        drop(admin);
+        Self {
+            harness,
+            bob,
+            team,
+            note,
+            before,
+            tablet,
+            relay,
+        }
+    }
+
+    /// The device connected again, straight to the server.
+    async fn reconnect(&self) {
+        self.harness
+            .reconnect(&self.tablet, self.tablet.token())
+            .await;
+    }
+
+    /// Whether bob, revoked, holds the key the device's head of the note is sealed under.
+    async fn bob_holds_the_head_s_key(&self) -> bool {
+        let head = self.tablet.local_head(self.note).unwrap();
+        let key = self
+            .tablet
+            .commits()
+            .vault()
+            .sealed_under(head.hash())
+            .unwrap();
+        self.bob.refresh_keys(None).await.unwrap();
+        self.bob.keys().has(key)
+    }
+
+    async fn stop(self) {
+        drop(self.relay);
+        self.harness.stop().await;
     }
 }
 

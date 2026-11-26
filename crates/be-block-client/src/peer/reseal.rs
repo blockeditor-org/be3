@@ -22,24 +22,59 @@ impl<S: ObjectStore> Peer<S> {
     /// new epoch first when the logs outdate the one at hand), each on the commits it went on
     /// as sealed again: the edit was this account's, only its key may be held by someone who
     /// lost access. False when it cannot be: this account may no longer write the block as the
-    /// logs show now, or no epoch it can vouch for can be made. Offline, the error.
+    /// logs show now, or no epoch it can vouch for can be made. Offline, the error; and while a
+    /// log the block's keys are judged by is short of a lowering this device appended, or unsure
+    /// of one (`KeyBook::awaiting`), `Withheld`: the server is reachable but lags or withholds
+    /// the lowering, so the drain tries the block again next time, as it would with no server
+    /// (`Drained::Failed`), rather than set the edit aside for the person to restore.
     pub(super) async fn reseal(&self, block: Uuid) -> Result<bool, ClientError> {
         if !self.may_write_signed(block).await? {
             return Ok(false);
         }
-        let key = match self.sealing_key(block).await {
-            Ok(key) => key,
-            Err(error) if error.is_unreachable() => return Err(error),
-            Err(_) => return Ok(false),
+        let Some(key) = self.key_to_seal_again(block).await? else {
+            return Ok(false);
         };
         let summary = match self.refs.summary(block) {
             Some(summary) => summary,
             None => self.summary(block).await?,
         };
-        if self.keys.outdated(key, scope_of(&summary)?) {
+        let scope = scope_of(&summary)?;
+        if self.keys.outdated(key, scope) {
+            if self.awaiting(key, scope) {
+                return Err(ClientError::Withheld(block));
+            }
             return Ok(false);
         }
         self.seal_waiting_again(block, key, None).await
+    }
+
+    /// The key `sealing_key` gives `block` to seal its waiting edits again under: none when no
+    /// epoch can be made; the error when the server cannot be reached, or when a log its keys
+    /// are judged by is short of a lowering this device appended, or unsure of one
+    /// (`ClientError::Withheld`, as `reseal` says).
+    async fn key_to_seal_again(&self, block: Uuid) -> Result<Option<Uuid>, ClientError> {
+        match self.sealing_key(block).await {
+            Ok(key) => Ok(Some(key)),
+            Err(error) if error.is_unreachable() => Err(error),
+            Err(_) if self.withholding(block) => Err(ClientError::Withheld(block)),
+            Err(_) => Ok(None),
+        }
+    }
+
+    /// Whether a log the keys of `block` this device holds are judged by is short of a lowering
+    /// this device appended, or unsure of one (`Peer::awaiting`).
+    fn withholding(&self, block: Uuid) -> bool {
+        let Some(scope) = self
+            .refs
+            .summary(block)
+            .and_then(|summary| scope_of(&summary).ok())
+        else {
+            return false;
+        };
+        self.keys
+            .keys_of(block, be_block_protocol::KeyKind::Data)
+            .iter()
+            .any(|row| self.awaiting(row.id, scope))
     }
 
     /// Stamps the commits of `block` waiting in the outbox again, when the server refused one
@@ -48,7 +83,7 @@ impl<S: ObjectStore> Peer<S> {
     /// the newest must to be the latest the server takes, so they keep their order and
     /// spacing, and is never before a commit it follows; their change ids stay. False with no
     /// measurement of the server's clock, or none of them too late: sending again would be
-    /// refused again.
+    /// refused again. `Withheld` as `reseal` answers it.
     pub(super) async fn restamp(&self, block: Uuid) -> Result<bool, ClientError> {
         let Some(server) = self.server_now() else {
             return Ok(false);
@@ -65,10 +100,8 @@ impl<S: ObjectStore> Peer<S> {
         if newest <= latest {
             return Ok(false);
         }
-        let key = match self.sealing_key(block).await {
-            Ok(key) => key,
-            Err(error) if error.is_unreachable() => return Err(error),
-            Err(_) => return Ok(false),
+        let Some(key) = self.key_to_seal_again(block).await? else {
+            return Ok(false);
         };
         self.seal_waiting_again(
             block,

@@ -113,6 +113,13 @@ struct Roots {
     /// them: until then every epoch judged by that log is outdated, its log is read again before
     /// the next seal, and one served short of them is withheld.
     awaited: HashMap<Uuid, EntryHash>,
+    /// Logs this device appended a lowering to whose answer never came (the connection dropped:
+    /// `KeyBook::unsure`), until a read of the log answers (`KeyBook::answered`): until then,
+    /// as for `awaited`, every epoch judged by that log is outdated and its log is read again
+    /// before each seal. Whether or not the log the read answers holds the lowering, it is
+    /// judged by that log after: one without it means the append never landed, or the server
+    /// withholds it, as it could by refusing the append.
+    unsure: HashSet<Uuid>,
     /// Blocks this device set out to make whose creation no server has taken yet, with the root
     /// it made (`KeyBook::pin_root`) and any other root a key of them carried meanwhile: a
     /// creation the server refuses as made by someone else lets its root go, and the other root
@@ -149,11 +156,13 @@ pub enum RootPin {
 
 impl Roots {
     /// Whether this device appended a lowering to `log` that no log of it checked here holds
-    /// yet (`awaited`).
+    /// yet (`awaited`), or whose answer never came with no read of the log answering since
+    /// (`unsure`).
     fn behind(&self, log: Uuid) -> bool {
-        self.awaited
-            .get(&log)
-            .is_some_and(|awaited| !self.logs.get(&log).is_some_and(|log| log.holds(awaited)))
+        self.unsure.contains(&log)
+            || self.awaited.get(&log).is_some_and(|awaited| {
+                !self.logs.get(&log).is_some_and(|log| log.holds(awaited))
+            })
     }
 
     /// `key`, a key of `block`'s scope, and every key it was opened through, each with the
@@ -1330,9 +1339,29 @@ impl KeyBook {
         self.roots.lock().unwrap().awaited.get(&log).copied()
     }
 
+    /// The logs this device appended a lowering to in an earlier run whose answer never came
+    /// and that no read answered since (`unsure`), from the refs.
+    pub fn set_unsure(&self, unsure: impl IntoIterator<Item = Uuid>) {
+        self.roots.lock().unwrap().unsure.extend(unsure);
+    }
+
+    /// Whether `log` had a lowering appended whose answer never came and no read of it answered
+    /// since (`unsure`).
+    pub fn is_unsure(&self, log: Uuid) -> bool {
+        self.roots.lock().unwrap().unsure.contains(&log)
+    }
+
+    /// Notes that a read of `log`, sent after it was marked `unsure`, answered: from now it is
+    /// judged by the log checked. Answers whether it was unsure, to clear in the refs.
+    pub fn answered(&self, log: Uuid) -> bool {
+        self.roots.lock().unwrap().unsure.remove(&log)
+    }
+
     /// Whether `log` (a block's, or the organization's by its id) falls short of a lowering this
-    /// device appended to it (`appended`): until a log read shows it, every epoch that log
-    /// judges is outdated, and one served without it is withheld.
+    /// device appended to it (`appended`), or had one appended whose answer never came and no
+    /// read of it answered since (`unsure`): until then every epoch that log judges is outdated
+    /// and it is read again before each seal; one served without an awaited lowering is
+    /// withheld.
     pub fn awaiting(&self, log: Uuid) -> bool {
         self.roots.lock().unwrap().behind(log)
     }
@@ -1645,9 +1674,10 @@ impl KeyBook {
 
     /// Notes `signed`, an access log entry this device signed whose append the server may or may
     /// not have taken (the connection dropped before it answered): one that lowered anyone drops
-    /// the log this run checked of it, so the next seal reads it again and, until then, judges by
-    /// what was kept. Answers the log, when it lowered. Nothing is awaited: an append that never
-    /// landed would leave the log withheld here for good.
+    /// the log this run checked of it and marks it unsure, so every epoch it judges is outdated
+    /// and each seal reads it again until a read answers (`answered`); the kept log, from before
+    /// the lowering, judges nothing meanwhile. Answers the log, when it lowered. The entry is not
+    /// awaited: an append that never landed would leave the log withheld here for good.
     pub fn unsure(&self, signed: &[u8]) -> Option<Uuid> {
         let entry = be_block_keys::Entry::decode(signed).ok()?;
         if !entry.lowers {
@@ -1657,6 +1687,7 @@ impl KeyBook {
         let mut roots = self.roots.lock().unwrap();
         roots.logs.remove(&log);
         roots.entries.remove(&log);
+        roots.unsure.insert(log);
         Some(log)
     }
 

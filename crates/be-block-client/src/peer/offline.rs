@@ -1124,7 +1124,8 @@ impl<S: ObjectStore> Peer<S> {
             // is this account's and only its key may be held by someone who lost access, so it
             // is sealed again under a new epoch this device vouches for. Set
             // aside, never sent, when this account may no longer write the block as the logs
-            // show now, or no such epoch can be made.
+            // show now, or no such epoch can be made; tried again at the next drain while a log
+            // is short of a lowering this device appended, or unsure of one (`Peer::reseal`).
             Err(ClientError::Outdated(_)) => {
                 if reseal && self.reseal(block).await? {
                     return Ok(Drained::Resealed { block });
