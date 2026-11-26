@@ -128,7 +128,10 @@ An editor hands its `CanvasView` to `<Canvas view={...}>`
 `crates/beui-core/src/base/canvas.rs`). Each `CanvasItem` carries a rectangle
 in world coordinates mapped through the view (`origin + point * scale`),
 ignoring the `Canvas` node's own laid-out rect, so items track the shared
-camera however the layout around the canvas changes. Placing is not
+camera however the layout around the canvas changes. A canvas that is part of
+a form rather than the frame's camera (Settings' display arrangement, fitted to
+its displays inside a scrolled page) sets `local_view`, which puts the view's
+origin in the canvas's own points, so its items move with the layout. Placing is not
 transforming: text in an ordinary item keeps its size, so an item that should
 grow with the zoom reads `scale` and sizes itself (the pan-zoom example's
 cards), and is laid out and painted again on every frame of a zoom.
