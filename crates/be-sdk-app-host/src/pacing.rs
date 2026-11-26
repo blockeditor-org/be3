@@ -92,14 +92,20 @@ impl Pacing {
     }
 
     fn due(&self, seen: bool, now: Duration, pass: u64) -> bool {
-        (self.needed || (seen && self.unseen) || (self.animated != pass && self.asked_by(now)))
+        (self.needed || (seen && self.unseen) || (self.animated != pass && self.asked_by(now, pass)))
             && self
                 .requested_at
                 .is_none_or(|at| now.saturating_sub(at) >= FRAME_TIMEOUT)
     }
 
-    fn asked_by(&self, now: Duration) -> bool {
-        self.paint_at.is_some_and(|at| at <= now) && now > self.drawn_at
+    /// The time the app asked for its next frame has come, past the frame it drew: by the
+    /// clock, or, for an app not animating, by the host frame, so with a driven host's clock
+    /// stopped (which never moves past the frame it drew in) a present that asks for one more
+    /// frame at once (to let go of what it held) is answered in the next. An animation waits
+    /// for the clock to move, so it still settles.
+    fn asked_by(&self, now: Duration, pass: u64) -> bool {
+        self.paint_at.is_some_and(|at| at <= now)
+            && (now > self.drawn_at || (!self.animating && pass > self.asked_in))
     }
 
     /// Whether the app would be asked for a frame in host frame `pass`, which has been seen
