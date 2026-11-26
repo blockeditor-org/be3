@@ -397,13 +397,6 @@ Fixed items are removed as they land.
   row carried off its list, collapsed, says nothing more until it lands, when
   only the receiving list's `ReorderStatus` speaks. Done: the places of a carry
   whose source is collapsed or gone are still announced, on both cores.
-- **An embed moved by a removal a timer makes.** An `Embed` whose old parent is
-  removed during a frame's input, and placed again by its frame's layout, is
-  never heard unplaced (`EmbedState::hold`); one whose old parent goes in a
-  later layout pass of the frame (a removal a timer due in that frame makes)
-  is heard unplaced once, and its app hides and presents again. Done: such an
-  embed is told only where the frame leaves it, shown by a test that moves a
-  kept `Embed` from a timer.
 - **The display arrangement refits for a carried display.** The area's view
   fits the arrangement at the lift and clips what it draws, so a display
   carried to a place beyond that fit (below a display beside it) is cut off at
