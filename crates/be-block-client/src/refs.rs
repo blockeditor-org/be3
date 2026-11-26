@@ -90,9 +90,10 @@ pub(crate) enum Table {
     /// The lowering this device last appended to each log that no log it checked held yet
     /// (`KeyBook::appended`), by the log, so a restart still withholds a log served short of it.
     Awaited,
-    /// The logs this device appended a lowering to whose answer never came (the connection
-    /// dropped: `KeyBook::unsure`), by the log, until a read of it answers, so a restart still
-    /// reads it before sealing under its scope.
+    /// The logs this device is sending a lowering to, written before the write leaves, or sent
+    /// one to whose answer never came (`KeyBook::sending`), by the log, until the answer or a
+    /// read of it settles it, so a restart, after a crash too, still reads it before sealing
+    /// under its scope.
     Unsure,
 }
 
@@ -446,8 +447,9 @@ pub enum Aside {
     Refused(ErrorCode),
     /// It was sealed offline under a key epoch its block's access log shows outdated, which
     /// someone who lost access may hold, and could not be sealed again under a new epoch
-    /// (`Peer::reseal`: this account may no longer write the block, or no epoch could be made),
-    /// so this device never sent it (guides/blocks/keys.md, "Epochs name their heads").
+    /// (`Peer::reseal`: this account may no longer write the block, or no epoch could be made,
+    /// or a log it is judged by stayed withheld or unreadable through `peer::WITHHELD_DRAINS`
+    /// drains), so this device never sent it (guides/blocks/keys.md, "Epochs name their heads").
     KeyOutdated,
     /// It was made offline under a scope the server's tree named, which the signed parent
     /// records do not place its parent under, so its keys were never sent wrapped there
@@ -1940,8 +1942,8 @@ impl Refs {
         Ok(())
     }
 
-    /// The logs this device appended a lowering to whose answer never came, as `set_unsure`
-    /// kept them (`KeyBook::unsure`).
+    /// The logs this device sent a lowering to whose answer never came, as `set_unsure` kept
+    /// them (`KeyBook::sending`).
     pub fn unsure(&self) -> Vec<Uuid> {
         self.state.lock().unwrap().unsure.iter().copied().collect()
     }

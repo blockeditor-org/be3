@@ -595,17 +595,31 @@ names the organization's head in its signed record (`EscrowKey::head`).
   then would be outdated at once. A lost append (an honest server restored from
   a backup made before it) leaves the block withheld on this device, its
   saves there refused, until a log holding the lowering is served: it fails
-  closed. An append whose answer never came (the connection dropped) drops the
-  log this run checked and marks it unsure, kept with the refs
-  (`KeyBook::unsure`, `refs::Table::Unsure`): as while awaiting, every epoch it
-  judges is outdated, the log is read again before each seal, and nothing under
-  its scope is rotated. The first read sent after the mark that answers clears
-  it (`KeyBook::answered`), whether or not that log holds the lowering: one
+  closed. A write carrying a lowering marks its log unsure before it is sent,
+  kept with the refs (`KeyBook::sending`, `refs::Table::Unsure`; a mark the refs
+  refuse sends nothing), and drops the log this run checked: as while awaiting,
+  every epoch it judges is outdated, the log is read again before each seal,
+  and nothing under its scope is rotated. The write's answer settles the mark
+  (`KeyBook::sent`): once the server took it, it is awaited instead; once it
+  refused it, nothing landed. With no answer (the connection dropped, the write
+  was dropped, the process stopped while it was out) the mark stays, across a
+  restart too, until a read of the log sent after it answers
+  (`KeyBook::answered`), whether or not that log holds the lowering: one
   without it means the append never landed, or the server withholds it, as it
-  could by refusing the append. Until a read answers, the block fails closed.
+  could by refusing the append. Each mark has a generation, and a read captures
+  it before it is sent (`KeyBook::is_unsure`): a read captured under an older
+  mark, or answered while a lowering to the log is in flight, clears nothing,
+  as it may have been answered before that lowering landed. Until a read
+  answers, the block fails closed. Marks, like kept heads and awaited
+  lowerings, stay when a block is forgotten from the cache: its kept head would
+  judge again without them.
   While a log is awaited or unsure, an edit sealed offline that the drain finds
   outdated is tried again at the next drain (`Peer::reseal`,
-  `Drained::Failed`), not set aside. How far it checked each scope's
+  `Drained::Failed`), up to `peer::WITHHELD_DRAINS` drains in a run, and then
+  set aside (`Aside::KeyOutdated`), never sent: a log whose read keeps failing
+  for a reason other than the server being out of reach (a block deleted or no
+  longer readable, a root this device cannot place) would hold it back for good.
+  How far it checked each scope's
   log is kept with the refs (`refs::KeptLog`, `KeyBook::note_log`;
   `refresh_keys` reads each scope's log once as its keys arrive, and a block
   made here is kept at its root, eight scopes read at a time): a log served

@@ -5505,9 +5505,9 @@ impl Drop for Marked<'_> {
     }
 }
 
-/// The access log records `op` carries, each signed here: what `Peer::write_appending` notes as
-/// appended once the server takes them (`KeyBook::appended`), or as perhaps appended when the
-/// connection dropped first (`KeyBook::unsure`). Every write that may append a lowering goes
+/// The access log records `op` carries, each signed here: what `Peer::write_appending` marks as
+/// perhaps appended before it sends them (`KeyBook::sending`), and notes as appended once the
+/// server takes them (`KeyBook::appended`). Every write that may append a lowering goes
 /// through it, a person's removal too (`Peer::remove_member`: `Op::DeleteAgent` for an agent,
 /// a member record for anyone else). A new phrase does not (`contacts::set_recovery_key_in`,
 /// `Op::SetRecoveryKey`): what it changes in the logs goes with a rotation of the account
