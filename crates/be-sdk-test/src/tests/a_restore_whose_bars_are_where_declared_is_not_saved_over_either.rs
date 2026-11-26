@@ -88,8 +88,8 @@ fn pane(key: &str) -> DockItem {
 
 /// The root's dock with the stage and its bar at `placement`, and with a side pane before it
 /// when `side`: a pane the editor declared before, as the canvas declares its inspector until
-/// its content says its profile has none.
-fn hosted(stage: u64, bar: u64, placement: DockBarPlacement, side: bool) -> DockUpdate {
+/// its content says its profile has none. `restored` counts the restores the root has taken.
+fn hosted(stage: u64, bar: u64, placement: DockBarPlacement, side: bool, restored: u64) -> DockUpdate {
     let mut items = Vec::new();
     if side {
         items.push(pane("side"));
@@ -124,6 +124,7 @@ fn hosted(stage: u64, bar: u64, placement: DockBarPlacement, side: bool) -> Dock
             fullscreen: None,
             mode: be_sdk_api::DockMode::Tiled,
             covers: Vec::new(),
+            restored,
         }),
     })
 }
@@ -152,7 +153,7 @@ fn a_restore_whose_bars_are_where_declared_is_not_saved_over_either() {
     let (stage, bar) =
         declared(&test.take_dock_messages()).expect("the docked editor declares its dock");
     let moved = over(DockEdge::Top, DockAlign::Center);
-    test.receive_dock_updates(vec![hosted(stage, bar, moved, false)]);
+    test.receive_dock_updates(vec![hosted(stage, bar, moved, false, 0)]);
     let saved = kept(&test, display);
 
     host.set_presenting(true);
@@ -175,20 +176,20 @@ fn a_restore_whose_bars_are_where_declared_is_not_saved_over_either() {
     // The root's answers come a frame late: before it takes the restore, it reports the dock
     // as it hosted each declaration it heard, the bar where the declaration puts it.
     let declared_at = over(DockEdge::Top, DockAlign::Center);
-    test.receive_dock_updates(vec![hosted(stage, bar, declared_at, true)]);
+    test.receive_dock_updates(vec![hosted(stage, bar, declared_at, true, 0)]);
     assert_eq!(
         kept(&test, display),
         saved,
         "a layout the root hosted before it took the restore is not kept, though its bars are where the restore put them"
     );
-    test.receive_dock_updates(vec![hosted(stage, bar, declared_at, false)]);
+    test.receive_dock_updates(vec![hosted(stage, bar, declared_at, false, 0)]);
     assert_eq!(
         kept(&test, display),
         saved,
         "no layout the root hosted before it took the restore is kept over the saved one"
     );
 
-    test.receive_dock_updates(vec![hosted(stage, bar, moved, false)]);
+    test.receive_dock_updates(vec![hosted(stage, bar, moved, false, 1)]);
     assert_eq!(
         kept(&test, display),
         saved,
@@ -196,7 +197,7 @@ fn a_restore_whose_bars_are_where_declared_is_not_saved_over_either() {
     );
 
     let dragged = over(DockEdge::Bottom, DockAlign::Start);
-    test.receive_dock_updates(vec![hosted(stage, bar, dragged, false)]);
+    test.receive_dock_updates(vec![hosted(stage, bar, dragged, false, 1)]);
     assert_ne!(
         kept(&test, display),
         saved,

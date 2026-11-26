@@ -169,6 +169,7 @@ fn hosted_by_root() -> DockHosted {
         fullscreen: None,
         mode: be_sdk_api::DockMode::Tiled,
         covers: Vec::new(),
+        restored: 0,
     }
 }
 
@@ -205,6 +206,7 @@ mod a_pick_from_a_tabs_menu_reaches_the_owner_two_levels_down;
 mod a_placing_sent_before_the_root_heard_a_declaration_leaves_it_awaited_while_placed;
 mod a_placing_sent_before_the_root_heard_a_declaration_leaves_it_awaited_while_unplaced;
 mod a_request_reaches_the_root_through_each_placer;
+mod a_restore_is_counted_done_once_the_root_says_it_took_it;
 mod a_root_that_answers_a_declaration_by_placing_lets_the_child_go_once_unplaced;
 mod a_spliced_childs_ask_for_details_reaches_its_placer;
 mod a_tab_the_root_closes_is_closed_at_its_owner;

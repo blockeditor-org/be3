@@ -34,6 +34,7 @@ fn a_childs_dock_splices_in_place_of_its_tab_and_splits_back_out() {
         fullscreen: None,
         mode: crate::DockMode::Tiled,
         covers: Vec::new(),
+        restored: 0,
     };
     let own = hosted.own(&[(child, 3)]).unwrap();
     assert_eq!(own.layout.tree, declaration().tree);

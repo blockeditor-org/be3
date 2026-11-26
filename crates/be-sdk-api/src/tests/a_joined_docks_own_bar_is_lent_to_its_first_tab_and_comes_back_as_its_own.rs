@@ -59,6 +59,7 @@ fn a_joined_docks_own_bar_is_lent_to_its_first_tab_and_comes_back_as_its_own() {
         fullscreen: None,
         mode: crate::DockMode::Tiled,
         covers: Vec::new(),
+        restored: 0,
     };
     let mut part = hosted
         .child(child, &prefix)

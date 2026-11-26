@@ -1258,6 +1258,12 @@ interface types {
         /// over an edge, in the points of the view that shows the body, so
         /// the editor keeps what it reveals clear of it.
         covers: list<dock-cover>,
+        /// How many `restore`s of this dock the root has taken: the
+        /// instance's own, counted by the host from the first it sent, and
+        /// in a root's `dock-hold.hosted` of a child, those it took from
+        /// the child's `child-request`s. What the root hosted before it
+        /// took the last restore asked shows a smaller count.
+        restored: u64,
     }
 
     record dock-cover {

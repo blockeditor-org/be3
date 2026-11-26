@@ -28,6 +28,7 @@ fn a_hosted_state_waiting_for_the_editor_is_replaced_by_the_latest() {
                     false => crate::DockMode::Tiled,
                 },
                 covers: Vec::new(),
+                restored: 0,
             }),
         })
     };
