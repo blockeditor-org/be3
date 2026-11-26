@@ -195,7 +195,7 @@ final class Push {
         String tag = block.isEmpty() ? "new-message" : block;
         PendingIntent pressed = PendingIntent.getActivity(context, tag.hashCode(), open,
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-        builder.setSmallIcon(android.R.drawable.stat_notify_chat)
+        builder.setSmallIcon(R.drawable.notification)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setStyle(new Notification.BigTextStyle().bigText(body))
