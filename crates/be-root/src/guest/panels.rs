@@ -33,6 +33,97 @@ pub(super) struct PanelSurface {
     statistics: Rc<Cell<Option<Shown>>>,
     /// What it says to its placer: the size a menu's rows want, and whether it is done.
     report: Rc<Cell<PanelReport>>,
+    /// The apps a Running Apps panel lists, once its view was made.
+    apps: Rc<Cell<Option<Signal<Vec<RunningApp>>>>>,
+}
+
+/// An app the root runs, as its Running Apps panel lists it, as be-host's lists one of its own.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct RunningApp {
+    /// The staged app's id.
+    id: String,
+    /// How it is: starting, running, or why it stopped.
+    state: String,
+}
+
+/// The apps `embedding` runs, as a Running Apps panel lists them, each staged app once.
+fn running_apps(embedding: &be_sdk_root::Embedding) -> Vec<RunningApp> {
+    let mut apps: Vec<RunningApp> = Vec::new();
+    for embedded in embedding.apps() {
+        let id = embedded.app();
+        if apps.iter().any(|app| app.id == id) {
+            continue;
+        }
+        let state = match (embedded.failure(), embedded.started()) {
+            (Some(why), _) => why,
+            (None, true) => "running".to_owned(),
+            (None, false) => "starting".to_owned(),
+        };
+        apps.push(RunningApp { id, state });
+    }
+    apps
+}
+
+/// The apps the root runs, as be-host's Running Apps panel shows its own: how many, and each
+/// with how it is, Kill and Crash, which `stop` asks for (`true` to crash).
+#[component]
+fn RunningAppsPanel(apps: Signal<Vec<RunningApp>>, stop: Callback<(String, bool)>) -> NodeId {
+    let ids = create_memo(move || {
+        apps.with(|apps| apps.iter().map(|app| app.id.clone()).collect::<Vec<_>>())
+    });
+    let running = create_memo(move || format!("Running ({})", ids.with(Vec::len)));
+    view! {
+        <Frame padding=Space::Lg>
+            <Scroll>
+                <Text style=TextStyle::HEADING>{running}</Text>
+                <ForEach
+                    value={ids}
+                    fallback={|| view! {
+                        <Text style=TextStyle::CAPTION>"no apps are running"</Text>
+                    }}
+                >|id: String| {
+                    let key = id.clone();
+                    let state = create_memo(move || {
+                        apps.with(|apps| {
+                            apps.iter()
+                                .find(|app| app.id == key)
+                                .map(|app| app.state.clone())
+                                .unwrap_or_default()
+                        })
+                    });
+                    let (kill, crash) = (id.clone(), id.clone());
+                    let kill_id = format!("debug.apps.kill.{id}");
+                    let crash_id = format!("debug.apps.crash.{id}");
+                    view! {
+                        <Frame padding={Padding::vertical(Space::Sm)}>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=Space::Md
+                            >
+                                <Text size=TextSize::Lg>{id}</Text>
+                                <ListItem grow=1.0>
+                                    <Text style=TextStyle::CAPTION>{state}</Text>
+                                </ListItem>
+                                <Button
+                                    label="Kill"
+                                    variant=ButtonVariant::Secondary
+                                    @test_id={kill_id}
+                                    on_click={move || stop.call((kill.clone(), false))}
+                                />
+                                <Button
+                                    label="Crash"
+                                    variant=ButtonVariant::Secondary
+                                    @test_id={crash_id}
+                                    on_click={move || stop.call((crash.clone(), true))}
+                                />
+                            </List>
+                        </Frame>
+                    }
+                }</ForEach>
+            </Scroll>
+        </Frame>
+    }
 }
 
 /// Where the root's menu and a menu panel send what is picked in them, and what they show
@@ -167,6 +258,15 @@ impl Root {
                 self.panels.borrow_mut().push(panel);
             }
         }
+        let running = running_apps(&self.embedding.borrow());
+        for held in self.panels.borrow_mut().iter_mut() {
+            if let Some(apps) = held.apps.get()
+                && apps.with_untracked(|apps| *apps != running)
+            {
+                let running = running.clone();
+                held.surface.enter(|| apps.set(running));
+            }
+        }
         let mut layers = Vec::new();
         for held in self.panels.borrow_mut().iter_mut() {
             // A panel that cannot be drawn shows nothing in its place.
@@ -225,6 +325,10 @@ impl Root {
         let waker = self.waker.clone();
         let statistics: Rc<Cell<Option<Shown>>> = Rc::default();
         let shown = Rc::clone(&statistics);
+        let apps: Rc<Cell<Option<Signal<Vec<RunningApp>>>>> = Rc::default();
+        let listed = Rc::clone(&apps);
+        let first_apps = running_apps(&self.embedding.borrow());
+        let (asked, wakes_stop) = (Rc::clone(&self.apps_asked), self.waker.clone());
         let panel = place.panel;
         let menu = self.menu_parts(id);
         let report: Rc<Cell<PanelReport>> = Rc::default();
@@ -283,7 +387,20 @@ impl Root {
                 HostPanel::Menu => view! {
                     <Root>{menu.view(shape())}</Root>
                 },
-                HostPanel::BlockStack | HostPanel::Apps => view! {
+                HostPanel::Apps => {
+                    let apps = create_signal(first_apps);
+                    listed.set(Some(apps));
+                    let stop = Callback::new(move |(app, crash): (String, bool)| {
+                        asked.borrow_mut().push((app, crash));
+                        wakes_stop.wake();
+                    });
+                    view! {
+                        <Root>
+                            <RunningAppsPanel apps={apps} stop={stop} />
+                        </Root>
+                    }
+                }
+                HostPanel::BlockStack => view! {
                     <Root>
                         <Frame padding=Space::Md>
                             <Text color=TextColor::Muted>{PANEL_NOT_DRAWN}</Text>
@@ -305,6 +422,7 @@ impl Root {
             surface,
             statistics,
             report,
+            apps,
         })
     }
 

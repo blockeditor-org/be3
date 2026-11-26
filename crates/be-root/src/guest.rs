@@ -161,6 +161,14 @@ struct Root {
     cycle_asked: Rc<Cell<Option<bool>>>,
     /// The host panel its menu asked the session's editor to show, done with the next frame.
     panel_asked: Rc<Cell<Option<be_sdk_api::HostPanel>>>,
+    /// The apps the Running Apps panel asked to stop since the last frame, by their ids: to
+    /// crash (`true`) or kill (`false`), done with the next frame (`stop_app`).
+    apps_asked: Rc<RefCell<Vec<(String, bool)>>>,
+    /// The apps it killed, by their instances: one stopped so says nothing of it, as be-host
+    /// says nothing of an app it killed.
+    killed: Rc<RefCell<Vec<u64>>>,
+    /// Its own toasts, which say an app it runs stopped, beside its host's notices.
+    own_toasts: Rc<Cell<Option<Signal<Vec<Toast>>>>>,
     /// How many performance panels watch the host's statistics: the host keeps them while any
     /// does.
     statistics_watchers: Rc<Cell<u32>>,
@@ -404,6 +412,9 @@ impl Root {
             panels: Rc::default(),
             panels_made: Rc::default(),
             panel_asked: Rc::default(),
+            apps_asked: Rc::default(),
+            killed: Rc::default(),
+            own_toasts: Rc::default(),
             palette: Rc::default(),
             palette_asked: Rc::default(),
             cycle_asked: Rc::default(),
@@ -498,6 +509,7 @@ impl Root {
         let shown = Rc::clone(&self.shown);
         let saved = Rc::clone(&self.saving);
         let toast_area = Rc::clone(&self.toast_area);
+        let own_toasts = Rc::clone(&self.own_toasts);
         let toasts = BeuiSurface::new(
             &beui,
             OwnSurface::new(TOAST_SURFACE, window.whole()),
@@ -508,6 +520,8 @@ impl Root {
                 toast_area.set(Some(area));
                 let toasts = create_signal(Vec::<Toast>::new());
                 shown.set(Some(toasts));
+                let own = create_signal(Vec::<Toast>::new());
+                own_toasts.set(Some(own));
                 let saving = create_signal(SavingState {
                     generation: 0,
                     unsaved: false,
@@ -518,7 +532,7 @@ impl Root {
                 saved.set(Some(saving));
                 view! {
                     <Root clear_color=ColorRole::None>
-                        <Notices toasts={toasts} saving={saving} area={area} />
+                        <Notices toasts={toasts} own={own} saving={saving} area={area} />
                     </Root>
                 }
             },
@@ -1532,6 +1546,10 @@ impl frames::Guest for Root {
                 .expect("the root draws its lock screen with beui");
             root.settle_onboarding()
                 .expect("the root draws its accounts with beui");
+            let stops = std::mem::take(&mut *root.apps_asked.borrow_mut());
+            for (app, crash) in stops {
+                root.stop_app(&app, crash);
+            }
             root.settle_session(time);
             let own = root
                 .own

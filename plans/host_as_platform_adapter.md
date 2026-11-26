@@ -1961,12 +1961,10 @@ Each step lands on its own.
                are let go with the session. Host test
                `be_root_in_place_of_the_hosts_ui_draws_a_host_panel_the_workspace_places` opens
                the files' host menu (a Menu panel) and its Performance row.
-               - Left: Block Stack State and Running Apps show `PANEL_NOT_DRAWN` until the
-                 host's block stack and app pool reach be3:root.
-               - Left: a pick in a Menu panel leaves its popover open (be-host's closes): the
-                 root reports no answer for a panel child yet.
-               - Left: a Menu panel reports no intrinsic size, so its popover keeps its first
-                 size and its rows scroll.
+               - Left: Block Stack State shows `PANEL_NOT_DRAWN` until the host's block stack
+                 reaches be3:root. Running Apps lists the apps the root runs since 4g7g2a.
+               - A pick in a Menu panel closes its popover, and the panel reports its rows'
+                 size, since 4g7g2a.
              - One app crashing fails every child it runs: expected, as the pool shares one
                app per staged app. Apps may later isolate themselves by spawning more wasm
                processes (deferred, plans/deferred/backlog.md).
@@ -2334,28 +2332,70 @@ Each step lands on its own.
              the new device would keep the session.
            - Left: unlocking with a password has no host test (PAM needs the machine's
              password); be-root's `a_root_shows_its_hosts_lock_screen` covers handing it over.
-           - Left: what 4g7a2 left to be-host's menu (About, Close be-host, its other debug
-             panels and the inspector; the invite's Share; the web's local account note). The
-             invite's QR code and Invite member inside Members came with 4g7g2b.
+           - Left: what 4g7a2 left to be-host's menu (its other debug panels; the invite's
+             Share; the web's local account note). About, Close be-host and the inspector came
+             with 4g7g2a, the invite's QR code and Invite member inside Members with 4g7g2b.
          - 4g7g2. The root becomes the default, and be-host's `src/ui` and `src/compositor` go,
-           once the real root passes the host tests that exercise be-host's own UI. Surveyed
-           (not started): the host tests that drive `src/ui` or the compositor's palette by its
+           once the real root passes the host tests that exercise be-host's own UI. Surveyed:
+           the host tests that drive `src/ui` or the compositor's palette by its
            test ids (`host.*`, `account.*`, `sessions.*`) and have no counterpart under the
-           root, each to run under the root with its paintings compared to be-host's:
-           - Accounts and onboarding: `a_local_account_needs_only_a_display_name`,
+           root, each to run under the root with its paintings compared to be-host's. Each
+           counterpart (`be_root_in_place_of_the_hosts_ui_...`) does what be-host's test does,
+           first under be-host's own UI and then, restarted on its data (`restart_as_root`),
+           under the root, painting both:
+           - 4g7g2a. Built: the first three groups below. be-root gives its account dialogs
+             (`account.*`, `host.remove-account.*`), its menu's rows (`host.menu.*`), its
+             organizations' join (`host.join.*`) and its sessions (`sessions.*`) be-host's
+             test ids, and sizes its alerts at beui's default width as be-host does. The host
+             menu panel is be-host's own: it reports its rows' size as the child's intrinsic
+             size, so its popover grows to them; a pick or Escape says it is done
+             (`shown-dialog.done`, which the host tells the placer as the dialog accepted), which
+             closes it; placed in an edge-anchored view it is a sheet the root draws itself
+             (`PanelPlace::sheet`). The root's shell's `set-phone-layout` reaches every app the
+             root embeds (`Forwarded::phone_layout`, `frame-request.phone`, `FrameSpec::phone`),
+             so the files open the menu as a sheet on a phone. The menu gained About (the root's
+             own dialog, from core-view's `about`), Close be-host (`can-close`, core-command
+             `close`) and Inspector (core-command `open-inspector`, which opens the host's own).
+             Running Apps lists the apps the root runs (be-sdk-root's `Embedded::app`), each
+             with Kill and Crash (`Embedded::stop`); the session's app stopping once it ran
+             asks for the session picker, as be-host does when its shell stops, with a toast of
+             the root's own saying it stopped, unless it was killed. be-host's `--dev-workspace`
+             no longer opens an organization of its own choosing after a restart resumed one.
+             - Left: Running Apps lists only the apps running; be-host's also lists the apps
+               it discovered and each runtime's surfaces and instances, which the root does not
+               know.
+             - Left: only the session's app stopping says so in a toast; a child's app that
+               stops shows its error in its place, as before.
+             - Left: the root's own menu button stays at the window's top right (4g7e1), over
+               what an app draws there (on a phone, the workspace's tab switch), which be-host's
+               paintings do not have.
+             - Left: the root focuses the server address when Another server is chosen;
+               be-host's own dialog does not.
+             - Left: the kill counterpart runs the root on a host of its own: a Running Apps
+               window be-host's UI opened is not shown when the root starts on the same data
+               (4g7e2's left item).
+           - Accounts and onboarding (4g7g2a, built): `a_local_account_needs_only_a_display_name`,
              `adding_an_account_chooses_a_local_or_custom_server`,
-             `removing_a_local_account_asks_first_and_names_what_is_lost`. Under the root only
-             `be_root_in_place_of_the_hosts_ui_shows_its_onboarding` (no painting) and
-             `..._shows_its_signed_in_block_stack` (`be_root_signed_in`, `_menu`) exist,
-             not compared to be-host's.
-           - The host menu: `the_host_menu_opens_under_its_button`,
+             `removing_a_local_account_asks_first_and_names_what_is_lost`; counterparts
+             `..._adds_a_local_account_with_only_a_display_name`,
+             `..._adds_an_account_on_a_local_or_custom_server`,
+             `..._asks_before_removing_a_local_account`.
+           - The host menu (4g7g2a, built): `the_host_menu_opens_under_its_button`,
              `on_a_phone_the_host_menu_rises_as_a_sheet_it_draws_itself`,
-             `the_desktops_bars_hold_their_place_empty_and_their_grips_open_their_menu`
-             (inspector, recovery phrase, status: entries 4g7a2 left to be-host).
-           - Organizations and sessions: `the_organizations_screen_takes_an_invite_link`,
-             `players_carry_on_with_the_next_host_once_the_first_closes_the_world`,
+             `the_desktops_bars_hold_their_place_empty_and_their_grips_open_their_menu`;
+             counterparts `..._opens_the_host_menu_under_its_button`,
+             `..._rises_the_host_menu_as_a_sheet_on_a_phone`,
+             `..._holds_the_desktops_bars_and_opens_their_grips_menus` (which counts the scroll
+             views holding the menu, since the tree lists the bars' before it under the root).
+           - Organizations and sessions (4g7g2a, built but one):
+             `the_organizations_screen_takes_an_invite_link`,
              `killing_the_desktop_shell_shows_the_session_picker` and
-             `a_wait_names_an_app_that_stopped_instead_of_running_out` (`sessions.keep`).
+             `a_wait_names_an_app_that_stopped_instead_of_running_out`; counterparts
+             `..._takes_an_invite_link_on_its_organizations`,
+             `..._shows_the_session_picker_once_the_desktop_shell_is_killed`,
+             `..._names_an_app_that_stopped_while_a_wait_ran`. Left:
+             `players_carry_on_with_the_next_host_once_the_first_closes_the_world`, skipped as
+             a known flake.
            - Built (4g7g2b): members, invitations and agents. Counterparts under the root, on a
              device of a test's server that restarts as the root (`HostTest::drawn_device`,
              `restart_as_root`) or starts as it (`HostTest::root_device`):
@@ -2402,9 +2442,9 @@ Each step lands on its own.
              (`be_root_..._lists_a_text_on_a_canvas_in_its_palette`) whose paintings are its
              own, not compared to be-host's.
            With counterparts whose paintings match be-host's: the desktop shell, F6 between
-           views, and the lock screen on Super+L (4g7g1). The test ids above are be-host's;
-           be-root sets almost none (`session.crashed`, `root.palette`), so each test needs
-           be-root to give its controls be-host's ids as it moves. src/ui's own component tests (`ui/tests`,
+           views, and the lock screen on Super+L (4g7g1), and the groups 4g7g2a built. The test
+           ids above are be-host's; be-root gives its controls be-host's ids as each group
+           moves. src/ui's own component tests (`ui/tests`,
            `ui/lock/tests`, `ui/keep_changes/tests`, `ui/saving/tests`, `ui/onboarding/tests`,
            `ui/organization/tests`) go with it, their cases covered by be-root's tests.
 5. The block stack as an instance the root guest spawns, behind capabilities, building on the

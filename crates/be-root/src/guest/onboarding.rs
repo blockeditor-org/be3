@@ -546,7 +546,7 @@ fn JoinOrganization(area: Memo<OrganizationsArea>, busy: Memo<bool>) -> NodeId {
         ask_core(CoreCommand::OpenInvitation(Password::from(typed)));
     };
     view! {
-        <List spacing=Space::Md>
+        <List spacing=Space::Md @test_id={"host.join"}>
             <Show
                 value={joining}
                 fallback={move || view! {
@@ -560,6 +560,7 @@ fn JoinOrganization(area: Memo<OrganizationsArea>, busy: Memo<bool>) -> NodeId {
                                     value={link}
                                     label="Invite link"
                                     placeholder="https://…/#invite/…"
+                                    @test_id={"host.join.link"}
                                     on_submit={move |_: String| open()}
                                 />
                             </ListItem>
@@ -567,6 +568,7 @@ fn JoinOrganization(area: Memo<OrganizationsArea>, busy: Memo<bool>) -> NodeId {
                                 label="Open"
                                 variant=ButtonVariant::Secondary
                                 disabled={cannot}
+                                @test_id={"host.join.open"}
                                 on_click={open}
                             />
                         </List>
@@ -608,6 +610,7 @@ fn JoinOrganization(area: Memo<OrganizationsArea>, busy: Memo<bool>) -> NodeId {
                                         label="Join"
                                         variant=ButtonVariant::Primary
                                         disabled={busy}
+                                        @test_id={"host.join.confirm"}
                                         on_click={|| ask_core(CoreCommand::JoinInvited)}
                                     />
                                 </Show>
@@ -619,11 +622,17 @@ fn JoinOrganization(area: Memo<OrganizationsArea>, busy: Memo<bool>) -> NodeId {
                                     spacing=Space::Md
                                 >
                                     <ListItem grow=1.0>
-                                        <Text style=TextStyle::CAPTION>{problem_text}</Text>
+                                        <Text
+                                            style=TextStyle::CAPTION
+                                            @test_id={"host.join.problem"}
+                                        >
+                                            {problem_text}
+                                        </Text>
                                     </ListItem>
                                     <Button
                                         label="Use another account"
                                         variant=ButtonVariant::Secondary
+                                        @test_id={"host.join.another"}
                                         on_click={|| ask_core(CoreCommand::SwitchAccount)}
                                     />
                                 </List>
@@ -747,6 +756,7 @@ pub(super) fn SessionsCard(core: Signal<CoreView>) -> NodeId {
                         label={label}
                         glyph={glyph}
                         variant=ButtonVariant::Secondary
+                        @test_id={format!("sessions.profile.{}", be_lib_ui_types::clipboard::Uuid::from_bytes(id))}
                         on_click={move || ask_core(CoreCommand::UseProfile(id))}
                     />
                 }
@@ -756,6 +766,7 @@ pub(super) fn SessionsCard(core: Signal<CoreView>) -> NodeId {
                 glyph=ICON_PLUS
                 variant=ButtonVariant::Ghost
                 disabled={loading}
+                @test_id={"sessions.new-profile"}
                 on_click={|| ask_core(CoreCommand::NewProfile)}
             />
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
@@ -778,6 +789,7 @@ pub(super) fn SessionsCard(core: Signal<CoreView>) -> NodeId {
                     <Button
                         label={label}
                         variant=ButtonVariant::Secondary
+                        @test_id={format!("sessions.session.{}", be_lib_ui_types::clipboard::Uuid::from_bytes(id))}
                         on_click={move || ask_core(CoreCommand::OpenSession(id))}
                     />
                 }
@@ -809,6 +821,7 @@ pub(super) fn SessionsCard(core: Signal<CoreView>) -> NodeId {
                 <Button
                     label="Keep the current session"
                     variant=ButtonVariant::Ghost
+                    @test_id={"sessions.keep"}
                     on_click={|| ask_core(CoreCommand::CloseSessions)}
                 />
                 <Button
