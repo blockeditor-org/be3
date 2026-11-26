@@ -1607,6 +1607,10 @@ impl State {
                     self.placing = true;
                 }
                 self.run.lay_out(layout, |_| false);
+                // Its screens placed anew (one fitted itself to new content in the frame that
+                // measured it) are drawn at their new places with the next frame, as be-host
+                // lays out again at once an app whose layout changed.
+                self.run.pacing.need();
                 if unfloated {
                     self.ask_screens();
                 }

@@ -155,8 +155,17 @@ impl Surfaces {
             let damage =
                 self.panes
                     .paint(&gpu.device, &gpu.queue, *format, screens, ran.painting)?;
+            // A surface painted at the size it was placed at holds a frame; one placed anew at
+            // another size in the frame that painted it (a view that fitted itself to new
+            // content) holds none at that size yet, and stays fresh for the next frame.
             for placement in &painted {
-                self.fresh.remove(&placement.surface);
+                let current = self.layout.screens.iter().any(|laid| {
+                    laid.surface == placement.surface
+                        && (laid.width, laid.height) == (placement.width, placement.height)
+                });
+                if current {
+                    self.fresh.remove(&placement.surface);
+                }
             }
             let sequence = PRESENTS.with(|presents| {
                 presents.set(presents.get() + 1);
