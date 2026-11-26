@@ -71,16 +71,12 @@ commit is numbered, when the holder cancels, or when the holder leaves.
 
 ## Steps
 
-### 4. A canvas test with a bound line
-
-Holders tell their layer (`replica/held.rs`) and peers preview it beneath their own tentative
-layer, dropping it at the commit's entry, a cancel, the holder leaving, a reload, or a newer
-layer; late joiners are told it whole, and a peer that misses a frame asks again
-(`SessionMessage::HeldAgain`). Done: a canvas test with two editors on two devices. One resizes a shape that a line is bound
-to. The other's painting shows the line following each frame of the resize before release,
-and the same once the resize commits.
-
 ### 5. Guides and the decision
+
+Built: `replica/held.rs` (both sides), `Landed::Relaid`, be-sdk-test's session relay
+(`ContentStore::join_peer`, `take_relayed`, `receive_relayed`), and the canvas test
+`a_peer_draws_a_bound_line_following_each_frame_of_a_held_resize`. The canvas's carried move
+now reaches peers through the hold: `CanvasCursor::carried` and `carry_for_peers` are gone.
 
 Update decisions/tentative_edits_wait_for_release.md ("is shown to peers through presence"
 becomes "previewed by peers' replicas as a layer of their own"), guides/blocks/host.md (Undo),

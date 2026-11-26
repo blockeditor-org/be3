@@ -56,6 +56,7 @@ mod a_moved_entity_is_drawn_where_it_was_dropped;
 mod a_multiple_selection_outlines_each_selected_entity;
 mod a_new_shape_takes_the_last_style_used;
 mod a_painted_scaled_raster_layer_duplicates_with_its_pixels_and_scale;
+mod a_peer_draws_a_bound_line_following_each_frame_of_a_held_resize;
 mod a_peer_sees_a_shape_while_it_is_dragged;
 mod a_peer_sees_a_stroke_while_it_is_drawn;
 mod a_peer_sees_where_another_is_writing;
@@ -449,6 +450,39 @@ fn forward_presence(
             .collect(),
     );
     to.run();
+}
+
+/// The clients two editors' stores name each other by in one session (`join_session`), and
+/// the origins their submissions go under at the other.
+const FIRST_PEER: u64 = 7;
+const SECOND_PEER: u64 = 8;
+const PEER_ORIGINS: u64 = 0x7000;
+
+/// Joins the two editors' devices into one session, as two devices' replicas share a block's
+/// session: what each holds tentatively is previewed by the other (`relay_session`).
+fn join_session(first: &mut BeuiTest<CanvasRoot>, second: &mut BeuiTest<CanvasRoot>) {
+    first.store().join_peer(None, SECOND_PEER);
+    second.store().join_peer(None, FIRST_PEER);
+    relay_session(first, second, FIRST_PEER);
+    relay_session(second, first, SECOND_PEER);
+}
+
+/// Hands `to` what `from`, which `to` names `client`, sent its session since the last call:
+/// its relayed messages and its submissions. Answers how many edits it submitted.
+fn relay_session(
+    from: &mut BeuiTest<CanvasRoot>,
+    to: &mut BeuiTest<CanvasRoot>,
+    client: u64,
+) -> usize {
+    let relayed = from.store().take_relayed(None);
+    let submitted = relayed
+        .iter()
+        .filter(|relayed| matches!(relayed, be_sdk_test::Relayed::Submission { .. }))
+        .count();
+    to.store()
+        .receive_relayed(None, client, PEER_ORIGINS + client, relayed);
+    to.step(Vec::new());
+    submitted
 }
 
 fn undo(editor: &mut BeuiTest<CanvasRoot>) {

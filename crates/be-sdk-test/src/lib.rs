@@ -46,7 +46,7 @@ macro_rules! test_editor {
 }
 pub use document::DocumentTest;
 pub use fetches::Fetch;
-pub use store::ContentStore;
+pub use store::{ContentStore, Relayed};
 
 /// What a test drives and reads its program through (`Gui`) and paints it with
 /// (`Snapshots`), for both `BeuiTest` and `DocumentTest`.

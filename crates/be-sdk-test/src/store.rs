@@ -62,6 +62,24 @@ struct Block {
     /// The block's signed log, as the server would number and stamp it: one device, so every
     /// entry is this account's and verified.
     log: Vec<be_sdk_type_guest::api::LogItem>,
+    /// The peers joined into the block's session (`ContentStore::join_peer`).
+    peers: Vec<ClientId>,
+    /// What the replica relayed to its peers and submitted since `take_relayed`, in order,
+    /// while it has peers.
+    relayed: Vec<Relayed>,
+}
+
+/// What a replica sent its session: a message relayed to its peers, or a submission to the
+/// order (`ContentStore::take_relayed`), which another store hands its own replica as a
+/// peer's (`ContentStore::receive_relayed`).
+pub enum Relayed {
+    Message(Vec<u8>),
+    Submission {
+        counter: u64,
+        base: u64,
+        barrier: bool,
+        payload: Vec<u8>,
+    },
 }
 
 impl Block {
@@ -99,6 +117,8 @@ impl Block {
             held: BTreeMap::new(),
             order: be_block_session::Sequencer::starting(0),
             log: Vec::new(),
+            peers: Vec::new(),
+            relayed: Vec::new(),
         }
     }
 }
@@ -603,6 +623,16 @@ impl Inner {
                 self.held_submissions.push((block, call));
             }
             Call::Submit { reply, submission } => {
+                if let Some(held) = block.and_then(|block| self.blocks.get_mut(&block))
+                    && !held.peers.is_empty()
+                {
+                    held.relayed.push(Relayed::Submission {
+                        counter: submission.counter,
+                        base: submission.base,
+                        barrier: submission.barrier,
+                        payload: submission.payload.clone(),
+                    });
+                }
                 let held = !self.offline;
                 let entry = self.number(block, submission, held);
                 let answer = match held {
@@ -617,6 +647,18 @@ impl Inner {
                     self.on_replica(replica, |replica, host| {
                         replica.sequenced(host, vec![entry]);
                     });
+                }
+            }
+            Call::Send {
+                reply,
+                to: Recipients::Peers | Recipients::One(Endpoint::Peer(_)),
+                bytes,
+            } => {
+                reply.send(&mut self.host, &());
+                if let Some(held) = block.and_then(|block| self.blocks.get_mut(&block))
+                    && !held.peers.is_empty()
+                {
+                    held.relayed.push(Relayed::Message(bytes));
                 }
             }
             Call::Send { reply, .. }
@@ -1616,6 +1658,97 @@ impl ContentStore {
                         value: Some(value),
                     },
                 );
+            }
+        }
+    }
+
+    /// Joins `client`, which may edit, into the block's session, as the server's membership
+    /// tells a replica: from then on what the replica relays and submits is kept for
+    /// `take_relayed`.
+    pub fn join_peer(&self, block: Option<Uuid>, client: ClientId) {
+        let key = self.key(block);
+        let mut inner = self.0.borrow_mut();
+        let Some(held) = inner.blocks.get_mut(&key) else {
+            return;
+        };
+        held.peers.push(client);
+        let mut state = session(TAG);
+        for peer in &held.peers {
+            state.index += 1;
+            state.participants.push(be_sdk_type_guest::api::Participant {
+                client: *peer,
+                tag: Hash::from_bytes(TAG.0),
+                may_edit: true,
+                claimed: None,
+            });
+        }
+        if let Some(replica) = held.replica {
+            inner.on_replica(replica, |replica, host| {
+                replica.lease(host, state);
+            });
+        }
+    }
+
+    /// What the block's replica relayed to its peers and submitted since the last call, in
+    /// order, while a peer is joined.
+    pub fn take_relayed(&self, block: Option<Uuid>) -> Vec<Relayed> {
+        let key = self.key(block);
+        self.0
+            .borrow_mut()
+            .blocks
+            .get_mut(&key)
+            .map(|held| std::mem::take(&mut held.relayed))
+            .unwrap_or_default()
+    }
+
+    /// Hands the block's replica what a peer's replica sent (`take_relayed`), as relayed from
+    /// `from` and numbered in this block's order, its submissions under `origin` (its own
+    /// replica's would clash, every store numbering alike).
+    pub fn receive_relayed(
+        &self,
+        block: Option<Uuid>,
+        from: ClientId,
+        origin: u64,
+        relayed: Vec<Relayed>,
+    ) {
+        let key = self.key(block);
+        let mut inner = self.0.borrow_mut();
+        let Some(replica) = inner.blocks.get(&key).and_then(|held| held.replica) else {
+            return;
+        };
+        for relayed in relayed {
+            match relayed {
+                Relayed::Message(bytes) => {
+                    let Some(mut message) = be_sdk_type_guest::wire::decode(&bytes) else {
+                        continue;
+                    };
+                    if let be_block_session::SessionMessage::Held {
+                        origin: held_origin,
+                        ..
+                    } = &mut message
+                    {
+                        *held_origin = origin;
+                    }
+                    inner.peer_said(replica, from, message);
+                }
+                Relayed::Submission {
+                    counter,
+                    base,
+                    barrier,
+                    payload,
+                } => {
+                    let submission = be_sdk_type_guest::api::Submission {
+                        origin,
+                        counter,
+                        base,
+                        barrier,
+                        payload,
+                    };
+                    let entry = inner.number(Some(key), submission, true);
+                    inner.on_replica(replica, |replica, host| {
+                        replica.sequenced(host, vec![entry]);
+                    });
+                }
             }
         }
     }
