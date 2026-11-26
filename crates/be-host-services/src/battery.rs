@@ -24,7 +24,7 @@ pub struct Battery {
 }
 
 impl Battery {
-    pub fn start(mut on_power: impl FnMut(bool) + 'static) -> Self {
+    pub fn start(on_power: impl Fn(bool) + 'static) -> Self {
         let (reports, post) = host::mailbox(move |powered: bool| on_power(powered));
         crate::dbus::spawn(async move {
             serve(&crate::dbus::SYSTEM, move |powered| post.send(powered)).await;
