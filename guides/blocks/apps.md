@@ -37,8 +37,11 @@ the instance and the replica.
   told landed, and rebuilds its view on the snapshot with the rest on top;
   `Operations` (each marked `mine`, with `unsettled` and, for a peer's
   operation that goes beneath them, the rebased `beneath`; for a local edit
-  made while a tentative layer is held, `above`, how many of the last
-  unsettled edits it goes beneath, which stay on top); `Lacking` (below,
+  made while a tentative layer is held, here or a peer's, `above`, how many of
+  the last unsettled edits it goes beneath, which stay on top; with no
+  `operation`, `beneath` alone, what is unsettled laid again as a peer's held
+  layer leaves or is told whole, guides/type_modules.md, Peers preview held
+  layers); `Lacking` (below,
   "Sending"); `Presence`;
   `PeerMessages`; `Range`; `GestureEnded { id, cancelled }`, the replica ending
   one of the instance's gestures, which `EditorMirror` answers with a cancel.

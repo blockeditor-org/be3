@@ -64,6 +64,8 @@ struct Block {
     log: Vec<be_sdk_type_guest::api::LogItem>,
     /// The peers joined into the block's session (`ContentStore::join_peer`).
     peers: Vec<ClientId>,
+    /// How many landings the replica told since `take_landed`, none once it sent a snapshot.
+    landed: Option<usize>,
     /// What the replica relayed to its peers and submitted since `take_relayed`, in order,
     /// while it has peers.
     relayed: Vec<Relayed>,
@@ -80,6 +82,19 @@ pub enum Relayed {
         barrier: bool,
         payload: Vec<u8>,
     },
+}
+
+impl Relayed {
+    /// For a tentative layer told (`SessionMessage::Held`), how many edits it carries.
+    pub fn held_edits(&self) -> Option<usize> {
+        let Self::Message(bytes) = self else {
+            return None;
+        };
+        match be_sdk_type_guest::wire::decode(bytes)? {
+            be_block_session::SessionMessage::Held { operations, .. } => Some(operations.len()),
+            _ => None,
+        }
+    }
 }
 
 impl Block {
@@ -118,6 +133,7 @@ impl Block {
             order: be_block_session::Sequencer::starting(0),
             log: Vec::new(),
             peers: Vec::new(),
+            landed: Some(0),
             relayed: Vec::new(),
         }
     }
@@ -416,8 +432,15 @@ impl Inner {
                     );
                 }
                 if let Some(held) = self.blocks.get_mut(&block) {
-                    if matches!(message, ToEditor::Snapshot(_)) {
-                        held.followed.clear();
+                    match &message {
+                        ToEditor::Snapshot(_) => {
+                            held.followed.clear();
+                            held.landed = None;
+                        }
+                        ToEditor::Operations(operations) => {
+                            held.landed = held.landed.map(|landed| landed + operations.len());
+                        }
+                        _ => {}
                     }
                     held.followed.push(message);
                 }
@@ -1687,6 +1710,17 @@ impl ContentStore {
                 replica.lease(host, state);
             });
         }
+    }
+
+    /// How many landings the block's replica told its editors since the last call (each an
+    /// operation, or what is unsettled laid again), none when it sent them a snapshot since.
+    pub fn take_landed(&self, block: Option<Uuid>) -> Option<usize> {
+        let key = self.key(block);
+        self.0
+            .borrow_mut()
+            .blocks
+            .get_mut(&key)
+            .and_then(|held| std::mem::replace(&mut held.landed, Some(0)))
     }
 
     /// What the block's replica relayed to its peers and submitted since the last call, in
