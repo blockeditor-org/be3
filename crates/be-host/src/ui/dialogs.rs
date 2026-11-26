@@ -1,5 +1,5 @@
 use be_block_protocol::OrganizationRole;
-use beui::NodeId;
+use beui::{Image, NodeId};
 use beui::Overflow;
 use beui::icons::{ICON_COPY, ICON_TRASH, ICON_USER_MINUS};
 use beui::reactive::*;
@@ -97,7 +97,10 @@ fn InvitePanel(view: HostUiStore) -> NodeId {
                 <Show
                     value={move || invite.get().and_then(|invite| invite.link)}
                 >|link: ReadSignal<String>| {
-                    let code = create_memo(move || link.with(|link| crate::qr::image(link)));
+                    let code = create_memo(move || {
+                        link.with(|link| be_lib_qr::code(link))
+                            .map(|code| Image::from_rgba(code.side, code.side, code.rgba))
+                    });
                     view! {
                         <List spacing=Space::Md>
                             <Text style=TextStyle::CAPTION @test_id={"host.invite.help"}>

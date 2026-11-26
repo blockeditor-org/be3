@@ -82,6 +82,7 @@ mod an_offline_device_refuses_to_move_a_block_into_a_folder_it_never_opened;
 mod an_offline_device_says_a_block_it_never_opened_is_not_on_it_yet;
 mod an_offline_device_that_never_opened_my_files_is_told_it_cannot_add_to_it;
 mod an_outsider_opens_a_share_link_as_a_guest;
+mod be_root_in_place_of_the_hosts_ui_creates_an_agent_in_a_personal_organization;
 mod be_root_in_place_of_the_hosts_ui_draws_a_host_panel_the_workspace_places;
 mod be_root_in_place_of_the_hosts_ui_floats_a_window_the_desktop_opens;
 mod be_root_in_place_of_the_hosts_ui_hands_a_canvas_frame_to_the_editor_on_it;
@@ -91,6 +92,7 @@ mod be_root_in_place_of_the_hosts_ui_lands_a_block_dragged_from_the_files_on_a_c
 mod be_root_in_place_of_the_hosts_ui_lists_a_programs_window_on_the_desktop;
 mod be_root_in_place_of_the_hosts_ui_locks_the_screen_on_super_l;
 mod be_root_in_place_of_the_hosts_ui_lists_a_text_on_a_canvas_in_its_palette;
+mod be_root_in_place_of_the_hosts_ui_lists_an_organizations_members_and_their_roles;
 mod be_root_in_place_of_the_hosts_ui_makes_a_block_a_picker_creates;
 mod be_root_in_place_of_the_hosts_ui_moves_the_keyboard_between_views_with_f6;
 mod be_root_in_place_of_the_hosts_ui_names_what_it_shows_to_drive;
@@ -108,6 +110,8 @@ mod be_root_in_place_of_the_hosts_ui_shows_its_onboarding;
 mod be_root_in_place_of_the_hosts_ui_shows_its_signed_in_block_stack;
 mod be_root_in_place_of_the_hosts_ui_shows_the_children_its_session_places;
 mod be_root_in_place_of_the_hosts_ui_shows_the_desktop_shell;
+mod be_root_in_place_of_the_hosts_ui_shows_the_link_to_send_the_invited_person;
+mod be_root_in_place_of_the_hosts_ui_warns_of_a_member_no_invitation_signed_in;
 mod choosing_a_scale_draws_the_host_larger;
 mod choosing_another_workspace_on_the_add_pickers_location_page_moves_it_there;
 mod clicking_another_texts_tab_hands_it_the_caret;
@@ -300,3 +304,14 @@ fn pan_zoom_world(host: &mut HostTest) -> (f32, f32, f32, f32) {
     let scale = (right.0 + right.2 - origin.0) / 820.0;
     (origin.0, origin.1, 880.0 * scale, 580.0 * scale)
 }
+
+/// Makes an organization named `name` from be-host's own host menu, which opens it.
+fn create_organization(host: &mut HostTest, name: &str) {
+    host.click("#file-tree.host-menu");
+    host.click("#host.menu.switch-organization");
+    host.click("TextInput \"Organization name\"");
+    host.type_text(name);
+    host.click("Button \"Create\"");
+    host.wait("#file-tree.host-menu");
+}
+

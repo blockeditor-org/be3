@@ -265,7 +265,7 @@ fn a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once() {
     // could not make (answered with nothing) shows none, the list asking afresh.
     root.input(
         None,
-        be_lib_ui_types::input::encode(&click(pos2(193.0, 383.0))),
+        be_lib_ui_types::input::encode(&click(pos2(193.0, 487.0))),
     )
     .expect("the root takes input");
     assert_eq!(

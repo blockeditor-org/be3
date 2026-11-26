@@ -1,0 +1,12 @@
+[package]
+name = "be-lib-qr"
+description = "A link as a QR code's pixels, for a person to show another device to scan"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+qrcodegen = "1.8"
+
+[lints]
+workspace = true
