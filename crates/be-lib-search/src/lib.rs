@@ -2,8 +2,9 @@
 A full-text index kept as bytes: the library the search index block type
 (guides/blocks/host.md, "Search") writes and merges, and the host queries. It does no IO: every
 part it reads comes through `Parts::read`, by part name and byte range, and
-every part it writes comes back in `Written`, so the block type keeps them as
-the block's parts and the host reads them with `read-part`.
+every part it writes comes back in `Written` or, for the segments a compaction
+merges, goes out through a `PartsOut` a piece at a time, so the block type
+keeps them as the block's parts and the host reads them with `read-part`.
 
 The index is a small header (`Index`, encoded with `Index::encode`) over
 immutable segments, one per batch, and a document table:
@@ -53,6 +54,7 @@ mod tokens;
 mod varint;
 
 use std::{
+    cell::RefCell,
     collections::{BTreeMap, HashMap},
     future::Future,
     ops::Range,
@@ -142,6 +144,8 @@ pub enum Error {
     Read(String),
     /// A part's bytes are not what the index wrote.
     Corrupt(&'static str),
+    /// A part could not be written; the caller's message.
+    Write(String),
 }
 
 impl std::fmt::Display for Error {
@@ -149,6 +153,7 @@ impl std::fmt::Display for Error {
         match self {
             Error::Read(message) => write!(f, "reading an index part: {message}"),
             Error::Corrupt(what) => write!(f, "the index's {what} is corrupt"),
+            Error::Write(message) => write!(f, "writing an index part: {message}"),
         }
     }
 }
@@ -167,16 +172,32 @@ pub trait Parts {
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, Error>> + 'a>>;
 }
 
-/// Parts held in memory, as a test or a type module that loaded them has.
-#[derive(Clone, Debug, Default)]
+/// Where a compaction writes the parts of the segments it merges, a piece at a time as it goes
+/// (`Written::saved` names them), so no merge holds its output whole. Synchronous, as a writer
+/// that seals each chunk as the bytes end it is. Reads (`Parts::read`) answer the parts it
+/// finished, which a later merge of the same compaction may take as an input.
+pub trait PartsOut: Parts {
+    /// Appends `bytes` to `part`, which this sink starts on its first write.
+    fn write(&self, part: &PartName, bytes: &[u8]) -> Result<(), Error>;
+    /// Ends `part`: what was written to it, nothing when nothing was, is the part.
+    fn finish(&self, part: &PartName) -> Result<(), Error>;
+    /// Whether `part` is one this sink finished.
+    fn holds(&self, part: &PartName) -> bool;
+}
+
+/// Parts held in memory, as a test or a type module that loaded them has; a sink
+/// (`PartsOut`) for callers that hold every part anyway.
+#[derive(Debug, Default)]
 pub struct MemoryParts {
-    pub parts: HashMap<PartName, Vec<u8>>,
+    pub parts: RefCell<HashMap<PartName, Vec<u8>>>,
+    writing: RefCell<HashMap<PartName, Vec<u8>>>,
 }
 
 impl MemoryParts {
-    pub fn insert(&mut self, written: &Written) {
+    pub fn insert(&self, written: &Written) {
+        let mut parts = self.parts.borrow_mut();
         for (name, bytes) in &written.added {
-            self.parts.insert(*name, bytes.clone());
+            parts.insert(*name, bytes.clone());
         }
     }
 }
@@ -188,8 +209,8 @@ impl Parts for MemoryParts {
         range: Range<u64>,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, Error>> + 'a>> {
         Box::pin(async move {
-            let bytes = self
-                .parts
+            let parts = self.parts.borrow();
+            let bytes = parts
                 .get(part)
                 .ok_or_else(|| Error::Read(format!("no part {part:?}")))?;
             let end = (range.end.min(bytes.len() as u64)) as usize;
@@ -199,11 +220,34 @@ impl Parts for MemoryParts {
     }
 }
 
+impl PartsOut for MemoryParts {
+    fn write(&self, part: &PartName, bytes: &[u8]) -> Result<(), Error> {
+        self.writing
+            .borrow_mut()
+            .entry(*part)
+            .or_default()
+            .extend_from_slice(bytes);
+        Ok(())
+    }
+
+    fn finish(&self, part: &PartName) -> Result<(), Error> {
+        let bytes = self.writing.borrow_mut().remove(part).unwrap_or_default();
+        self.parts.borrow_mut().insert(*part, bytes);
+        Ok(())
+    }
+
+    fn holds(&self, part: &PartName) -> bool {
+        self.parts.borrow().contains_key(part)
+    }
+}
+
 /// What a change to the index wrote: parts to add, and parts the new header
 /// no longer names. The header itself is `Index::encode`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Written {
     pub added: Vec<(PartName, Vec<u8>)>,
+    /// Parts written through the compaction's sink (`PartsOut`), which holds them.
+    pub saved: Vec<PartName>,
     pub dropped: Vec<PartName>,
     /// Documents whose text the index does not hold for their newest
     /// commit (a `Put` without text it had nothing for, or a merge that

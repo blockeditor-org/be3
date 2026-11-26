@@ -8,8 +8,8 @@ use std::{
 };
 
 use crate::{
-    Batch, Commit, DocId, Error, Id, Index, MemoryParts, PartKind, PartName, Parts, Put, Query,
-    Text, Written,
+    Batch, Commit, DocId, Error, Id, Index, MemoryParts, PartKind, PartName, Parts, PartsOut, Put,
+    Query, Text, Written,
 };
 
 mod a_commit_time_past_the_readers_bound_counts_as_the_oldest;
@@ -75,6 +75,20 @@ impl Parts for Store {
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<u8>, Error>> + 'a>> {
         self.reads.borrow_mut().push(part.kind);
         self.parts.read(part, range)
+    }
+}
+
+impl PartsOut for Store {
+    fn write(&self, part: &PartName, bytes: &[u8]) -> Result<(), Error> {
+        self.parts.write(part, bytes)
+    }
+
+    fn finish(&self, part: &PartName) -> Result<(), Error> {
+        self.parts.finish(part)
+    }
+
+    fn holds(&self, part: &PartName) -> bool {
+        self.parts.holds(part)
     }
 }
 

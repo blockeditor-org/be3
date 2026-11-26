@@ -35,7 +35,7 @@ use be_block_client::{ListedBlock, Peer, Write};
 use be_block_commit::CommitId;
 use be_block_content::{BlockContent, BlockMetadata, SEARCH_INDEX, be_block_model::BlockRef};
 use be_block_graph::{Access, BlockParent, EDIT_KINDS, SEARCH_INDEX_TYPE, SETTINGS_TYPE};
-use be_block_search_index::{AsyncRead, IDLE_MERGE_BYTES, MERGE_BYTES, SearchIndexContent};
+use be_block_search_index::{AsyncRead, IDLE_MERGE_BYTES, MERGE_BYTES, Saving, SearchIndexContent};
 use be_block_store::{ObjectStore, PartRef};
 use be_lib_search::{Batch, DocId, Put, Query, Text};
 use std::sync::Mutex;
@@ -2625,9 +2625,12 @@ pub async fn compact_past<S: ObjectStore>(
         gone: std::cell::Cell::new(false),
     };
     let before = content.index().parts();
+    let key = peer.sealing_key(index).await?;
+    let out = Saving::new(peer.commits().vault(), key, &parts);
     content
         .compact(
             &parts,
+            &out,
             Uuid::new_v4().into_bytes(),
             be_block_commit::now_milliseconds(),
             IDLE_MERGE_BYTES,
@@ -2722,8 +2725,10 @@ async fn write_at<S: ObjectStore>(
         .map_err(|error| unwritten(error.to_string()))?;
     // The device that writes a batch compacts a few segments with it, so queries read few.
     if let Some((now, bytes)) = compact_at {
+        let key = peer.sealing_key(index).await?;
+        let out = Saving::new(peer.commits().vault(), key, &parts);
         content
-            .compact(&parts, Uuid::new_v4().into_bytes(), now, bytes)
+            .compact(&parts, &out, Uuid::new_v4().into_bytes(), now, bytes)
             .await
             .map_err(|error| unwritten(error.to_string()))?;
     }
