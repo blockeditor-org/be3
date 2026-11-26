@@ -28,7 +28,12 @@ fn a_window_bound_to_a_block_leaves_the_published_windows_without_a_frame() {
     flush();
     let block = uuid::Uuid::from_u128(1);
     let window = HostWindowId(7);
-    crate::programs::show(block, uuid::Uuid::from_u128(2), uuid::Uuid::from_u128(3), block);
+    crate::programs::show(
+        block,
+        uuid::Uuid::from_u128(2),
+        uuid::Uuid::from_u128(3),
+        block,
+    );
     crate::programs::bind(block, window);
     flush();
     assert_eq!(
