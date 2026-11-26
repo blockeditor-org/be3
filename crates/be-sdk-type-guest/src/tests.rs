@@ -30,6 +30,9 @@ use std::pin::Pin;
 use std::rc::Rc;
 
 mod a_break_ends_a_burst_but_not_an_open_gesture;
+mod a_peer_that_missed_a_frame_asks_for_the_layer_whole;
+mod a_peer_that_joins_mid_drag_previews_it;
+mod a_holder_that_crashes_mid_drag_leaves_no_layer_on_its_peer;
 mod a_readers_held_layer_is_dropped_by_its_peers;
 mod a_peers_held_drag_is_never_sealed_or_undone_by_the_peer;
 mod a_peers_cancelled_drag_leaves_its_mirror_in_one_landing;

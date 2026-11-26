@@ -71,18 +71,12 @@ commit is numbered, when the holder cancels, or when the holder leaves.
 
 ## Steps
 
-### 3. Leaving with the holder
-
-The message, the holder's side and the peer's layer are built (`replica/held.rs`, with
-`Landed::Relaid` for a layer that leaves or is laid again without an entry). Peer layers show
-beneath the replica's own tentative layer, so each device sees its own drag on top. Drop a layer when its client leaves the session, at a reload or replacement, and when a `Held`
-arrives about a newer layer. Send late joiners the layers held. Done: Sim tests for a holder
-that crashes mid-drag, which leaves no layer on its peer, and for a peer that joins mid-drag,
-which previews the drag from its next frame.
-
 ### 4. A canvas test with a bound line
 
-Done: a canvas test with two editors on two devices. One resizes a shape that a line is bound
+Holders tell their layer (`replica/held.rs`) and peers preview it beneath their own tentative
+layer, dropping it at the commit's entry, a cancel, the holder leaving, a reload, or a newer
+layer; late joiners are told it whole, and a peer that misses a frame asks again
+(`SessionMessage::HeldAgain`). Done: a canvas test with two editors on two devices. One resizes a shape that a line is bound
 to. The other's painting shows the line following each frame of the resize before release,
 and the same once the resize commits.
 
