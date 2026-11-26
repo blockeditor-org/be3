@@ -101,6 +101,8 @@ pub struct Embedding {
     /// Files dragged over a window from outside it, carried over the screens under the pointer
     /// until they are dropped or the drag ends (`Embedding::drag_files`).
     files: Option<FilesOver>,
+    /// Where the pointer last was in each window, in its points.
+    pointers: Vec<(Option<u64>, Pos2)>,
     /// The anchored views that ask for the keyboard (`anchored-placement.keyboard`), while
     /// their apps keep them open.
     keyed: Vec<Keyed>,
@@ -180,6 +182,7 @@ impl Embedding {
             windows: Windows::new(compositor),
             carried: None,
             files: None,
+            pointers: Vec::new(),
             keyed: Vec::new(),
             own_trees: Default::default(),
             host_input: Vec::new(),
@@ -249,6 +252,15 @@ impl Embedding {
         }
         self.dismiss_outside(window, &events);
         let lifted = self.lift();
+        // Where the pointer is in each window, which files dragged there are over.
+        for event in &events {
+            if let input::Input::PointerMoved(at) | input::Input::PointerButton { pos: at, .. } =
+                &event.input
+            {
+                self.pointers.retain(|(held, _)| *held != window);
+                self.pointers.push((window, *at));
+            }
+        }
         let mut routed = self.windows.route(window, events);
         routed.splice(0..0, lifted);
         self.carry();
@@ -543,6 +555,8 @@ impl Embedding {
                 if self.files.as_ref().is_none_or(|files| files.window != window) {
                     self.leave_files();
                     self.files = Some(FilesOver { window, over: None });
+                    // Over whatever the pointer is over already: no move may come before a drop.
+                    self.files_at_pointer(window);
                 }
             }
             FileDrag::Cancelled => {
@@ -550,27 +564,32 @@ impl Embedding {
                 self.files = None;
             }
             FileDrag::Dropped(dropped) => {
-                let over = self
-                    .files
-                    .take()
-                    .filter(|files| files.window == window)
-                    .and_then(|files| files.over);
-                let Some((over, at)) = over else {
+                // Dropped with no hover first (a host that says only the drop): as if hovered.
+                if self.files.as_ref().is_none_or(|files| files.window != window) {
+                    self.drag_files(window, FileDrag::Hovered);
+                }
+                self.files_at_pointer(window);
+                let Some(over) = self.files.take().and_then(|files| files.over) else {
                     return;
                 };
-                let files = Files {
-                    files: dropped
-                        .into_iter()
-                        .map(|file| ClipFile {
-                            name: file.name,
-                            data: file.data,
-                        })
-                        .collect(),
-                };
+                let (over, at) = over;
+                let files: Vec<ClipFile> = dropped
+                    .into_iter()
+                    .map(|file| ClipFile {
+                        name: file.name,
+                        data: file.data,
+                    })
+                    .collect();
+                // A drop of nothing that could be read ends the drag where it is.
+                if files.is_empty() {
+                    tell_editor(over.app.instance(), over.editor, &EditorEvent::Drag(None));
+                    over.app.end_drag(over.editor);
+                    return;
+                }
                 let dropped = DragOver {
                     view: over.view,
                     pos: at,
-                    items: vec![ClipFormat::encode(&files)],
+                    items: vec![ClipFormat::encode(&Files { files })],
                     action: DropAction::Copy,
                     dropped: true,
                 };
@@ -578,6 +597,33 @@ impl Embedding {
                 over.app.end_drag(over.editor);
             }
         }
+    }
+
+    /// Files dragged over `window` are over what the pointer is over there, as it last was,
+    /// which hears them (`follow_files`).
+    fn files_at_pointer(&mut self, window: Option<u64>) {
+        let Some(at) = self
+            .pointers
+            .iter()
+            .find(|(held, _)| *held == window)
+            .map(|(_, at)| *at)
+        else {
+            return;
+        };
+        let Some(layer) = self.windows.layer_at(window, at) else {
+            return;
+        };
+        let Some(local) = layer.transform.inverse().map(|into| into.apply(at)) else {
+            return;
+        };
+        let delivery = Delivery {
+            target: layer.id,
+            surface: layer.surface,
+            input: input::Input::PointerMoved(local),
+            time: None,
+            modifiers: input::Modifiers::default(),
+        };
+        self.follow_files(window, &[delivery]);
     }
 
     /// Follows files dragged over `window` with the pointer's moves `routed` there: the view of

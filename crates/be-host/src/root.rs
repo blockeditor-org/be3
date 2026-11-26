@@ -631,27 +631,28 @@ impl beui::native::Program for RootShell {
     }
 
     /// The root takes files dragged over the window from outside it too, which it carries to
-    /// the view under the pointer: dropped, each with what it holds, read here (as be-host's
-    /// own views read them, be-host-runtime's `file_drop`); those dropped together reach it
-    /// together.
+    /// the view under the pointer: dropped, each with what it holds, read here on the frame's
+    /// thread (as be-host's own views read them, be-host-runtime's `file_drop`); those dropped
+    /// together reach it together.
     fn file_drag(&mut self, drag: &beui::FileDrag) -> bool {
         use be_wasm_root_api::input::{DroppedFile, FileDrag};
         let drag = match drag {
             beui::FileDrag::Hovered => FileDrag::Hovered,
             beui::FileDrag::Cancelled => FileDrag::Cancelled,
+            // One that cannot be read (a folder, or one it may not read) is left out, but the
+            // drop is handed on all the same, so the root ends the drag.
             beui::FileDrag::Dropped(file) => {
-                let Some(dropped) = be_host_runtime::read_dropped(file.clone()) else {
-                    return true;
-                };
-                let dropped = DroppedFile {
-                    name: dropped.name,
-                    data: dropped.data,
-                };
+                let dropped = be_host_runtime::read_dropped(file.clone()).map(|dropped| {
+                    DroppedFile {
+                        name: dropped.name,
+                        data: dropped.data,
+                    }
+                });
                 if let Some(Taken::Files(FileDrag::Dropped(held))) = self.input.last_mut() {
-                    held.push(dropped);
+                    held.extend(dropped);
                     return true;
                 }
-                FileDrag::Dropped(vec![dropped])
+                FileDrag::Dropped(dropped.into_iter().collect())
             }
         };
         self.input.push(Taken::Files(drag));
