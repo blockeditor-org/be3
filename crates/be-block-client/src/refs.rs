@@ -756,9 +756,11 @@ impl State {
             let _ = state.add(&row, value);
         }
         let mut places = std::mem::take(&mut state.log_places);
-        for (block, kept) in &mut state.logs {
-            kept_logs::join(kept, places.remove(block).unwrap_or_default());
-        }
+        // A log whose places do not all read back is dropped, as never kept: its next read
+        // checks it afresh.
+        state.logs.retain(|block, kept| {
+            kept_logs::join(kept, places.remove(block).unwrap_or_default())
+        });
         for summary in state.summaries.values() {
             if let Some(parent) = summary.parent {
                 state.placed.entry(parent).or_default().insert(summary.id);
@@ -1663,28 +1665,32 @@ impl Refs {
         minted: &[Uuid],
     ) -> Result<(), StoreError> {
         let mut rows = Vec::new();
-        {
-            let mut state = self.state.lock().unwrap();
-            if state
-                .logs
-                .get(&block)
-                .is_some_and(|kept| kept.head == root && kept.place == 0)
-                && let Some(kept) = state.logs.remove(&block)
-            {
-                rows.extend(kept_logs::removed(block, &kept));
-            }
-            let keys = state.unmade.entry(block).or_default();
-            let before = keys.len();
-            for key in minted {
-                if !keys.contains(key) {
-                    keys.push(*key);
-                }
-            }
-            if keys.len() != before {
-                rows.push(row(Table::Unmade, block.as_bytes().to_vec(), &*keys));
+        // Under the lock, as `keep_log` writes a kept log, and dropped from memory only once
+        // written, so a keep after it writes on from what the database holds.
+        let mut state = self.state.lock().unwrap();
+        let dropped = state
+            .logs
+            .get(&block)
+            .is_some_and(|kept| kept.head == root && kept.place == 0);
+        if dropped && let Some(kept) = state.logs.get(&block) {
+            rows.extend(kept_logs::removed(block, kept));
+        }
+        let mut keys = state.unmade.get(&block).cloned().unwrap_or_default();
+        let before = keys.len();
+        for key in minted {
+            if !keys.contains(key) {
+                keys.push(*key);
             }
         }
-        self.write(rows)
+        if keys.len() != before {
+            rows.push(row(Table::Unmade, block.as_bytes().to_vec(), &keys));
+        }
+        self.write(rows)?;
+        if dropped {
+            state.logs.remove(&block);
+        }
+        state.unmade.insert(block, keys);
+        Ok(())
     }
 
     /// The keys `unmade_root` noted, of every block.
@@ -1702,16 +1708,20 @@ impl Refs {
     /// Keeps `kept` as how far this device checked `block`'s log. A log that grew from the one
     /// kept writes its own row and the places it added alone (`kept_logs`), so keeping a log
     /// as it grows writes each entry once.
+    ///
+    /// The rows are written under the state's lock, and the log taken in memory only once they
+    /// are: what a write adds rests on what the one before wrote, so two keeps never write out
+    /// of order, and a write that fails leaves the log kept as it was, which the next keep
+    /// writes on from.
     pub fn keep_log(&self, block: Uuid, kept: KeptLog) -> Result<(), StoreError> {
-        let rows = {
-            let mut state = self.state.lock().unwrap();
-            let old = state.logs.insert(block, kept.clone());
-            if old.as_ref() == Some(&kept) {
-                return Ok(());
-            }
-            kept_logs::rows(block, old.as_ref(), &kept)
-        };
-        self.write(rows)
+        let mut state = self.state.lock().unwrap();
+        let old = state.logs.get(&block);
+        if old == Some(&kept) {
+            return Ok(());
+        }
+        self.write(kept_logs::rows(block, old, &kept))?;
+        state.logs.insert(block, kept);
+        Ok(())
     }
 
     /// The newest record of each verified contact this device has seen, which a record the

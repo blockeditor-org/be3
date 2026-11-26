@@ -530,6 +530,23 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
 
 Peers' derived views of a held edit: plans/peers_preview_held_edits.md.
 
+## 26. Server protocol
+
+- **Authority names a head of its signer's choosing.** A record on authority from
+  the organization's or an ancestor's log names an entry of it (`Authority`,
+  `Link::head`), and `answer` checks the signer's right as of that entry alone:
+  a manager revoked above at place N, with a server that takes it, can append a
+  grant below naming a head before N, and devices take it (guides/blocks/keys.md,
+  "Accepted limits", "Stale authority"). No signed time orders the record below
+  against the revocation above, so bounding it means choosing what a revocation
+  above does to records signed on it: refused once anything after the named head
+  lowered the signer (their honest grants then lapse with them, and are signed
+  again by a manager who holds), or a commitment in the record below to the
+  upper log's head as the server held it, checked against later entries. Done:
+  a decision on which, recorded in decisions/, and `answer` refusing a revoked
+  signer's record that names a head before the revocation, with a be-block-keys
+  test.
+
 ## 27. Unread counts
 
 - **An open block counted live, for a type that counts from its content.** A

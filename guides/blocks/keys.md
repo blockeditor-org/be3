@@ -426,8 +426,8 @@ served whole to a member with Edit or above (on the block or a block below it;
 the organization's, only to an administrator), who seals, and to anyone else as
 a proof path (`be_block_keys::proof_path`): `Step`s, each an
 entry whole or reduced (`Reduced`: the hash of the entry before it, whether it
-lowered anyone, and the digest of the rest), which hashes as the whole entry
-does. Whole on a path: the root; every entry naming the reader or an account
+lowered anyone, whether it is a parent, owner or retirement record, and the
+digest of the rest), which hashes as the whole entry does. Whole on a path: the root; every entry naming the reader or an account
 that sealed it a key of the block (of any block, in the organization's log),
 and so on for each whole entry's signer, so each checks at its place; what the
 reader signed (its agents); every opening and parent record (a parent record
@@ -439,12 +439,15 @@ view itself, is served as a path proving too whoever signs below on authority
 from it, and whoever sealed the reader a key, so a grant from a manager above,
 or a seal from an editor above, checks for its reader. Any path of a block's
 log that records below rest their authority on (`access::inherited_signers`)
-keeps whole every entry that lowered anyone, and the accounts those name
-(`proof_path`'s `lowerings`), and `answer` takes no authority from a path that
-reduces one (`Checked::hides_lowering`), which could be the signer's own
-revocation (decisions/authority_rests_only_on_paths_that_hide_no_lowering.md).
-The price, accepted: a reader below learns every revocation and downgrade on
-such a block, and the level history of whom they lowered.
+keeps whole every entry that lowered anyone and every retirement, and the
+accounts those name (`proof_path`'s `lowerings`), for every reader of that log,
+since the flag is per log. `answer` takes no authority from a path that reduces
+either (`Checked::hides_lowering`, `hides_retirement`; a reduced step says it
+is a retirement, `Reduced::retires`), which could be the signer's own
+revocation or the retirement of the key they signed with
+(decisions/authority_rests_only_on_paths_that_hide_no_lowering.md). The price,
+accepted: a reader learns every revocation, downgrade and retirement on such a
+block, and the level history of whom they name.
 Otherwise a reader learns no other member's grant. Every entry says whether it
 lowered anyone (`Entry::lowers`, covered by its hash outside the digest),
 which `check_log` refuses unless it is so and devices set by signing through

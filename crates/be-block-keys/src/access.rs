@@ -652,6 +652,7 @@ impl Entry {
             lowers: self.lowers,
             places: matches!(self.record, Record::Parent(_)),
             owns: matches!(self.record, Record::Owner(_)),
+            retires: matches!(self.record, Record::Retirement(_)),
             digest: self.digest(),
         }
     }
@@ -688,6 +689,10 @@ pub struct Reduced {
     /// to what a former owner keeps, so a server that hides a transfer leaves no one the old
     /// owner's Manage (`check_log`).
     pub owns: bool,
+    /// Whether it is a retirement: one reduced so may retire the key of an account the path
+    /// proves, which then signs nothing after it, so no authority is taken from a path that
+    /// hides one (`Checked::hides_retirement`, `answer`).
+    pub retires: bool,
     pub digest: EntryHash,
 }
 
@@ -703,6 +708,7 @@ impl Reduced {
             u8::from(self.lowers),
             u8::from(self.places),
             u8::from(self.owns),
+            u8::from(self.retires),
         ])
         .chain_update(self.digest)
         .finalize()
@@ -813,9 +819,9 @@ impl StepRef<'_> {
 /// the invitations its members came by, not every one the organization made.
 ///
 /// With `lowerings`, for a block's log that records below rest their authority on, every entry
-/// that lowered anyone is whole too (and so the accounts it names): an honest path of it hides
-/// no lowering, and `answer` refuses authority from a path that does, which could hide the
-/// signer's revocation.
+/// that lowered anyone and every retirement is whole too (and so the accounts they name): an
+/// honest path of it hides neither, and `answer` refuses authority from a path that does, which
+/// could hide the signer's revocation or the retirement of the key they signed with.
 pub fn proof_path(
     kind: LogKind,
     entries: &[Entry],
@@ -864,7 +870,7 @@ pub fn proof_path(
         let mut grew = false;
         for (at, entry) in entries.iter().enumerate() {
             let proves = always(entry)
-                || lowerings && entry.lowers
+                || lowerings && (entry.lowers || matches!(entry.record, Record::Retirement(_)))
                 || entry.signer == reader
                 || named(entry).is_some_and(|named| accounts.contains(&named))
                 || matches!(&entry.record, Record::Invitation(invitation) if used.contains(&invitation.key));
@@ -1100,6 +1106,10 @@ pub struct Checked {
     /// hidden from the reader, so the log names no administrator (`administrators` and `levels`
     /// are left empty) and vouches for no escrow epoch.
     pub hides_lowering: bool,
+    /// For a block's log: whether a reduced entry is a retirement (`Reduced::retires`), which
+    /// may have retired the key of an account the path proves: the key the path names for them may sign nothing
+    /// after it, so the log names no one's authority for a record elsewhere (`answer`).
+    pub hides_retirement: bool,
     /// Whether the log was served as a proof path (`proof_path`): some entries reduced, so
     /// `grants`, `levels`, `administrators` and `members` hold only those it proves, and a
     /// later reduced entry may have lowered any of them. Only `positions`, `head`,
@@ -1411,6 +1421,11 @@ impl Checked {
                         {
                             state.demote_owner(former);
                         }
+                    }
+                    // An organization's path reduces only the retirements of members who never
+                    // administered it, whose keys grant nothing outside it.
+                    if reduced.retires && kind == LogKind::Block {
+                        state.hides_retirement = true;
                     }
                     if reduced.lowers {
                         state.last_lowering = place;
@@ -2120,9 +2135,14 @@ pub fn answer(logs: &Logs, block: [u8; 16], asked: &Asked) -> Option<SigningPubl
             (LogKind::Block, reached?)
         }
     };
+    // Only the chain's last log is where the signer's right is read, so only it must hide
+    // nothing: the links before it say only where each block lay, which parent records, whole on
+    // every path, tell, and a placement reduced leaves the block detached (`Checked::placement`).
+    //
     // A path that reduces an entry that lowered anyone may hide the signer's own revocation or
-    // demotion: an honest one served for authority reduces none (`proof_path`'s `lowerings`).
-    if checked.partial && checked.hides_lowering {
+    // demotion, and one that reduces a retirement the retirement of the key they signed with: an
+    // honest one served for authority reduces neither (`proof_path`'s `lowerings`).
+    if checked.partial && (checked.hides_lowering || checked.hides_retirement) {
         return None;
     }
     checked.holding(kind, asked.signer, asked.level)
