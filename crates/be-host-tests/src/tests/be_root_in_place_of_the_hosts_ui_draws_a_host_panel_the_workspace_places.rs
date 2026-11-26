@@ -24,15 +24,12 @@ fn be_root_in_place_of_the_hosts_ui_draws_a_host_panel_the_workspace_places() {
     host.run(&["click", &button]);
     host.run(&["settle"]);
     host.snapshot("be_root_draws_the_hosts_menu_panel");
-    // Its rows scroll in the popover's room: Performance, near its end, scrolled into view and
-    // clicked where it then shows.
-    host.run(&["scroll", "315,250", "300"]);
-    host.run(&["settle"]);
-    host.run(&["click", "298,352"]);
-    host.run(&["settle"]);
-    // The menu's popover closed by a press outside it, the panel's tab and title: what it
-    // shows of the host's statistics changes from run to run, so only its top is painted.
-    host.run(&["click", "900,650"]);
+    // The popover grows to fit every row: Performance closes it as it asks for its panel,
+    // which opens as a tab. What it shows of the host's statistics changes from run to run,
+    // so only the tab and its title are painted.
+    host.click("#host.menu.panel.Performance");
+    host.gone("#host.menu.status");
+    host.wait("Tab \"Performance\" selected");
     host.run(&["settle"]);
     host.crop("120,100,520,72");
     host.snapshot("be_root_draws_the_hosts_performance_panel");

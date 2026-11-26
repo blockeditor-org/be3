@@ -2365,7 +2365,12 @@ Each step lands on its own.
                it discovered and each runtime's surfaces and instances, which the root does not
                know.
              - Left: only the session's app stopping says so in a toast; a child's app that
-               stops shows its error in its place, as before.
+               stops, or that Running Apps crashes, shows its error in its place, as before,
+               since the root knows a child's app by its id and not by the name be-host's toast
+               gives it.
+             - Left: Running Apps compares the apps the root runs with what it lists each frame
+               (`settle_panels`' `running_apps`): polling, until be-sdk-root's `Embedded` says
+               when an app starts or stops.
              - Left: the root's own menu button stays at the window's top right (4g7e1), over
                what an app draws there (on a phone, the workspace's tab switch), which be-host's
                paintings do not have.
