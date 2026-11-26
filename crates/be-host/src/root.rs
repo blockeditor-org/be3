@@ -1232,6 +1232,14 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
         .retain(|child, _| editors.opened.contains_key(child));
     open_blocks(core, opens, editors);
     quick_open(core, root, editors);
+    // The names of the blocks the root asks after, as the graph holds them.
+    for (id, blocks) in root.take_name_asks() {
+        let names = blocks
+            .into_iter()
+            .map(|block| be_host_stack::node(Uuid::from_bytes(block))?.metadata.name())
+            .collect();
+        root.answer_names(id, names);
+    }
     show_artifact_states(core, editors);
     for (instance, forwarded) in editors.served.iter_mut() {
         root.relay(*instance, forwarded.step());
