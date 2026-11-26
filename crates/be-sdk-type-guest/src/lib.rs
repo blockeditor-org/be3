@@ -593,6 +593,7 @@ impl Module {
                 server_head: opening.server_head,
                 epoch: opening.epoch,
                 shown: opening.shown.clone(),
+                restart_limit: opening.restart_limit,
                 from_file: kind.from_file,
                 parts_merge: kind.replica_merge.clone(),
                 fold: kind.fold.clone(),

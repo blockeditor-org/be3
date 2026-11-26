@@ -805,8 +805,13 @@ fn operate(
     replicas.relay_from_editor(block, editor, message.encode(), std::time::Instant::now());
 }
 
+/// The session state past which a test's block restarts its order
+/// (`Replicas::restart_limits`), in place of `RESTART_STATE_BYTES`, so the state a restart
+/// takes is a few kilobytes.
+const RESTART_LIMIT: u64 = 4096;
+
 /// Opens a new `Tally` and restarts its order (a seal of a session state past
-/// `RESTART_STATE_BYTES`) while an edit adding 10 is on its way: the server numbers the edit
+/// `RESTART_LIMIT`) while an edit adding 10 is on its way: the server numbers the edit
 /// after the restart, every replica passes it over, and its replica submits it again carried
 /// over. Returns once the host heard the restart, before it heard the carried edit ordered, with
 /// the block and the number of the local edit it holds. Only what is written ahead of a
@@ -823,6 +828,7 @@ async fn carry_an_edit_over_a_restart(
     peer.save(block, &Tally::default(), None)
         .await
         .expect("the empty tally is published");
+    replicas.restart_limits.lower(block, RESTART_LIMIT);
     replicas
         .open((peer, shared), block, Tally::CONTENT_TYPE, true)
         .await
@@ -836,7 +842,7 @@ async fn carry_an_edit_over_a_restart(
     // Only what is written ahead of a submission is kept: no idle pass writes over it.
     replicas.hold_kept_edits = true;
 
-    let grow = be_sdk_type_guest::RESTART_STATE_BYTES + 1;
+    let grow = RESTART_LIMIT as usize + 1;
     operate(replicas, block, editor, &mut mirror, TallyOp::Grow(grow));
     replicas.pump((peer, shared)).await;
     step_until_replicas(
@@ -1119,6 +1125,7 @@ async fn rejoin_held_before_its_own_entry(
     peer.save(block, &Tally::default(), None)
         .await
         .expect("the empty tally is published");
+    replicas.restart_limits.lower(block, RESTART_LIMIT);
     replicas
         .open((peer, shared), block, Tally::CONTENT_TYPE, true)
         .await

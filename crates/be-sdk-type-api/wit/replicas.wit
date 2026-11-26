@@ -94,6 +94,11 @@ interface replicas {
         /// showing it, so what it tells each client already present, before
         /// `Shown`, holds it, as does what it tells each that joins.
         shown: entries,
+        /// Tests only: the session state past which a seal restarts the order,
+        /// in place of the type's own `RESTART_STATE_BYTES`, so a test of a
+        /// restart builds kilobytes of state rather than megabytes. A host
+        /// sends none.
+        restart-limit: option<u64>,
     }
 
     record sealed-head {

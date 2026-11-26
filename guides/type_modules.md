@@ -692,7 +692,11 @@ order: presence and channel messages. The rules an agent most needs:
   replacement drops what was numbered after its base on purpose, and stashes
   it; a restart must drop nothing.
   The last holder to leave rebases the journal with no state, so the next
-  session starts fresh too.
+  session starts fresh too. A test lowers the limit for a block it opens
+  (`opening.restart-limit`, which be-block-type-host's tests set with
+  `Replicas::restart_limits`), so its restart builds kilobytes of state; the
+  guest's own tests lower it with `RESTART_LIMIT`, even mid-session. A host
+  sends none.
 - **Large operations.** An operation over `LARGEST_RELAYED_OPERATION` (1 MiB, a
   large paste) goes by the part it was put as (`Payload::Part`, put with the
   host's `part-writer` before it is submitted); what is typed after it waits in
