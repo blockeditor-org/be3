@@ -395,14 +395,6 @@ Fixed items are removed as they land.
   and move by the whole distance once the threshold is passed, so the core
   hands the first `on_drag` the movement from the press, not from the
   threshold; expect paintings of slider and splitter drags to move.
-- **A carry's first place in a window the host opens.** The board learns each
-  place's window from the core's `Order` at the first point it tracks after a lift,
-  so the lift's own choice takes a place whose window it does not know yet to be
-  the pointer's; a dock window's place whose rect, in its own window's points,
-  holds the pointer can be chosen for that one frame. Done: the board knows a
-  node's window at the lift (a `Space` that answers it on both cores), and a
-  test on the fake `Space` lifts with a place in another window under the
-  pointer's coordinates.
 - **A floating row's announcements.** The live region that says a carry's
   places (`Interactive`'s `CarryStatus`) is inside the source, so a `Reorder`
   row carried off its list, collapsed, says nothing more until it lands, when

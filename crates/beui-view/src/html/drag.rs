@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use beui_types::drag::{Driver, Space};
-use beui_types::{NodeId, Rect};
+use beui_types::{NodeId, Rect, WindowId};
 
 struct Measured;
 
@@ -12,6 +12,11 @@ impl Space for Measured {
 
     fn visible(&self, node: NodeId) -> Option<Rect> {
         beui_core_html::measure::rect(node)
+    }
+
+    /// The page is one window.
+    fn window(&self, _: NodeId) -> Option<WindowId> {
+        Some(WindowId::MAIN)
     }
 }
 

@@ -141,6 +141,11 @@ impl Board {
             })
             .collect();
         self.lifting.set(None);
+        // What the core noted for an earlier carry is stale: until it tracks this one, the
+        // board asks it for each node's window.
+        if !self.placing() {
+            self.orders.borrow_mut().clear();
+        }
         self.placing.borrow_mut().push(Placing {
             id,
             carry,
@@ -564,8 +569,7 @@ impl Board {
         };
         let space = Rc::clone(&self.space);
         // A place in another window than the pointer's is not there for it: its rect is in
-        // that window's points. A node whose window is not known yet (before the core first
-        // tracks the carry) is taken to be in the pointer's.
+        // that window's points.
         let placed = move |node: NodeId| {
             if self
                 .known_window(node)
