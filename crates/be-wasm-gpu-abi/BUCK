@@ -28,7 +28,9 @@ cargo_library(**WIT)
 
 cargo_test(**WIT)
 
+# The WIT a crate that uses be3:gpu maps, with the fetched wasi:webgpu where
+# the generator reads it.
 filegroup(
     name = "wit",
-    srcs = glob(["wit/*.wit"]),
+    srcs = dict({f: f for f in glob(["wit/*.wit"])}, **{"wit/deps/webgpu/webgpu.wit": ":webgpu.wit"}),
 )
