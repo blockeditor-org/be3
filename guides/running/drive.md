@@ -176,7 +176,8 @@ input, one a line, and stops at the first that fails:
 
 Every input command waits until the program settles, then prints the tree's changes as `-` and
 `+` lines (`--changes=N|all|0`). `--no-settle` answers after the frame that took the input, to
-see the program part way through something. A command gives up after 30 s
+see the program part way through something; `--no-settle settle` runs one frame. Each command
+a stopped clock waits on runs a frame of its own, so a test steps frame by frame with them. A command gives up after 30 s
 (`--timeout=SECONDS`) and names what kept the program busy.
 
 A program has settled once a frame asks for no other and `Program::busy` gives no reason.
@@ -231,6 +232,12 @@ does not depend on how fast they are. `drive clock run` restarts it. With the cl
   closing it needs a `pause` first;
 - anything else timed (an app's frame timeout, a type module grouping edits into an undo step)
   waits for `pause` too.
+
+`drive present late` has be-host take in what each app presents only at the next frame's
+poll, rather than as it settles the frame the app laid out in: a frame is then drawn between
+an app's layout and its present, as one is when a present misses its frame's deadline, which a
+stopped clock never lets happen (guides/apps/runtime.md, Layout and present commits). Busy names
+the app whose present is held. `drive present now` takes them in as they come again.
 
 A driven program takes shortcuts a person never sees so that it settles sooner: be-host seals
 edits at once instead of after the usual pause (`Context::hurried`). `drive hurry off` turns

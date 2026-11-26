@@ -136,6 +136,7 @@ struct Inner {
     automated: Cell<bool>,
     overflows_wanted: Cell<bool>,
     unhurried: Cell<bool>,
+    presents_late: Cell<bool>,
     waker: RefCell<Option<Waker>>,
     in_frame: Cell<bool>,
     woken: Cell<bool>,
@@ -445,6 +446,7 @@ impl Context {
                 automated: Cell::new(false),
                 overflows_wanted: Cell::new(false),
                 unhurried: Cell::new(false),
+                presents_late: Cell::new(false),
                 waker: RefCell::new(None),
                 in_frame: Cell::new(false),
                 woken: Cell::new(false),
@@ -536,6 +538,17 @@ impl Context {
 
     pub fn hurried(&self) -> bool {
         self.automated() && !self.inner.unhurried.get()
+    }
+
+    /// Has a driven program take in what it hears from programs of its own (be-host's apps)
+    /// only at the start of the next frame, so a frame is drawn between an app's layout and
+    /// its present (`drive present late`).
+    pub fn set_presents_late(&self, late: bool) {
+        self.inner.presents_late.set(late);
+    }
+
+    pub fn presents_late(&self) -> bool {
+        self.automated() && self.inner.presents_late.get()
     }
 
     pub fn set_seen(&self, seen: bool) {
