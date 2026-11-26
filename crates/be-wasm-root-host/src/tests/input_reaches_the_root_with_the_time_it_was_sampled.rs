@@ -27,6 +27,7 @@ fn input_reaches_the_root_with_the_time_it_was_sampled() {
                 utc_offset: 0,
                 window: window(),
                 describe: false,
+                phone: false,
             },
             Instant::now() + PATIENT,
         )

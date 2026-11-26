@@ -16,6 +16,7 @@ fn drawn(root: &mut Root, time: u64) -> Vec<Layer> {
                 utc_offset: 0,
                 window: window(),
                 describe: false,
+                phone: false,
             },
             Instant::now() + PATIENT,
         )

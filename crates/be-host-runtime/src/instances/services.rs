@@ -741,6 +741,7 @@ impl Instances {
                 match self.shell == Some(instance) {
                     true => {
                         crate::runtime::ask_phone_layout(&self.app_id, instance, on);
+                        self.phone_layout = on;
                         answering.send(Ok(()));
                     }
                     false => answering

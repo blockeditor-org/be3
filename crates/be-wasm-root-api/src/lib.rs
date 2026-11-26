@@ -18,14 +18,14 @@ be_wasm_ops_bindgen::generate!({
     encodings: {"uuid": ::be_wasm_ops::wire::Bytes},
     copy: ["uuid"],
     default: [
-        "agents-area", "memory-minutes", "contacts-area", "recovery-area", "unlock-area", "core-view", "share-links-area", "invitations-area", "members-area", "organizations-area", "organizations-listed", "sessions-area",
+        "about-host", "agents-area", "memory-minutes", "contacts-area", "recovery-area", "unlock-area", "core-view", "share-links-area", "invitations-area", "members-area", "organizations-area", "organizations-listed", "sessions-area",
     ],
     secret: ["password"],
 });
 
 pub use frames::{FrameDone, FrameRequest, HostInput, WindowSize};
 pub use host::{
-    AccountRow, AgentCredentials, AgentRow, AgentsArea, BlockCatalog, BrowserSignIn, ContactCard,
+    AboutHost, AccountRow, AgentCredentials, AgentRow, AgentsArea, BlockCatalog, BrowserSignIn, ContactCard,
     ContactMismatch, ContactRow, ContactsArea, CoreCommand, CoreFailure, CoreSecret, CoreView,
     CoreWait, DefaultServer, DiscardReason, DisplayQuestion, DisplayState, EditorApp,
     HostStatistics, HostedBlock, Invitation, InvitationRow, InvitationState, InvitationsArea,

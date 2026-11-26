@@ -19,7 +19,7 @@ use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    AccountRow, AgentRow, ContactCard, ContactMismatch, ContactRow, CoreCommand, CoreSecret,
+    AboutHost, AccountRow, AgentRow, ContactCard, ContactMismatch, ContactRow, CoreCommand, CoreSecret,
     CoreView, CoreWait, DiscardReason, DisplayQuestion, FrameDone, FrameRequest, HostStatistics,
     HostedBlock, InvitationRow, InvitationState, LockState, MemberRole, MemberRow, MemoryMinutes,
     NewAccount, Notice, OrganizationRow, OrganizationsListed, PairingApproval, PowerAction,
@@ -330,6 +330,8 @@ enum Asking {
     Contacts,
     /// Opening a share link.
     ShareLinks,
+    /// What the host is: its version and build.
+    About,
 }
 
 /// The root's accounts while the block stack waits for the person to open or add one.
@@ -530,7 +532,7 @@ impl Root {
             move || waker.wake(),
             move || {
                 view! {
-                    <Root clear_color=ColorRole::None>{parts.view(false)}</Root>
+                    <Root clear_color=ColorRole::None>{parts.view(MenuShape::Button)}</Root>
                 }
             },
         )?;
@@ -1104,7 +1106,8 @@ impl Root {
             | Asking::Members
             | Asking::Agents
             | Asking::Contacts
-            | Asking::ShareLinks => None,
+            | Asking::ShareLinks
+            | Asking::About => None,
         };
         let host_asks = match &opening {
             Asking::Host(asks) => Some(*asks),
@@ -1276,6 +1279,12 @@ impl Root {
                             <ForgetAccountDialog key name done={done} />
                         }
                     }
+                    Asking::About => {
+                        let about = core.about.clone();
+                        view! {
+                            <AboutDialog about done={done} />
+                        }
+                    }
                 };
                 // be-host's own dialog: a card at its width over beui's scrim, or a sheet in a
                 // narrow window, which Escape and a press on the scrim dismiss. While it shows a
@@ -1357,6 +1366,7 @@ impl Presented {
             Asking::Members => dialog(points(480.0), DialogSize::Large),
             Asking::Agents | Asking::Contacts => dialog(points(460.0), DialogSize::Large),
             Asking::ShareLinks => dialog(points(460.0), DialogSize::Small),
+            Asking::About => dialog(points(420.0), DialogSize::Small),
         }
     }
 }
@@ -1506,6 +1516,7 @@ impl frames::Guest for Root {
             root.resize(Window::of(&request.window));
             root.utc_offset.set(request.utc_offset);
             be_sdk_root::set_describing(request.describe);
+            be_sdk_root::set_phone(request.phone);
             root.each_surface(&mut |surface| surface.set_describing(request.describe));
             be_sdk_root::set_clock(
                 time,

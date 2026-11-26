@@ -13,6 +13,7 @@ fn a_roots_document_draws_again_when_the_frame_it_asked_for_comes() {
                 utc_offset: 0,
                 window: window(),
                 describe: false,
+                phone: false,
             },
             Instant::now() + PATIENT,
         )
@@ -46,6 +47,7 @@ fn a_roots_document_draws_again_when_the_frame_it_asked_for_comes() {
             utc_offset: 0,
             window: window(),
             describe: false,
+            phone: false,
         },
         Instant::now() + PATIENT,
     )

@@ -6,7 +6,8 @@
 
 use be_lib_layers::Layer;
 use be_sdk_api::{ChildId, EditorInstanceId, HostPanel, ViewId};
-use be_sdk_root::PanelPlace;
+use be_sdk_root::{PanelPlace, PanelReport};
+use beui::Vec2;
 
 use super::*;
 use crate::{FIRST_PANEL_LAYER, MENU_SURFACE, PANEL_NOT_DRAWN, PANEL_SURFACES};
@@ -25,9 +26,13 @@ pub(super) struct PanelSurface {
     /// The size of its place, in points, and the pixels per point it is drawn at.
     size: (f32, f32),
     raster: f32,
+    /// Whether it shows as a sheet, as its place opens it.
+    sheet: bool,
     surface: BeuiSurface,
     /// What a performance panel shows, once its view was made.
     statistics: Rc<Cell<Option<Shown>>>,
+    /// What it says to its placer: the size a menu's rows want, and whether it is done.
+    report: Rc<Cell<PanelReport>>,
 }
 
 /// Where the root's menu and a menu panel send what is picked in them, and what they show
@@ -46,9 +51,9 @@ pub(super) struct MenuParts {
 }
 
 impl MenuParts {
-    /// The menu, made in the scope of the view drawing it: behind its button, or its rows laid
-    /// out in place for a menu panel.
-    pub(super) fn view(self, rows: bool) -> NodeId {
+    /// The menu, made in the scope of the view drawing it, in its `shape`: behind its button,
+    /// or a menu panel's rows or sheet.
+    pub(super) fn view(self, shape: MenuShape) -> NodeId {
         let Self {
             surface,
             core,
@@ -71,7 +76,7 @@ impl MenuParts {
         let saving = create_signal(saving);
         menu_shows.borrow_mut().push((surface, core, saving));
         view! {
-            <HostMenu core={core} saving={saving} want={want} panel={panel} rows={rows} />
+            <HostMenu core={core} saving={saving} want={want} panel={panel} shape={shape} />
         }
     }
 }
@@ -124,13 +129,16 @@ impl Root {
     /// Draws each host panel placed now (`places`) on a surface of its own the size of its
     /// place, made as it is first placed and let go of once it is no longer, and answers the
     /// layers showing them, each by its place, with its top left at its surface's origin.
-    pub(super) fn settle_panels(&self, places: Vec<PanelPlace>) -> Vec<(PanelKey, Layer)> {
+    pub(super) fn settle_panels(
+        &self,
+        places: Vec<PanelPlace>,
+    ) -> Vec<(PanelKey, Layer, PanelReport)> {
         let gone: Vec<PanelSurface> = {
             let mut panels = self.panels.borrow_mut();
             let (kept, gone) = std::mem::take(&mut *panels).into_iter().partition(|held| {
-                places
-                    .iter()
-                    .any(|place| (place.key(), place.panel) == (held.key, held.panel))
+                places.iter().any(|place| {
+                    (place.key(), place.panel, place.sheet) == (held.key, held.panel, held.sheet)
+                })
             });
             *panels = kept;
             gone
@@ -170,6 +178,7 @@ impl Root {
                 held.key,
                 held.surface
                     .layer(LayerId(FIRST_PANEL_LAYER + u64::from(id)), pos2(0.0, 0.0)),
+                held.report.get(),
             ));
         }
         layers
@@ -218,6 +227,34 @@ impl Root {
         let shown = Rc::clone(&statistics);
         let panel = place.panel;
         let menu = self.menu_parts(id);
+        let report: Rc<Cell<PanelReport>> = Rc::default();
+        // What the menu says of itself reaches its placer with the next settle, which a frame
+        // brings.
+        let (said, wakes, sheet) = (Rc::clone(&report), self.waker.clone(), place.sheet);
+        let shape = move || {
+            let (sized, wakes_sized) = (Rc::clone(&said), wakes.clone());
+            let wants = Callback::new(move |size: Vec2| {
+                let mut now = sized.get();
+                if now.size != Some(size) {
+                    now.size = Some(size);
+                    sized.set(now);
+                    wakes_sized.wake();
+                }
+            });
+            let (said, wakes) = (Rc::clone(&said), wakes.clone());
+            let done = Callback::new(move |()| {
+                let mut now = said.get();
+                if !now.done {
+                    now.done = true;
+                    said.set(now);
+                    wakes.wake();
+                }
+            });
+            match sheet {
+                true => MenuShape::Sheet { done },
+                false => MenuShape::Rows { wants, done },
+            }
+        };
         let surface = BeuiSurface::new(
             &beui,
             OwnSurface::new(id, pixels),
@@ -239,8 +276,12 @@ impl Root {
                         </Root>
                     }
                 }
+                // A sheet's scrim shows its placer beneath it, as be-host's own does.
+                HostPanel::Menu if sheet => view! {
+                    <Root clear_color=ColorRole::None>{menu.view(shape())}</Root>
+                },
                 HostPanel::Menu => view! {
-                    <Root>{menu.view(true)}</Root>
+                    <Root>{menu.view(shape())}</Root>
                 },
                 HostPanel::BlockStack | HostPanel::Apps => view! {
                     <Root>
@@ -260,8 +301,10 @@ impl Root {
             panel,
             size,
             raster: place.raster,
+            sheet: place.sheet,
             surface,
             statistics,
+            report,
         })
     }
 

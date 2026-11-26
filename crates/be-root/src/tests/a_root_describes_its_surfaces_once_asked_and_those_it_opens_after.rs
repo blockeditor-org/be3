@@ -18,6 +18,7 @@ fn describe(root: &mut Root, time: u64, tree: &mut HashMap<NodeId, Node>) {
                 utc_offset: 0,
                 window: window(),
                 describe: true,
+                phone: false,
             },
             Instant::now() + PATIENT,
         )

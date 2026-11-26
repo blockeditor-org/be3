@@ -174,6 +174,9 @@ pub struct Children {
     /// (`Children::panels`), each with the layer of the root's own surface showing it, its top
     /// left at its surface's origin, once the root handed it (`Children::show_panels`).
     panels: Vec<(PanelPlace, ChildPlacement, Option<Layer>)>,
+    /// What the root drew of each host panel placed said last (`show_panels`), by its place:
+    /// what its placer is told of it, with the settle that follows.
+    panel_reports: HashMap<(EditorInstanceId, ViewId, ChildId), PanelReport>,
     /// What the host was told last of each view's children (`host.show-children`).
     told: HashMap<(EditorInstanceId, ViewId), Vec<ShownChild>>,
     /// The children placed active that were taken back (`revoke`): they are passive until placed
@@ -732,6 +735,7 @@ impl Child {
                 let dialog = ShownDialog {
                     content: be_wasm_ops::encode(&placement.content),
                     sheet,
+                    done: false,
                 };
                 (Shown::Dialog(dialog), None)
             }
@@ -1015,6 +1019,20 @@ pub struct PanelPlace {
     pub size: be_lib_geometry::Vec2,
     /// The pixels per point its placer is laid out at.
     pub raster: f32,
+    /// Whether it opens as a sheet, laid out for touch: it is placed in a view anchored to an
+    /// edge of its owner's (a phone's sheet), as be-host opens its own panel there.
+    pub sheet: bool,
+}
+
+/// What the root drew of a host panel says of it to its placer, as be-host's own panel says it.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct PanelReport {
+    /// The size it wants, in its placer's view's points (`child-status.intrinsic`): a menu's
+    /// rows, which its popover grows to.
+    pub size: Option<be_lib_geometry::Vec2>,
+    /// Whether it is done with (`child-status.dialog`'s answer): a pick from the host's menu,
+    /// or Escape in it, which closes its popover.
+    pub done: bool,
 }
 
 impl PanelPlace {
@@ -1250,6 +1268,7 @@ impl Children {
                 if let ChildContent::Host(panel) = &placement.content
                     && placement.mode != ChildMode::Hidden
                 {
+                    let sheet = sheets.contains(&(placements.instance, placements.view));
                     let place = PanelPlace {
                         editor: placements.instance,
                         view: placements.view,
@@ -1260,7 +1279,13 @@ impl Children {
                             placement.rect.height(),
                         ),
                         raster,
+                        sheet,
                     };
+                    let report = self
+                        .panel_reports
+                        .get(&place.key())
+                        .copied()
+                        .unwrap_or_default();
                     self.panels
                         .push((place, in_view(placement, placements.view), None));
                     self.unshown.push((
@@ -1269,14 +1294,18 @@ impl Children {
                             child: child.0,
                             shows: Some(Shown::Dialog(ShownDialog {
                                 content: be_wasm_ops::encode(&placement.content),
-                                sheet: false,
+                                sheet,
+                                done: report.done,
                             })),
                             window: None,
                             shown_in: None,
                             active: takes_input(placement.mode),
                             error: None,
                             preview: ShownPreview::None,
-                            intrinsic: None,
+                            intrinsic: report.size.map(|size| ViewSize {
+                                width: size.x,
+                                height: size.y,
+                            }),
                             menu: Vec::new(),
                         },
                     ));
@@ -2192,15 +2221,21 @@ impl Children {
 
     /// Hands each host panel placed (`panels`), any number of levels deep, the layer of the
     /// root's own surface showing it, by its place (`PanelPlace::key`), its top left at its
-    /// surface's origin: what `layers` places where it is placed. One handed none shows
-    /// nothing.
-    pub fn show_panels(&mut self, layers: &[((EditorInstanceId, ViewId, ChildId), Layer)]) {
+    /// surface's origin, and what it says to its placer: what `layers` places where it is
+    /// placed, and reports with the next `settle`. One handed none shows nothing.
+    pub fn show_panels(
+        &mut self,
+        layers: &[((EditorInstanceId, ViewId, ChildId), Layer, PanelReport)],
+    ) {
+        let mut reports = HashMap::default();
         for (place, _, shown) in &mut self.panels {
-            *shown = layers
-                .iter()
-                .find(|(key, _)| *key == place.key())
-                .map(|(_, layer)| layer.clone());
+            let handed = layers.iter().find(|(key, ..)| *key == place.key());
+            *shown = handed.map(|(_, layer, _)| layer.clone());
+            if let Some((key, _, report)) = handed {
+                reports.insert(*key, *report);
+            }
         }
+        self.panel_reports = reports;
         for child in &self.shown {
             child.editor.nested.borrow_mut().show_panels(layers);
         }
@@ -2665,6 +2700,7 @@ pub fn child_screen(
             anchor: placement
                 .anchor
                 .map(|anchor| scaled(anchor.translate(-origin), 1.0 / zoom)),
+            phone: crate::phone(),
             ..FrameSpec::default()
         }),
         metrics: ViewportMetrics {
@@ -2825,6 +2861,7 @@ fn tab_screen(
     request.frame = content.then(|| FrameSpec {
         chrome: FrameChrome::Drawn,
         anchor: ask.placement.anchor.map(|anchor| anchor.translate(-origin)),
+        phone: crate::phone(),
         ..FrameSpec::default()
     });
     request
