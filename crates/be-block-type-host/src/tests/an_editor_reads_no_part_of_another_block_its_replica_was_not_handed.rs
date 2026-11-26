@@ -15,12 +15,10 @@ use super::*;
 fn an_editor_reads_no_part_of_another_block_its_replica_was_not_handed() {
     with_test_types(|peer, shared, mut replicas| async move {
         let [mine, other] = [block(&peer).await, block(&peer).await];
-        let foreign = peer
-            .put_part(other, b"another block's")
+        let foreign = put_part(&peer, other, b"another block's")
             .await
             .expect("the part is put");
-        let own = peer
-            .put_part(mine, b"this block's")
+        let own = put_part(&peer, mine, b"this block's")
             .await
             .expect("the part is put");
         replicas

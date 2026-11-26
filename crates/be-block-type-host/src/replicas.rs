@@ -387,11 +387,18 @@ impl Answered {
     }
 }
 
-/// A part writer a replica made (`host.part-writer`): its replica, and the feed of its task.
+/// A part writer a replica made (`host.part-writer`): its replica, the feed of its task, and
+/// how many bytes fed to it are not sealed yet.
 struct PartWriting {
     replica: ReplicaId,
     feed: UnboundedSender<Feed>,
+    unsealed: Arc<std::sync::atomic::AtomicUsize>,
 }
+
+/// How many bytes a part writer's writes may hold unsealed in the host: a write past it, made
+/// before earlier ones were answered, is refused and the writer let go of (`feed_writer`). A
+/// write fed with nothing unsealed is taken whatever its size, as a whole put is.
+pub(crate) const UNSEALED_WRITES: usize = 8 << 20;
 
 /// A part writer's call, in the order the module made them.
 pub(crate) enum Feed {
@@ -428,13 +435,16 @@ impl Answering {
 /// its failure. The feed ending first (the writer dropped, its replica or module gone) lets go
 /// of the writer; the chunks it sealed stay in the vault, which nothing collects yet
 /// (plans/streamed_part_writes.md). `answer` sends each answer to the module, and `locked` says
-/// the block was found locked, as of the `Peer::arrivals` the writer started at.
+/// the block was found locked, as of the `Peer::arrivals` the writer started at. `unsealed`
+/// counts down the bytes of each write once it is sealed.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn write_part<S: be_block_store::ObjectStore>(
     peer: Arc<Peer<S>>,
     block: Uuid,
     made_up: bool,
     reach: Arc<Mutex<Reach>>,
     mut fed: UnboundedReceiver<Feed>,
+    unsealed: Arc<std::sync::atomic::AtomicUsize>,
     answer: impl Fn(Answered),
     locked: impl FnOnce(u64),
 ) {
@@ -453,6 +463,7 @@ pub(crate) async fn write_part<S: be_block_store::ObjectStore>(
                 {
                     writing = Err(error.into());
                 }
+                unsealed.fetch_sub(bytes.len(), std::sync::atomic::Ordering::SeqCst);
                 answer(Answered::Wrote(reply));
             }
             Feed::Finish(reply) => {
@@ -1895,6 +1906,21 @@ impl<H: Host> Replicas<H> {
 
     pub fn open_blocks(&self) -> Vec<Uuid> {
         self.blocks.keys().copied().collect()
+    }
+
+    /// The op of `block`'s open replica on its module, which the module makes calls under.
+    #[cfg(test)]
+    pub(crate) fn replica_op(&self, block: Uuid) -> Option<OpId> {
+        let (replica, _) = self.replica_of(block)?;
+        self.handles
+            .iter()
+            .find_map(|((_, op), of)| (*of == replica).then_some(*op))
+    }
+
+    /// How many part writers are open, each holding a task.
+    #[cfg(test)]
+    pub(crate) fn writing(&self) -> usize {
+        self.writers.len()
     }
 
     fn replica_of(&self, block: Uuid) -> Option<(ReplicaId, &Open)> {
@@ -5555,12 +5581,19 @@ impl<H: Host> Replicas<H> {
     }
 
     /// A call on a part writer (`writers`), handed to its task in order; anything else made
-    /// under a writer is refused. A writer whose replica ended takes nothing more.
+    /// under a writer is refused. A writer whose replica ended takes nothing more, nor one
+    /// written to past `UNSEALED_WRITES` without waiting for its writes: its task ends with
+    /// what it was fed, and every later call on it is refused.
     fn feed_writer(&mut self, module: usize, writer: OpId, op: OpId, call: Call) {
+        use std::sync::atomic::Ordering::SeqCst;
         let fed = match self.writers.get(&(module, writer)) {
             Some(writing) if self.open.contains_key(&writing.replica) => match call {
                 Call::PartWriterWrite { bytes, reply, .. } => {
-                    writing.feed.send(Feed::Write(bytes, reply)).is_ok()
+                    let unsealed = writing.unsealed.load(SeqCst);
+                    (unsealed == 0 || unsealed + bytes.len() <= UNSEALED_WRITES) && {
+                        writing.unsealed.fetch_add(bytes.len(), SeqCst);
+                        writing.feed.send(Feed::Write(bytes, reply)).is_ok()
+                    }
                 }
                 Call::PartWriterFinish { reply, .. } => {
                     let fed = writing.feed.send(Feed::Finish(reply)).is_ok();
@@ -5638,6 +5671,8 @@ impl<H: Host> Replicas<H> {
             .keep_open_edits(open.block, kept, edits, submissions)
             .await;
         self.asked.retain(|_, (to, _)| *to != replica);
+        // Its writers end with it (the connection cancels them as its children too).
+        self.writers.retain(|_, writing| writing.replica != replica);
         self.blocks.remove(&open.block);
         // Ended for good, it waits on no load; one opened in its place keeps what it missed.
         if !open.reopen {
@@ -6138,6 +6173,7 @@ impl<H: Host> Replicas<H> {
             }
             Call::PartWriterNew { resource } => {
                 let (feed, fed) = unbounded_channel();
+                let unsealed = Arc::default();
                 let answer = Answering {
                     io: self.io.clone(),
                     replica,
@@ -6157,11 +6193,18 @@ impl<H: Host> Replicas<H> {
                     made_up,
                     reach,
                     fed,
+                    Arc::clone(&unsealed),
                     move |answered| answer.answer::<H>(answered),
                     locked,
                 ));
-                self.writers
-                    .insert((module, resource.op()), PartWriting { replica, feed });
+                self.writers.insert(
+                    (module, resource.op()),
+                    PartWriting {
+                        replica,
+                        feed,
+                        unsealed,
+                    },
+                );
                 false
             }
             // A writer's methods have the writer as their parent (`feed_writer`).

@@ -34,6 +34,9 @@ mod a_module_restart_mid_drag_keeps_the_drag;
 mod a_module_that_keeps_stopping_stops_for_good_and_says_so;
 mod a_modules_answer_is_seen_after_the_host_task_spent_its_budget;
 mod a_part_a_module_writes_in_pieces_is_held_and_read_back_whole;
+mod a_part_writer_dropped_unfinished_ends_its_task_and_holds_nothing;
+mod a_part_writer_open_when_its_module_restarts_ends_its_task_and_holds_nothing;
+mod a_part_writer_written_too_far_ahead_of_sealing_is_let_go_of;
 mod a_part_read_for_an_editor_keeps_the_replicas_unsettled_until_answered;
 mod a_rejoin_whose_unsealed_edits_no_seal_can_take_waits_without_asking_again;
 mod a_relayed_message_sealed_with_a_key_another_search_awaits_waits_for_it;
@@ -425,6 +428,152 @@ fn type_at_start(
         .expect("there is somewhere to type");
     let message = mirror.operate(None, typed).expect("the editor has content");
     replicas.relay_from_editor(block, editor, message.encode(), std::time::Instant::now());
+}
+
+/// A module serving the counter type that, told to (`tell`), makes a part writer under a
+/// replica, writes to it without waiting and holds it, then drops it unfinished: for tests of
+/// how the host ends a writer's task.
+struct Writing {
+    serving: be_sdk_type_guest::Serving,
+    writer: Option<be_sdk_type_api::guest::host::PartWriter>,
+}
+
+/// What `write_under` has a `Writing` module write.
+const WRITTEN: [u8; 1000] = [7; 1000];
+
+enum Writer {
+    /// Make one under the replica of this op and write writes of these many bytes to it, each
+    /// answer kept in `WROTE`.
+    Open(be_sdk_type_api::ops::OpId, Vec<usize>),
+    /// Drop it, then finish a writer made under the replica of this op with nothing written,
+    /// keeping what that answered in `UNWRITTEN`: as the host takes calls in order, its answer
+    /// comes after the host heard the drop.
+    Drop(be_sdk_type_api::ops::OpId),
+}
+
+thread_local! {
+    static TOLD: std::cell::RefCell<Option<Writer>> = const { std::cell::RefCell::new(None) };
+    static WAKER: std::cell::RefCell<Option<be_sdk_type_guest::abi::Waker>> =
+        const { std::cell::RefCell::new(None) };
+    static UNWRITTEN: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+    static WROTE: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+impl be_sdk_type_guest::abi::Guest for Writing {
+    fn start(
+        waker: be_sdk_type_guest::abi::Waker,
+        _: &mut Vec<Vec<u8>>,
+    ) -> Result<Self, String> {
+        WAKER.set(Some(waker));
+        Ok(Self {
+            serving: be_sdk_type_guest::Serving::new(be_type_example_counter::block_types()),
+            writer: None,
+        })
+    }
+
+    fn step(
+        &mut self,
+        inbound: Vec<Vec<u8>>,
+        _: bool,
+        outbound: &mut Vec<Vec<u8>>,
+    ) -> Result<be_sdk_type_guest::abi::Flow, String> {
+        use be_sdk_type_api::guest::host::PartWriter;
+        use be_sdk_type_api::ops::guest as ops;
+        self.serving.step(inbound, outbound);
+        let Some(told) = TOLD.take() else {
+            return Ok(be_sdk_type_guest::abi::Flow::Running);
+        };
+        let writer = &mut self.writer;
+        self.serving.enter(|| match told {
+            Writer::Open(replica, writes) => {
+                let made = ops::with_parent(replica, PartWriter::new);
+                for length in writes {
+                    let wrote = made.write(vec![7; length]);
+                    ops::spawn(async move {
+                        let answer = wrote.await;
+                        WROTE.with_borrow_mut(|wrote| wrote.push(format!("{answer:?}")));
+                    });
+                }
+                *writer = Some(made);
+            }
+            Writer::Drop(replica) => {
+                drop(writer.take());
+                let empty = ops::with_parent(replica, PartWriter::new);
+                let finished = empty.finish();
+                ops::spawn(async move {
+                    let answer = finished.await;
+                    drop(empty);
+                    UNWRITTEN.set(Some(format!("{answer:?}")));
+                });
+            }
+        });
+        self.serving.step(Vec::new(), outbound);
+        Ok(be_sdk_type_guest::abi::Flow::Running)
+    }
+}
+
+/// Replicas whose only module is a `Writing` one.
+async fn writing_replicas() -> Replicas<Quiet> {
+    Replicas::new(
+        started(
+            vec![in_process::<Writing>("test.writing")],
+            be_block_client::Clock::real(),
+        )
+        .await,
+    )
+}
+
+/// Tells the `Writing` module to make a writer under the replica of `block` and waits until
+/// the host serves it.
+async fn write_under(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+    block: Uuid,
+) {
+    let replica = replicas.replica_op(block).expect("the block is open");
+    tell(Writer::Open(replica, vec![WRITTEN.len()]));
+    while replicas.writing() == 0 {
+        step(peer, shared, replicas).await;
+    }
+}
+
+/// Tells the `Writing` module `told` and wakes it.
+fn tell(told: Writer) {
+    TOLD.set(Some(told));
+    WAKER.with_borrow(|waker| waker.as_ref().expect("the module started").wake());
+}
+
+/// Asserts that the part `WRITTEN` makes under `block`'s key was never held for it, so another
+/// device cannot read it.
+async fn assert_unheld(
+    peer: &Peer<MemoryStore>,
+    another: &Peer<MemoryStore>,
+    block: Uuid,
+) {
+    let mut writer = peer.part_writer(block).await.expect("a writer");
+    writer.write(&WRITTEN).expect("written");
+    let part = writer.finish().expect("sealed").expect("a byte was written");
+    assert!(
+        another.read_part(part, 0, part.length()).await.is_err(),
+        "the writer's part was never held for the block"
+    );
+}
+
+/// `bytes` written as one part of `block` (`Peer::part_writer`) and held for it
+/// (`Peer::hold_part`), as a type module's `part-writer` puts a part.
+async fn put_part<S: be_block_store::ObjectStore>(
+    peer: &Peer<S>,
+    block: Uuid,
+    bytes: &[u8],
+) -> Result<be_block_store::PartRef, ClientError> {
+    let mut writer = peer.part_writer(block).await?;
+    writer.write(bytes)?;
+    let part = writer
+        .finish()?
+        .ok_or_else(|| ClientError::Encoding("a part needs at least one byte".to_owned()))?;
+    peer.hold_part(block, part).await?;
+    Ok(part)
 }
 
 /// The modules of the test types and the text and counter types, on `clock`.

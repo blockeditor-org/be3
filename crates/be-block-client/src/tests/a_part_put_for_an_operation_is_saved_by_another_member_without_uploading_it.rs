@@ -25,7 +25,7 @@ async fn a_part_put_for_an_operation_is_saved_by_another_member_without_uploadin
         .unwrap();
 
     let segment = pseudorandom(64 * 1024, 11);
-    let part = owner.put_part(block, &segment).await.unwrap();
+    let part = put_part(&owner, block, &segment).await.unwrap();
     let whole = Manifest {
         content_type: Uuid::nil(),
         root: Some(part),

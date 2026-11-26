@@ -39,12 +39,17 @@ interface host {
 
     /// One part of the block written a piece at a time: the host seals each
     /// chunk under the block's current key as the bytes end it, so neither side
-    /// holds the whole part. Made under a replica; dropped before `finish`
-    /// answers, the part is never put.
+    /// holds the whole part. Made under a replica. Dropped before `finish` is
+    /// called, the part is never put; once it is called, the part is put even
+    /// if the writer is dropped before `finish` answers (it then answers
+    /// canceled).
     resource part-writer {
         constructor();
         /// Appends `bytes` to the part, answered once they are sealed. A write
-        /// that fails says so at `finish`.
+        /// that fails says so at `finish`. Await each write before the next:
+        /// the host holds at most 8 MiB of a writer's writes unsealed (a first
+        /// write of any size), and refuses a write past that and every call on
+        /// the writer after it.
         write: async func(bytes: list<u8>);
         /// Seals the rest, uploads the part and has the server hold it for the
         /// block until a commit that uses it publishes or the upload grace runs

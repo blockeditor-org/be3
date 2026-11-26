@@ -47,6 +47,7 @@ fn a_part_a_module_writes_in_pieces_is_held_and_read_back_whole() {
             false,
             Arc::default(),
             fed,
+            Arc::default(),
             {
                 let answers = Rc::clone(&answers);
                 move |answered| answers.borrow_mut().push(answered)
@@ -102,7 +103,7 @@ fn a_part_a_module_writes_in_pieces_is_held_and_read_back_whole() {
             "the part reads back whole"
         );
         assert_eq!(
-            peer.put_part(block, &bytes).await.expect("put whole"),
+            put_part(&peer, block, &bytes).await.expect("put whole"),
             part,
             "a part put whole is the part written in pieces"
         );

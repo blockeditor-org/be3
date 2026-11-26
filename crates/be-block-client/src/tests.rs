@@ -16,6 +16,22 @@ use be_block_store::Keyring;
 use be_type_image::{ImageContent, ImageHeader};
 use be_type_text::{TextBlock, TextContent};
 
+/// `bytes` written as one part of `block` (`Peer::part_writer`) and held for it
+/// (`Peer::hold_part`), as a type module's `part-writer` puts a part.
+async fn put_part<S: be_block_store::ObjectStore>(
+    peer: &Peer<S>,
+    block: Uuid,
+    bytes: &[u8],
+) -> Result<be_block_store::PartRef, ClientError> {
+    let mut writer = peer.part_writer(block).await?;
+    writer.write(bytes)?;
+    let part = writer
+        .finish()?
+        .ok_or_else(|| ClientError::Encoding("a part needs at least one byte".to_owned()))?;
+    peer.hold_part(block, part).await?;
+    Ok(part)
+}
+
 /// Uploads `objects` as `Peer::push` does, without keeping them on the device: asks for URLs,
 /// then PUTs each object's bytes.
 async fn upload(peer: &Peer<MemoryStore>, objects: Vec<Vec<u8>>) -> Result<(), ClientError> {

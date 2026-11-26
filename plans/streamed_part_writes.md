@@ -13,6 +13,15 @@ part writer sealed and no commit came to name stays in the vault.
 
 The aim: a part sealed on the device that nothing names is let go.
 
+A writer takes its block's sealing key once, as it starts (`Peer::part_writer`), so a key that
+rotates mid-write seals the whole part under the old key, as a whole put begun just before the
+rotation would. A commit that reuses the part seals it again under the key it is written under
+(`Peer::write_content_under` fetches and rewrites a stale part), but until one does, the part
+the operation names is under the old key, which a member the rotation removed still holds. A
+module's writes are short-lived and the server's access checks still stand, so nothing handles
+it yet; if it comes to matter, `finish` can fail when the block's key moved since the writer
+started, and the module put the part again.
+
 ## Steps
 
 1. **Unnamed parts.** A compaction seals each merged part into the local vault as it writes

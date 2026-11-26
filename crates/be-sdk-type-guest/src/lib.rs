@@ -911,7 +911,8 @@ impl Module {
                 writer.write(bytes).detach();
                 let finished = writer.finish();
                 self.answer_later(replica, finished, move |result| {
-                    // Held until `finish` answers: dropped, it would let go of the part.
+                    // Held until `finish` answers: dropped sooner, the host would cancel `finish`,
+                    // answering canceled though it still puts the part.
                     drop(writer);
                     Input::PartPut {
                         token,
@@ -1437,6 +1438,13 @@ impl Serving {
 
     pub fn module(&self) -> &Module {
         &self.module
+    }
+
+    /// Runs `run` in the module's executor, as a call it serves would run: for a guest that
+    /// wraps `Serving` to make calls of its own (a test's module). What it calls goes out at
+    /// the next `step`.
+    pub fn enter<R>(&self, run: impl FnOnce() -> R) -> R {
+        self.executor.enter(run)
     }
 
     pub fn step(&self, inbound: Vec<Vec<u8>>, outbound: &mut Vec<Vec<u8>>) {

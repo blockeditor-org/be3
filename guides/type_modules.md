@@ -304,7 +304,10 @@ key as the bytes end it, so neither side holds the whole part. `finish` seals
 the rest, has the server hold the part for the block (`Peer::hold_part`:
 `hold-objects` with `hold.until-committed`) and answers the `part-ref` once
 the upload is done; a write that failed fails `finish`, and a writer dropped
-first lets go of what it wrote. Only then does it send the operation, with that ref
+before `finish` lets go of the writer; the chunks it sealed stay
+(plans/streamed_part_writes.md). A writer may hold at most `UNSEALED_WRITES`
+(8 MiB) unsealed in the host: a write past it, made before earlier ones were
+answered, is refused and the writer let go of. Only then does it send the operation, with that ref
 (a `be_block_content::PartRef`) in its own payload. The hold ends when a commit of the
 block that uses the part publishes, or once `upload_grace` passed, the
 block's journal holds no entries (an uncommitted operation may still name the
@@ -339,7 +342,9 @@ type (below, "Peers"). Hosts: be-block-type-host serves the writer as above;
 be-sdk-test's store refuses at `finish`.
 Tests:
 `be-sdk-type-guest/src/tests/an_operation_adds_a_part_by_its_hash.rs` (the
-flow), be-block-type-host's `a_part_a_module_writes_in_pieces_is_held_and_read_back_whole`, be-host-stack's `a_part_an_editor_puts_is_held_for_its_block_once_the_server_has_it`
+flow), be-block-type-host's `a_part_a_module_writes_in_pieces_is_held_and_read_back_whole`
+and its `a_part_writer_*` tests (a writer dropped unfinished, open across a module
+restart, written too far ahead), whose module makes writers when told (`Writing`), be-host-stack's `a_part_an_editor_puts_is_held_for_its_block_once_the_server_has_it`
 and be-server's `a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes`.
 
 ### Signed logs
@@ -521,8 +526,9 @@ then reads the merged commit's reused parts whole, since it becomes a file.
 
 Tests use the types in `crates/be-sdk-type-testing` (a dev-dependency only):
 `Sections`, ten sections each a part after a header of their lengths, and
-`Probe`, whose merge and search read a part its content names and make a call
-other than `read-part`, so a test sees the host refuse both; its search also
+`Probe`, whose merge and search read a part its content names and make a
+`part-writer` (a resource, whose methods the host must refuse too), so a test
+sees the host refuse both; its search also
 answers keys not asked for, a foreign source and a key twice. be-block-type-host's
 `a_merge_over_parts_reads_only_the_parts_each_side_changed`,
 `a_stateless_request_reads_only_parts_of_the_commits_it_was_handed` and
