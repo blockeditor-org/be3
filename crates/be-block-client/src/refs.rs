@@ -73,10 +73,13 @@ pub(crate) enum Table {
     LogRedactions,
     /// The first fork of each block's signed log this device found (`Refs::log_fork`).
     LogForks,
+    /// Each commit sealed again (`Refs::replace_publishes`), by its old id, with the id of the
+    /// one in its place.
+    Replaced,
 }
 
 impl Table {
-    pub const ALL: [Self; 30] = [
+    pub const ALL: [Self; 31] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -107,6 +110,7 @@ impl Table {
         Self::NameCards,
         Self::LogRedactions,
         Self::LogForks,
+        Self::Replaced,
     ];
 
     pub fn code(self) -> u8 {
@@ -141,6 +145,7 @@ impl Table {
             Self::NameCards => 28,
             Self::LogRedactions => 29,
             Self::LogForks => 30,
+            Self::Replaced => 31,
         }
     }
 
@@ -480,6 +485,8 @@ pub struct KnownSigner {
 #[derive(Default)]
 struct State {
     session: Option<Session>,
+    /// Each commit sealed again, by its old id, with the one in its place (`Table::Replaced`).
+    replaced: HashMap<CommitId, CommitId>,
     heads: HashMap<Uuid, CommitId>,
     remotes: HashMap<Uuid, CommitId>,
     /// The newest head of each block whose content this device has read whole.
@@ -860,6 +867,11 @@ impl State {
             }
             Table::LogForks => {
                 self.log_forks.insert(uuid_key(&row.key)?, decode(value)?);
+            }
+            Table::Replaced => {
+                let old: [u8; 32] = row.key.as_slice().try_into().map_err(|_| StoreError::Corrupt)?;
+                self.replaced
+                    .insert(CommitId::from_hash(Hash::from_bytes(old)), decode(value)?);
             }
             Table::NotAppended => {
                 let (block, order) = row.key.split_at_checked(16).ok_or(StoreError::Corrupt)?;
@@ -2211,14 +2223,26 @@ impl Refs {
     /// Keeps a sealed commit in the outbox as the block's local head, answering its sequence:
     /// none for a block whose local edits were discarded (`discard_unsent`), checked as the
     /// discard checks, so a seal under way as the discard runs never reaches the outbox.
-    pub fn push_publish(&self, pending: Pending) -> Result<Option<u64>, StoreError> {
+    /// Queues a commit this device sealed as the block's local head. Not when its local edits
+    /// were discarded (`Pushed::Dropped`), nor when it goes on a commit sealed again since
+    /// (`Pushed::OnReplaced`): it would never reach the server, and the caller seals it on the
+    /// replacement (`replaced`).
+    pub fn push_publish(&self, pending: Pending) -> Result<Pushed, StoreError> {
         let (block, head) = (pending.block, pending.commit);
-        let op = Op::Publish(pending);
         let (sequence, rows) = {
             let mut state = self.state.lock().unwrap();
             if state.dropped.contains(&block) {
-                return Ok(None);
+                return Ok(Pushed::Dropped);
             }
+            if pending
+                .expected
+                .iter()
+                .chain(&pending.parents)
+                .any(|commit| state.replaced.contains_key(commit))
+            {
+                return Ok(Pushed::OnReplaced);
+            }
+            let op = Op::Publish(pending);
             let sequence = state.take();
             let rows = vec![
                 row(Table::Outbox, sequence.to_be_bytes().to_vec(), &op),
@@ -2229,7 +2253,41 @@ impl Refs {
             (sequence, rows)
         };
         self.write(rows)?;
-        Ok(Some(sequence))
+        Ok(Pushed::Queued(sequence))
+    }
+
+    /// The commit sealed again in `commit`'s place, as often as it was, or `commit` itself
+    /// (`replace_publishes`).
+    pub fn replaced(&self, commit: CommitId) -> CommitId {
+        let state = self.state.lock().unwrap();
+        let mut commit = commit;
+        for _ in 0..=state.replaced.len() {
+            match state.replaced.get(&commit) {
+                Some(after) => commit = *after,
+                None => break,
+            }
+        }
+        commit
+    }
+
+    /// The commits sealed again into `commit`, and into those, for a host whose replica kept
+    /// them: they reach the server as it does.
+    pub fn replaced_by(&self, commit: CommitId) -> Vec<CommitId> {
+        let state = self.state.lock().unwrap();
+        let mut found = vec![commit];
+        let mut next = 0;
+        while let Some(after) = found.get(next).copied() {
+            next += 1;
+            found.extend(
+                state
+                    .replaced
+                    .iter()
+                    .filter(|(_, into)| **into == after)
+                    .map(|(before, _)| *before),
+            );
+        }
+        found.remove(0);
+        found
     }
 
     /// The block's journal on this device, sealed.
@@ -2491,16 +2549,13 @@ impl Refs {
         self.state.lock().unwrap().outbox.get(&sequence).cloned()
     }
 
-    /// Puts each publish in `rewritten` in the place of the one at its sequence, and moves the
-    /// block's local head to what `moved` put in its place, in one write: what `Peer::reseal`
-    /// sealed again. The head is read here, under the lock, so a commit made while the
-    /// commits were sealed again stays the head.
     /// Puts commits of `block` sealed again (`Peer::reseal`, `Peer::restamp`) in the places of
-    /// those they replace, `(sequence, was, now)` each, and moves the local head to its
-    /// replacement (`moved`), in one write. Only while the outbox holds exactly the commits of
-    /// the block that were read: a seal that landed meanwhile, on the head being replaced,
-    /// would be left on a commit that never reaches the server. False then, and nothing is
-    /// written, for the caller to read the outbox again.
+    /// those they replace, `(sequence, was, now)` each, moves the local head to its replacement
+    /// and keeps what replaced what (`moved`, `replaced`), in one write. Only while the outbox
+    /// holds exactly the commits of the block that were read: a seal that landed meanwhile, on
+    /// the head being replaced, would be left on a commit that never reaches the server. False
+    /// then, and nothing is written, for the caller to read the outbox again. A seal on a
+    /// replaced commit that comes after is refused (`push_publish`), to go on its replacement.
     pub fn replace_publishes(
         &self,
         block: Uuid,
@@ -2536,6 +2591,14 @@ impl Refs {
                 let head = *head;
                 rows.push(row(Table::Head, block.as_bytes().to_vec(), &head));
                 state.heads.insert(block, head);
+            }
+            for (before, after) in moved {
+                rows.push(row(
+                    Table::Replaced,
+                    before.hash().as_bytes().to_vec(),
+                    after,
+                ));
+                state.replaced.insert(*before, *after);
             }
         }
         self.write(rows)?;
@@ -2996,6 +3059,17 @@ fn newest(state: &State) -> u64 {
         .chain(state.listed_at.values().copied())
         .max()
         .unwrap_or_default()
+}
+
+/// What `Refs::push_publish` did with a sealed commit.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Pushed {
+    /// In the outbox at this sequence, and the block's local head.
+    Queued(u64),
+    /// The block's local edits were discarded: dropped, as if the discard had come first.
+    Dropped,
+    /// It goes on a commit sealed again since: not queued, to be sealed on its replacement.
+    OnReplaced,
 }
 
 #[cfg(test)]
