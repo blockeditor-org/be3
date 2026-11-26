@@ -354,9 +354,23 @@ impl Rect {
         self.min.x < self.max.x && self.min.y < self.max.y
     }
 
-    pub fn kept_in(&self, keep: Vec2, bounds: Vec2) -> Pos2 {
-        let room = (bounds - keep).max(Vec2::ZERO);
-        Pos2::new(self.min.x.clamp(0.0, room.x), self.min.y.clamp(0.0, room.y))
+    /// Where this rect goes so that `grip`, measured from its top-left corner, lies on one of
+    /// `areas`: where it is when it already does (to within half a point), else the nearest such
+    /// place on `home`. The rest of the rect may hang off any edge. A grip larger than `home`
+    /// keeps its top-left corner on `home`'s.
+    pub fn grabbable(&self, grip: Vec2, areas: &[Rect], home: Rect) -> Pos2 {
+        const SLACK: f32 = 0.5;
+        let held = Rect::from_min_size(self.min, grip);
+        let reached = areas.iter().any(|area| {
+            let shared = area.intersect(held);
+            shared.width() >= grip.x - SLACK && shared.height() >= grip.y - SLACK
+        });
+        if reached {
+            return self.min;
+        }
+        let x = self.min.x.min(home.max.x - grip.x).max(home.min.x);
+        let y = self.min.y.min(home.max.y - grip.y).max(home.min.y);
+        Pos2::new(x, y)
     }
 }
 

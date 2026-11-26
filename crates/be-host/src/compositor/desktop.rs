@@ -806,9 +806,11 @@ pub(crate) fn clamped(rect: Rect, viewport: Vec2) -> Rect {
 }
 
 pub(crate) fn reachable(rect: Rect, grab: Vec2, viewport: Vec2) -> Pos2 {
-    rect.kept_in(
+    let host = Rect::from_min_size(Pos2::ZERO, viewport);
+    rect.grabbable(
         vec2(KEEP_VISIBLE, grab.y + GRAB_MARGIN).min(rect.size()),
-        viewport,
+        &[host],
+        host,
     )
 }
 
