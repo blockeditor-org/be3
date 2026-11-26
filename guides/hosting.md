@@ -269,7 +269,8 @@ it; making one there says so. Each time one starts there, the host asks the brow
 the origin's storage rather than evict it, unless it already does (`platform::keep_storage`,
 `navigator.storage.persisted()` then `persist()`), with a notice when it will not as the account
 is made. Its editors offer no Share and no viewing access (`opening.offers-share`,
-`EditorHost::offers_share`). With one member it holds every block, so it goes without what
+`EditorHost::offers_share`), its files show no Shared with me, and its host menu no contacts or
+share links. With one member it holds every block, so it goes without what
 the server enforces between members: `may_create`'s reserved ids and who makes workspaces,
 access and visibility, and a block agent's scoping (`bound_may`; it makes no agents). The
 app sandbox is the host's own and holds the same.

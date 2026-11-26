@@ -1,5 +1,6 @@
-//! The block server be-host runs in its own process for a local account, and tests start to
-//! sign in against: be-server on a thread of its own, stopped when dropped.
+//! The block server tests start to sign in against: be-server on a thread of its own, stopped
+//! when dropped. A local account runs no server (guides/hosting.md, Local accounts and the
+//! default server).
 
 use std::{error::Error, net::TcpListener as StdTcpListener, path::PathBuf, thread};
 

@@ -246,6 +246,8 @@ pub(crate) struct StatusView {
     pub(crate) session_type: Uuid,
     pub(crate) can_close: bool,
     pub(crate) company: bool,
+    /// A local account's, with no server: it has no contacts and opens no share links.
+    pub(crate) local: bool,
     pub(crate) administrator: bool,
     pub(crate) escrow_warning: Option<String>,
     /// The blocks this device keeps hosting with no editor open (Keep hosting), by name.

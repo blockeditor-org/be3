@@ -468,7 +468,10 @@ impl Tree {
                 }
             }
             builder.push_offers(offered);
-            builder.push_shared(loose, !shared_closed);
+            // A local account has no server, so nothing is ever shared with it.
+            if host.offers_share() {
+                builder.push_shared(loose, !shared_closed);
+            }
             builder.push_orphans(showing);
             builder.push_system(system, system_open);
             let (built, due) = builder.finish();

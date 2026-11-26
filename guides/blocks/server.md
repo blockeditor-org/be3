@@ -1305,10 +1305,11 @@ printed in the server log. `be-server login-link --data-dir be-server-data
 --auth-origin http://localhost:9090 --email EMAIL` signs one in without it.
 Open the portal at `localhost`, not `127.0.0.1`: passkeys need a host name for
 their RP ID. `--oidc-providers FILE` adds providers (guides/hosting.md).
-Deployments also set `--auth-origin` (guides/hosting.md). The native host
-embeds be-server for a local account (`crates/be-host-server`,
-ephemeral port, data under the host's); `./scripts/buck run //crates/be-host:web`
-starts one beside the web build.
+Deployments also set `--auth-origin` (guides/hosting.md). A local account runs
+no server at all (guides/hosting.md, Local accounts and the default server);
+`crates/be-host-server` starts be-server on a thread of its own, on an ephemeral
+port, only for tests. `./scripts/buck run //crates/be-host:web` starts one beside
+the web build.
 
 ## Tests
 

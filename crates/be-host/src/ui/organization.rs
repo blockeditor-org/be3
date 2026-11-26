@@ -121,6 +121,7 @@ fn HostMenu(
     let panel = move |panel: HostPanel| move || pick(UiCommand::ShowPanel(panel));
     let can_close = create_memo(move || status.get().can_close);
     let company = create_memo(move || status.get().company);
+    let served = create_memo(move || !status.get().local);
     let administrator = create_memo(move || status.get().administrator);
     let escrow_warning = create_memo(move || status.get().escrow_warning.unwrap_or_default());
     let warned = create_memo(move || !escrow_warning.with(String::is_empty));
@@ -163,19 +164,22 @@ fn HostMenu(
                 on_click={move || pick(UiCommand::StopHosting(kept.block))}
             />
         </ForEach>
-        <MenuItem
-            @test_id={"host.menu.contacts".to_owned()}
-            label="Contacts"
-            glyph=ICON_CONTACT
-            separated=true
-            on_click={move || pick(UiCommand::OpenContacts)}
-        />
-        <MenuItem
-            @test_id={"host.menu.share-link".to_owned()}
-            label="Open a share link"
-            glyph=ICON_LINK
-            on_click={move || pick(UiCommand::OpenShareLinks)}
-        />
+        // A local account has no server: no contacts, and no share links to open.
+        <Show value={served}>
+            <MenuItem
+                @test_id={"host.menu.contacts".to_owned()}
+                label="Contacts"
+                glyph=ICON_CONTACT
+                separated=true
+                on_click={move || pick(UiCommand::OpenContacts)}
+            />
+            <MenuItem
+                @test_id={"host.menu.share-link".to_owned()}
+                label="Open a share link"
+                glyph=ICON_LINK
+                on_click={move || pick(UiCommand::OpenShareLinks)}
+            />
+        </Show>
         <Show value={company}>
             <MenuItem
                 @test_id={"host.menu.invite".to_owned()}
