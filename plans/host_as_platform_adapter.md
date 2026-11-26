@@ -2503,9 +2503,18 @@ Each step lands on its own.
                the page's main thread must a module past 8MB. be-wasm-root-web-testing's
                `a_linked_root_draws_its_own_surface_on_the_page` links be-sdk-root-testing's root
                and reads its colour back from the canvas.
-             - 4g7g2c2. App surfaces on the web (4e1's web half): a staged app the root spawns
-               presents into canvases the page transferred to its worker, named to the root by
-               handle and placed by the layer list as CSS (be-host-runtime's web canvases).
+             - 4g7g2c2. Built: app surfaces on the web (4e1's web half). A linked root's sandbox
+               draws (be-wasm-sandbox-host's web `Server::with_display`): the staged apps it
+               spawns boot through app.js with a device of their worker's own, not worker.js,
+               and the page hands an app's worker a canvas for a surface the layer list names
+               by handle (`Root::show_app_surface(id, canvas, instance, surface)`,
+               `forget_app_surface`; `Instance::show` posts app.js's `show`), which the worker
+               draws into as the app presents. be-wasm-root-web-testing's
+               `an_app_a_linked_root_spawns_draws_into_a_canvas_its_worker_is_handed` shows the
+               triangle be-sdk-root-testing's root spawns on a canvas of the page's.
+               - Left for 4g7g2c4: placing each canvas by the layer list as CSS (its transform,
+                 clip, opacity and order, be-host-runtime's web `canvases` and `overlay`), and
+                 a child's preview (app.js's `export`, `import`).
              - 4g7g2c3. The web `Root`'s `on_wake`, as the native one has (Left of 4e5c), so a
                root that wakes itself between frames gets one from `requestAnimationFrame`.
              - 4g7g2c4. be-host's web build runs `RootShell` (`?root=`), its native-only parts
