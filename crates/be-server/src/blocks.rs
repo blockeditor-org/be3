@@ -3220,9 +3220,8 @@ fn listing_ids<'a>(
     listing: Listing,
     after: Option<Uuid>,
 ) -> Box<dyn Iterator<Item = Uuid> + 'a> {
-    let knows = move |block: &Uuid| {
-        graph.contains(*block) && seen.access(graph, *block).can_know_exists()
-    };
+    let knows =
+        move |block: &Uuid| graph.contains(*block) && seen.access(graph, *block).can_know_exists();
     let mut ids: Vec<Uuid> = match listing {
         Listing::Shared if seen.administrator => Vec::new(),
         Listing::Shared => graph

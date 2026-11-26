@@ -35,7 +35,11 @@ fn a_watched_folder_gaining_thousands_of_children_writes_in_proportion_to_them()
     // Made here offline, each added to the listing kept of the folder.
     let before = db.written();
     for child in 0..CHILDREN {
-        let made = placed((child + 1) << 80, folder, CHILDREN as u64 + 1 + child as u64);
+        let made = placed(
+            (child + 1) << 80,
+            folder,
+            CHILDREN as u64 + 1 + child as u64,
+        );
         let one = db.written();
         refs.add_to_listing(listing, &made).unwrap();
         assert!(db.written() - one < 1024, "adding one child wrote too much");

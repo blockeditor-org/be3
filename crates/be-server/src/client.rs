@@ -1722,7 +1722,10 @@ impl Client {
                 Page::ShareLinks(store.share_links(admitted.identity()?, block).await?)
             }
             Query::Invitation(link) => Page::Invitation(store.read_invitation(link).await?),
-            Query::DownloadUrls { objects: hashes, holder } => {
+            Query::DownloadUrls {
+                objects: hashes,
+                holder,
+            } => {
                 let identity = admitted.identity()?;
                 at_most_urls(hashes.len())?;
                 let lifetime = store.transfer_lifetime();

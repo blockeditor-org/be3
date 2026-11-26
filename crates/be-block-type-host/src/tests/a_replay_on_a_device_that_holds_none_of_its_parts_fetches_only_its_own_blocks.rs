@@ -20,7 +20,10 @@ fn a_replay_on_a_device_that_holds_none_of_its_parts_fetches_only_its_own_blocks
                 matches!(saved, Ok(be_block_client::Saved::Published(_))),
                 "the block publishes: {saved:?}"
             );
-            parts.push((made, section_parts(&peer, &written(&peer, made, &[]).await).await[0]));
+            parts.push((
+                made,
+                section_parts(&peer, &written(&peer, made, &[]).await).await[0],
+            ));
         }
         let [(read_block, own), (_, foreign)] = parts[..] else {
             unreachable!("two blocks were made")

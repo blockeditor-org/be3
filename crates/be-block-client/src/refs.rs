@@ -1223,12 +1223,7 @@ impl Refs {
 
     /// Keeps `listing` as holding `ids`, writing only the blocks that joined or left it, so a
     /// listing read again after one block joined writes that block's row and no other.
-    fn put_listing(
-        state: &mut State,
-        listing: Listing,
-        ids: BTreeSet<Uuid>,
-        rows: &mut Vec<Row>,
-    ) {
+    fn put_listing(state: &mut State, listing: Listing, ids: BTreeSet<Uuid>, rows: &mut Vec<Row>) {
         let held = Self::known_listing(state, listing, rows);
         for left in held.difference(&ids) {
             rows.push(Row {
