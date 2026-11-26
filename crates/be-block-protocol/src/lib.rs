@@ -56,6 +56,7 @@ be_wasm_ops_bindgen::generate!({
         "device-poll",
         "blocks-query",
         "list-query",
+        "download-query",
         "tree-query",
         "keys-query",
         "revocations-query",

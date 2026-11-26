@@ -1,6 +1,9 @@
 use std::path::Path;
 
-use std::sync::Mutex;
+use std::sync::{
+    Mutex,
+    atomic::{AtomicU64, Ordering},
+};
 
 use be_block_store::StoreError;
 use rusqlite::{Connection, params};
@@ -21,6 +24,8 @@ const SCHEMA: &str = "
 
 pub(crate) struct SqliteRefs {
     connection: Mutex<Connection>,
+    /// The bytes of every key and value written, deletions' keys included (`RefsDb::written`).
+    written: AtomicU64,
 }
 
 impl SqliteRefs {
@@ -44,6 +49,7 @@ impl SqliteRefs {
         be_block_sqlite_schema::ensure(&connection, SCHEMA).map_err(failed)?;
         Ok(Self {
             connection: Mutex::new(connection),
+            written: AtomicU64::new(0),
         })
     }
 }
@@ -106,6 +112,8 @@ impl SqliteRefs {
                 )
                 .map_err(failed)?;
             for row in rows {
+                let bytes = row.key.len() + row.value.as_ref().map_or(0, Vec::len);
+                self.written.fetch_add(bytes as u64, Ordering::Relaxed);
                 let account = scope.account.as_bytes().as_slice();
                 let organization = scope.organization.as_bytes().as_slice();
                 let kind = i64::from(row.table.code());
@@ -127,6 +135,13 @@ impl SqliteRefs {
             }
         }
         transaction.commit().map_err(failed)
+    }
+}
+
+impl SqliteRefs {
+    #[cfg(test)]
+    pub(crate) fn written(&self) -> u64 {
+        self.written.load(Ordering::Relaxed)
     }
 }
 

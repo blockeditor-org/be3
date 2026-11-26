@@ -43,7 +43,7 @@ fn a_block_whose_replica_waits_for_its_heads_objects_does_not_export() {
         })
     };
     let mut joins = asked(|query| matches!(query, be_block_protocol::Query::Session { .. }));
-    let mut downloads = asked(|query| matches!(query, be_block_protocol::Query::DownloadUrls(_)));
+    let mut downloads = asked(|query| matches!(query, be_block_protocol::Query::DownloadUrls { .. }));
     hold(block, CounterContent::CONTENT_TYPE);
     runtime()
         .block_on(joins.wait_for(|joins| *joins > 0))

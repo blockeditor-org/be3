@@ -340,10 +340,7 @@ impl Scope {
         Unchecked(read): Unchecked,
     ) -> Checked {
         let reaches = match self.block {
-            Some(block) => peer
-                .block_of_part(read.part)
-                .await
-                .map(|of| of == Some(block)),
+            Some(block) => peer.is_part_of(read.part, block).await,
             None => Ok(false),
         };
         match reaches {

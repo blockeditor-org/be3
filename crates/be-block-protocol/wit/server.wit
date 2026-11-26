@@ -184,7 +184,7 @@ interface server {
         /// A presigned S3 GET for each object the caller may read, in order,
         /// and none for the rest. At most `be_block_protocol::MAX_OBJECT_URLS`
         /// hashes a read.
-        download-urls(list<hash>),
+        download-urls(download-query),
         /// The server's own account, push key, whether it offers FCM, and its
         /// clock. Of no organization.
         server-info,
@@ -211,6 +211,15 @@ interface server {
         blocks: list<block-id>,
         contents: bool,
         held: list<commit-id>,
+    }
+
+    /// The objects `download-urls` asks for. With `holder`, only those that
+    /// block holds (by a commit or `hold-objects`) are answered, and only if
+    /// the caller may read it: a reader that wants a part only as one block's
+    /// asks so, and fetches nothing of another's.
+    record download-query {
+        objects: list<hash>,
+        holder: option<block-id>,
     }
 
     record list-query {

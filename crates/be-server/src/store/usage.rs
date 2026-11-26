@@ -442,7 +442,7 @@ impl ServerStore {
                 Some((_, confirmed)) => {
                     carried
                         || !confirmed
-                        || crate::blocks::readable(graph, &transaction, identity, *hash)?
+                        || crate::blocks::readable(graph, &transaction, identity, *hash, None)?
                 }
                 None => {
                     transaction

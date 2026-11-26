@@ -1271,10 +1271,13 @@ impl ServerStore {
     /// Which of `hashes` the caller may read, in order: those a block it may view holds. A held
     /// object was confirmed stored before any block could take it (`holdable`), so this asks
     /// no object store.
+    /// Whether the caller may read each of `hashes`: a block it can view holds it, or with
+    /// `holder`, that block holds it and the caller can view it.
     pub async fn may_read_objects(
         &self,
         identity: Identity,
         hashes: Vec<Hash>,
+        holder: Option<Uuid>,
     ) -> Result<Vec<bool>, ServerError> {
         // Downloads take neither the database lock nor the graph job's: the holders come from the
         // read-only connection and access from the cached graph, which a revocation changes
@@ -1291,7 +1294,12 @@ impl ServerStore {
                 Ok(store.read_graph(organization, |graph| {
                     holders
                         .iter()
-                        .map(|holders| holders.iter().any(|block| seen.can_view(graph, *block)))
+                        .map(|holders| {
+                            holders
+                                .iter()
+                                .filter(|block| holder.is_none_or(|holder| holder == **block))
+                                .any(|block| seen.can_view(graph, *block))
+                        })
                         .collect::<Vec<bool>>()
                 }))
             })
@@ -1302,7 +1310,7 @@ impl ServerStore {
         self.with_graph(organization, move |_, graph, database| {
             hashes
                 .iter()
-                .map(|hash| readable(graph, database, identity, *hash))
+                .map(|hash| readable(graph, database, identity, *hash, holder))
                 .collect()
         })
         .await
@@ -1413,7 +1421,7 @@ impl ServerStore {
     ) -> Result<bool, ServerError> {
         Ok(crate::store::stored(database, hash)?
             && (crate::store::uploaded(database, identity, hash)?
-                || readable(graph, database, identity, hash)?))
+                || readable(graph, database, identity, hash, None)?))
     }
 
     fn require_holdable(
@@ -1773,8 +1781,7 @@ impl ServerStore {
     ) -> Result<Listed, ServerError> {
         self.with_graph(identity.organization, move |store, graph, database| {
             let seen = visibility(identity);
-            let ids = listing_ids(graph, &seen, identity, listing);
-            let start = after.map_or(0, |after| ids.partition_point(|id| *id <= after));
+            let mut ids = listing_ids(graph, &seen, identity, listing, after).peekable();
             let mut page = Listed {
                 sequence: crate::changes::current(database, identity.organization)?,
                 blocks: Vec::new(),
@@ -1783,7 +1790,6 @@ impl ServerStore {
             };
             let mut room = store.listing_page_bytes();
             let mut rest_room = room / 2;
-            let mut ids = ids[start..].iter().copied().peekable();
             let mut last = None;
             // The first blocks, summarized while their summaries fit (at least one).
             while let Some(id) = ids.peek().copied() {
@@ -2536,16 +2542,19 @@ impl ServerStore {
     }
 }
 
-/// Whether a block the caller can view holds `hash`, by a commit or by `HoldObjects`.
+/// Whether a block the caller can view holds `hash`, by a commit or by `HoldObjects`; with
+/// `holder`, whether that block does.
 pub(crate) fn readable(
     graph: &BlockGraph,
     database: &Connection,
     identity: Identity,
     hash: Hash,
+    holder: Option<Uuid>,
 ) -> Result<bool, ServerError> {
     let seen = visibility(identity);
     Ok(holders_of(database, identity.organization, hash)?
         .into_iter()
+        .filter(|block| holder.is_none_or(|holder| holder == *block))
         .any(|block| seen.can_view(graph, block)))
 }
 
@@ -3203,16 +3212,19 @@ fn commit_objects(
     Ok(objects)
 }
 
-/// The blocks of `listing` the caller may know of, as a listing
-/// holds them, in the order of their ids.
-fn listing_ids(
-    graph: &BlockGraph,
-    seen: &Visibility,
+/// The blocks of `listing` after `after` the caller may know of, as a listing holds them, in
+/// the order of their ids. A folder's children are read from `after` on, so a page of a large
+/// folder costs what it holds, not what the folder does.
+fn listing_ids<'a>(
+    graph: &'a BlockGraph,
+    seen: &'a Visibility,
     identity: Identity,
     listing: Listing,
-) -> Vec<Uuid> {
-    let knows =
-        |block: &Uuid| graph.contains(*block) && seen.access(graph, *block).can_know_exists();
+    after: Option<Uuid>,
+) -> Box<dyn Iterator<Item = Uuid> + 'a> {
+    let knows = move |block: &Uuid| {
+        graph.contains(*block) && seen.access(graph, *block).can_know_exists()
+    };
     let mut ids: Vec<Uuid> = match listing {
         Listing::Shared if seen.administrator => Vec::new(),
         Listing::Shared => graph
@@ -3222,12 +3234,12 @@ fn listing_ids(
             .collect(),
         Listing::Children(parent) => {
             let settings = crate::organization::settings_of(identity.organization);
-            graph
-                .children(parent)
-                .into_iter()
-                .filter(|block| *block != settings)
-                .filter(knows)
-                .collect()
+            return Box::new(
+                graph
+                    .children_after(parent, after)
+                    .filter(move |block| *block != settings)
+                    .filter(knows),
+            );
         }
         Listing::Deleted => match seen.candidates(graph) {
             None => graph.deleted_roots(),
@@ -3265,7 +3277,8 @@ fn listing_ids(
     };
     ids.sort_unstable();
     ids.dedup();
-    ids
+    let start = after.map_or(0, |after| ids.partition_point(|id| *id <= after));
+    Box::new(ids.into_iter().skip(start))
 }
 
 /// A block and its ancestors: the blocks whose sizes change with its own.

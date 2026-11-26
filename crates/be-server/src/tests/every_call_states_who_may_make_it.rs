@@ -66,7 +66,7 @@ fn query_case(query: &Query) -> &'static str {
         Query::Mailbox => "mailbox",
         Query::Link(_) => "link",
         Query::Invitation(_) => "invitation",
-        Query::DownloadUrls(_) => "download-urls",
+        Query::DownloadUrls { .. } => "download-urls",
         Query::ServerInfo => "server-info",
         Query::Mutes => "mutes",
         Query::Session { .. } => "session",
@@ -498,7 +498,12 @@ impl TestClient {
                 length: Some(9),
             }]))
             .await;
-        calls.read(Query::DownloadUrls(vec![hash])).await;
+        calls
+            .read(Query::DownloadUrls {
+                objects: vec![hash],
+                holder: None,
+            })
+            .await;
         calls
             .write(Op::HoldObjects {
                 block,

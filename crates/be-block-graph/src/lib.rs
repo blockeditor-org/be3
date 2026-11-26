@@ -518,10 +518,22 @@ impl BlockGraph {
     }
 
     pub fn children(&self, parent: BlockParent) -> Vec<Uuid> {
+        self.children_after(parent, None).collect()
+    }
+
+    /// The children of `parent` whose ids come after `after`, in the order of their ids: a page
+    /// of a large folder read without the rest of it.
+    pub fn children_after(
+        &self,
+        parent: BlockParent,
+        after: Option<Uuid>,
+    ) -> impl Iterator<Item = Uuid> + '_ {
+        let from = after.map_or(std::ops::Bound::Unbounded, std::ops::Bound::Excluded);
         self.children
             .get(&parent)
-            .map(|set| set.iter().copied().collect())
-            .unwrap_or_default()
+            .into_iter()
+            .flat_map(move |set| set.range((from, std::ops::Bound::Unbounded)))
+            .copied()
     }
 
     fn child_ids(&self, parent: Uuid) -> impl Iterator<Item = Uuid> + '_ {

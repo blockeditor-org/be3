@@ -1935,10 +1935,30 @@ impl<S: ObjectStore> Peer<S> {
             .await
     }
 
-    /// A range of a saved part's bytes, fetching only the objects under it.
+    /// Whether `part`'s top object is sealed under a key of `block`, as this device placed that
+    /// key (`KeyBook::block_of`). An object this device does not hold is fetched only if the
+    /// server says `block` holds it, so a part of another block is told apart without fetching
+    /// any of it; one the server does not have for `block` is not of it.
+    pub async fn is_part_of(
+        &self,
+        part: be_block_store::PartRef,
+        block: Uuid,
+    ) -> Result<bool, ClientError> {
+        let hash = part.hash();
+        let store = self.commits.vault().store();
+        if !store.has(hash)? {
+            self.try_fetch_held_by(block, &[hash]).await?;
+            if !store.has(hash)? {
+                return Ok(false);
+            }
+        }
+        Ok(self.block_of_part(part).await? == Some(block))
+    }
+
     /// The block of the key `part`'s top object is sealed under, as this device placed that
     /// key (`KeyBook::block_of`), fetching the object if it is not held: none for a key this
-    /// device does not place.
+    /// device does not place. To ask whether a part is one block's, `is_part_of` fetches
+    /// nothing of another's.
     pub async fn block_of_part(
         &self,
         part: be_block_store::PartRef,
@@ -1951,6 +1971,7 @@ impl<S: ObjectStore> Peer<S> {
         Ok(self.keys.block_of(key))
     }
 
+    /// A range of a saved part's bytes, fetching only the objects under it.
     pub async fn read_part(
         &self,
         part: be_block_store::PartRef,

@@ -1,46 +1,7 @@
 use be_sdk_type_api::{Failure, embed::exports::replicas as module};
-use be_sdk_type_guest::wire::{BaseState, Entry, Submitted};
 
 use super::*;
 use crate::{OUTSIDE_REQUEST, Scope};
-
-/// A journal on `head`, by the build `tag` names, whose base state goes by `part`, with one
-/// entry past it, so a reader outside the session replays it.
-fn journal_by(
-    tag: be_sdk_type_api::SessionTag,
-    head: Option<be_block_commit::CommitId>,
-    part: be_block_store::PartRef,
-) -> be_block_protocol::Journal {
-    let kept = Submitted {
-        through: 0,
-        entry: Entry::Keep {
-            commit: be_block_commit::CommitId::from_hash(be_block_store::Hash::of(b"kept")),
-        },
-    };
-    be_block_protocol::Journal {
-        tag: be_block_store::Hash::from_bytes(tag.0),
-        base: be_block_protocol::JournalBase {
-            commit: head,
-            sequence: 0,
-            state: BaseState {
-                part: Some(part),
-                ..BaseState::default()
-            }
-            .encode(),
-            parts: Vec::new(),
-        },
-        entries: vec![be_block_protocol::JournalEntry {
-            sequence: 1,
-            origin: 1,
-            counter: 1,
-            base: 0,
-            floor: 0,
-            received: None,
-            payload: kept.encode(),
-        }],
-        lost: false,
-    }
-}
 
 /// A reader outside a block's session replays its journal (`Modules::readable`), and the type
 /// reads the parts the journal names under that request: only parts sealed under that block's

@@ -678,7 +678,8 @@ order: presence and channel messages. The rules an agent most needs:
   lasts the whole upload grace. `replay`, for a reader outside the session,
   reads the parts the journal names (its base state's, an operation's) under
   its request, which the host serves only for parts sealed under that block's
-  keys; it reloads no commit, so a journal holding a reload is read as the head
+  keys (`Scope::check`, which fetches a part this device lacks only as that
+  block's, `Peer::is_part_of`); it reloads no commit, so a journal holding a reload is read as the head
   alone.
 - **Replacements.** A whole-content replacement (`Replace`, `FromFile`) wins
   outright: the replica stashes what it shows, stashes the replacement on top and

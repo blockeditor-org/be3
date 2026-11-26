@@ -41,11 +41,6 @@ Fixed items are removed as they land.
 
 ## 7. Sessions
 
-- **A replay's reads fetch what they are refused.** `Scope::check` (be-block-type-host's
-  modules.rs) asks `Peer::block_of_part` of any part a module's `replay` names, which may
-  fetch its object before the read is refused as another block's; the server still decides
-  access. Done: a part's block found without fetching what this device does not hold.
-
 - **An admit a recheck ran beside, without a test.** An admit a recheck ran
   beside asks for another check (`Member::Answering`'s `admit`,
   `Hosting::snapshots`, be-host-stack's hosting.rs), which no test forces: every
@@ -131,19 +126,6 @@ Fixed items are removed as they land.
   streams its segments, and the idle pass at rest merges tiers past that cap,
   shown by a be-block-search-index test merging segments larger than the memory
   it may hold.
-
-## 12. Large folders
-
-- **The rest of a large folder's change.** Summaries no longer carry references
-  and a watcher reads a tree's changes as pages (`tree-advanced`, `changed-page`),
-  so what is left O(N) per change is the client's listing rows: `Refs::put_listing`
-  writes a listing's whole id list (`Table::Listing`) whenever it changes, and
-  `add_to_listing` and `listed` call it per change, so a watcher of a folder that
-  gains N children one at a time writes O(N²) bytes to disk. Check the server's
-  side for any remaining per-member O(N) copy as well. Done: a listing is kept as
-  rows per entry (or another form written in proportion to what moved), shown by
-  a client test adding thousands of children to a watched folder that writes refs
-  bytes linear in them.
 
 ## 15. Flaky host tests
 
