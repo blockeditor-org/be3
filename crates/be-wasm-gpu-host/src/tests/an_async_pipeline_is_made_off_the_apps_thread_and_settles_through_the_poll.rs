@@ -48,7 +48,7 @@ fn an_async_pipeline_is_made_off_the_apps_thread_and_settles_through_the_poll() 
     );
     let mut answers: Vec<be_wasm_ops::local::Settled> = Vec::new();
     while answers.len() < 2 {
-        answers.extend(be_wasm_gpu_abi::embed::webgpu::Host::settle(&mut gpu, true));
+        answers.extend(be_wasm_gpu_abi::embed::webgpu::Host::settle(&mut gpu, true, &[]));
     }
     let answer = |ticket: u32| -> Made {
         let settled = answers

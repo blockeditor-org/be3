@@ -15,7 +15,7 @@
   (import "wasi:webgpu/webgpu@0.3.0-rc.2" "get-gpu" (func $get_gpu (result i32)))
   (import "wasi:webgpu/webgpu@0.3.0-rc.2" "[method]gpu.request-adapter" (func $request_adapter (param i32 i32 i32) (result i32)))
   (import "wasi:webgpu/webgpu@0.3.0-rc.2" "[method]gpu-adapter.request-device" (func $request_device (param i32 i32 i32) (result i32)))
-  (import "wasi:webgpu/webgpu@0.3.0-rc.2" "[poll]" (func $poll (param i32 i32 i32) (result i32)))
+  (import "wasi:webgpu/webgpu@0.3.0-rc.2" "[poll]" (func $poll (param i32 i32 i32 i32 i32) (result i32)))
   (import "wasi:webgpu/webgpu@0.3.0-rc.2" "[method]gpu-device.queue" (func $queue (param i32) (result i32)))
   (import "wasi:webgpu/webgpu@0.3.0-rc.2" "[method]gpu-canvas-context.configure" (func $configure (param i32 i32 i32)))
   (import "wasi:webgpu/webgpu@0.3.0-rc.2" "[method]gpu-canvas-context.get-current-texture" (func $current (param i32) (result i32)))
@@ -65,7 +65,7 @@
   ;; Polls until the host settles `ticket`, alone, with the 4 bytes at
   ;; `expected`: [poll] answers a list of (ticket, option<bytes>).
   (func $settled (param $ticket i32) (param $expected i32)
-    (if (i32.ne (call $poll (i32.const 1) (i32.const 512) (i32.const 64)) (i32.const 6))
+    (if (i32.ne (call $poll (i32.const 1) (i32.const 0) (i32.const 0) (i32.const 512) (i32.const 64)) (i32.const 6))
       (then unreachable))
     (if (i32.ne (i32.load8_u (i32.const 512)) (i32.const 1)) (then unreachable))
     (if (i32.ne (i32.load8_u (i32.const 513)) (local.get $ticket)) (then unreachable))

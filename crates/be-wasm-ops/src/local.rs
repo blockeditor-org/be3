@@ -104,7 +104,15 @@ enum Kept {
     Done,
 }
 
-type Table = Rc<RefCell<HashMap<u32, Waiting>>>;
+/// The tickets waiting for the poll, and those given up before they settled, which the next
+/// poll tells the host it may let go of.
+#[derive(Default)]
+struct Tickets {
+    waiting: HashMap<u32, Waiting>,
+    dropped: Vec<u32>,
+}
+
+type Table = Rc<RefCell<Tickets>>;
 
 /// The guest's tickets of one local interface, waiting for its poll.
 #[derive(Default)]
@@ -122,18 +130,24 @@ impl Settling {
     /// interface.
     pub fn settle(&self, settled: Vec<Settled>) {
         for Settled { ticket, value } in settled {
-            let Some(mut waiting) = self.waiting.borrow_mut().remove(&ticket) else {
+            let Some(mut waiting) = self.waiting.borrow_mut().waiting.remove(&ticket) else {
                 continue;
             };
             if waiting(value.as_deref()) == Kept::Keep {
-                self.waiting.borrow_mut().insert(ticket, waiting);
+                self.waiting.borrow_mut().waiting.insert(ticket, waiting);
             }
         }
     }
 
     /// Whether any future or stream still waits for a ticket.
     pub fn waiting(&self) -> bool {
-        !self.waiting.borrow().is_empty()
+        !self.waiting.borrow().waiting.is_empty()
+    }
+
+    /// The tickets whose future or stream was dropped before it settled or ended, since the last
+    /// call: the host need not settle them, and lets go of what it held for them.
+    pub fn take_dropped(&self) -> Vec<u32> {
+        std::mem::take(&mut self.waiting.borrow_mut().dropped)
     }
 
     /// Waits for the value of an async func's or a future's ticket.
@@ -146,7 +160,7 @@ impl Settling {
         let shared = Rc::new(RefCell::new(Slot::<T>::default()));
         let slot = Rc::downgrade(&shared);
         let name = call.to_owned();
-        self.waiting.borrow_mut().insert(
+        self.waiting.borrow_mut().waiting.insert(
             ticket,
             Box::new(move |value| {
                 let (Some(slot), Some(value)) = (slot.upgrade(), value) else {
@@ -184,7 +198,7 @@ impl Settling {
         let shared = Rc::new(RefCell::new(Queue::<T>::default()));
         let queue = Rc::downgrade(&shared);
         let name = call.to_owned();
-        self.waiting.borrow_mut().insert(
+        self.waiting.borrow_mut().waiting.insert(
             ticket,
             Box::new(move |value| {
                 let Some(queue) = queue.upgrade() else {
@@ -226,7 +240,7 @@ fn refused(call: &str, ticket: u32) {
 }
 
 /// A ticket's place in its interface's table, which a dropped future or stream gives up, so
-/// `Settling::waiting` stops counting it.
+/// `Settling::waiting` stops counting it and the next poll tells the host.
 struct Entry {
     table: Table,
     ticket: u32,
@@ -234,8 +248,10 @@ struct Entry {
 
 impl Drop for Entry {
     fn drop(&mut self) {
-        if let Ok(mut table) = self.table.try_borrow_mut() {
-            table.remove(&self.ticket);
+        if let Ok(mut table) = self.table.try_borrow_mut()
+            && table.waiting.remove(&self.ticket).is_some()
+        {
+            table.dropped.push(self.ticket);
         }
     }
 }
