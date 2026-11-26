@@ -520,13 +520,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
 
 ## 24. Build tooling
 
-- **`./scripts/test NAME` for a crate whose tests are not `:test`.** When NAME
-  matches a test in crates/beui, the script asks for `//crates/beui:test`, which
-  does not exist (its only test target is `:html-test`), and reports a build
-  failure beside the tests it ran (`./scripts/test scrollbar`). Done: the script
-  runs each crate's real test targets, so naming one of crates/beui's tests runs
-  `:html-test` and nothing fails to build.
-
 - **Restarting buck2's daemon after a lost blob.** buck2 keeps a 12-hour record
   of what `FindMissingBlobs` answered (its gRPC client's `FindMissingCache`,
   which no buckconfig option bounds) and never forgets an entry when an
