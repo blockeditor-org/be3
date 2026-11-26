@@ -2757,6 +2757,7 @@ impl<S: ObjectStore> Peer<S> {
             Some(be_block_protocol::HeldEntry {
                 place: held.steps.len().checked_sub(1)? as u64,
                 hash: held.steps.last()?.hash(),
+                root: held.steps.first()?.hash(),
             })
         });
         let page = crate::ask(

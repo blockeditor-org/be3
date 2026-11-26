@@ -373,12 +373,14 @@ otherwise, as it does a log at least as long that does not reach the kept
 head (one shorter is checked whole, and withheld). A device reads a whole log
 again by naming its last entry (`Peer::served_access`, holding those it read
 last, up to `SERVED_ENTRIES` entries, and after a restart the whole log it
-kept checked with the refs, `KeptLog::steps`): the server sends only the
-entries after it while it stores that entry there, and the first must name it
-as the one before. A prefix the device checked before is not hashed again
+kept checked with the refs, `KeptLog::steps`, and its root): the server sends
+only the entries after it while it stores that entry there from that root, and
+the first must name it as the one before; a root stored in another's place is
+sent whole, for the device to refuse. A prefix the device checked before is not hashed again
 (`Checked::resume_trusting`, `HeldLog::checked`): only its last, to tie it to
 the kept head. A hosted block's log checked from a root a contact's grant
-vouches for (`joined_log`) is kept the same way. The server checks each log
+vouches for (`joined_log`) is checked once and taken (`Peer::take_checked`), not
+again through the root it then pins, and kept as any log is. The server checks each log
 once too (`access::checked_stored`): the head it kept checked is taken while
 it is the stored head, read from the log's first and last rows
 (`access::stored_head`), so a read or an append loads and hashes nothing else

@@ -249,6 +249,9 @@ interface server {
     record held-entry {
         place: u64,
         hash: entry-hash,
+        /// The hash of the log's root as held: a log whose stored root is
+        /// another is sent from its root, for the reader to refuse.
+        root: entry-hash,
     }
 
     /// An access log as served: its entries from place `from`, which is one

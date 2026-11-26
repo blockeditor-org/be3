@@ -31,6 +31,7 @@ async fn a_restarted_device_reads_only_what_was_appended_to_a_log_it_kept() {
     drop(device);
 
     // Another device of the account appends one more.
+    owner.refresh_keys(None).await.unwrap();
     owner
         .grant(block, viewer.account(), Access::View)
         .await
