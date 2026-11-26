@@ -223,6 +223,20 @@ impl Forwarded {
         self.wire.send(told);
     }
 
+    /// Tells the editor `instance` where in its block it was opened (`editor-event.reveal`), as
+    /// `reveal` tells an editor be-host runs, sent with the next `step`. Answers whether it
+    /// could: false until the editor opened in its app (`is_open`), which would not hear it
+    /// before.
+    pub fn reveal(&mut self, instance: EditorInstanceId, at: be_sdk_api::SearchLocation) -> bool {
+        if !self.is_open(instance) {
+            return false;
+        }
+        let told = self.instances.reveal(instance, at);
+        let telling = !told.is_empty();
+        self.wire.send(told);
+        telling
+    }
+
     /// Asks the editor `instance` to show the block `open` names, as be-host asks the editor
     /// that handles show requests (`show-request.block`), sent with the next `step`.
     pub fn show_block(&mut self, instance: EditorInstanceId, open: crate::BlockOpen) {

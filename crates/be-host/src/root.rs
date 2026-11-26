@@ -1239,6 +1239,7 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
         .retain(|child, _| editors.opened.contains_key(child));
     open_blocks(core, opens, editors);
     quick_open(core, root, editors);
+    reveal_opened(editors);
     // The names of the blocks the root asks after, as the graph holds them.
     for (id, blocks) in root.take_name_asks() {
         let names = blocks
@@ -1348,9 +1349,43 @@ fn open_block(
     let Some(handler) = handler(from, shell, editors) else {
         return;
     };
+    // Where it is opened at (a search hit), which its editor is told once it opens, as be-host
+    // tells its own (`HostCore::show_block`).
+    editors
+        .reveals
+        .opened(open.id, open.at.clone(), be_host_base::host::now());
     if let Some(forwarded) = editors.served.get_mut(&handler.0) {
         forwarded.show_block(EditorInstanceId(handler.1), open);
     }
+}
+
+/// Tells each block opened at a place (a search hit's) that place (`editor-event.reveal`) once
+/// an editor the root shows it in is open, as be-host tells its own (`HostCore::reveal_opened`).
+fn reveal_opened(editors: &mut Editors) {
+    if editors.reveals.is_empty() {
+        return;
+    }
+    let mut reveals = std::mem::take(&mut editors.reveals);
+    reveals.deliver(be_host_base::host::now(), |block, at| {
+        let showing: Vec<(u64, u64)> = editors
+            .opened
+            .iter()
+            .filter(|(_, opened)| opened.block == Some(block))
+            .map(|(key, _)| *key)
+            .collect();
+        let mut delivery = crate::reveals::Delivery::NoEditor;
+        for (instance, editor) in showing {
+            let Some(forwarded) = editors.served.get_mut(&instance) else {
+                continue;
+            };
+            if forwarded.reveal(EditorInstanceId(editor), at.clone()) {
+                return crate::reveals::Delivery::Told;
+            }
+            delivery = crate::reveals::Delivery::Opening;
+        }
+        delivery
+    });
+    editors.reveals = reveals;
 }
 
 /// Answers the root's quick open (`host.find-blocks`) as be-host's own palette finds blocks
@@ -1593,6 +1628,9 @@ struct Editors {
     /// The settings artifact settings children accepted, by the artifact, for the host to apply
     /// (`HostCore::store_artifact_settings`).
     artifact_applies: Vec<(Uuid, Vec<u8>)>,
+    /// Places blocks were opened at (a search hit's), held until an editor showing the block
+    /// is open.
+    reveals: crate::reveals::Reveals,
 }
 
 /// Forgets what the editor `editor` watched and, for a dialog, what it was opened to run

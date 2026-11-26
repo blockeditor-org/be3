@@ -2445,16 +2445,51 @@ Each step lands on its own.
                hosting and the rest, `instance_heard`), and the workspace's dock names no panes
                (be-host's `Pane "Files"`), so the guest's files are cropped by
                `#workspace.files`.
-           - The palette (`src/compositor`): `quick_open_finds_a_word_typed_in_a_text_and_opens_it`,
-             `quick_open_goes_to_a_file_and_the_palette_offers_the_workspaces_and_hosts_actions`
-             (the host's own actions, which be-root's palette does not list),
-             `the_host_palette_lists_the_desktops_window_keys`,
-             `ctrl_tab_leaves_the_workspace_tabs_alone_while_the_host_palette_is_open`.
-             `the_host_palette_lists_a_text_on_a_canvas_before_the_canvas` has a counterpart
-             (`be_root_..._lists_a_text_on_a_canvas_in_its_palette`) whose paintings are its
-             own, not compared to be-host's.
+           - The palette (`src/compositor`). Built: each of be-host's palette tests has a
+             counterpart under the root, its paintings compared with be-host's: `quick_open_goes_to_a_file_and_the_palette_offers_the_workspaces_and_hosts_actions`
+             (`be_root_..._quick_opens_a_file_from_the_workspace`), `quick_open_finds_a_word_typed_in_a_text_and_opens_it`
+             (`..._quick_opens_a_text_by_a_word_inside_it`), `the_host_palette_lists_the_desktops_window_keys`
+             (`..._lists_the_desktops_window_keys_in_its_palette`),
+             `ctrl_tab_leaves_the_workspace_tabs_alone_while_the_host_palette_is_open`
+             (`..._leaves_the_workspace_tabs_alone_while_its_palette_is_open`) and
+             `the_host_palette_lists_a_text_on_a_canvas_before_the_canvas`
+             (`..._lists_a_text_on_a_canvas_in_its_palette`). They differ from be-host's by the
+             root's menu button, and: quick open's text opened at a word shows no selection and
+             the All tabs chevron the test pressed keeps its focus ring
+             (`be_root_quick_open_opens_a_text_at_the_word_it_found`); that chevron shows
+             pressed in the list of hits (`be_root_quick_open_lists_a_text_by_a_word_inside_it`);
+             the files' filter field the window keys' test pressed keeps its ring
+             (`be_root_lists_the_desktops_window_keys_in_its_palette`). What they needed:
+             - The person's preferences: `frame-request.preferences` carries them as be-host
+               resolves them (its display settings over the system's, which `RootShell` now
+               applies as `Shell` does); be-sdk-beui-root's documents take them as the
+               system's, and be-sdk-root tells them to the apps it embeds as they say hello and
+               as they change, so the theme row turns the root light.
+             - The session's editor's intercepted keys (`window-requests.intercepted-keys`):
+               be-sdk-root's `Embedding::intercept_for` (be-root names the session's screen)
+               routes its command chords and media keys to the root's layer with the root's own,
+               and hands them on to its screen as `intercepted-key`, with its modifiers let go
+               one by one, unless the focus is on that screen or a surface of the root's own
+               (its palette), where they go to the focus (be-sdk-root's `intercept`), as
+               be-host's `compositor::intercept` does: the workspace's Ctrl+Tab over a text.
+             - A block quick open opened at a search hit tells its editor where once it opened
+               in its app (`Forwarded::reveal`, be-host's `Reveals` kept for the root's opens).
+               No test asserts that it was told: the painting that would show it is the one
+               below.
+             - Left: under the root the text quick open opened at a hit shows no selection,
+               though its editor is told where (`editor-event.reveal`) once open; under be-host
+               the word is selected. Not found yet whether the text never puts its saved
+               position back under the root (`select_where_opened` waits for it) or the
+               keyboard, which stays on the workspace, hides it.
+             - Left: a session window the desktop's Apps panel opens takes no keyboard under
+               the root (under be-host it does), so its counterpart presses the window's files
+               before Ctrl+Shift+P; quick open's counterparts press a control of the
+               workspace's own, since Ctrl+P from the files' filter field opens nothing.
+             - Left: taps the session's editor intercepts (`key-chord.tap`, Super alone) and the
+               intercepts of a window's editor (`hosts-windows`), which be-host also takes.
            With counterparts whose paintings match be-host's: the desktop shell, F6 between
-           views, and the lock screen on Super+L (4g7g1), and the groups 4g7g2a built. The test
+           views, the lock screen on Super+L (4g7g1), the groups 4g7g2a and 4g7g2b built, and the
+           palette. The test
            ids above are be-host's; be-root gives its controls be-host's ids as each group
            moves. src/ui's own component tests (`ui/tests`,
            `ui/lock/tests`, `ui/keep_changes/tests`, `ui/saving/tests`, `ui/onboarding/tests`,
