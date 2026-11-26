@@ -27,7 +27,8 @@ fn be_root_in_place_of_the_hosts_ui_opens_the_share_dialog_an_editor_asks_for() 
     host.click("#share.query");
     // The field the press focused, in the dialog the workspace anchored, holds the window's
     // focus, as under be-host, in the tree the root publishes once the press settled: the
-    // press changed no pixel the root draws but the tree, which it owes a frame.
+    // press changed no pixel the root draws, so the tree rides the app's frame for the press,
+    // which the root asked for.
     let tree = host.tree();
     assert!(
         tree.contains("TextInput \"Add contacts\" focused"),

@@ -457,7 +457,8 @@ account may administer the organization as of the entry before it
 of the organization whose log it is and takes true from anyone. In a block's
 log the bit means nothing: `check_log` takes any reduced retirement there as
 hiding one (`hides_retirement`), so no path keeps a block's retirement whole
-because of it, only for the accounts it names. Its reduced step carries the bit
+because of it, only for the accounts it names, or with `lowerings` (every retirement
+in a block's log is whole then). Its reduced step carries the bit
 (`Reduced::retires_administrator`), an honest organization path keeps one
 saying true whole, and `answer` takes no
 authority from an organization path that reduces one, while a path may still

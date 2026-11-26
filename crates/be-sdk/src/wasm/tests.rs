@@ -10,6 +10,7 @@ mod a_compute_pipeline_made_without_a_layout_writes_through_the_layout_its_shade
 mod a_compute_pipeline_writes_the_values_given_to_its_overridable_constants;
 mod a_destroyed_buffer_can_no_longer_be_mapped;
 mod a_destroyed_device_is_reported_lost_and_drops_what_it_is_asked;
+mod a_fit_view_that_measures_new_content_asks_the_host_for_its_frame;
 mod a_map_still_pending_when_its_buffer_is_unmapped_fails;
 mod a_pipeline_made_asynchronously_is_ready_or_says_why_not;
 mod a_pipeline_made_without_a_layout_draws_with_the_layout_its_shaders_imply;
@@ -225,6 +226,33 @@ fn layer(id: u64, parent: u64, rect: Rect) -> Anchored {
     }
 }
 
+fn accepted(spec: SurfaceSpec) -> Delivery {
+    Delivery::Accepted(HelloAccepted {
+        host_name: "test host".into(),
+        surface: Some(spec),
+        preferences: be_sdk_api::Preferences::default(),
+    })
+}
+
+fn opening() -> Delivery {
+    Delivery::Open(Opening {
+            instance: INSTANCE,
+            editor: [6; 16],
+            account_id: [3; 16],
+            organization_id: [4; 16],
+            client_id: [5; 16],
+            offers_share: true,
+            kind: OpeningKind::Block(OpenBlock {
+                block_id: [1; 16],
+                block_type: [2; 16],
+                view_block: None,
+                editable: true,
+                page_origin: String::new(),
+                host_palette: false,
+            }),
+        })
+}
+
 struct Rig {
     screens: Screens,
     surfaces: Surfaces,
@@ -239,11 +267,7 @@ impl Rig {
             render: true,
         };
         let mut screens = Screens::new(Vec::new(), crate::Waker::default());
-        screens.deliver(Delivery::Accepted(HelloAccepted {
-            host_name: "test host".into(),
-            surface: Some(spec),
-            preferences: be_sdk_api::Preferences::default(),
-        }));
+        screens.deliver(accepted(spec));
         let host = EditorHost::new(crate::Waker::default());
         let shared = Rc::new(Shared::default());
         let editor = Layered {
@@ -275,22 +299,7 @@ impl Rig {
             anchor_space: layers,
             fit: false,
         }];
-        screens.deliver(Delivery::Open(Opening {
-            instance: INSTANCE,
-            editor: [6; 16],
-            account_id: [3; 16],
-            organization_id: [4; 16],
-            client_id: [5; 16],
-            offers_share: true,
-            kind: OpeningKind::Block(OpenBlock {
-                block_id: [1; 16],
-                block_type: [2; 16],
-                view_block: None,
-                editable: true,
-                page_origin: String::new(),
-                host_palette: false,
-            }),
-        }));
+        screens.deliver(opening());
         let surfaces = Surfaces::new(spec).expect("the test runner has a gpu");
         Self {
             screens,

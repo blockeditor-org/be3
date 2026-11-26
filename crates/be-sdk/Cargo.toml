@@ -33,6 +33,7 @@ be-wasm-gpu-guest = { path = "../be-wasm-gpu-guest" }
 wgpu = { version = "30", default-features = false, features = ["custom", "std", "web", "wgsl"] }
 
 [dev-dependencies]
+be-sdk-app-host = { path = "../be-sdk-app-host" }
 be-type-checklist = { path = "../be-type-checklist" }
 
 [lints]

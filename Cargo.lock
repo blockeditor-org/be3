@@ -2239,6 +2239,7 @@ dependencies = [
  "be-lib-geometry",
  "be-lib-stable-hash",
  "be-sdk-api",
+ "be-sdk-app-host",
  "be-sdk-manifest",
  "be-sdk-type-guest",
  "be-sdk-ui",
