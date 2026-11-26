@@ -824,7 +824,11 @@ in the account's block (`Peer::save_pin`); an unverifiable newer key is not used
   failed read) the server keeps as it was, sealed to the retired key, which
   the device opens with the retired secret (`AccountBlock::retired`) once it
   follows the contact, and then seals again to the new key
-  (`Peer::reseal_retired`). The
+  (`Peer::reseal_retired`); until then, such a row still opens with the old
+  phrase, so a leaked old phrase reads it. The move reads the rows in the
+  write transaction that changes them and updates each sealed again in
+  place, so a row revoked since the device read them (an unshare, a pruned
+  viewer, a removed member) stays gone. The
   account's block's keys are among those rows, so the new phrase reads its
   history; and in the same write the block starts a new key epoch whose scope
   key is sealed to the new phrase alone (`AccountRecords::epoch_for`, a
