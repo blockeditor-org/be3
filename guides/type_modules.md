@@ -612,23 +612,33 @@ order: presence, channel messages and held layers. The rules an agent most needs
   layer as it grows (`SessionMessage::Held { layer, origin, from, to, operations,
   commits_through }`, at the same rate as presence: one per frame of a drag, the
   frame's edit alone): each edit held on top goes as an append (`from`, how many
-  edits the peer holds already, `to` after); any other change (a gesture of it
-  cancelled or voided, a restart carrying it) sends it whole after the job, its
-  edits absorbed (`from` zero), and so does a participant joining or asking
+  edits the peer holds already, `to` after), up to `APPENDS_BETWEEN_WHOLE` in a
+  row; past that, and after any other change (a gesture of it cancelled or
+  voided, a restart carrying it), the layer goes whole after the job, its edits
+  absorbed (`from` zero), which a model document's absorb makes one write of each
+  field. A participant joining is told it whole too, and so is one asking
   (`SessionMessage::HeldAgain`, sent once a layer by a peer that holds another
-  count than an append starts from). A layer past `LARGEST_RELAYED_OPERATION`
-  whole is not previewed. Its commit sends `commits_through`, the last local edit
+  count than an append starts from), once for each state of the layer however
+  often it asks. A layer past `LARGEST_RELAYED_OPERATION` whole is not
+  previewed, and a peer stops showing one past that or `LARGEST_PEER_LAYER`
+  edits until its holder's next layer. Peer messages wait for a replica's load
+  like everything it hears, so a late joiner shows what it was told as it
+  joined. Its commit sends `commits_through`, the last local edit
   the layer goes out as; one that commits nothing, or a cancel, drops it (empty,
-  with nothing to commit). Each layer has a number (`layer`), and one about a
-  newer layer replaces the older. A peer drops a `Held` from a participant that
-  may not edit, keeps each peer's layer (`peer_layers`, by client) and shows it
+  with nothing to commit). Each layer has a number (`layer`): one about a newer
+  layer replaces an older one not committing, while one committing stays beneath
+  the newer until the order holds it (a second drag can start before the first's
+  entry comes back), and one about an older layer is dropped. A peer drops a
+  `Held` from a participant that may not edit, keeps each peer's layers
+  (`peer_layers`, by client and layer number) and shows them
   above its own unconfirmed edits and beneath its own tentative layer, so each
   device sees its own drag on top. Peer layers count in `unsettled()`: a frame
   lands on editors as `Landed::On`, or `Under` its own layer; a local edit goes
   `Under` every layer, and another's entry `Beneath` them. The entry that brings
   the holder's origin to `commits_through` (`origins`) lands as `Beneath` with
-  `local` no longer holding the layer, so no frame shows both or neither; a
-  layer that leaves with no entry (a cancel, a holder leaving the session or
+  `local` no longer holding the layer, so no frame shows both or neither, and one
+  the order passes over (below a barrier) takes the layer with it; a layer that
+  leaves with no entry (a cancel, a holder leaving the session or
   losing edit access, a newer layer told whole) lands as `Landed::Relaid`, which
   only lays what is unsettled again (`EditorOperation` with no `operation`). A
   reload or replacement drops every peer layer, and the holder, reloaded too,

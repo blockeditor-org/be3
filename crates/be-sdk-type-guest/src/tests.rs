@@ -30,6 +30,16 @@ use std::pin::Pin;
 use std::rc::Rc;
 
 mod a_break_ends_a_burst_but_not_an_open_gesture;
+mod a_peer_joining_mid_drag_is_told_the_layer_as_it_joins;
+mod a_peer_still_loading_as_it_joins_mid_drag_previews_it_once_loaded;
+mod a_peers_undo_beneath_a_drag_undoes_its_own_edit_alone;
+mod a_peer_that_missed_frames_asks_for_the_layer_once;
+mod a_replacement_on_the_peer_drops_the_layer_it_previews;
+mod an_earlier_layer_told_after_a_newer_one_is_dropped;
+mod a_held_layer_the_order_already_holds_is_not_shown;
+mod a_peer_layer_too_large_to_show_is_not_previewed_until_its_next;
+mod a_long_drag_is_told_whole_every_few_frames;
+mod a_drag_begun_before_the_last_ones_commit_lands_leaves_that_commit_showing;
 mod a_peer_that_missed_a_frame_asks_for_the_layer_whole;
 mod a_peer_that_joins_mid_drag_previews_it;
 mod a_holder_that_crashes_mid_drag_leaves_no_layer_on_its_peer;
@@ -166,6 +176,7 @@ mod peers_keep_what_the_holder_typed_while_its_seal_was_out;
 mod presence_reaches_late_joiners_and_leaves_with_its_client;
 mod replay_outside_a_session_refuses_a_journal_holding_a_restart;
 mod status_cuts_count_a_held_drag_once_it_commits;
+mod asking_again_and_again_is_answered_once_per_frame;
 mod tentative;
 mod two_peers_dragging_at_once_each_see_their_own_drag_on_top;
 mod the_next_editor_holds_the_lease_once_its_holder_leaves;
@@ -602,6 +613,8 @@ struct Sim<C: LiveEdit + Clone + Default> {
     stalled: bool,
     /// Part reads wait (held) until `unstall`, so a merge by parts is pending.
     read_stalled: bool,
+    /// Loads wait until `unstall`, as a replica opening on a slow read does.
+    load_stalled: bool,
     /// How often each device's replica asked the host to resume its session.
     resumed: Vec<usize>,
     /// Submissions wait until `unstall`.
@@ -723,6 +736,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             quiet: false,
             stalled: false,
             read_stalled: false,
+            load_stalled: false,
             resumed: vec![0; devices],
             stalled_submits: false,
             stalled_from: None,
@@ -1615,6 +1629,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 let commit = self.commit(manifest, parent.into_iter().collect());
                 self.to(device, |host| reply.send(host, &Ok(commit)));
             }
+            call @ Call::Load { .. } if self.load_stalled => self.held.push((device, call)),
             Call::Load {
                 reply,
                 commit,
@@ -1960,6 +1975,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
     fn unstall(&mut self) {
         self.stalled = false;
         self.read_stalled = false;
+        self.load_stalled = false;
         self.stalled_submits = false;
         self.stalled_appends = false;
         for (device, call) in std::mem::take(&mut self.held) {

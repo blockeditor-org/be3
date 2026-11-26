@@ -1,6 +1,9 @@
 //! Tentative layers previewed across the session (`SessionMessage::Held`): this replica tells
 //! its peers its own layer as it grows (`Told`), and shows each peer's as a layer of its own.
 
+use std::collections::BTreeMap;
+use std::ops::Bound;
+
 use be_block_content::{LiveEdit, Merge};
 use be_block_protocol::ClientId;
 use be_block_session::SessionMessage;
@@ -20,7 +23,20 @@ pub(super) struct Told {
     changed: bool,
     /// The layer is too large to relay: peers do not preview it until it ends.
     unpreviewed: bool,
+    /// Edits told as appends since the layer was last told whole: past `APPENDS_BETWEEN_WHOLE`
+    /// the next goes whole, absorbed, so what a peer holds of a long drag stays a few edits.
+    appended: u32,
+    /// The layer and how many of its edits each peer that asked again (`HeldAgain`) was last
+    /// told whole: it is told again only once the layer changed, whatever it asks.
+    answered: BTreeMap<ClientId, (u64, u64)>,
 }
+
+/// How many edits a layer is told as appends before it is told whole again.
+const APPENDS_BETWEEN_WHOLE: u32 = 16;
+
+/// The most edits a peer's layer shows here: one past it, as one past
+/// `LARGEST_RELAYED_OPERATION` bytes, stops its preview until its holder's next layer.
+const LARGEST_PEER_LAYER: usize = 256;
 
 impl<C, H> Replica<C, H>
 where
@@ -35,6 +51,8 @@ where
             edits: Some(0),
             changed: false,
             unpreviewed: false,
+            appended: 0,
+            answered: std::mem::take(&mut self.told.answered),
         };
     }
 
@@ -50,12 +68,18 @@ where
         let operation = C::encode_operation(operation);
         if self.told.changed
             || self.told.edits != Some(edits - 1)
+            || self.told.appended >= APPENDS_BETWEEN_WHOLE
             || operation.len() > LARGEST_RELAYED_OPERATION
         {
             self.told.changed = true;
             return;
         }
         self.told.edits = Some(edits);
+        // The first edit of a layer is the layer whole.
+        self.told.appended = match edits {
+            1 => 0,
+            _ => self.told.appended + 1,
+        };
         self.broadcast_held(SessionMessage::Held {
             layer: self.told.layer,
             origin: self.origin,
@@ -80,6 +104,7 @@ where
         match self.whole_layer() {
             Some(message) => {
                 self.told.edits = Some(self.tentative.len() as u64);
+                self.told.appended = 0;
                 self.broadcast_held(message);
             }
             None => {
@@ -176,7 +201,7 @@ where
         }
     }
 
-    /// Sends `client`, which joined or asked again, the layer whole.
+    /// Sends `client`, which joined, the layer whole.
     pub(super) fn tell_layer_to(&mut self, client: ClientId) {
         if self.told.edits.is_none() {
             return;
@@ -186,6 +211,24 @@ where
         }
     }
 
+    /// `client` asked for the layer whole (`HeldAgain`): it is told once for each state of
+    /// the layer, so asking again and again costs nothing.
+    pub(super) fn answer_held_again(&mut self, client: ClientId) {
+        let now = (self.told.layer, self.tentative.len() as u64);
+        if self.told.edits.is_none() || self.told.answered.get(&client) == Some(&now) {
+            return;
+        }
+        self.told.answered.insert(client, now);
+        self.tell_layer_to(client);
+    }
+
+    /// Forgets what it answered peers that left.
+    pub(super) fn forget_answered(&mut self, state: &be_block_protocol::SessionState) {
+        self.told
+            .answered
+            .retain(|client, _| state.participants.iter().any(|held| held.client == *client));
+    }
+
     fn broadcast_held(&mut self, message: SessionMessage) {
         if !self.alone() {
             self.broadcast(&message);
@@ -193,15 +236,31 @@ where
     }
 }
 
-/// A peer's tentative layer, previewed here as it is told (`SessionMessage::Held`).
+/// A peer's tentative layer, previewed here as it is told (`SessionMessage::Held`), under its
+/// client and layer number: a layer committing stays beneath its holder's next until the order
+/// holds it.
 pub(super) struct PeerLayer<Op> {
-    layer: u64,
     origin: u64,
     /// How many of the peer's held edits it stands for (`Held::to`).
     to: u64,
     operations: Vec<Op>,
+    /// The encoded size of `operations`.
+    bytes: usize,
     /// The peer's last local edit it goes out as, once it commits.
     commits_through: Option<u64>,
+}
+
+/// Each peer's layers previewed here, by client and layer number: the order they show in.
+pub(super) type PeerLayers<Op> = BTreeMap<(ClientId, u64), PeerLayer<Op>>;
+
+/// A `SessionMessage::Held` as heard (its fields, as the message names them).
+pub(super) struct HeardHeld {
+    pub(super) layer: u64,
+    pub(super) origin: u64,
+    pub(super) from: u64,
+    pub(super) to: u64,
+    pub(super) operations: Vec<serde_bytes::ByteBuf>,
+    pub(super) commits_through: Option<u64>,
 }
 
 impl<C, H> Replica<C, H>
@@ -282,12 +341,12 @@ where
         local
     }
 
-    /// The peers whose layers the order holds now, committed.
-    pub(super) fn reached_layers(&self) -> Vec<ClientId> {
+    /// The peers' layers the order holds now, committed.
+    pub(super) fn reached_layers(&self) -> Vec<(ClientId, u64)> {
         self.peer_layers
             .iter()
             .filter(|(_, layer)| self.reached(layer))
-            .map(|(client, _)| *client)
+            .map(|(key, _)| *key)
             .collect()
     }
 
@@ -299,32 +358,47 @@ where
         })
     }
 
+    /// Drops the layers the order holds now, in one landing.
+    pub(super) fn drop_reached_layers(&mut self) {
+        let reached = self.reached_layers();
+        self.drop_layers(|key, _| reached.contains(key));
+    }
+
+    /// The order passed over `origin`'s edits through `through` (below a barrier): a layer
+    /// that was to go out as them never will, and leaves.
+    pub(super) fn drop_passed_layers(&mut self, origin: u64, through: u64) {
+        self.drop_layers(|_, layer| {
+            layer.origin == origin && layer.commits_through.is_some_and(|last| last <= through)
+        });
+    }
+
+    /// `client`'s newest layer here.
+    fn newest_layer(&self, client: ClientId) -> Option<u64> {
+        self.peer_layers
+            .range((client, 0)..=(client, u64::MAX))
+            .next_back()
+            .map(|((_, layer), _)| *layer)
+    }
+
     /// `from` told its tentative layer (`SessionMessage::Held`).
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn heard_held(
-        &mut self,
-        from: ClientId,
-        layer: u64,
-        origin: u64,
-        start: u64,
-        to: u64,
-        operations: Vec<serde_bytes::ByteBuf>,
-        commits_through: Option<u64>,
-    ) {
+    pub(super) fn heard_held(&mut self, from: ClientId, told: HeardHeld) {
         if from == self.client || !may_hold(&self.state, from) || !self.loaded {
             return;
         }
         if self.unreadable.is_some() || self.not_yet || self.diverged {
             return;
         }
-        if self
-            .peer_layers
-            .get(&from)
-            .is_some_and(|held| held.layer > layer)
+        // An earlier layer than one shown, or one too large to show.
+        if self.newest_layer(from).is_some_and(|layer| layer > told.layer)
+            || self
+                .unpreviewed
+                .get(&from)
+                .is_some_and(|layer| *layer >= told.layer)
         {
             return;
         }
-        let Ok(operations) = operations
+        let Ok(operations) = told
+            .operations
             .iter()
             .map(|operation| C::decode_operation(operation))
             .collect::<Result<Vec<_>, _>>()
@@ -332,78 +406,88 @@ where
             self.incompatible = true;
             return self.drop_peer_layer(from);
         };
-        let held = self.peer_layers.get(&from);
-        let appends = start > 0 && held.is_some_and(|held| held.layer == layer && held.to == start);
-        if start > 0 && !appends {
-            // It holds another count of the layer's edits (it joined late, reloaded, or held
-            // an earlier layer): it shows none of it, and asks for the whole.
-            if held.is_some_and(|held| held.layer < layer) {
-                self.drop_peer_layer(from);
-            }
-            if self.asked_layers.get(&from) != Some(&layer) {
-                self.asked_layers.insert(from, layer);
+        let bytes: usize = told.operations.iter().map(|operation| operation.len()).sum();
+        let key = (from, told.layer);
+        let appends = told.from > 0
+            && self
+                .peer_layers
+                .get(&key)
+                .is_some_and(|held| held.to == told.from);
+        if told.from > 0 && !appends {
+            // It holds another count of the layer's edits (it joined late, reloaded, or missed
+            // a frame): it shows none of it, nor what the layer replaces, and asks for the
+            // whole, once.
+            self.drop_layers(|(client, layer), held| {
+                *client == from
+                    && (*layer == told.layer || held.commits_through.is_none())
+            });
+            if self.asked_layers.get(&from) != Some(&told.layer) {
+                self.asked_layers.insert(from, told.layer);
                 self.send(Some(from), &SessionMessage::HeldAgain);
             }
             return;
         }
-        if !appends {
+        if appends {
+            if let Some(held) = self.peer_layers.get_mut(&key) {
+                held.to = told.to;
+                held.bytes += bytes;
+                held.commits_through = told.commits_through.or(held.commits_through);
+            }
+            for operation in operations {
+                self.land_peer_edit(key, operation);
+            }
+        } else {
             self.asked_layers.remove(&from);
-            // Told whole, or dropped: what it held of the peer's leaves.
+            // Told whole, or dropped: what it showed of this layer leaves, and so does an
+            // earlier one of the peer's not committing; one committing stays beneath this
+            // until the order holds it.
             let before = self.unsettled();
-            let held_any = self
-                .peer_layers
-                .remove(&from)
-                .is_some_and(|held| !held.operations.is_empty());
-            if operations.is_empty() && commits_through.is_none() {
-                if held_any {
+            let replaced = self.take_layers(|(client, layer), held| {
+                *client == from && (*layer == told.layer || held.commits_through.is_none())
+            });
+            if operations.is_empty() && told.commits_through.is_none() {
+                if replaced {
                     self.relay(before);
                 }
                 return;
             }
             self.peer_layers.insert(
-                from,
+                key,
                 PeerLayer {
-                    layer,
-                    origin,
-                    to,
-                    operations: match held_any {
+                    origin: told.origin,
+                    to: told.to,
+                    operations: match replaced {
                         true => operations.clone(),
                         false => Vec::new(),
                     },
-                    commits_through,
+                    bytes,
+                    commits_through: told.commits_through,
                 },
             );
-            match held_any {
+            match replaced {
                 true => self.relay(before),
                 false => {
                     for operation in operations {
-                        self.land_peer_edit(from, operation);
+                        self.land_peer_edit(key, operation);
                     }
                 }
             }
-        } else {
-            if let Some(held) = self.peer_layers.get_mut(&from) {
-                held.to = to;
-                held.commits_through = commits_through.or(held.commits_through);
-            }
-            for operation in operations {
-                self.land_peer_edit(from, operation);
-            }
+        }
+        // Too large to show: shown no more until the peer's next layer.
+        if self.peer_layers.get(&key).is_some_and(|held| {
+            held.operations.len() > LARGEST_PEER_LAYER || held.bytes > LARGEST_RELAYED_OPERATION
+        }) {
+            self.unpreviewed.insert(from, told.layer);
+            self.drop_layers(|held, _| *held == key);
         }
         // Told it commits once the order held it already.
-        if self
-            .peer_layers
-            .get(&from)
-            .is_some_and(|held| self.reached(held))
-        {
-            self.drop_peer_layer(from);
-        }
+        self.drop_reached_layers();
     }
 
-    /// Shows `operation` on top of `client`'s layer, beneath the layers above it.
-    fn land_peer_edit(&mut self, client: ClientId, operation: C::Op) {
+    /// Shows `operation` on top of the layer `key`, beneath the layers above it.
+    fn land_peer_edit(&mut self, key: (ClientId, u64), operation: C::Op) {
         let shown_beneath = self.peer_edits() == 0 && self.tentative.is_empty();
-        let Some(layer) = self.peer_layers.get_mut(&client) else {
+        let Some(layer) = self.peer_layers.get_mut(&key) else {
             return;
         };
         layer.operations.push(operation.clone());
@@ -415,10 +499,11 @@ where
         }
         let above: Vec<C::Op> = self
             .peer_layers
-            .range(client + 1..)
+            .range((Bound::Excluded(key), Bound::Unbounded))
             .flat_map(|(_, layer)| layer.operations.iter().cloned())
             .chain(self.tentative.iter().map(|held| held.operation.clone()))
             .collect();
+        // As unsettled after the push, which is what shows unsettled with it.
         let unsettled = self.unsettled();
         if above.is_empty() {
             self.visible.apply(&operation);
@@ -433,8 +518,8 @@ where
         // What shows beneath it: everything under the layers, then the layers up to its own,
         // that one as it was.
         let mut under = self.layer_free();
-        for (held, layer) in self.peer_layers.range(..=client) {
-            let shown = match *held == client {
+        for (held, layer) in self.peer_layers.range(..=key) {
+            let shown = match *held == key {
                 true => layer.operations.len() - 1,
                 false => layer.operations.len(),
             };
@@ -454,16 +539,28 @@ where
         );
     }
 
-    /// Drops what this replica shows of `client`'s layer.
+    /// Drops what this replica shows of `client`'s layers.
     pub(super) fn drop_peer_layer(&mut self, client: ClientId) {
+        self.drop_layers(|(held, _), _| *held == client);
+    }
+
+    /// Drops the layers `which` picks, in one landing.
+    fn drop_layers(&mut self, which: impl Fn(&(ClientId, u64), &PeerLayer<C::Op>) -> bool) {
         let before = self.unsettled();
-        let held_any = self
-            .peer_layers
-            .remove(&client)
-            .is_some_and(|held| !held.operations.is_empty());
-        if held_any {
+        if self.take_layers(which) {
             self.relay(before);
         }
+    }
+
+    /// Takes the layers `which` picks away: whether any showed an edit.
+    fn take_layers(&mut self, which: impl Fn(&(ClientId, u64), &PeerLayer<C::Op>) -> bool) -> bool {
+        let mut shown = false;
+        self.peer_layers.retain(|key, layer| {
+            let taken = which(key, layer);
+            shown |= taken && !layer.operations.is_empty();
+            !taken
+        });
+        shown
     }
 
     /// The layers changed with no edit beneath them, `before` edits having shown unsettled:
