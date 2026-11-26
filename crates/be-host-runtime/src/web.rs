@@ -72,7 +72,9 @@ pub fn staged_app(app_id: &str, module: &str) -> Result<be_wasm_sandbox_host::St
         .find(|manifest| manifest.identity.id == app_id)
         .ok_or_else(|| format!("no staged app has the id {app_id}"))?;
     if module == manifest.entry_point {
-        return Ok(be_wasm_sandbox_host::Staged::new(manifest.entry_point.clone()));
+        return Ok(be_wasm_sandbox_host::Staged::new(
+            manifest.entry_point.clone(),
+        ));
     }
     super::backend::worker_file(app_id, module).map(be_wasm_sandbox_host::Staged::new)
 }

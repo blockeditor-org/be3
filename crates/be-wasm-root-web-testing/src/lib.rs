@@ -392,7 +392,9 @@ fn next_wake(root: &Root, what: &'static str) -> impl Future<Output = Result<(),
     });
     let late = Closure::once_into_js(move || {
         if let Some(answer) = answer.borrow_mut().take() {
-            answer(Err(format!("the page heard no wake {what} within {PATIENT:?}")));
+            answer(Err(format!(
+                "the page heard no wake {what} within {PATIENT:?}"
+            )));
         }
     });
     let global = js_sys::global();

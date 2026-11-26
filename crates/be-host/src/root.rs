@@ -87,18 +87,18 @@ use be_sdk_api::{
     InteractionMode, ParentView, ResizeMode, ViewId, app::EditorEvent, shell_types::ShellMessage,
 };
 use be_sdk_app_host::pacing::FrameClock;
+use be_sdk_manifest::AppManifest;
 use be_wasm_root_api::{EditorApp, OpenedEditor, ShownPreview};
 use be_wasm_root_api::{FrameRequest, Notice, NoticeAction, StatisticRow, WindowSize};
 use be_wasm_root_host::EditorOpening;
-use be_sdk_manifest::AppManifest;
 use be_wasm_root_host::Root;
 use beui::{CursorIcon, Input, WindowId};
 #[cfg(target_arch = "wasm32")]
 use page::Surfaces;
 use serving::*;
+use uuid::Uuid;
 #[cfg(not(target_arch = "wasm32"))]
 use window::Surfaces;
-use uuid::Uuid;
 
 /// The id what the root shows has in the accessibility tree, `#root` to drive.
 pub(crate) const SHOWN: &str = "root";
@@ -398,7 +398,10 @@ impl RootShell {
         // which may be after this frame: what it answered then is shown from the next, which
         // its answer wakes the host for. A frame it is still drawing is left to finish.
         #[cfg(target_arch = "wasm32")]
-        let Some(done) = self.surfaces.frame(root, request, deadline, self.waker.clone()) else {
+        let Some(done) = self
+            .surfaces
+            .frame(root, request, deadline, self.waker.clone())
+        else {
             return;
         };
         let done = match done {

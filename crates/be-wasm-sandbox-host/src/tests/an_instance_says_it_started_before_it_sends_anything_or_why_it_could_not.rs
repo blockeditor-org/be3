@@ -16,7 +16,11 @@ fn an_instance_says_it_started_before_it_sends_anything_or_why_it_could_not() {
         );
         (started, first, nowhere.started().await.unwrap())
     });
-    assert_eq!(started, Ok(()), "the echo app's module loaded and it ran its start");
+    assert_eq!(
+        started,
+        Ok(()),
+        "the echo app's module loaded and it ran its start"
+    );
     assert_eq!(
         first,
         vec![be_wasm_guest_echo::STARTED.to_vec()],
