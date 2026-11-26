@@ -73,6 +73,7 @@ impl Platform for AppPlatform {
                 renderer: Box::new(ModuleRenderer),
                 fonts: None,
             };
+            let woken = waker.clone();
             let mut setup = Setup::new(Waker::new(move || waker.wake()));
             setup.provide(views.clone());
             runner.start(loaded, setup)?;
@@ -88,6 +89,7 @@ impl Platform for AppPlatform {
                 sent_actions: HashMap::default(),
                 focused: HashSet::default(),
                 focus_told: HashMap::default(),
+                waker: woken,
                 unlisted: HashSet::default(),
                 listed: HashSet::default(),
                 toggles: HashMap::default(),
@@ -190,6 +192,8 @@ struct ModuleRunner {
     /// The window each view in `focused` was told to the document as focused in: a view given
     /// the keyboard before the app matched it a window is told once it is (`tell_focus`).
     focus_told: HashMap<ViewRef, WindowId>,
+    /// Wakes the app to step again, which asks the host for a frame (`frame-needed`).
+    waker: be_sdk::Waker,
     /// The views in `focused` the last frame did not list yet.
     unlisted: HashSet<ViewRef>,
     /// The views the last frame listed.
@@ -614,15 +618,17 @@ impl ModuleRunner {
     /// the keyboard: a view the host gives the keyboard before its window is open (a dock tab's
     /// view shown again, given it at once) hears `Input::Focus` while it has no window to tell,
     /// and its window would otherwise never hear it, leaving the focus wherever it was.
-    /// Answers whether it told any, which the next frame takes in.
-    fn tell_focus(&mut self) -> bool {
+    /// The next frame takes in what it tells, so it wakes the app to ask the host for one.
+    fn tell_focus(&mut self) {
         let untold: Vec<(ViewRef, WindowId)> = self
             .focused
             .iter()
             .filter_map(|id| Some((*id, *self.windows.get(id)?)))
             .filter(|(id, window)| self.focus_told.get(id) != Some(window))
             .collect();
-        let told = !untold.is_empty();
+        if !untold.is_empty() {
+            self.waker.wake();
+        }
         for (id, window) in untold {
             self.focus_told.insert(id, window);
             self.send(Incoming::Window(WindowReport::Focused {
@@ -631,7 +637,6 @@ impl ModuleRunner {
             }));
         }
         self.focus_told.retain(|id, _| self.focused.contains(id));
-        told
     }
 
     fn keyboard_view(&self) -> Option<ViewRef> {
@@ -1055,8 +1060,8 @@ impl Regions for ModuleRunner {
             return Err(self.stopped());
         };
         self.match_windows(ratio, regions, active);
-        let told = self.tell_focus();
-        let released = self.release_held() || told;
+        self.tell_focus();
+        let released = self.release_held();
         debug_assert!(
             regions
                 .iter()
