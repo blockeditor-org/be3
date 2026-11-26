@@ -32,7 +32,11 @@ const LAYER: &str = "layers";
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum Key {
     Root(u32),
-    App { instance: u64, surface: u32 },
+    App {
+        instance: u64,
+        surface: u32,
+        anchored: bool,
+    },
 }
 
 struct Canvas {
@@ -163,9 +167,16 @@ impl Surfaces {
         for (order, layer) in layers.enumerate() {
             let key = match layer.surface {
                 Surface::Root(surface) => Key::Root(surface),
-                Surface::Screen { instance, surface } | Surface::Anchored { instance, surface } => {
-                    Key::App { instance, surface }
-                }
+                Surface::Screen { instance, surface } => Key::App {
+                    instance,
+                    surface,
+                    anchored: false,
+                },
+                Surface::Anchored { instance, surface } => Key::App {
+                    instance,
+                    surface,
+                    anchored: true,
+                },
                 // Program windows run only natively.
                 Surface::Host(_) => continue,
             };
@@ -216,10 +227,15 @@ impl Surfaces {
             .map_err(failed)?
             .dyn_into()
             .map_err(|_| "a canvas for the root's frame could not be made".to_owned())?;
-        // Which kind of canvas this is, for whatever inspects the page (crates/be-host/web-test).
+        // Which kind of canvas this is, for whatever inspects the page (crates/be-host/web-test):
+        // an app's anchored view is an overlay, as be-host's own page names the canvas it draws
+        // them in.
         let kind = match key {
             Key::Root(_) => "root",
-            Key::App { .. } => "screen",
+            Key::App {
+                anchored: false, ..
+            } => "screen",
+            Key::App { anchored: true, .. } => "overlay",
         };
         let _ = element.set_attribute("data-kind", kind);
         layer.append_child(&element).map_err(failed)?;
@@ -233,9 +249,9 @@ impl Surfaces {
                     root.show_surface(id, &offscreen, surface);
                     Ok(())
                 }
-                Key::App { instance, surface } => {
-                    root.show_app_surface(id, &offscreen, instance, surface)
-                }
+                Key::App {
+                    instance, surface, ..
+                } => root.show_app_surface(id, &offscreen, instance, surface),
             });
         if let Err(why) = handed {
             element.remove();
