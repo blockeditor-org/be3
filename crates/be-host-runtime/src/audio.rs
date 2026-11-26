@@ -68,7 +68,9 @@ impl AudioPlayer for Silent {
             playing: false,
             position_micros: 0,
             duration_micros: None,
-            error: self.refused.then(|| "This host has no audio output".to_owned()),
+            error: self
+                .refused
+                .then(|| "This host has no audio output".to_owned()),
         }
     }
 }

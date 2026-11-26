@@ -4315,9 +4315,9 @@ impl Instances {
             }
             ShellMessage::PlayAudio(command) => {
                 let changes = self.mail.audio_changes.1.clone();
-                let player = entry
-                    .audio
-                    .get_or_insert_with(|| super::audio::open(Box::new(move || changes.send(instance))));
+                let player = entry.audio.get_or_insert_with(|| {
+                    super::audio::open(Box::new(move || changes.send(instance)))
+                });
                 match command {
                     AudioCommand::Load(source) => player.load(source),
                     AudioCommand::Toggle => player.toggle(),
