@@ -60,7 +60,8 @@ impl Session {
             Showing::Running(hosted) => hosted.name.clone(),
             Showing::Loading | Showing::Failed(_) => String::new(),
         };
-        self.children.editors_around(instance, editor, &outermost)
+        self.children
+            .editors_around(instance, editor, &outermost, Some(self.block))
     }
 }
 
