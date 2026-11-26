@@ -4428,16 +4428,21 @@ impl<S: ObjectStore> Peer<S> {
     /// it finished, a part no operation came to name. Kept are the objects of every commit of
     /// each such block this device holds, from its heads (its own, the server's, its summary's,
     /// the one read whole) through their parents, and of every outbox or unsent entry and
-    /// journal base, and those an open writer or a part it finished still pins. Answers how many
-    /// objects it removed. It runs without awaiting, under the lock writers pin under, so it
-    /// races no writer; a host runs it while idle, so no seal or read is under way that has put
-    /// or found an object and not yet recorded what names it.
+    /// journal base, and those an open writer or a part it finished still pins. A block that
+    /// keeps edits here (`Refs::keeps_edits`: kept, set aside, or journaled) is passed over,
+    /// as an edit may name a part no commit does yet. Answers how many objects it removed. It
+    /// runs without awaiting, under the lock writers pin under, so it races no writer; a host
+    /// runs it while idle, so no seal or read is under way that has put or found an object and
+    /// not yet recorded what names it.
     pub fn collect_unnamed(&self) -> Result<usize, ClientError> {
         let vault = self.commits.vault();
         if vault.unnamed_count() == 0 {
             return Ok(0);
         }
-        Ok(vault.collect(|candidates| self.named_among(candidates))?)
+        Ok(vault.collect(|candidates| {
+            candidates.retain(|block, _| !self.refs.keeps_edits(*block));
+            self.named_among(candidates)
+        })?)
     }
 
     /// What names `candidates` (by block) on this device, as `collect_unnamed` keeps it.
@@ -4447,6 +4452,9 @@ impl<S: ObjectStore> Peer<S> {
     ) -> Result<HashSet<Hash>, be_block_store::StoreError> {
         let vault = self.commits.vault();
         let mut marked = HashSet::new();
+        if candidates.is_empty() {
+            return Ok(marked);
+        }
         let mut commits = Vec::new();
         let unsent = self.refs.unsent().into_iter().flat_map(|(_, unsent)| unsent.ops);
         for op in self.refs.outbox().into_iter().map(|(_, op)| op).chain(unsent) {
@@ -4479,11 +4487,12 @@ impl<S: ObjectStore> Peer<S> {
                 marked.extend(journal.base.parts);
             }
         }
-        let all_named =
-            |marked: &HashSet<Hash>| candidates.values().flatten().all(|c| marked.contains(c));
+        // How many candidates nothing marked yet: the walk ends once none is left.
+        let wanted: HashSet<Hash> = candidates.values().flatten().copied().collect();
+        let mut unmarked = wanted.iter().filter(|object| !marked.contains(object)).count();
         let mut seen = HashSet::new();
         while let Some(commit) = commits.pop() {
-            if all_named(&marked) {
+            if unmarked == 0 {
                 break;
             }
             if !seen.insert(commit) {
@@ -4492,7 +4501,8 @@ impl<S: ObjectStore> Peer<S> {
             let Some(held) = self.commits.try_get(commit)? else {
                 continue;
             };
-            vault.mark(&held.manifest, &mut marked)?;
+            let added = vault.mark(&held.manifest, &mut marked)?;
+            unmarked -= added.iter().filter(|object| wanted.contains(object)).count();
             commits.extend(held.parents);
         }
         Ok(marked)

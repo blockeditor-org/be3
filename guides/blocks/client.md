@@ -146,20 +146,31 @@ to name. The vault keeps track of these and a collection removes them.
 - **Pins.** Each object a part writer seals is pinned (`Pins`) under the vault's
   lock before the writer looks for it in the store, by the writer while it is
   open and then by the `Written` its `finish` answers, until that is dropped. A
-  holder keeps it until the part is named: be-host-stack's `Saving` until the
-  compaction's commit is in the outbox, be-block-type-host's writer task until
-  the server holds the part.
+  `Written` borrows nothing, so a holder keeps it until the part is named:
+  be-host-stack's `Saving` until the compaction's commit is in the outbox (in
+  `write_at` and `compact_past` alike), and a module's replica, in its reach
+  (`Reach::hand_written`), until one of its publishes that reuses the part is
+  sealed (`Reach::named`) or the replica goes. Until then only the module's
+  edits name it.
 - **Noting.** An object the store lacked when its writer sealed it is noted, with
   its block, in the vault's `Ledger` before it is put: the peer's refs
   (`Table::Unnamed`), so a writer stopped by a restart is still found. Only
   noted objects are ever removed; one the store held already was put by
   something else, which names it. A noted object put any other way through the
   vault (a write's own parts, a value) or looked for by its presence walks
-  (`holds_all`, `missing_objects`) is claimed (`Vault::claim`): no longer noted,
-  since whoever put or looked for it may name it now.
+  (`holds_all`, `missing_objects`) is claimed: no longer noted, since whoever
+  put or looked for it may name it now. While it is pinned, a lookup leaves it
+  noted (its own writer reads it back as it works, a merge reading what it
+  merged), and a put marks it to be forgotten once its pins go.
+- **Edits.** Between a part's `Written` going and a commit naming it, an edit
+  may be all that names it: kept on the device (`OpenEdits`), set aside, or in
+  the block's journal, all opaque to the peer. A block that keeps any
+  (`Refs::keeps_edits`) is left out of a collection, its objects still noted:
+  after a crash or offline, the edit replays and seals a commit reusing the
+  part, which the server, never having journaled the edit, may no longer hold.
 - **Collecting.** `Peer::collect_unnamed` runs `Vault::collect` without
   awaiting, under the lock writers pin under. Its candidates are the noted
-  objects no pin holds, by block. Sealing is convergent only under one key, and
+  objects no pin holds, by block, less the blocks that keep edits. Sealing is convergent only under one key, and
   a key is one block's, so only that block's objects can share a candidate's: a
   candidate is kept when an outbox or unsent entry lists it (a publish's
   objects and journal seal, a hold's objects), its block's journal base names
@@ -168,13 +179,16 @@ to name. The vault keeps track of these and a collection removes them.
   pending commits through their parents as far as they are held
   (`Vault::mark`), stopping once every candidate is found. The rest are removed;
   those found are forgotten, held from then on as any commit's objects are.
+  Naming can cross blocks (a repository's snapshot trees name its members'
+  manifests), and the walk follows only the candidate's block. That is safe only
+  because a commit of the block itself names the object first, and the first
+  collection after that commit forgets it, so no later one looks at it again.
 - **Racing.** A writer pins before it checks the store, so a collection never
   removes what an open writer or a held `Written` names. What it cannot see is an
   operation that has put or found an object and not yet recorded what names it
   (a seal awaiting its key, a fetch before `read_whole`): a host runs it only
   while quiet (be-host-stack's search loop, guides/blocks/host.md,
-  "Compaction"). A module's part removed here after the server holds it is
-  fetched again by whatever reads it or commits it reused (`stale_parts`).
+  "Compaction": no command, seal, import or unsealed edit under way).
 
 A reference count kept per object would need every commit, outbox entry and
 fetch to count what it names; a sweep of the whole vault would need the roots of

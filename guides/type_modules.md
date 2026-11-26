@@ -304,11 +304,12 @@ key as the bytes end it, so neither side holds the whole part. `finish` seals
 the rest, has the server hold the part for the block (`Peer::hold_part`:
 `hold-objects` with `hold.until-committed`) and answers the `part-ref` once
 the upload is done; a write that failed fails `finish`, and a writer dropped
-before `finish` lets go of the writer. What a writer sealed is pinned until
-`finish` has the server hold it; after that, or once dropped, it is left to the
-vault's collection (guides/blocks/client.md, "Unnamed parts"), which removes it
-here unless something on the device names it: a commit reusing it later fetches
-what it lacks. A writer takes its block's sealing key once, as it starts, so a
+before `finish` lets go of the writer. What a writer sealed is pinned while it
+is open and, once finished, in the replica's reach until a publish reusing the
+part is sealed or the replica goes; after that, or once dropped, it is left to
+the vault's collection (guides/blocks/client.md, "Unnamed parts"), which removes
+it here unless something on the device names it, and leaves it while the block
+keeps edits that may. A writer takes its block's sealing key once, as it starts, so a
 key that rotates mid-write seals the whole part under the old key, as a whole
 put begun just before the rotation would; a commit that reuses it seals it again
 under its own key (`Peer::write_content_under` fetches and rewrites a stale

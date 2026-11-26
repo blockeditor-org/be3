@@ -5,13 +5,13 @@
 //! readers of its own (guides/blocks/keys.md, Keys are bound to blocks where the server
 //! points).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::PoisonError;
 
 use std::sync::Mutex;
 
 use be_block_client::{ClientError, Peer};
-use be_block_store::{ObjectStore, PartRef};
+use be_block_store::{ObjectStore, PartRef, Written};
 use uuid::Uuid;
 
 /// What a module that names a part outside its replica's reach is told.
@@ -29,6 +29,10 @@ pub struct Reach {
     unsourced: Vec<PartRef>,
     /// The blocks of the keys handed parts are sealed under.
     sources: HashSet<Uuid>,
+    /// The parts its module's part writers finished, each pinned from the vault's collection
+    /// (`Peer::collect_unnamed`) until a commit of the block that names it is sealed (`named`)
+    /// or the replica goes: until then only the module's edits name it.
+    written: HashMap<PartRef, Vec<Written>>,
 }
 
 impl Reach {
@@ -38,6 +42,28 @@ impl Reach {
                 self.unsourced.push(part);
             }
         }
+    }
+
+    /// Hands `part`, which the module's part writer finished as `written`, keeping it pinned.
+    pub fn hand_written(&mut self, part: PartRef, written: Written) {
+        self.hand([part]);
+        self.written.entry(part).or_default().push(written);
+    }
+
+    /// A commit of the block sealed here names `parts`: what pinned them can go.
+    pub fn named(&mut self, parts: impl IntoIterator<Item = PartRef>) {
+        if self.written.is_empty() {
+            return;
+        }
+        for part in parts {
+            self.written.remove(&part);
+        }
+    }
+
+    /// How many of the parts its module wrote are still pinned (`hand_written`).
+    #[cfg(test)]
+    pub fn pinned(&self) -> usize {
+        self.written.len()
     }
 }
 

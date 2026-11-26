@@ -1116,17 +1116,29 @@ pub(crate) async fn step(
 /// batch for that index waits for it and the host is busy until it is sealed and sent; its
 /// commit is a write too, so the next idle round makes the next merge.
 fn compact_idle_indexes(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) {
-    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-    let quiet = held.waiting == 0
-        && held.pending() == 0
-        && held.typing.is_empty()
-        && !held.arriving
-        && !held.draining
-        && held.search.busy_with(wants_index(&held)).is_none();
-    if !quiet {
+    let quiet = |held: &Shared| {
+        held.waiting == 0
+            && held.pending() == 0
+            && held.unsealed() == 0
+            && held.importing == 0
+            && held.typing.is_empty()
+            && !held.arriving
+            && !held.draining
+            && held.search.busy_with(wants_index(held)).is_none()
+    };
+    if !quiet(&shared.lock().unwrap_or_else(PoisonError::into_inner)) {
         return;
     }
-    collect_unnamed(peer, &mut held);
+    // Collected without `shared` held, which only the count a test reads needs.
+    let _collected = collect_unnamed(peer);
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    #[cfg(test)]
+    {
+        held.search.collected += _collected;
+    }
+    if !quiet(&held) {
+        return;
+    }
     #[cfg(test)]
     if held.search.hold_idle {
         return;
@@ -1195,21 +1207,21 @@ fn compact_idle_indexes(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, ta
 }
 
 /// While the host is quiet as `compact_idle_indexes` needs it (nothing written, sealed, sent,
-/// read for search or waiting, no module working), removes what part writers sealed that nothing
-/// names (`Peer::collect_unnamed`): a compaction let go of, a module's writer dropped. It runs in
-/// the loop, holding no await, and only while something is noted.
-fn collect_unnamed(peer: &Peer<Store>, held: &mut Shared) {
+/// imported, read for search or waiting, no module working and no edit unsealed), removes what
+/// part writers sealed that nothing names (`Peer::collect_unnamed`): a compaction let go of, a
+/// module's writer dropped. It runs in the loop, holding no await, and only while something is
+/// noted. Answers how many objects it removed.
+fn collect_unnamed(peer: &Peer<Store>) -> usize {
     if peer.commits().vault().unnamed_count() == 0 {
-        return;
+        return 0;
     }
     match peer.collect_unnamed() {
-        #[cfg(test)]
-        Ok(removed) => held.search.collected += removed,
-        #[cfg(not(test))]
-        Ok(_) => {}
-        Err(error) => eprintln!("be-host: collecting unnamed parts failed: {error}"),
+        Ok(removed) => removed,
+        Err(error) => {
+            eprintln!("be-host: collecting unnamed parts failed: {error}");
+            0
+        }
     }
-    let _ = held;
 }
 
 async fn index(
@@ -2811,15 +2823,18 @@ async fn write_at<S: ObjectStore>(
         .await
         .map_err(|error| unwritten(error.to_string()))?;
     // The device that writes a batch compacts a few segments with it, so queries read few.
+    // What it saved stays pinned (`out`) until the seal names it.
+    let mut out = None;
     if let Some((now, bytes)) = compact_at {
         let key = peer.sealing_key(index).await?;
-        let out = Saving::new(peer.commits().vault(), key);
+        let saving = out.insert(Saving::new(peer.commits().vault(), key));
         content
-            .compact(&parts, &out, Uuid::new_v4().into_bytes(), now, bytes)
+            .compact(&parts, &*saving, Uuid::new_v4().into_bytes(), now, bytes)
             .await
             .map_err(|error| unwritten(error.to_string()))?;
     }
     seal_index(peer, index, head, &content).await?;
+    drop(out);
     Ok(needs_text)
 }
 
@@ -2835,7 +2850,7 @@ struct Saving<'a, S> {
     key: Uuid,
     // Neither is borrowed across an await: `PartsOut` is synchronous.
     writing: std::cell::RefCell<HashMap<be_lib_search::PartName, PartWriter<'a, S>>>,
-    saved: std::cell::RefCell<HashMap<be_lib_search::PartName, Written<'a, S>>>,
+    saved: std::cell::RefCell<HashMap<be_lib_search::PartName, Written>>,
 }
 
 impl<'a, S: ObjectStore> Saving<'a, S> {

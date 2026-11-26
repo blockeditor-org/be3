@@ -434,7 +434,8 @@ impl Answering {
 /// block (`Peer::hold_part`). A write that fails is answered all the same, and `finish` answers
 /// its failure. The feed ending first (the writer dropped, its replica or module gone) lets go
 /// of the writer; the chunks it sealed are left to the vault's collection
-/// (`Peer::collect_unnamed`). `answer` sends each answer to the module, and `locked` says
+/// (`Peer::collect_unnamed`). A part it finished stays pinned from that collection in the
+/// replica's reach until a commit that names it is sealed (`Reach::named`) or the replica goes. `answer` sends each answer to the module, and `locked` says
 /// the block was found locked, as of the `Peer::arrivals` the writer started at. `unsealed`
 /// counts down the bytes of each write once it is sealed.
 #[allow(clippy::too_many_arguments)]
@@ -467,26 +468,29 @@ pub(crate) async fn write_part<S: be_block_store::ObjectStore>(
                 answer(Answered::Wrote(reply));
             }
             Feed::Finish(reply) => {
-                // Pinned from collection until the server holds it.
+                // Pinned from collection while `written` lives: the replica keeps it until a
+                // commit that names the part is sealed (`Reach::named`), or it goes.
                 let put = async {
                     let written = writing?.finish()?;
                     let part = written.part().ok_or_else(|| {
                         ClientError::Encoding("a part needs at least one byte".to_owned())
                     })?;
                     peer.hold_part(block, part).await?;
-                    Ok::<_, ClientError>(part)
+                    Ok::<_, ClientError>((part, written))
                 }
                 .await;
                 if let Err(ClientError::Locked(_)) = &put {
                     locked(arrivals);
                 }
-                if let Ok(part) = &put {
-                    reach
-                        .lock()
-                        .unwrap_or_else(PoisonError::into_inner)
-                        .hand([*part]);
-                }
-                let result = put.map_err(|error| error.to_string());
+                let result = put
+                    .map(|(part, written)| {
+                        reach
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .hand_written(part, written);
+                        part
+                    })
+                    .map_err(|error| error.to_string());
                 answer(Answered::PutPart(reply, result));
                 return;
             }
@@ -6386,6 +6390,19 @@ impl<H: Host> Replicas<H> {
                         Ok(false) => None,
                         Err(error) => Some(Err(error)),
                     };
+                    // A commit names the parts it reuses now, so their writers' pins can go.
+                    if let Some(Ok(Saved::Published(_) | Saved::Kept(_) | Saved::Unchanged(_))) =
+                        &saved
+                    {
+                        reach.lock().unwrap_or_else(PoisonError::into_inner).named(
+                            content.parts.iter().filter_map(|part| match part {
+                                be_sdk_type_api::WrittenPart::Reused(part) => {
+                                    Some(be_block_store::PartRef::from(*part))
+                                }
+                                _ => None,
+                            }),
+                        );
+                    }
                     // This device's journal starts from the seal too; with nothing to commit, the
                     // server's is trimmed with no new commit.
                     if let (
