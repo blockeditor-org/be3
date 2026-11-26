@@ -266,7 +266,7 @@ pub(super) fn ArrangementRow(
             grown.set(Some(wider));
         }
     });
-    let canvas = create_memo(move || view.get().canvas());
+    let canvas = create_memo(move || Some(view.get().canvas()));
     view! {
         <SettingsRow
             label="Arrangement"
@@ -281,7 +281,7 @@ pub(super) fn ArrangementRow(
                 border={Border::DEFAULT}
                 radius=Radius::Sm
             >
-                <Canvas view={canvas} width={AREA.x} height={AREA.y}>
+                <Canvas view={canvas} local_view=true width={AREA.x} height={AREA.y}>
                     <CanvasItem
                         x={move || reach.get().min.x}
                         y={move || reach.get().min.y}
