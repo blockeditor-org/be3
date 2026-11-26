@@ -951,6 +951,7 @@ impl Session {
             before: Some(Rc::clone(before)),
         };
         let mut failed = None;
+        let immediate = active.immediate;
         match &mut active.phase {
             Phase::Capturing {
                 target,
@@ -973,7 +974,8 @@ impl Session {
                 window,
                 ..
             } => {
-                *ready = quiet;
+                // Under `--no-settle`, the frame after the ask, as it is.
+                *ready = quiet || immediate;
                 if *ready && let Some(target) = target {
                     let placed = match *window {
                         PLATFORM => shown_at(target, self.taps[0].as_deref(), view, above),

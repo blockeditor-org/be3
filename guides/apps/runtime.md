@@ -550,7 +550,11 @@ next present less the time the host's own work after settle has been taking.
 While a driven host's clock is stopped (guides/running/drive.md) it waits for
 every answer, up to `STOPPED_CLOCK_FRAME_BUDGET`, so a slow machine never
 changes which frame shows an answer, and an app that ran out of time is drawn
-again only once the clock moves.
+again only once the clock moves. For the same reason the poll that starts each of its frames
+first waits, with the same budget, for every app's steps on what the host sent it to finish
+(`finish_steps`, `Worker::settled`): what an app sends between frames (a dock request from a
+tap, a layout or present the host did not ask a frame for) lands in the frame after the one
+that set it off, however fast the app's thread ran.
 
 ### Layout and present commits
 

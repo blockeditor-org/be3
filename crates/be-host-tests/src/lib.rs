@@ -583,7 +583,7 @@ impl HostTest {
     /// stepped one at a time (each command a stopped clock waits on runs one frame), which the
     /// next `snapshot` ends.
     pub fn record_frame(&mut self) {
-        let painted = self.paint_as(false);
+        let painted = self.paint_with(false, true);
         match &mut self.recorded {
             Some(recorded) => recorded.append(painted),
             None => self.recorded = Some(painted),
@@ -662,10 +662,18 @@ impl HostTest {
     /// Paints the window, `loaded` once no editor shows its loading placeholder, which takes
     /// frames of its own.
     fn paint_as(&mut self, loaded: bool) -> Snapshot {
+        self.paint_with(loaded, false)
+    }
+
+    /// `unsettled` paints the next frame as it is (`--no-settle paint`), else the settled one.
+    fn paint_with(&mut self, loaded: bool, unsettled: bool) -> Snapshot {
         if loaded {
             self.gone("#editor.loading");
         }
         let mut words = vec!["paint"];
+        if unsettled {
+            words.insert(0, "--no-settle");
+        }
         words.extend(self.crop.as_deref());
         if self.space {
             words.extend(["in", "platform"]);

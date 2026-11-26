@@ -177,7 +177,8 @@ input, one a line, and stops at the first that fails:
 Every input command waits until the program settles, then prints the tree's changes as `-` and
 `+` lines (`--changes=N|all|0`). `--no-settle` answers after the frame that took the input, to
 see the program part way through something. On a session command (`settle`, `clock`, `hurry`,
-`present`), `--no-settle` answers after one frame rather than once the program settles. Each command
+`present`), `--no-settle` answers after one frame rather than once the program settles; `paint`, which
+paints the settled frame, under `--no-settle` paints the next frame as it is. Each command
 a stopped clock waits on runs a frame of its own, so a test steps frame by frame with them. A command gives up after 30 s
 (`--timeout=SECONDS`) and names what kept the program busy.
 
