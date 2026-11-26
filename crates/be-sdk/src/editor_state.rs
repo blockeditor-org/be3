@@ -327,19 +327,29 @@ impl EditorCore {
         C: be_block_content::LiveEdit + Clone + Default,
     {
         let contents = &self.0.contents;
+        // Block data can name a block of another type than it is held as: it reads as failed,
+        // kept out of every cache, so what holds it already goes on taking its updates.
+        let refused = || {
+            let named = block.unwrap_or(self.0.block);
+            LiveContent::refused(block, crate::host::another_type(named))
+        };
         if let Some(held) = contents.contents.borrow().get(&block) {
-            match held.downcast_ref::<LiveContent<C>>() {
-                Some(live) => return live.clone(),
-                None => panic!("{block:?} is projected already as another content type"),
-            }
+            return match held.downcast_ref::<LiveContent<C>>() {
+                Some(live) => live.clone(),
+                None => refused(),
+            };
         }
         // Another editor of the instance may hold it: they share it.
-        let live = self.0.host.projection::<C>(block);
+        let Some(live) = self.0.host.projection::<C>(block) else {
+            return refused();
+        };
         let due = Rc::downgrade(&contents.due);
-        live.on_due(move || {
-            if let Some(due) = due.upgrade() {
-                due.borrow_mut().push(block);
-            }
+        live.on_due_while(move || {
+            let Some(due) = due.upgrade() else {
+                return false;
+            };
+            due.borrow_mut().push(block);
+            true
         });
         let pumped = live.clone();
         contents

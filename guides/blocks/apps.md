@@ -68,8 +68,9 @@ the host opens that block's replica on the first frame, read-only unless the
 account may edit it, and closes it when nothing holds it. An instance holds one
 `LiveContent` per block, since it takes all of the block's updates: every editor
 of the instance (an exporter's `OwnedEditor::reading`, a preview) shares the one
-another holds (`EditorHost::projection`), and asking for a block as a second
-content type panics.
+another holds (`EditorHost::projection`). Block data can name a block of
+another type than it is held as: asked for so, it reads as failed (`Unready::Failed`),
+held by no cache, and the projection held goes on taking the block's updates.
 `editor.related_content::<C>(memo)` follows whichever block a memo names (a
 database view follows its database and schema). Revision previews and blocks
 still uploading are answered with a host-made `Snapshot` with no session

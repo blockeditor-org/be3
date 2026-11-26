@@ -1930,7 +1930,7 @@ where
             return false;
         }
         // Its gesture ended here: what it moved is gone, so the edit applies as nothing. Its
-        // editor, which showed it before hearing, is told what holds now.
+        // editor, told the gesture ended, lets the edit go itself (`EditorMirror`).
         if self.voided.contains(&gesture) {
             return false;
         }
@@ -1990,7 +1990,9 @@ where
 
     /// Tells the editor of `gesture` this replica ended it, keeping none of its edits: after
     /// what landed before, so the editor knows the edits of the gesture still unanswered are
-    /// dropped (`EditorMirror`).
+    /// dropped (`EditorMirror`). Editors are told what landed at the end of every job, so
+    /// this matters for a gesture ended within a job after an edit of it landed there (a
+    /// restart whose carrying drops it, a replacement), not for an undo's.
     fn gesture_ended(&mut self, gesture: GestureId) {
         let Some(editor) = gesture.editor else {
             return;

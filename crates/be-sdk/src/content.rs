@@ -37,8 +37,9 @@ struct Projection<C: LiveEdit> {
     lacking_followed: Cell<bool>,
     lacking_changes: Callbacks<(), dyn Fn()>,
     ended: Callbacks<(), dyn Fn(ContentGesture)>,
-    /// Asks each editor's cache holding the projection to pump it (`on_due`).
-    due: RefCell<Vec<Rc<dyn Fn()>>>,
+    /// Asks each editor's cache holding the projection to pump it (`on_due`), each answering
+    /// whether it still holds it: those that do not are let go.
+    due: RefCell<Vec<Rc<dyn Fn() -> bool>>>,
     reads: RefCell<HashMap<u64, Box<Read>>>,
 }
 
@@ -47,6 +48,9 @@ type Read = dyn FnOnce(Result<Vec<u8>, String>);
 impl<C: LiveEdit> Drop for Projection<C> {
     fn drop(&mut self) {
         self.host.unfollow(self.block);
+        if let Some(block) = self.block {
+            self.host.forget_projection(block);
+        }
     }
 }
 
@@ -128,7 +132,25 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
     }
 
     pub fn on_due(&self, due: impl Fn() + 'static) {
+        self.on_due_while(move || {
+            due();
+            true
+        });
+    }
+
+    /// As `on_due`, for as long as `due` answers true.
+    pub(crate) fn on_due_while(&self, due: impl Fn() -> bool + 'static) {
         self.0.due.borrow_mut().push(Rc::new(due));
+    }
+
+    /// A projection of `block` that never loads, failing with `reason`, on a host of its own:
+    /// it takes none of the block's updates and sends nothing.
+    pub(crate) fn refused(block: Option<uuid::Uuid>, reason: String) -> Self {
+        let live = Self::new(EditorHost::default(), block);
+        let _ = live.0.mirror.borrow_mut().receive(
+            be_sdk_type_guest::editor::ToEditor::Failed(reason),
+        );
+        live
     }
 
     pub fn ready(&self) -> Result<(), Unready> {
@@ -478,8 +500,15 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
             return;
         }
         let due = self.0.due.borrow().clone();
-        for due in due {
-            due();
+        let gone: Vec<_> = due
+            .into_iter()
+            .filter(|due| !due())
+            .collect();
+        if !gone.is_empty() {
+            self.0
+                .due
+                .borrow_mut()
+                .retain(|due| !gone.iter().any(|gone| Rc::ptr_eq(due, gone)));
         }
     }
 

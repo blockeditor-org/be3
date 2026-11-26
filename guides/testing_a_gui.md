@@ -266,6 +266,9 @@ build log.
 - A panic aborts the wasm guest. The runner then reruns each test in its own instance and lists
   every failure with its panic message and call stack (function names, no line numbers: wasm
   has no Rust backtraces).
+- A `#[should_panic]` test in a crate tested as wasm is reported as ignored and never runs, since
+  a panic aborts the guest: assert on what the code returns instead (a read that fails, an
+  error) rather than on a panic.
 - V8 compiles the module and its libraries when the runner loads them. The runner
   opens a GPU adapter only when a test calls the gpu ABI; nothing a test compares passes
   through a GPU.
