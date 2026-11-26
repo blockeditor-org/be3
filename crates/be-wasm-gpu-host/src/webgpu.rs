@@ -284,6 +284,12 @@ impl Gpu {
         self.web.ticket()
     }
 
+    /// Moves the ticket count to `to`, for a test of what follows when it wraps.
+    #[cfg(test)]
+    pub(crate) fn wind_tickets(&mut self, to: u32) {
+        self.web.tickets = to;
+    }
+
     /// The uncaptured errors since the last call that no listener of the app heard: the
     /// app's host writes them to the app's log.
     pub fn take_logged(&mut self) -> Vec<String> {
@@ -775,46 +781,6 @@ impl Gpu {
     }
 }
 
-/// Calls `$then!` with every limit wgpu has a field for, by its WebGPU name.
-macro_rules! each_limit {
-    ($then:ident) => {
-        $then! {
-            "maxTextureDimension1D" => max_texture_dimension_1d,
-            "maxTextureDimension2D" => max_texture_dimension_2d,
-            "maxTextureDimension3D" => max_texture_dimension_3d,
-            "maxTextureArrayLayers" => max_texture_array_layers,
-            "maxBindGroups" => max_bind_groups,
-            "maxBindGroupsPlusVertexBuffers" => max_bind_groups_plus_vertex_buffers,
-            "maxBindingsPerBindGroup" => max_bindings_per_bind_group,
-            "maxDynamicUniformBuffersPerPipelineLayout" => max_dynamic_uniform_buffers_per_pipeline_layout,
-            "maxDynamicStorageBuffersPerPipelineLayout" => max_dynamic_storage_buffers_per_pipeline_layout,
-            "maxSampledTexturesPerShaderStage" => max_sampled_textures_per_shader_stage,
-            "maxSamplersPerShaderStage" => max_samplers_per_shader_stage,
-            "maxStorageBuffersPerShaderStage" => max_storage_buffers_per_shader_stage,
-            "maxStorageTexturesPerShaderStage" => max_storage_textures_per_shader_stage,
-            "maxUniformBuffersPerShaderStage" => max_uniform_buffers_per_shader_stage,
-            "maxUniformBufferBindingSize" => max_uniform_buffer_binding_size,
-            "maxStorageBufferBindingSize" => max_storage_buffer_binding_size,
-            "minUniformBufferOffsetAlignment" => min_uniform_buffer_offset_alignment,
-            "minStorageBufferOffsetAlignment" => min_storage_buffer_offset_alignment,
-            "maxVertexBuffers" => max_vertex_buffers,
-            "maxBufferSize" => max_buffer_size,
-            "maxVertexAttributes" => max_vertex_attributes,
-            "maxVertexBufferArrayStride" => max_vertex_buffer_array_stride,
-            "maxInterStageShaderVariables" => max_inter_stage_shader_variables,
-            "maxColorAttachments" => max_color_attachments,
-            "maxColorAttachmentBytesPerSample" => max_color_attachment_bytes_per_sample,
-            "maxComputeWorkgroupStorageSize" => max_compute_workgroup_storage_size,
-            "maxComputeInvocationsPerWorkgroup" => max_compute_invocations_per_workgroup,
-            "maxComputeWorkgroupSizeX" => max_compute_workgroup_size_x,
-            "maxComputeWorkgroupSizeY" => max_compute_workgroup_size_y,
-            "maxComputeWorkgroupSizeZ" => max_compute_workgroup_size_z,
-            "maxComputeWorkgroupsPerDimension" => max_compute_workgroups_per_dimension,
-            "maxImmediateSize" => max_immediate_size,
-        }
-    };
-}
-
 /// The limits a device is made with when it asks for none: WebGPU's defaults, or the adapter's
 /// where it has worse.
 fn floor(host: &wgpu::Limits) -> wgpu::Limits {
@@ -829,7 +795,7 @@ fn floor(host: &wgpu::Limits) -> wgpu::Limits {
             )*
         };
     }
-    each_limit!(floored);
+    be_wasm_gpu_convert::each_limit!(floored);
     limits
 }
 
@@ -872,7 +838,7 @@ fn limit(limits: &mut wgpu::Limits, host: &wgpu::Limits, name: &str, value: u64)
             }
         };
     }
-    each_limit!(raised)
+    be_wasm_gpu_convert::each_limit!(raised)
 }
 
 use be_wasm_gpu_convert::Convert;

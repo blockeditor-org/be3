@@ -107,9 +107,8 @@ move in step 3b.
 - be-sdk and be-sdk-root's `OwnSurface` draw through `be3:gpu/host`; the raw apps
   (`standalone.wat`, `painter.wat`) import the new names, ask for a device through `[poll]`,
   and are the tests of the ordinary (non-fast) imports guests whose memory may move get.
-
-A canvas configuration the host's device cannot make (an sRGB twin on WebGL) is refused as a
-validation error, and the canvas keeps no textures.
+- A canvas configuration the host's device cannot make (an sRGB twin on WebGL) is refused as
+  a validation error, and the canvas keeps no textures.
 
 ## 3b. be3:gpu/device goes
 

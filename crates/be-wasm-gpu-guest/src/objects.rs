@@ -478,6 +478,8 @@ impl Drop for MappedRange {
         if !self.written {
             return;
         }
+        // What is written back is the host's now: a later range reads it, not zeros.
+        FRESH.with(|fresh| fresh.borrow_mut().remove(&self.buffer.0));
         let buffer = core::mem::ManuallyDrop::new(gpu::GpuBuffer::from_handle(self.buffer));
         let length = self.bytes.len() as u64;
         // A range outside what is mapped was refused when it was got.
@@ -501,7 +503,15 @@ impl fmt::Debug for Device {
 pub(crate) struct Queue(pub(crate) gpu::GpuQueue);
 
 impl Device {
+    /// A new device starts with none of an earlier one's error scopes or callbacks: what waits
+    /// on the gpu is kept per app, and an app has one device at a time.
     pub(crate) fn new(device: gpu::GpuDevice, features: wgpu::Features, limits: wgpu::Limits) -> Self {
+        waiting(|waiting| {
+            waiting.scopes.clear();
+            waiting.lost = None;
+            waiting.uncaptured = None;
+            waiting.handler = None;
+        });
         Self {
             device,
             features,
@@ -533,7 +543,8 @@ impl DeviceInterface for Device {
             device_pci_bus_id: String::new(),
             driver: info.vendor(),
             driver_info: info.architecture(),
-            backend: wgpu::Backend::Noop,
+            // The app sees WebGPU whatever its host draws with.
+            backend: wgpu::Backend::BrowserWebGpu,
             subgroup_min_size: info.subgroup_min_size(),
             subgroup_max_size: info.subgroup_max_size(),
             transient_saves_memory: Some(false),

@@ -119,6 +119,8 @@ mod unbinding_a_vertex_buffer_takes_no_offset_or_size;
 mod an_object_of_one_webgpu_device_is_refused_on_another;
 mod a_webgpu_limit_asked_worse_than_the_default_keeps_the_default;
 mod a_webgpu_canvas_its_device_cannot_make_is_refused;
+mod an_imported_texture_is_only_read;
+mod a_wrapped_webgpu_ticket_skips_one_still_held;
 
 /// wasi:webgpu's side of the host: a device requested as an app would, and what its promises
 /// settle to.
