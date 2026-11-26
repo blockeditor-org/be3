@@ -427,6 +427,10 @@ pub struct Peer<S: ObjectStore> {
     /// clock, beside a server in the same process that reads the true one.
     #[cfg(test)]
     clock_ahead: std::sync::atomic::AtomicI64,
+    /// Where the next `seal` waits before its commit is queued (`pause_before_queue`).
+    #[cfg(test)]
+    #[allow(clippy::type_complexity)]
+    pause_before_queue: Mutex<Option<(Arc<tokio::sync::Notify>, Arc<tokio::sync::Notify>)>>,
     /// The whole access logs served in this run, those read last, by log (the organization's
     /// under its id): a read names the last entry held and is sent only the
     /// entries after it (`served_access`).
@@ -701,6 +705,8 @@ impl<S: ObjectStore> Peer<S> {
             log_reads: Mutex::new(HashSet::new()),
             #[cfg(test)]
             clock_ahead: std::sync::atomic::AtomicI64::new(0),
+            #[cfg(test)]
+            pause_before_queue: Mutex::new(None),
         };
         for summary in peer.refs.summaries() {
             if let Some(key) = summary.key {
@@ -755,6 +761,32 @@ impl<S: ObjectStore> Peer<S> {
             .saturating_add(self.clock_ahead.load(std::sync::atomic::Ordering::Relaxed));
         #[cfg(not(test))]
         now_milliseconds()
+    }
+
+    /// Has the next `seal` stop just before its commit is queued, telling `paused` and waiting
+    /// for `resume`: a test's way to rewrite what it goes on in between.
+    #[cfg(test)]
+    pub(crate) fn pause_before_queue(
+        &self,
+        paused: Arc<tokio::sync::Notify>,
+        resume: Arc<tokio::sync::Notify>,
+    ) {
+        *self.pause_before_queue.lock().unwrap() = Some((paused, resume));
+    }
+
+    /// This peer's refs, for a test to change what they hold behind its back.
+    #[cfg(test)]
+    pub(crate) fn kept_refs(&self) -> &Refs {
+        &self.refs
+    }
+
+    #[cfg(test)]
+    async fn paused_before_queue(&self) {
+        let pause = self.pause_before_queue.lock().unwrap().take();
+        if let Some((paused, resume)) = pause {
+            paused.notify_one();
+            resume.notified().await;
+        }
     }
 
     /// Makes this device's clock read `ahead` past the true one (`local_now`), as a device
@@ -4021,17 +4053,9 @@ impl<S: ObjectStore> Peer<S> {
         }
         let mut expected = expected;
         let mut parents: Vec<_> = expected.into_iter().collect();
-        let mut chunks = self.objects_of(&manifest).await?;
         let mut listed = references.clone();
         listed.extend(self.resolve(block, self.commits.vault().references(&manifest)?));
         let listed = deduplicated(listed);
-        for parent in &extra_parents {
-            chunks.push(parent.hash());
-            chunks.extend(
-                self.objects_of(&self.commits.get(*parent)?.manifest)
-                    .await?,
-            );
-        }
         parents.extend(extra_parents);
         let pinned = bookmark.is_some();
         let kind = match bookmark {
@@ -4058,6 +4082,16 @@ impl<S: ObjectStore> Peer<S> {
         // the refs refuse it then, and it goes on the replacement instead.
         let mut tries = 0;
         let id = loop {
+            // What it holds besides itself, and below every parent but the one it goes on, as
+            // the parents stand now: one sealed again holds other objects.
+            let mut chunks = self.objects_of(&made.manifest).await?;
+            for parent in parents.iter().skip(usize::from(expected.is_some())) {
+                chunks.push(parent.hash());
+                chunks.extend(
+                    self.objects_of(&self.commits.get(*parent)?.manifest)
+                        .await?,
+                );
+            }
             let commit = made.clone().with_parents(parents.clone());
             let id = self.commits.put(key, &commit)?;
             let journal = journal
@@ -4076,12 +4110,16 @@ impl<S: ObjectStore> Peer<S> {
                 })
                 .transpose()?;
             self.commits.vault().store().sync()?;
+            #[cfg(test)]
+            if tries == 0 {
+                self.paused_before_queue().await;
+            }
             let pushed = self.refs.push_publish(Pending {
                 block,
                 commit: id,
                 expected,
                 parents: parents.clone(),
-                chunks: chunks.clone(),
+                chunks,
                 time,
                 pinned,
                 references: listed.clone(),
@@ -4099,20 +4137,13 @@ impl<S: ObjectStore> Peer<S> {
                 }
                 crate::refs::Pushed::OnReplaced if tries < 4 => {
                     tries += 1;
-                    let moved: Vec<(CommitId, CommitId)> = parents
-                        .iter()
-                        .map(|parent| (*parent, self.refs.replaced(*parent)))
-                        .collect();
                     expected = expected.map(|head| self.refs.replaced(head));
-                    for (parent, (was, now)) in parents.iter_mut().zip(&moved) {
-                        *parent = *now;
-                        if was != now
-                            && let Some(chunk) = chunks.iter_mut().find(|hash| **hash == was.hash())
-                        {
-                            *chunk = now.hash();
-                        }
+                    for parent in &mut parents {
+                        *parent = self.refs.replaced(*parent);
                     }
                 }
+                // Replaced again at every try: the caller seals the edit again later (a
+                // replica's next seal, `seal_failed`).
                 crate::refs::Pushed::OnReplaced => return Err(ClientError::Contended),
             }
         };

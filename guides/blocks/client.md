@@ -593,19 +593,20 @@ sends it. `Peer::write` does both.
   it out. What is made in it is set aside with its refusal, and restoring it
   restores them. A publish refused as a change the server will never take
   (`InvalidRequest`, `ObjectTooLarge`, `CommitAhead`) is set aside the same way rather than
-  sent again every round. `CommitAhead` first stamps the block's waiting commits again by
-  the server's clock as measured now (`Peer::restamp`): those too late move back by as much
-  as the newest must to be the latest the server takes, keeping order, spacing and change
-  ids, through the same rewrite a reseal makes (`Drained::Resealed`, guides/blocks/keys.md,
-  "Outdated epochs"), and the publish goes once more; only a second refusal sets it aside.
-  The rewrite is taken only while the outbox still holds the commits it read
-  (`Refs::replace_publishes`), else it reads them again (four times at most, then the block
-  is set aside), so a seal landing meanwhile is rewritten with them. The refs keep what
-  replaced what (`Table::Replaced`, across restarts): a seal made on a replaced commit is
-  refused as it is queued (`Pushed::OnReplaced`) and `Peer::seal` puts it on the
-  replacement, and `Peer::resealed_as` names what a commit replaced for the host's replicas. A refused move or define puts back the summary the server has
-  at once, with what still waits of the block laid over it (`unchanged`,
-  `Drained::Refused` with `restored`).
+  sent again every round. `CommitAhead` first stamps the block's waiting commits again
+  by the server's clock as measured now (`Peer::restamp`): those too late move back by
+  as much as the newest must to be the latest the server takes, keeping order, spacing
+  and change ids, through the same rewrite a reseal makes (`Drained::Resealed`,
+  guides/blocks/keys.md, "Outdated epochs"), and the publish goes once more; only a
+  second refusal sets it aside. The rewrite is taken only while the outbox still holds
+  the commits it read (`Refs::replace_publishes`), else it reads them again (four times
+  at most, then the drain counts the block as failed and tries again next round), so a
+  seal landing meanwhile is rewritten with them. The refs keep what replaced what
+  (`Table::Replaced`, across restarts): a seal made on a replaced commit is refused as
+  it is queued (`Pushed::OnReplaced`) and `Peer::seal` puts it on the replacement, and
+  `Peer::resealed_as` names what a commit replaced for the host's replicas. A refused
+  move or define puts back the summary the server has at once, with what still waits of
+  the block laid over it (`unchanged`, `Drained::Refused` with `restored`).
 - `Peer::pending` counts outbox operations, local commits, their blocks and
   unsent blocks.
 

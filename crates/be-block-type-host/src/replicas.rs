@@ -6412,6 +6412,9 @@ async fn commit<H: Host>(
     sealed: impl FnOnce(),
 ) -> Result<Saved, ClientError> {
     let before = peer.local_head(block);
+    // A seal that fails (`Contended`, when what it goes on was sealed again at every try) is
+    // answered as failed: the replica keeps the edit unsaved and seals again on its retry timer
+    // (`seal_failed`).
     let commit = match peer.seal(block, write).await? {
         Sealed::Unchanged(head) => return Ok(Saved::Unchanged(head)),
         Sealed::Sealed(commit) => commit,

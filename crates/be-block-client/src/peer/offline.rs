@@ -109,7 +109,7 @@ impl<S: ObjectStore> Peer<S> {
         None
     }
 
-    pub(super) fn pending_publish(&self, block: Uuid, commit: CommitId) -> Option<(u64, Pending)> {
+    pub(crate) fn pending_publish(&self, block: Uuid, commit: CommitId) -> Option<(u64, Pending)> {
         self.refs
             .pending_for(block)
             .into_iter()

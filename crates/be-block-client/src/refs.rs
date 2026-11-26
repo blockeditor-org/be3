@@ -73,8 +73,8 @@ pub(crate) enum Table {
     LogRedactions,
     /// The first fork of each block's signed log this device found (`Refs::log_fork`).
     LogForks,
-    /// Each commit sealed again (`Refs::replace_publishes`), by its old id, with the id of the
-    /// one in its place.
+    /// Each commit sealed again (`Refs::replace_publishes`), by its old id, with its block and
+    /// the id of the one in its place.
     Replaced,
 }
 
@@ -485,8 +485,9 @@ pub struct KnownSigner {
 #[derive(Default)]
 struct State {
     session: Option<Session>,
-    /// Each commit sealed again, by its old id, with the one in its place (`Table::Replaced`).
-    replaced: HashMap<CommitId, CommitId>,
+    /// Each commit sealed again, by its old id, with its block and the one in its place
+    /// (`Table::Replaced`).
+    replaced: HashMap<CommitId, (Uuid, CommitId)>,
     heads: HashMap<Uuid, CommitId>,
     remotes: HashMap<Uuid, CommitId>,
     /// The newest head of each block whose content this device has read whole.
@@ -2256,6 +2257,22 @@ impl Refs {
         Ok(Pushed::Queued(sequence))
     }
 
+    /// Forgets what replaced what of `block`'s commits (`replace_publishes`): its edits were
+    /// discarded or it was forgotten, so no seal goes on them any more.
+    fn forget_replaced(state: &mut State, block: Uuid, rows: &mut Vec<Row>) {
+        state.replaced.retain(|before, (of, _)| {
+            if *of != block {
+                return true;
+            }
+            rows.push(Row {
+                table: Table::Replaced,
+                key: before.hash().as_bytes().to_vec(),
+                value: None,
+            });
+            false
+        });
+    }
+
     /// The commit sealed again in `commit`'s place, as often as it was, or `commit` itself
     /// (`replace_publishes`).
     pub fn replaced(&self, commit: CommitId) -> CommitId {
@@ -2263,7 +2280,7 @@ impl Refs {
         let mut commit = commit;
         for _ in 0..=state.replaced.len() {
             match state.replaced.get(&commit) {
-                Some(after) => commit = *after,
+                Some((_, after)) => commit = *after,
                 None => break,
             }
         }
@@ -2282,7 +2299,7 @@ impl Refs {
                 state
                     .replaced
                     .iter()
-                    .filter(|(_, into)| **into == after)
+                    .filter(|(_, (_, into))| *into == after)
                     .map(|(before, _)| *before),
             );
         }
@@ -2596,9 +2613,9 @@ impl Refs {
                 rows.push(row(
                     Table::Replaced,
                     before.hash().as_bytes().to_vec(),
-                    after,
+                    &(block, *after),
                 ));
-                state.replaced.insert(*before, *after);
+                state.replaced.insert(*before, (block, *after));
             }
         }
         self.write(rows)?;
@@ -2706,6 +2723,7 @@ impl Refs {
             state.listed_at.retain(|listing, _| !about(listing));
             for block in &gone {
                 announcements::forget(state, *block, &mut rows);
+                Self::forget_replaced(state, *block, &mut rows);
                 if state.journals.remove(block).is_some() {
                     rows.push(Row {
                         table: Table::JournalBase,
@@ -3007,6 +3025,7 @@ impl Refs {
             if unsent.refused.is_none() {
                 Self::dropping_local_edits(&mut state, block, &mut rows);
             }
+            Self::forget_replaced(&mut state, block, &mut rows);
             unsent
         };
         self.write(rows)?;
