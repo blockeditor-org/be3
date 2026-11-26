@@ -29,11 +29,18 @@ pub enum Resume {
     },
 }
 
+/// How `local`, the head a replica is on, relates to `remote`, the server's. `left` is the
+/// newest commit in `local`'s history the server took (`Peer::left_head`): `local` itself once it
+/// was published, else the head it was built on. Past what the server thinned away of the
+/// remote head's history (one commit a minute in a block's first hour), the remote head was
+/// made on it, so a merge is based there, as a merge base walk falls back; with none, on
+/// nothing.
 #[cfg(feature = "store")]
 pub fn resume<S: ObjectStore>(
     commits: &CommitStore<S>,
     local: Option<CommitId>,
     remote: Option<CommitId>,
+    left: Option<CommitId>,
 ) -> Result<Resume, StoreError> {
     match (local, remote) {
         (None, None) => Ok(Resume::Empty),
@@ -50,11 +57,7 @@ pub fn resume<S: ObjectStore>(
             let base = match commits.common_ancestor(local, remote)? {
                 MergeBase::Behind => return Ok(Resume::Publish { from: local }),
                 MergeBase::Base(base) => Some(base),
-                // Past what the server thinned away of the remote head's history (one commit a
-                // minute in a block's first hour), the head the replica is on was a head the
-                // server once held, which the remote one was made on: their common ancestor, as a
-                // merge base walk falls back to.
-                MergeBase::Unreached => Some(local),
+                MergeBase::Unreached => left,
                 MergeBase::Unrelated => None,
             };
             Ok(Resume::Merge {

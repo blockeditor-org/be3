@@ -263,6 +263,10 @@ impl DesktopHost for Linux {
         with(|running| std::mem::take(&mut running.lock_noticed)).unwrap_or(false)
     }
 
+    fn idle() -> bool {
+        with(|running| running.blanked).unwrap_or(false)
+    }
+
     fn set_locked(locked: bool) {
         with(|running| running.compositor.set_locked(locked));
     }

@@ -147,6 +147,7 @@ mock does not signal properties it sets, so call its `EmitSignal` after flipping
 
 `src/battery.rs` follows UPower's `OnBattery` on the system bus (its `PropertiesChanged`) and
 reports whether the device is on mains power. It is no watch: be-host's login session starts it
-and hands the answer to the block stack (`be_host_stack::set_rest`, with the screen lock as the
-person being away), whose search index compacts only at rest (guides/blocks/host.md, Search).
-Without UPower nothing is reported and the device counts as on power.
+and hands each answer to the block stack (`be_host_stack::set_rest`; the person is away while the
+screen is locked or the screens are off), whose search index compacts only at rest
+(guides/blocks/host.md, Search). The session counts as on battery until the first answer; with no
+system bus or no UPower that answer is "on power", at once.

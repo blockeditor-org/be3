@@ -44,15 +44,28 @@ fn a_search_shows_its_answer_while_it_runs_again() {
         within: None,
     };
     want_searches(Owner::Host, vec![ask.clone()]);
+    // From the first complete answer on, every answer read holds the hit.
+    let found = std::cell::Cell::new(false);
     let snippet = |shared: &Shared| {
         let answer = shared.search.answer(&ask)?;
-        assert!(
-            !answer.hits.is_empty(),
-            "the answer showed no hits: {answer:?}"
-        );
-        Some((answer.complete, answer.hits[0].snippet.clone()))
+        if found.get() {
+            assert!(
+                !answer.hits.is_empty(),
+                "the answer showed no hits: {answer:?}"
+            );
+        }
+        let first = answer.hits.first()?.snippet.clone();
+        found.set(found.get() || answer.complete);
+        Some((answer.complete, first))
     };
+    // Made here, the note is queued for its index at once: no answer is complete without it.
     crate::wait_until("found the note", |shared| {
+        if let Some(answer) = shared.search.answer(&ask) {
+            assert!(
+                !answer.complete || !answer.hits.is_empty(),
+                "a complete answer left out the note made here: {answer:?}"
+            );
+        }
         snippet(shared).filter(|(complete, _)| *complete)
     });
 

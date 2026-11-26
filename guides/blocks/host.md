@@ -809,8 +809,9 @@ index and search it locally.
   the same merges and nothing is loaded for an index no write here moved. The
   pass also waits for the device to be at rest as the host tells it
   (`be_host_stack::set_rest`, `Rest`): the person away and the device on mains
-  power. be-host's login session says away while its screen is locked and reads
-  power from UPower's `OnBattery` (`be_host_services::battery`); a host that
+  power. be-host's login session says away while its screen is locked or its
+  screens are off for want of input (`DesktopHost::idle`), and reads power from
+  UPower's `OnBattery` (`be_host_services::battery`); a host that
   cannot tell leaves both true, so the pass waits on its own idleness there.
 - **Catching up.** When this device is connected and may edit a root whose
   index is named, `start_catch_ups` asks `Peer::changed_since(root, watermark)`
