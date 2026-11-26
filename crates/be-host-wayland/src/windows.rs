@@ -367,6 +367,12 @@ impl Windows {
         }
     }
 
+    /// Lists `list` as the windows the compositor has, for a test of what reads them with no
+    /// program running.
+    pub fn list_for_testing(&self, list: Vec<WindowInfo>) {
+        self.set_list(list);
+    }
+
     pub(crate) fn set_list(&self, list: Vec<WindowInfo>) {
         let inner = self.0.value();
         if inner.list.get_untracked() != list {

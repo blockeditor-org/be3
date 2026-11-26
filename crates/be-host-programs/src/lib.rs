@@ -7,7 +7,7 @@ mod icons;
 mod mime;
 mod xpm;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 pub use entry::{DesktopEntry, locales};
@@ -101,9 +101,11 @@ impl Environment {
             })
     }
 
-    pub fn programs(&self) -> Vec<DesktopEntry> {
+    /// Every desktop entry installed, hidden or not: the first of each id in the data folders'
+    /// order, each folder's in the order of its ids.
+    pub fn entries(&self) -> Entries {
         let mut seen = HashSet::new();
-        let mut out = Vec::new();
+        let mut entries = Entries::default();
         for dir in &self.data_dirs {
             let applications = dir.join("applications");
             let mut found = Vec::new();
@@ -117,14 +119,23 @@ impl Environment {
                     continue;
                 };
                 let path = path.to_string_lossy();
-                let Some(entry) = DesktopEntry::parse(&id, &path, &text, &self.locales) else {
-                    continue;
-                };
-                if entry.shown_in(&self.desktops) && self.runs(&entry) {
-                    out.push(entry);
+                if let Some(entry) = DesktopEntry::parse(&id, &path, &text, &self.locales) {
+                    entries.push(entry);
                 }
             }
         }
+        entries
+    }
+
+    /// The programs a person may run, of the installed `entries`: those shown on this desktop
+    /// whose `TryExec` is found, by name.
+    pub fn programs_among(&self, entries: &Entries) -> Vec<DesktopEntry> {
+        let mut out: Vec<DesktopEntry> = entries
+            .all
+            .iter()
+            .filter(|entry| entry.shown_in(&self.desktops) && self.runs(entry))
+            .cloned()
+            .collect();
         out.sort_by(|a, b| {
             a.name
                 .to_lowercase()
@@ -134,60 +145,8 @@ impl Environment {
         out
     }
 
-    pub fn entry(&self, program_id: &str) -> Option<DesktopEntry> {
-        if program_id.is_empty() || program_id.contains('/') {
-            return None;
-        }
-        let id = format!("{program_id}.desktop");
-        let places = entry_places(program_id);
-        self.data_dirs.iter().find_map(|dir| {
-            let applications = dir.join("applications");
-            places.iter().find_map(|place| {
-                if !in_real_folders(&applications, place) {
-                    return None;
-                }
-                let path = applications.join(place);
-                let text = std::fs::read_to_string(&path).ok()?;
-                DesktopEntry::parse(&id, &path.to_string_lossy(), &text, &self.locales)
-            })
-        })
-    }
-
-    pub fn entry_of_window(&self, program_id: &str) -> Option<DesktopEntry> {
-        if program_id.is_empty() {
-            return None;
-        }
-        self.entry(program_id)
-            .or_else(|| self.entry(&program_id.to_lowercase()))
-            .or_else(|| self.entry_of_class(program_id))
-    }
-
-    fn entry_of_class(&self, class: &str) -> Option<DesktopEntry> {
-        let mut seen = HashSet::new();
-        for dir in &self.data_dirs {
-            let applications = dir.join("applications");
-            let mut found = Vec::new();
-            collect(&applications, &applications, &mut found);
-            found.sort();
-            for (id, path) in found {
-                if !seen.insert(id.clone()) {
-                    continue;
-                }
-                let Ok(text) = std::fs::read_to_string(&path) else {
-                    continue;
-                };
-                let entry = DesktopEntry::parse(&id, &path.to_string_lossy(), &text, &self.locales);
-                if let Some(entry) = entry
-                    && entry
-                        .startup_wm_class
-                        .as_deref()
-                        .is_some_and(|wm_class| wm_class.eq_ignore_ascii_case(class))
-                {
-                    return Some(entry);
-                }
-            }
-        }
-        None
+    pub fn programs(&self) -> Vec<DesktopEntry> {
+        self.programs_among(&self.entries())
     }
 
     fn runs(&self, entry: &DesktopEntry) -> bool {
@@ -220,47 +179,6 @@ fn executable(path: &Path) -> bool {
         .is_ok_and(|metadata| metadata.is_file() && metadata.permissions().mode() & 0o111 != 0)
 }
 
-const MOST_FOLDER_SPLITS: usize = 8;
-
-fn entry_places(program_id: &str) -> Vec<PathBuf> {
-    let parts: Vec<&str> = program_id.split('-').collect();
-    let joins = (parts.len() - 1).min(MOST_FOLDER_SPLITS);
-    (0..1usize << joins)
-        .filter_map(|folders| {
-            let mut components = vec![String::from(parts[0])];
-            for (at, part) in parts.iter().enumerate().skip(1) {
-                match at <= joins && folders & (1 << (at - 1)) != 0 {
-                    true => components.push((*part).to_owned()),
-                    false => {
-                        let last = components.last_mut()?;
-                        last.push('-');
-                        last.push_str(part);
-                    }
-                }
-            }
-            let plain = components
-                .iter()
-                .all(|component| !matches!(component.as_str(), "" | "." | ".."));
-            if !plain {
-                return None;
-            }
-            components.last_mut()?.push_str(".desktop");
-            Some(components.iter().collect())
-        })
-        .collect()
-}
-
-fn in_real_folders(root: &Path, place: &Path) -> bool {
-    let mut folder = root.to_path_buf();
-    let Some(parent) = place.parent() else {
-        return true;
-    };
-    parent.components().all(|component| {
-        folder.push(component);
-        std::fs::symlink_metadata(&folder).is_ok_and(|metadata| metadata.is_dir())
-    })
-}
-
 fn collect(root: &Path, dir: &Path, found: &mut Vec<(String, PathBuf)>) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
@@ -291,3 +209,48 @@ fn collect(root: &Path, dir: &Path, found: &mut Vec<(String, PathBuf)>) {
 
 #[cfg(test)]
 mod tests;
+
+/// The desktop entries installed (`Environment::entries`), found by the id or class a window
+/// names.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Entries {
+    all: Vec<DesktopEntry>,
+    /// Each id's entry.
+    by_id: HashMap<String, usize>,
+    /// The first entry whose `StartupWMClass` is each class, in lower case.
+    by_class: HashMap<String, usize>,
+}
+
+impl Entries {
+    fn push(&mut self, entry: DesktopEntry) {
+        let at = self.all.len();
+        self.by_id.insert(entry.id.clone(), at);
+        if let Some(class) = &entry.startup_wm_class {
+            self.by_class.entry(class.to_ascii_lowercase()).or_insert(at);
+        }
+        self.all.push(entry);
+    }
+
+    pub fn all(&self) -> &[DesktopEntry] {
+        &self.all
+    }
+
+    /// The entry with `id` (`org.example.App.desktop`; a subfolder's `kde-kate.desktop`).
+    pub fn get(&self, id: &str) -> Option<&DesktopEntry> {
+        self.by_id.get(id).map(|at| &self.all[*at])
+    }
+
+    /// The entry a window's app id or X11 class names: the entry it is the id of, as it is or
+    /// in lower case, else the first whose `StartupWMClass` it is in any case.
+    pub fn of_window(&self, program_id: &str) -> Option<&DesktopEntry> {
+        if program_id.is_empty() {
+            return None;
+        }
+        self.get(&format!("{program_id}.desktop"))
+            .or_else(|| self.get(&format!("{}.desktop", program_id.to_lowercase())))
+            .or_else(|| {
+                let at = self.by_class.get(&program_id.to_ascii_lowercase())?;
+                Some(&self.all[*at])
+            })
+    }
+}

@@ -11,15 +11,15 @@ fn a_windows_app_id_finds_its_desktop_entry() {
         "system/applications/com.github.maoschanz.drawing.desktop",
         application("Old Drawing", "drawing", "").as_bytes(),
     );
-    let environment = environment(&scratch, &["home", "system"]);
+    let entries = environment(&scratch, &["home", "system"]).entries();
     assert_eq!(
-        environment
-            .entry("com.github.maoschanz.drawing")
-            .map(|entry| entry.name),
-        Some("Drawing".to_owned()),
+        entries
+            .of_window("com.github.maoschanz.drawing")
+            .map(|entry| entry.name.as_str()),
+        Some("Drawing"),
         "the first data folder that has the entry names the program"
     );
-    assert!(environment.entry("unknown").is_none());
-    assert!(environment.entry("").is_none());
-    assert!(environment.entry("../drawing").is_none());
+    assert!(entries.of_window("unknown").is_none());
+    assert!(entries.of_window("").is_none());
+    assert!(entries.of_window("../drawing").is_none());
 }
