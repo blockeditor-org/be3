@@ -2491,21 +2491,42 @@ impl Refs {
     /// block's local head to what `moved` put in its place, in one write: what `Peer::reseal`
     /// sealed again. The head is read here, under the lock, so a commit made while the
     /// commits were sealed again stays the head.
+    /// Puts commits of `block` sealed again (`Peer::reseal`, `Peer::restamp`) in the places of
+    /// those they replace, `(sequence, was, now)` each, and moves the local head to its
+    /// replacement (`moved`), in one write. Only while the outbox holds exactly the commits of
+    /// the block that were read: a seal that landed meanwhile, on the head being replaced,
+    /// would be left on a commit that never reaches the server. False then, and nothing is
+    /// written, for the caller to read the outbox again.
     pub fn replace_publishes(
         &self,
         block: Uuid,
-        rewritten: Vec<(u64, Pending)>,
+        rewritten: Vec<(u64, CommitId, Pending)>,
         moved: &HashMap<CommitId, CommitId>,
-    ) -> Result<(), StoreError> {
+    ) -> Result<bool, StoreError> {
         let mut rows = Vec::with_capacity(rewritten.len() + 1);
         {
             let mut state = self.state.lock().unwrap();
-            for (sequence, pending) in rewritten {
+            let held: Vec<(u64, CommitId)> = state
+                .outbox
+                .iter()
+                .filter_map(|(sequence, op)| match op {
+                    Op::Publish(pending) if pending.block == block => {
+                        Some((*sequence, pending.commit))
+                    }
+                    _ => None,
+                })
+                .collect();
+            let read: Vec<(u64, CommitId)> = rewritten
+                .iter()
+                .map(|(sequence, was, _)| (*sequence, *was))
+                .collect();
+            if held != read {
+                return Ok(false);
+            }
+            for (sequence, _, pending) in rewritten {
                 let op = Op::Publish(pending);
-                if let Some(held) = state.outbox.get_mut(&sequence) {
-                    rows.push(row(Table::Outbox, sequence.to_be_bytes().to_vec(), &op));
-                    *held = op;
-                }
+                rows.push(row(Table::Outbox, sequence.to_be_bytes().to_vec(), &op));
+                state.outbox.insert(sequence, op);
             }
             if let Some(head) = state.heads.get(&block).and_then(|head| moved.get(head)) {
                 let head = *head;
@@ -2513,7 +2534,8 @@ impl Refs {
                 state.heads.insert(block, head);
             }
         }
-        self.write(rows)
+        self.write(rows)?;
+        Ok(true)
     }
 
     pub fn holds(&self, sequence: u64) -> bool {

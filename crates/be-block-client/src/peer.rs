@@ -333,9 +333,10 @@ pub enum Drained {
         block: Uuid,
         why: crate::refs::Aside,
     },
-    /// What this device sealed of the block offline was under a key its log shows outdated,
-    /// and this account may still write it: it was sealed again under a new epoch, in its
-    /// place in the outbox (`Peer::resealed_as` names what it replaced), and sent on.
+    /// What this device sealed of the block offline was sealed again, in its place in the
+    /// outbox (`Peer::resealed_as` names what it replaced), and sent on: under a new epoch, as
+    /// it was under a key its log shows outdated and this account may still write it, or with
+    /// times the server takes, as it was stamped by a clock running fast (`Peer::restamp`).
     Resealed {
         block: Uuid,
     },
