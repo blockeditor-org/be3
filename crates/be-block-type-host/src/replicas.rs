@@ -4124,7 +4124,7 @@ impl<H: Host> Replicas<H> {
             }
             // The merge names the parts it reuses, as a seal of the replica's would: the pins
             // its replica's reach holds on them can go.
-            if !matches!(saved, Saved::Rejected { .. })
+            if saved.published().is_some()
                 && let Some((_, open)) = self.replica_of(block)
             {
                 open.reach
@@ -6443,8 +6443,8 @@ impl<H: Host> Replicas<H> {
                         Err(error) => Some(Err(error)),
                     };
                     // A commit names the parts it reuses now, so their writers' pins can go.
-                    if let Some(Ok(Saved::Published(_) | Saved::Kept(_) | Saved::Unchanged(_))) =
-                        &saved
+                    if let Some(Ok(saved)) = &saved
+                        && saved.published().is_some()
                     {
                         reach
                             .lock()

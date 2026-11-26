@@ -427,3 +427,16 @@ Peers' derived views of a held edit: plans/peers_preview_held_edits.md.
   through it). Done: be-sdk hands an editor a camera in its canvas's own points (the editor
   naming its canvas, as it names its content), the host maps a child that took the frame
   from that, every canvas reads its view locally on both cores, and `local_view` is gone.
+
+## 35. Unnamed parts
+
+- **A part only a stashed commit names (low priority).** `Peer::stash` puts a
+  commit no ref holds (no head, outbox entry or journal), so
+  `Peer::collect_unnamed`'s walk (`named_among`) never reaches it. Offline, its
+  push fails and only the stash's holder names what it reuses: a `Reused` part
+  a module's writer finished, pinned in its replica's reach, is collected once
+  the replica closes, and the stash then names objects this device no longer
+  holds. Done: a be-block-client test that stashes, offline, a commit reusing a
+  part whose `Written` is then dropped, collects, and reads the stash back
+  whole, with stashed commits walked as roots (or their objects held some other
+  way).
