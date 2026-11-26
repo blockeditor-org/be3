@@ -322,7 +322,8 @@ fn growths(count: Prop<u64>) -> ReadSignal<u64> {
 }
 
 /// Counts the times the dock gives `tab` the keyboard, or brings its window forward, while the
-/// child it shows takes input (an active or live block, a dock tab's body, a program window) and
+/// child it shows takes input (an active or live block, a dock tab's body, a program window, a
+/// host panel) and
 /// no popover or keyboard-taking layer of the editor's is open: each is an ask that the child
 /// take the keyboard, which the child's placement carries (`keyboard-asks`).
 fn tab_keyboard_asks(
@@ -345,6 +346,7 @@ fn tab_keyboard_asks(
                         SubregionContent::Block(_)
                             | SubregionContent::DockTab(_)
                             | SubregionContent::Window(_)
+                            | SubregionContent::Host(_)
                     )
                 )
             })
