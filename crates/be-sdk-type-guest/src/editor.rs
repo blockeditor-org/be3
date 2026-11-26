@@ -153,6 +153,9 @@ pub struct EditorOperation {
         deserialize_with = "be_wasm_ops::wire::deserialize::<be_wasm_ops::wire::Optional<be_wasm_ops::wire::List<be_wasm_ops::wire::Bytes>>, _, _>"
     )]
     pub beneath: Option<Vec<Vec<u8>>>,
+    /// For a local edit made while a tentative layer is held: how many of the last unsettled
+    /// edits (the layer) it goes beneath, which stay on top. Zero for one made on top.
+    pub above: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -427,10 +430,21 @@ pub enum Projected<Op> {
     Rebuilt,
 }
 
+/// An edit the editor sent that the replica has not answered yet.
+struct Sent<Op> {
+    operation: Op,
+    /// The gesture it was made in.
+    gesture: Option<u64>,
+    /// Its gesture was ended by the replica (`ToEditor::GestureEnded`, cancelled) before it was
+    /// answered: the replica drops it, unanswered, so it no longer shows. It still counts in a
+    /// snapshot's `applied`, so it stays here until the replica's next answer passes it.
+    voided: bool,
+}
+
 pub struct EditorMirror<C: LiveEdit> {
     confirmed: Option<Settling<C>>,
     visible: C,
-    pending: VecDeque<C::Op>,
+    pending: VecDeque<Sent<C::Op>>,
     acknowledged: u64,
     resyncing: bool,
     touched: Vec<Touched>,
@@ -721,7 +735,20 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
     }
 
     pub fn pending(&self) -> usize {
-        self.pending.len()
+        self.pending.iter().filter(|sent| !sent.voided).count()
+    }
+
+    /// Takes the answer to the oldest edit sent that the replica took, letting go of those
+    /// before it that it dropped: whether that edit was `operation`.
+    fn answered(&mut self, operation: &[u8]) -> bool {
+        while self.pending.front().is_some_and(|sent| sent.voided) {
+            self.pending.pop_front();
+            self.acknowledged += 1;
+        }
+        self.acknowledged += 1;
+        self.pending
+            .pop_front()
+            .is_some_and(|sent| C::encode_operation(&sent.operation) == operation)
     }
 
     /// The edits made on this device that the server lacks (`ToEditor::Lacking`), each with its
@@ -771,7 +798,11 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
             gesture,
             operation: C::encode_operation(&operation),
         };
-        self.pending.push_back(operation);
+        self.pending.push_back(Sent {
+            operation,
+            gesture,
+            voided: false,
+        });
         Some(message)
     }
 
@@ -945,7 +976,23 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
                 })
             }
             ToEditor::GestureEnded { id, cancelled } => {
-                if !cancelled || !self.gesturing.remove(&id) {
+                if !cancelled {
+                    return None;
+                }
+                // What it sent in the gesture and was not answered before this is dropped by
+                // the replica unanswered (it answers what it took before ending the gesture
+                // first), so it stops showing now.
+                let mut dropped = false;
+                for sent in &mut self.pending {
+                    if sent.gesture == Some(id) && !sent.voided {
+                        sent.voided = true;
+                        dropped = true;
+                    }
+                }
+                if dropped {
+                    self.rebuild();
+                }
+                if !self.gesturing.remove(&id) {
                     return None;
                 }
                 self.voided.insert(id);
@@ -1010,7 +1057,10 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
                 &operation,
                 landed.unsettled,
                 local,
-                self.pending.iter().cloned(),
+                self.pending
+                    .iter()
+                    .filter(|sent| !sent.voided)
+                    .map(|sent| sent.operation.clone()),
                 &mut self.touched,
             );
             if landed {
@@ -1018,21 +1068,34 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
             }
             return landed;
         }
+        if landed.above > 0 {
+            // Made beneath a held tentative layer, which stays on top.
+            if landed.mine {
+                self.answered(&landed.operation);
+            }
+            let Some(confirmed) = self.confirmed.as_mut() else {
+                return false;
+            };
+            if !confirmed.under(operation, landed.unsettled, landed.above) {
+                return false;
+            }
+            self.rebuild();
+            return true;
+        }
         if landed.mine {
             // The replica may have taken it otherwise than it went (carried over a reload this
             // editor had not been shown, `FromEditor::Shown`): what it shows is then rebuilt.
-            let taken_as_sent = self
-                .pending
-                .pop_front()
-                .is_some_and(|sent| C::encode_operation(&sent) == landed.operation);
-            self.acknowledged += 1;
+            let taken_as_sent = self.answered(&landed.operation);
+            let Some(confirmed) = self.confirmed.as_mut() else {
+                return false;
+            };
             confirmed.push(operation, landed.unsettled);
             if !taken_as_sent {
                 self.rebuild();
             }
             return true;
         }
-        if self.pending.is_empty() {
+        if self.pending.iter().all(|sent| sent.voided) {
             self.visible.apply_touching(&operation, &mut self.touched);
             confirmed.push(operation.clone(), landed.unsettled);
             self.changed(Projected::Applied(operation));
@@ -1045,7 +1108,10 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
                 &operation,
                 0,
                 Vec::new(),
-                self.pending.iter().cloned(),
+                self.pending
+                    .iter()
+                    .filter(|sent| !sent.voided)
+                    .map(|sent| sent.operation.clone()),
                 &mut self.touched,
             );
             self.changed(Projected::Rebuilt);
@@ -1061,8 +1127,8 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
             return;
         };
         let mut visible = confirmed.visible();
-        for operation in &self.pending {
-            visible.apply(operation);
+        for sent in self.pending.iter().filter(|sent| !sent.voided) {
+            visible.apply(&sent.operation);
         }
         self.visible = visible;
         self.touched.push(Touched::Everything);
