@@ -1,9 +1,9 @@
 //! Pipelines: what one is made of, looked up when it is asked for, and made at once
-//! (`create-*-pipeline`) or, for `create-*-pipeline-async`, off the app's thread natively,
-//! settled through the poll once made. A browser has no threads for it (the shim makes it at
-//! once, settled at the next poll).
+//! (`create-*-pipeline`) or, for `create-*-pipeline-async`, natively on one of a few threads of
+//! the app's own, settled through the poll once made. A browser has no threads for it (the shim
+//! makes it at once, settled at the next poll).
 
-use std::sync::mpsc;
+use std::sync::{Arc, mpsc};
 
 use be_wasm_gpu_abi::webgpu::webgpu as web;
 use be_wasm_gpu_convert::Convert;
@@ -224,32 +224,127 @@ pub(crate) type Settle = Box<dyn FnOnce(Result<u32, web::CreatePipelineError>) -
 /// A pipeline being made for an app device's promise.
 pub(crate) struct Making {
     pub(super) ticket: u32,
+    id: u64,
     device: u32,
     label: Option<String>,
-    made: mpsc::Receiver<Answer>,
     settle: Settle,
+    /// Held while the promise waits: a job whose `Making` is gone (its ticket was dropped, or
+    /// the app stopped) is not made, and wakes nobody.
+    _waiting: Arc<()>,
+}
+
+/// An app's async pipelines: those being made, and the answers of those made, in the order
+/// they were made.
+pub(crate) struct Pipelines {
+    pub(super) making: Vec<Making>,
+    answered: mpsc::Sender<(u64, Answer)>,
+    answers: mpsc::Receiver<(u64, Answer)>,
+    count: u64,
+    #[cfg(not(target_arch = "wasm32"))]
+    workers: Workers,
+}
+
+impl Default for Pipelines {
+    fn default() -> Self {
+        let (answered, answers) = mpsc::channel();
+        Self {
+            making: Vec::new(),
+            answered,
+            answers,
+            count: 0,
+            #[cfg(not(target_arch = "wasm32"))]
+            workers: Workers::default(),
+        }
+    }
+}
+
+/// How many threads make an app's pipelines at most: an app that asks for thousands at once
+/// waits for them in turn rather than taking the host's cores or its threads.
+#[cfg(not(target_arch = "wasm32"))]
+const WORKERS: usize = 2;
+
+#[cfg(not(target_arch = "wasm32"))]
+type Task = Box<dyn FnOnce() + Send>;
+
+/// The threads making an app's pipelines, started with its first async pipeline. They stop
+/// once the app's `Gpu` is dropped, which lets go of `queue`, after the job each is making.
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Default)]
+struct Workers {
+    queue: Option<mpsc::Sender<Task>>,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl Workers {
+    fn run(&mut self, task: Task) -> Result<(), String> {
+        if self.queue.is_none() {
+            let (queue, tasks) = mpsc::channel::<Task>();
+            let tasks = Arc::new(std::sync::Mutex::new(tasks));
+            let count = std::thread::available_parallelism().map_or(1, |count| count.get().min(WORKERS));
+            let started = (0..count)
+                .filter(|_| {
+                    let tasks = Arc::clone(&tasks);
+                    std::thread::Builder::new()
+                        .name("app pipelines".to_owned())
+                        .spawn(move || {
+                            loop {
+                                // The lock is let go of before the task runs.
+                                let task = tasks
+                                    .lock()
+                                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                                    .recv();
+                                match task {
+                                    Ok(task) => task(),
+                                    Err(_) => return,
+                                }
+                            }
+                        })
+                        .is_ok()
+                })
+                .count();
+            if started == 0 {
+                return Err("no thread could be started to make the pipeline".to_owned());
+            }
+            self.queue = Some(queue);
+        }
+        self.queue
+            .as_ref()
+            .map_or(Err(()), |queue| queue.send(task).map_err(|_| ()))
+            .map_err(|()| "the threads making pipelines stopped".to_owned())
+    }
 }
 
 impl Job {
     /// Makes the pipeline inside scopes of its own, which on a native device are the making
-    /// thread's alone, so they catch only what this pipeline got wrong.
+    /// thread's alone, so they catch only what this pipeline got wrong, and nothing it gets
+    /// wrong reaches the device's uncaptured errors. A panic in making it is contained, and
+    /// answered as an internal error.
     fn made(self, device: &wgpu::Device) -> Answer {
-        let scopes: Vec<wgpu::ErrorScopeGuard> =
-            [wgpu::ErrorFilter::Validation, wgpu::ErrorFilter::Internal]
-                .into_iter()
-                .map(|filter| device.push_error_scope(filter))
-                .collect();
+        be_wasm_panic::contain(|| self.made_in_scopes(device)).unwrap_or_else(|panic| {
+            Err((
+                web::GpuPipelineErrorReason::Internal,
+                format!("making the pipeline panicked: {panic}"),
+            ))
+        })
+    }
+
+    fn made_in_scopes(self, device: &wgpu::Device) -> Answer {
+        let filters = [
+            (wgpu::ErrorFilter::Validation, web::GpuPipelineErrorReason::Validation),
+            (wgpu::ErrorFilter::OutOfMemory, web::GpuPipelineErrorReason::Internal),
+            (wgpu::ErrorFilter::Internal, web::GpuPipelineErrorReason::Internal),
+        ];
+        let scopes: Vec<(wgpu::ErrorScopeGuard, web::GpuPipelineErrorReason)> = filters
+            .into_iter()
+            .map(|(filter, reason)| (device.push_error_scope(filter), reason))
+            .collect();
         let made = match self {
             Job::Render(parts) => parts.make(device).map(Made::Render),
             Job::Compute(parts) => parts.make(device).map(Made::Compute),
         };
-        // Popped innermost first: an internal error before a validation one.
-        let reasons = [
-            web::GpuPipelineErrorReason::Internal,
-            web::GpuPipelineErrorReason::Validation,
-        ];
+        // Popped innermost first; an internal error is told before a validation one.
         let mut caught = None;
-        for (scope, reason) in scopes.into_iter().rev().zip(reasons) {
+        for (scope, reason) in scopes.into_iter().rev() {
             if let Some(message) = crate::caught(scope.pop()) {
                 caught.get_or_insert((reason, message));
             }
@@ -270,8 +365,8 @@ fn refused(reason: web::GpuPipelineErrorReason, message: String) -> web::CreateP
 }
 
 impl Gpu {
-    /// Makes `job`'s pipeline for `device`'s promise: on a thread of its own natively, settled
-    /// by the poll once made (the thread wakes the app); at once in a browser.
+    /// Makes `job`'s pipeline for `device`'s promise: natively on one of the app's pipeline
+    /// threads, settled by the poll once made (the thread wakes the app); at once in a browser.
     pub(super) fn compile(
         &mut self,
         device: u32,
@@ -281,7 +376,10 @@ impl Gpu {
     ) {
         let job = match job {
             _ if self.device_lost(device) => {
-                let lost = refused(web::GpuPipelineErrorReason::Internal, "the device is lost".to_owned());
+                let lost = refused(
+                    web::GpuPipelineErrorReason::Internal,
+                    "the device is lost".to_owned(),
+                );
                 self.web.settled.push(settle(Err(lost)));
                 return self.settling.wake();
             }
@@ -292,58 +390,67 @@ impl Gpu {
                 return self.settling.wake();
             }
         };
-        let (answer, made) = mpsc::channel();
+        let pipelines = &mut self.web.pipelines;
+        pipelines.count += 1;
+        let id = pipelines.count;
+        let answered = pipelines.answered.clone();
+        let waiting = Arc::new(());
         #[cfg(not(target_arch = "wasm32"))]
         {
             let gpu = self.device.clone();
             let waker = self.settling.waker();
-            let spawned = std::thread::Builder::new()
-                .name("pipeline".to_owned())
-                .spawn(move || {
-                    let _ = answer.send(job.made(&gpu));
+            let alive = Arc::downgrade(&waiting);
+            let run = pipelines.workers.run(Box::new(move || {
+                if alive.strong_count() == 0 {
+                    return;
+                }
+                let answer = job.made(&gpu);
+                drop(gpu);
+                if alive.strong_count() > 0 && answered.send((id, answer)).is_ok() {
                     waker.wake();
-                });
-            if let Err(error) = spawned {
-                let refusal = refused(
-                    web::GpuPipelineErrorReason::Internal,
-                    format!("no thread could make the pipeline: {error}"),
-                );
+                }
+            }));
+            if let Err(message) = run {
+                let refusal = refused(web::GpuPipelineErrorReason::Internal, message);
                 self.web.settled.push(settle(Err(refusal)));
                 return self.settling.wake();
             }
         }
         #[cfg(target_arch = "wasm32")]
         {
-            let _ = answer.send(job.made(&self.device));
+            let _ = answered.send((id, job.made_in_scopes(&self.device)));
             self.settling.wake();
         }
-        self.web.making.push(Making {
+        self.web.pipelines.making.push(Making {
             ticket,
+            id,
             device,
             label,
-            made,
             settle,
+            _waiting: waiting,
         });
     }
 
-    /// Settles the pipelines made since the last poll; with `wait`, blocks until one is, when
-    /// any is being made.
+    /// Settles every pipeline made since the last poll; with `wait`, when none was and one is
+    /// being made, first blocks until one is.
     pub(super) fn settle_pipelines(&mut self, wait: bool) {
-        if wait && let Some(first) = self.web.making.first() {
-            let answer = first.made.recv().map_err(|_| ());
-            let making = self.web.making.remove(0);
-            self.settle_pipeline(making, answer);
+        let mut answers: Vec<(u64, Answer)> = self.web.pipelines.answers.try_iter().collect();
+        if wait && answers.is_empty() && !self.web.pipelines.making.is_empty() {
+            // Every job being made answers, or panics and answers so: the wait ends.
+            answers.extend(self.web.pipelines.answers.recv().ok());
+            answers.extend(self.web.pipelines.answers.try_iter());
         }
-        for making in std::mem::take(&mut self.web.making) {
-            match making.made.try_recv() {
-                Ok(answer) => self.settle_pipeline(making, Ok(answer)),
-                Err(mpsc::TryRecvError::Empty) => self.web.making.push(making),
-                Err(mpsc::TryRecvError::Disconnected) => self.settle_pipeline(making, Err(())),
+        for (id, answer) in answers {
+            let making = &mut self.web.pipelines.making;
+            // A dropped ticket's pipeline may still answer; it is let go of.
+            if let Some(at) = making.iter().position(|making| making.id == id) {
+                let making = making.remove(at);
+                self.settle_pipeline(making, answer);
             }
         }
     }
 
-    fn settle_pipeline(&mut self, making: Making, answer: Result<Answer, ()>) {
+    fn settle_pipeline(&mut self, making: Making, answer: Answer) {
         let Making {
             device,
             label,
@@ -355,17 +462,13 @@ impl Gpu {
                 web::GpuPipelineErrorReason::Internal,
                 "the device is lost".to_owned(),
             )),
-            Err(()) => Err(refused(
-                web::GpuPipelineErrorReason::Internal,
-                "the thread making the pipeline stopped".to_owned(),
-            )),
-            Ok(Err((reason, message))) => Err(refused(reason, message)),
-            Ok(Ok(Made::Render(pipeline))) => {
+            Err((reason, message)) => Err(refused(reason, message)),
+            Ok(Made::Render(pipeline)) => {
                 let handle = self.pipelines.insert(pipeline);
                 self.own(Kind::RenderPipeline, handle, Some(device), label.as_deref());
                 Ok(handle)
             }
-            Ok(Ok(Made::Compute(pipeline))) => {
+            Ok(Made::Compute(pipeline)) => {
                 let handle = self.compute_pipelines.insert(pipeline);
                 self.own(Kind::ComputePipeline, handle, Some(device), label.as_deref());
                 Ok(handle)
