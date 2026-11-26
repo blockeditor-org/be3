@@ -2,11 +2,12 @@
 
 use super::*;
 use be_sdk_api::HostPanel;
+use beui::{Placement, ScrollPosition, Vec2};
 use beui::icons::{
-    ICON_ARCHIVE_RESTORE, ICON_ARROW_LEFT_RIGHT, ICON_BOT, ICON_CLOUD_ALERT, ICON_CLOUD_CHECK,
-    ICON_CLOUD_OFF, ICON_CLOUD_SYNC, ICON_CONTACT, ICON_GAUGE, ICON_KEY, ICON_LAYERS,
-    ICON_LAYOUT_PANEL_LEFT, ICON_LINK, ICON_MAIL, ICON_PUZZLE, ICON_RADIO_TOWER, ICON_SHIELD_ALERT,
-    ICON_USER_COG, ICON_USER_PLUS, ICON_USERS,
+    ICON_ARCHIVE_RESTORE, ICON_ARROW_LEFT_RIGHT, ICON_BOT, ICON_BUG, ICON_CLOUD_ALERT,
+    ICON_CLOUD_CHECK, ICON_CLOUD_OFF, ICON_CLOUD_SYNC, ICON_CONTACT, ICON_GAUGE, ICON_INFO,
+    ICON_KEY, ICON_LAYERS, ICON_LAYOUT_PANEL_LEFT, ICON_LINK, ICON_MAIL, ICON_POWER, ICON_PUZZLE,
+    ICON_RADIO_TOWER, ICON_SHIELD_ALERT, ICON_USER_COG, ICON_USER_PLUS, ICON_USERS,
 };
 
 /// Where the root's menu is hit, in its surface's pixels: its button at the window's top
@@ -67,13 +68,30 @@ fn sync_glyph(sync: &SyncState) -> Glyph {
     }
 }
 
+/// How the root's menu shows: behind its button, or as the host menu panel an editor places
+/// (`HostPanel::Menu`), which says what it wants of its place.
+#[derive(Clone, Copy)]
+pub(super) enum MenuShape {
+    /// Behind its own button, at the window's top right.
+    Button,
+    /// Its rows laid out in its place, a popover's: the size they want goes to `wants`, and a
+    /// pick or Escape to `done`, which closes it.
+    Rows {
+        wants: Callback<Vec2>,
+        done: Callback<()>,
+    },
+    /// A sheet it draws itself over its place, rising from the bottom, as be-host's own does on
+    /// a phone: a pick, Escape or a swipe down goes to `done`.
+    Sheet { done: Callback<()> },
+}
+
 /// The root's menu, as be-host's own organization menu shows it: how its changes sync; its
 /// unsent edits while there are some; why the escrow key is not trusted yet, while it is not;
 /// the blocks it keeps hosting, each to stop; contacts and opening a share link; inviting a
 /// member to a company's organization, and its members and invitations for an administrator;
-/// agents, sessions, switching organization or account, and a new recovery phrase; and every
-/// host panel. be-host's About, Close and its inspector are be-host's own until it hands them
-/// over (plans/host_as_platform_adapter.md, 4g7g).
+/// agents, sessions, switching organization or account, and a new recovery phrase; About, and
+/// Close be-host where the host can close; every host panel, and the host's inspector. Each row
+/// has be-host's test id.
 #[component]
 pub(super) fn HostMenu(
     core: Signal<CoreView>,
@@ -82,11 +100,25 @@ pub(super) fn HostMenu(
     /// Shows one of the host's panels, as be-host's menu does: in the session's editor, which
     /// places it, and the root draws it there.
     panel: Callback<HostPanel>,
-    /// Its rows laid out in place, as the host menu panel an editor places shows them
-    /// (`HostPanel::Menu`), rather than behind its button.
-    #[prop(default = false)]
-    rows: bool,
+    shape: MenuShape,
 ) -> NodeId {
+    let done = match shape {
+        MenuShape::Button => Callback::empty(),
+        MenuShape::Rows { done, .. } | MenuShape::Sheet { done } => done,
+    };
+    // A pick closes the panel it was made in, as be-host's does.
+    let want = Callback::new(move |asking: Asking| {
+        want.call(asking);
+        done.call(());
+    });
+    let panel = Callback::new(move |shown: HostPanel| {
+        panel.call(shown);
+        done.call(());
+    });
+    let command = move |command: CoreCommand| {
+        ask_core(command);
+        done.call(());
+    };
     let sync = create_memo(move || saving.with(|saving| saving.sync.clone()));
     let sync_label = create_memo(move || sync.with(sync_label).to_owned());
     let sync_detail = create_memo(move || sync.with(sync_detail));
@@ -112,6 +144,7 @@ pub(super) fn HostMenu(
     });
     let company = create_memo(move || core.with(|view| view.company));
     let administrator = create_memo(move || core.with(|view| view.administrator));
+    let can_close = create_memo(move || core.with(|view| view.can_close));
     let escrow_warning =
         create_memo(move || core.with(|view| view.escrow_warning.clone().unwrap_or_default()));
     let warned = create_memo(move || !escrow_warning.with(String::is_empty));
@@ -154,7 +187,7 @@ pub(super) fn HostMenu(
                     true => "Hosting here now".to_owned(),
                     false => "Kept here, standing by".to_owned(),
                 })}
-                on_click={move || ask_core(CoreCommand::StopHosting(kept.with_untracked(|kept| kept.block)))}
+                on_click={move || command(CoreCommand::StopHosting(kept.with_untracked(|kept| kept.block)))}
             />
         </ForEach>
         <MenuItem
@@ -203,19 +236,19 @@ pub(super) fn HostMenu(
             @test_id={"host.menu.switch-session".to_owned()}
             label="Sessions and profiles"
             glyph=ICON_LAYOUT_PANEL_LEFT
-            on_click={|| ask_core(CoreCommand::ChooseSession)}
+            on_click={move || command(CoreCommand::ChooseSession)}
         />
         <MenuItem
             @test_id={"host.menu.switch-organization".to_owned()}
             label="Switch organization"
             glyph=ICON_ARROW_LEFT_RIGHT
-            on_click={|| ask_core(CoreCommand::SwitchOrganization)}
+            on_click={move || command(CoreCommand::SwitchOrganization)}
         />
         <MenuItem
             @test_id={"host.menu.recovery-phrase".to_owned()}
             label="New recovery phrase"
             glyph=ICON_KEY
-            on_click={|| ask_core(CoreCommand::NewRecoveryPhrase)}
+            on_click={move || command(CoreCommand::NewRecoveryPhrase)}
         />
         <MenuItem
             @test_id={"host.menu.accounts".to_owned()}
@@ -223,8 +256,22 @@ pub(super) fn HostMenu(
             glyph=ICON_USER_COG
             detail={signed_in_as}
             disabled={unsaved}
-            on_click={|| ask_core(CoreCommand::SwitchAccount)}
+            on_click={move || command(CoreCommand::SwitchAccount)}
         />
+        <MenuItem
+            @test_id={"host.menu.about".to_owned()}
+            label="About"
+            glyph=ICON_INFO
+            on_click={move || want.call(Asking::About)}
+        />
+        <Show value={can_close}>
+            <MenuItem
+                @test_id={"host.menu.close".to_owned()}
+                label="Close be-host"
+                glyph=ICON_POWER
+                on_click={move || command(CoreCommand::Close)}
+            />
+        </Show>
         <ForEach value={HostPanel::ALL.to_vec()}>|shown: HostPanel|
             <MenuItem
                 @test_id={format!("host.menu.panel.{shown:?}")}
@@ -234,17 +281,81 @@ pub(super) fn HostMenu(
                 on_click={move || panel.call(shown)}
             />
         </ForEach>
+        <MenuItem
+            @test_id={"host.menu.inspector".to_owned()}
+            label="Inspector"
+            glyph=ICON_BUG
+            on_click={move || command(CoreCommand::OpenInspector)}
+        />
     };
-    if rows {
-        return view! {
-            <MenuRows items={items} on_scroll={Callback::empty()} />
-        };
-    }
-    view! {
-        <Frame width=Length::FILL padding=Space::Sm>
-            <List direction=Direction::Horizontal spacing=Space::None justify=Justify::End>
-                <MenuButton label="Menu" glyph=ICON_MENU icon_only=true arrow=false items={items} />
-            </List>
-        </Frame>
+    match shape {
+        MenuShape::Button => view! {
+            <Frame width=Length::FILL padding=Space::Sm>
+                <List direction=Direction::Horizontal spacing=Space::None justify=Justify::End>
+                    <MenuButton
+                        label="Menu"
+                        glyph=ICON_MENU
+                        icon_only=true
+                        arrow=false
+                        items={items}
+                    />
+                </List>
+            </Frame>
+        },
+        MenuShape::Sheet { done } => view! {
+            <MenuPopup
+                items
+                anchor={OverlayAnchor::Point(Pos2::ZERO)}
+                placement=Placement::Fill
+                open={Binding::new(true, move |open: bool| {
+                    if !open {
+                        done.call(());
+                    }
+                })}
+                sheet=true
+            />
+        },
+        MenuShape::Rows { wants, done } => {
+            // The popover starts at a size of its own and grows to what the rows want, which
+            // they measure against what that start gave them: that plus what their scroll holds
+            // beyond its viewport, as be-host's own menu panel reports it. Only a window too
+            // short for them scrolls, in the menu's own scroll.
+            let scrolled = create_signal(ScrollPosition::ZERO);
+            let rows = view! {
+                <MenuRows active=true items on_scroll={move |position| scrolled.set(position)} />
+            };
+            let held = NodeRef::new();
+            held.fill(rows);
+            on_key(
+                KeyAt::Node(held),
+                KeyPhase::Bubble,
+                KeyReveal::Focus,
+                move |event| {
+                    let escaped = event
+                        .press()
+                        .is_some_and(|press| press.pressed && press.key == Key::Escape);
+                    if escaped {
+                        done.call(());
+                    }
+                    escaped
+                },
+            );
+            let measured = measure(rows);
+            // One memo of both, so the popover hears one size per change of either.
+            let wanted = create_memo(move || {
+                let measured = measured.get()?;
+                let beyond =
+                    scrolled.with(|scrolled| (scrolled.content - scrolled.viewport).max(0.0));
+                Some(measured.rect.size() + vec2(0.0, beyond))
+            });
+            create_effect(move || {
+                if let Some(size) = wanted.get() {
+                    wants.call(size);
+                }
+            });
+            view! {
+                <Frame align={Align2::START}>{rows}</Frame>
+            }
+        }
     }
 }

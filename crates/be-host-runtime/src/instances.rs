@@ -120,6 +120,9 @@ pub(super) struct Instances {
     mailed: Vec<Outbound>,
     published: Published,
     shell: Option<EditorInstanceId>,
+    /// Whether the shell said it lays out as on a phone (`set-phone-layout`), as a root's host
+    /// hears it of the root's shell (`Forwarded::phone_layout`).
+    phone_layout: bool,
     waiting: HashMap<EditorInstanceId, Vec<Outbound>>,
     gone: HashSet<EditorInstanceId>,
     serial: u64,
@@ -4469,7 +4472,13 @@ impl Instances {
             return false;
         }
         self.shell = shell;
+        self.phone_layout = false;
         true
+    }
+
+    /// Whether the shell said it lays out as on a phone.
+    pub(super) fn phone_layout(&self) -> bool {
+        self.phone_layout
     }
 
     pub(super) fn set_focus(&mut self, focus: Focus) -> bool {

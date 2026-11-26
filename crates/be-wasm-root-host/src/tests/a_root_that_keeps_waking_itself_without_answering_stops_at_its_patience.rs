@@ -11,6 +11,7 @@ fn a_root_that_keeps_waking_itself_without_answering_stops_at_its_patience() {
             utc_offset: 0,
             window: window(),
             describe: false,
+            phone: false,
         },
         Instant::now(),
     );
@@ -26,6 +27,7 @@ fn a_root_that_keeps_waking_itself_without_answering_stops_at_its_patience() {
                 utc_offset: 0,
                 window: window(),
                 describe: false,
+                phone: false,
             },
             Instant::now() + PATIENT
         )

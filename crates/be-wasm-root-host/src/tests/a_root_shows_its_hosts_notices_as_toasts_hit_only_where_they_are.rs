@@ -184,6 +184,7 @@ fn draw(root: &mut Root, time: u64) -> FrameDone {
             utc_offset: 0,
             window: window(),
             describe: false,
+            phone: false,
         },
         Instant::now() + PATIENT,
     )

@@ -2093,6 +2093,8 @@ pub fn set_clock(now: Duration, wall: Duration, utc_offset: i32) {
 thread_local! {
     /// Whether the root's host asks for the root's accessibility tree (`set_describing`).
     static DESCRIBING: Cell<bool> = const { Cell::new(false) };
+    /// Whether the root's shell lays out as on a phone (`set_phone`).
+    static PHONE: Cell<bool> = const { Cell::new(false) };
     /// The next document a grafted tree's nodes are numbered in (`next_document`).
     static NEXT_DOCUMENT: Cell<u32> = const { Cell::new(1) };
 }
@@ -2107,6 +2109,18 @@ pub fn set_describing(describing: bool) {
 /// Whether the root's host asks for its accessibility tree (`set_describing`).
 pub fn describing() -> bool {
     DESCRIBING.get()
+}
+
+/// Takes whether the root's shell said it lays out as on a phone, as its frame request says
+/// (`frame-request.phone`): every frame the root asks of the apps it embeds says it
+/// (`FrameSpec::phone`), as be-host's frames say it to its own.
+pub fn set_phone(phone: bool) {
+    PHONE.set(phone);
+}
+
+/// Whether the root's shell lays out as on a phone (`set_phone`).
+pub fn phone() -> bool {
+    PHONE.get()
 }
 
 /// A document of its own for a tree the root grafts into its own: no two share one, and none is

@@ -11,6 +11,7 @@ fn a_root_names_what_its_child_presented_only_by_handle() {
                 utc_offset: 0,
                 window: window(),
                 describe: false,
+                phone: false,
             },
             Instant::now() + PATIENT,
         )

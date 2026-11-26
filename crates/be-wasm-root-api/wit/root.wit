@@ -846,6 +846,19 @@ interface host {
         /// organization's blocks are open: the root shows its editor
         /// (`editor-of`), filling the window under its own UI.
         showing: option<block-id>,
+        /// What the host is, as its About says it.
+        about: about-host,
+        /// Whether the person can close the host from its menu (`close`), as
+        /// they can but in a browser, which closes its tab instead.
+        can-close: bool,
+    }
+
+    /// What the host is, as its About says it.
+    record about-host {
+        /// Its version.
+        version: string,
+        /// The build it was made from.
+        build: string,
     }
 
     /// The server a build signs in to unless the person names another.
@@ -1014,6 +1027,12 @@ interface host {
         delete-client-database,
         /// Quit, after it failed.
         exit,
+        /// Close the host, as its menu's Close be-host does: it asks about
+        /// changes not saved yet first, as it does when its window closes.
+        close,
+        /// Open the host's inspector over its window, as its menu's Inspector
+        /// does.
+        open-inspector,
     }
 
     /// The person asked `command` of the block stack, which the host does. It
@@ -1136,6 +1155,10 @@ interface host {
         /// Whether it opens as a sheet, laid out for touch, as be-host opens a dialog placed in
         /// a view anchored to an edge of its owner's (a phone's sheet).
         sheet: bool,
+        /// For a host panel the root draws, whether it is done with: a pick from the host's
+        /// menu, or Escape in it, which the host tells its placer as the dialog's answer
+        /// (`child-status.dialog`), as be-host tells it of its own panel.
+        done: bool,
     }
 
     /// An editor the host opened in an app the root spawned.
@@ -1387,6 +1410,11 @@ interface frames {
         /// name) asks it to: the root then answers it (`frame-done`'s
         /// `accessibility`), and asks the apps it embeds to describe theirs.
         describe: bool,
+        /// Whether the root's shell, the session's own editor, said it lays out
+        /// as on a phone (`set-phone-layout`): the root tells every app it
+        /// embeds with its frame (`frame-spec.phone`), as be-host tells its
+        /// own.
+        phone: bool,
     }
 
     /// A window's size, in points, and the pixels a point is drawn at: a
