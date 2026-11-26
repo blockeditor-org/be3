@@ -274,6 +274,12 @@ pub struct Written {
     _pins: Option<Pins>,
 }
 
+impl std::fmt::Debug for Written {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_tuple("Written").field(&self.part).finish()
+    }
+}
+
 impl Written {
     /// The part, or None when no byte was written.
     pub fn part(&self) -> Option<PartRef> {
