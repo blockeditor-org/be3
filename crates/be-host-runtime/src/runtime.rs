@@ -1840,17 +1840,27 @@ fn place_every_offer(host: &mut Host) {
 
 /// With a driven host's clock stopped, waits until every app's steps on what the host sent
 /// it have finished, up to `STOPPED_CLOCK_FRAME_BUDGET`, so what the poll takes in, and so
-/// which frame shows it, never depends on how fast an app's thread ran (guides/apps/runtime.md,
-/// Frames and pacing).
+/// which frame shows it, does not depend on how fast an app's thread ran (guides/apps/runtime.md,
+/// Frames and pacing). Logs the apps it waited on when it gives up.
 fn finish_steps(runtimes: &mut HashMap<String, Runtime>) {
     let deadline = Deadline::at(Instant::now() + pacing::STOPPED_CLOCK_FRAME_BUDGET);
     loop {
         let rung = be_wasm_guest_host::bell::rung();
-        let mut finished = true;
-        for runtime in runtimes.values_mut() {
-            finished &= runtime.error.is_some() || runtime.backend.steps_finished();
+        let mut stepping = Vec::new();
+        for (app_id, runtime) in runtimes.iter_mut() {
+            if runtime.error.is_none() && !runtime.backend.steps_finished() {
+                stepping.push(app_id.as_str());
+            }
         }
-        if finished || !be_wasm_guest_host::bell::wait(rung, deadline) {
+        if stepping.is_empty() {
+            return;
+        }
+        if !be_wasm_guest_host::bell::wait(rung, deadline) {
+            eprintln!(
+                "be-host: a stopped clock's poll went on after {} s with apps still stepping: {}",
+                pacing::STOPPED_CLOCK_FRAME_BUDGET.as_secs(),
+                stepping.join(", ")
+            );
             return;
         }
     }

@@ -40,9 +40,7 @@ fn a_stopped_clocks_frame_waits_for_no_command_held_for_the_server() {
     );
 
     harness.relay().cut();
-    wait_until("saved the version once reconnected", |shared| {
-        shared.connected
-            && version_status(shared, versioned.checkout)
-                .is_some_and(|status| !status.busy && status.log.len() == 2)
+    wait_until("finished the version once reconnected", |shared| {
+        shared.connected && settled(shared, versioned.checkout)
     });
 }
