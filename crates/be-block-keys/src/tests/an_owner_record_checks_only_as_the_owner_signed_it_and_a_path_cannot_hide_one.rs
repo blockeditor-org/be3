@@ -207,7 +207,7 @@ fn an_owner_record_checks_only_as_the_owner_signed_it_and_a_path_cannot_hide_one
     assert_eq!(hidden.manager(LogKind::Block, creator_id), None);
 
     // An honest path proves the offer and its acceptance whole to any reader.
-    let served = proof_path(LogKind::Block, &log, other_id, []);
+    let served = proof_path(LogKind::Block, &log, other_id, [], false);
     assert!(
         matches!(served[1], Step::Entry(_)) && matches!(served[2], Step::Entry(_)),
         "a path reduces an owner record"

@@ -29,7 +29,7 @@ fn a_path_keeps_whole_only_the_invitations_its_members_came_by() {
         ));
     };
     let whole_invitations = |log: &[Entry]| {
-        let path = proof_path(LogKind::Organization, log, reader_id, []);
+        let path = proof_path(LogKind::Organization, log, reader_id, [], false);
         check_log(LogKind::Organization, organization, pinned, &path, &none)
             .expect("the path checks");
         path.iter()

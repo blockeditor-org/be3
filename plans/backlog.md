@@ -530,25 +530,6 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
 
 Peers' derived views of a held edit: plans/peers_preview_held_edits.md.
 
-## 26. Server protocol
-
-- **A partial upper log as authority.** `be_block_keys::answer` still accepts
-  a partial upper log as authority within a single check; only the kept
-  states as of a head (`Logs::checked_as_of`) refuse partial results. Done:
-  `answer` refuses authority from a partial log too, with a be-block-keys test
-  where a record whose authority rests on a partial upper log is refused.
-
-- **Access logs: `Checked::positions` keeps every entry's hash.** A device and
-  the server check each entry of a log once, but the state they keep of a
-  checked log (`Checked::positions`, and `KeptLog::checked` with it) grows by
-  an entry's hash for each entry, since epochs name their heads by hash and
-  `holds`, `current_at` and `outdates` look any of them up. Keeping only the
-  entries since the last lowering does not bound it: a log of grants alone
-  never lowers. Bounding it needs epochs to name a head by its place with a
-  proof the log holds it there (an accumulator of the entries' hashes, as the
-  signed logs' Merkle tree is). Done: a decision on that, and the kept state
-  bounded, with a test that counts what it keeps for a long log.
-
 ## 27. Unread counts
 
 - **An open block counted live, for a type that counts from its content.** A

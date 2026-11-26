@@ -811,11 +811,17 @@ impl StepRef<'_> {
 /// invitation records of each invitation that signed in a member the path proves, so that member
 /// checks. Every other invitation record is reduced, opened or ended alike, so a path grows with
 /// the invitations its members came by, not every one the organization made.
+///
+/// With `lowerings`, for a block's log that records below rest their authority on, every entry
+/// that lowered anyone is whole too (and so the accounts it names): an honest path of it hides
+/// no lowering, and `answer` refuses authority from a path that does, which could hide the
+/// signer's revocation.
 pub fn proof_path(
     kind: LogKind,
     entries: &[Entry],
     reader: [u8; 16],
     sealers: impl IntoIterator<Item = [u8; 16]>,
+    lowerings: bool,
 ) -> Vec<Step> {
     let administrators: HashSet<[u8; 16]> = entries
         .iter()
@@ -858,6 +864,7 @@ pub fn proof_path(
         let mut grew = false;
         for (at, entry) in entries.iter().enumerate() {
             let proves = always(entry)
+                || lowerings && entry.lowers
                 || entry.signer == reader
                 || named(entry).is_some_and(|named| accounts.contains(&named))
                 || matches!(&entry.record, Record::Invitation(invitation) if used.contains(&invitation.key));
@@ -2113,5 +2120,10 @@ pub fn answer(logs: &Logs, block: [u8; 16], asked: &Asked) -> Option<SigningPubl
             (LogKind::Block, reached?)
         }
     };
+    // A path that reduces an entry that lowered anyone may hide the signer's own revocation or
+    // demotion: an honest one served for authority reduces none (`proof_path`'s `lowerings`).
+    if checked.partial && checked.hides_lowering {
+        return None;
+    }
     checked.holding(kind, asked.signer, asked.level)
 }
