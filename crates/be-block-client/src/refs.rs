@@ -90,10 +90,14 @@ pub(crate) enum Table {
     /// The lowering this device last appended to each log that no log it checked held yet
     /// (`KeyBook::appended`), by the log, so a restart still withholds a log served short of it.
     Awaited,
+    /// The logs this device appended a lowering to whose answer never came (the connection
+    /// dropped: `KeyBook::unsure`), by the log, until a read of it answers, so a restart still
+    /// reads it before sealing under its scope.
+    Unsure,
 }
 
 impl Table {
-    pub const ALL: [Self; 35] = [
+    pub const ALL: [Self; 36] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -129,6 +133,7 @@ impl Table {
         Self::LogPlace,
         Self::Unnamed,
         Self::Awaited,
+        Self::Unsure,
     ];
 
     pub fn code(self) -> u8 {
@@ -168,6 +173,7 @@ impl Table {
             Self::LogPlace => 33,
             Self::Unnamed => 34,
             Self::Awaited => 35,
+            Self::Unsure => 36,
         }
     }
 
@@ -575,6 +581,9 @@ struct State {
     log_forks: HashMap<Uuid, LogFork>,
     /// The lowering this device appended to each log that no log it checked holds yet.
     awaited: HashMap<Uuid, [u8; 32]>,
+    /// The logs this device appended a lowering to whose answer never came, until a read of
+    /// each answers.
+    unsure: HashSet<Uuid>,
     /// The places of kept logs as loaded, until `load` joins them to their logs.
     log_places: HashMap<Uuid, BTreeMap<u64, kept_logs::KeptPlace>>,
     next: u64,
@@ -932,6 +941,9 @@ impl State {
             }
             Table::Awaited => {
                 self.awaited.insert(uuid_key(&row.key)?, decode(value)?);
+            }
+            Table::Unsure => {
+                self.unsure.insert(uuid_key(&row.key)?);
             }
             Table::Replaced => {
                 let old: [u8; 32] = row
@@ -1924,6 +1936,34 @@ impl Refs {
         match awaited {
             Some(entry) => state.awaited.insert(log, entry),
             None => state.awaited.remove(&log),
+        };
+        Ok(())
+    }
+
+    /// The logs this device appended a lowering to whose answer never came, as `set_unsure`
+    /// kept them (`KeyBook::unsure`).
+    pub fn unsure(&self) -> Vec<Uuid> {
+        self.state.lock().unwrap().unsure.iter().copied().collect()
+    }
+
+    /// Keeps whether `log` had a lowering appended whose answer never came and no read of it
+    /// answered since.
+    pub fn set_unsure(&self, log: Uuid, unsure: bool) -> Result<(), StoreError> {
+        let mut state = self.state.lock().unwrap();
+        if state.unsure.contains(&log) == unsure {
+            return Ok(());
+        }
+        self.write(vec![match unsure {
+            true => row(Table::Unsure, log.as_bytes().to_vec(), &()),
+            false => Row {
+                table: Table::Unsure,
+                key: log.as_bytes().to_vec(),
+                value: None,
+            },
+        }])?;
+        match unsure {
+            true => state.unsure.insert(log),
+            false => state.unsure.remove(&log),
         };
         Ok(())
     }

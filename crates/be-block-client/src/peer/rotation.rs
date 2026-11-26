@@ -419,8 +419,12 @@ impl<S: ObjectStore> Peer<S> {
                 let _ = self.checked_access(node.id).await;
             }
         }
-        // A log still short of a lowering this device appended to it outdates every epoch it
-        // judges, one minted now too (`KeyBook::awaiting`): none is made until it shows it.
+        // A log still short of a lowering this device appended to it, or unsure of one, outdates
+        // every epoch it judges, one minted now too (`KeyBook::awaiting`): none is made until it
+        // shows it. Checked here for every caller (key work, `rotate_demoted`, a removal), after
+        // the reads above; `Peer::sealing_key_for` checks first too, so that a seal whose log read
+        // failed for want of the server keeps a person's edit for the outbox rather than come
+        // here.
         if walked.iter().any(|node| !node.owner_only) && self.keys.awaiting(self.organization) {
             return Err(ClientError::Withheld(self.organization));
         }
@@ -925,6 +929,7 @@ impl<S: ObjectStore> Peer<S> {
         if self.keys.organization_root().is_none() {
             return Ok(None);
         }
+        let unsure = self.keys.is_unsure(self.organization);
         // Checked on from what this device kept, as a block's is (`Peer::checked_access`).
         let (entries, checked) = self.organization_log_checked().await?;
         let checked = checked.ok_or(ClientError::Forged(self.organization))?;
@@ -932,7 +937,10 @@ impl<S: ObjectStore> Peer<S> {
         // and changes nothing here.
         match self.keys.served(self.organization, &checked) {
             crate::keys::Served::Take => {}
-            crate::keys::Served::Stale(newer) => return Ok(Some(newer.0)),
+            crate::keys::Served::Stale(newer) => {
+                self.answered(self.organization, unsure);
+                return Ok(Some(newer.0));
+            }
             crate::keys::Served::Withheld => {
                 return Err(ClientError::Withheld(self.organization));
             }
@@ -942,6 +950,7 @@ impl<S: ObjectStore> Peer<S> {
         }
         self.keep_awaited(self.organization);
         self.keys.set_organization(Some(&checked));
+        self.answered(self.organization, unsure);
         Ok(Some(checked))
     }
 

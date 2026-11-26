@@ -660,6 +660,7 @@ impl<S: ObjectStore> Peer<S> {
         }
         keys.set_kept_logs(refs.kept_logs());
         keys.set_awaited(refs.awaited());
+        keys.set_unsure(refs.unsure());
         keys.set_unmade(refs.unmade());
         for (_, op) in refs.outbox() {
             if let crate::refs::Op::Create(creation) = op
@@ -1665,10 +1666,17 @@ impl<S: ObjectStore> Peer<S> {
         };
         let (outdated, unreachable) = self.outdated_reading(chosen, scope).await;
         if outdated {
-            // A log still short of a lowering this device appended to it (its read just failed
-            // or was withheld) outdates every epoch it judges, a new one too: rotating now would
-            // only leave an epoch no one can use. Offline, as a rotation that cannot reach the
-            // server below.
+            // A log still short of a lowering this device appended to it, or unsure of one (its
+            // read just failed or was withheld), outdates every epoch it judges, a new one too:
+            // rotating now would only leave an epoch no one can use. Offline, as a rotation that
+            // cannot reach the server below: a person's edit for the outbox is kept, to be judged
+            // again before it is sent. `rotate` refuses the same on its own, as every caller of it
+            // (key work too) must mint nothing then. This check comes first so that a seal whose
+            // log read failed for want of the server (timed out, say, while other calls answer)
+            // keeps an outbox edit rather than go on to the rotation, whose own reads wait with
+            // no `LOG_READ_LIMIT` and whose refusal would answer `Locked`; and so that nothing
+            // else is asked of the server for a seal that cannot succeed. Fully offline the
+            // rotation fails as unreachable first either way.
             if self.awaiting(chosen, scope) {
                 return match unreachable {
                     Some(_) if outbox => Ok(chosen),
@@ -1710,8 +1718,9 @@ impl<S: ObjectStore> Peer<S> {
     /// names a head it does not reach, which may be newer.
     ///
     /// A log whose read fails, or that does not reach what this device kept of it, is judged by
-    /// what was kept (`KeyBook::outdated`); each is asked for once per key in a run, so a key
-    /// naming a head no log the server serves reaches is not read for on every save. A local
+    /// what was kept (`KeyBook::outdated`); each is read once per key in a run that answers, so a
+    /// key naming a head no log the server serves reaches is not read for on every save, while
+    /// one that failed is asked for again at the next. A local
     /// account has no server to withhold anything.
     ///
     /// A scope whose creation still waits in the outbox is not read: the server holds nothing
@@ -1733,18 +1742,25 @@ impl<S: ObjectStore> Peer<S> {
 
     /// Reads the logs `outdated` judges `key`, of `scope`, by that this device has not checked
     /// or that fall short of the head the key names (`KeyBook::logs_to_read`), each once per key
-    /// in a run; one short of a lowering this device appended (`KeyBook::awaiting`) is read
-    /// every time, as nothing can be sealed under its scope until it shows the lowering.
-    /// Answers the first read that failed for want of the server.
+    /// in a run that it answered; one short of a lowering this device appended, or unsure of one
+    /// (`KeyBook::awaiting`), is read every time, as nothing can be sealed under its scope until
+    /// it shows the lowering, or a read answers after the dropped append. Answers the first read
+    /// that failed for want of the server.
     async fn read_logs(&self, key: Uuid, scope: Uuid) -> Option<ClientError> {
         let mut unreachable = None;
         for log in self.keys.logs_to_read(key, scope) {
-            if !self.uncreated(log)
-                && (self.keys.awaiting(log) || self.log_reads.lock().unwrap().insert((key, log)))
-                && let Err(error) = self.bounded_read(log).await
-                && error.is_unreachable()
+            if self.uncreated(log)
+                || !(self.keys.awaiting(log) || self.log_reads.lock().unwrap().insert((key, log)))
             {
-                unreachable.get_or_insert(error);
+                continue;
+            }
+            // One that failed is not marked as read: the next seal asks again, rather than judge
+            // by what was kept from before.
+            if let Err(error) = self.bounded_read(log).await {
+                self.log_reads.lock().unwrap().remove(&(key, log));
+                if error.is_unreachable() {
+                    unreachable.get_or_insert(error);
+                }
             }
         }
         unreachable
@@ -2830,6 +2846,7 @@ impl<S: ObjectStore> Peer<S> {
         block: Uuid,
         pinned: be_block_keys::EntryHash,
     ) -> Result<(Vec<be_block_keys::Step>, be_block_keys::Checked), ClientError> {
+        let unsure = self.keys.is_unsure(block);
         let read = self.served_access_held(Some(block)).await?;
         let around = match cites(&read.steps) {
             true => self.logs_around(block, &read.steps).await?,
@@ -2852,7 +2869,20 @@ impl<S: ObjectStore> Peer<S> {
                 read.trusted,
             )
             .ok_or(ClientError::Forged(block))?;
-        self.take_checked(block, read, checked)
+        let taken = self.take_checked(block, read, checked)?;
+        self.answered(block, unsure);
+        Ok(taken)
+    }
+
+    /// Notes that a read of `log` answered: when it was unsure of a lowering this device
+    /// appended (`KeyBook::unsure`) before the read was sent (`unsure`), the read was sent past
+    /// the dropped append, and from now the log is judged by what it serves (`KeyBook::answered`).
+    /// A read sent before the mark may have been answered before the append landed, so it clears
+    /// nothing.
+    pub(crate) fn answered(&self, log: Uuid, unsure: bool) {
+        if unsure && self.keys.answered(log) {
+            let _ = self.refs.set_unsure(log, false);
+        }
     }
 
     /// `block`'s log as `read` read it, checked as `checked`, taken as `checked_rooted` takes
@@ -5147,6 +5177,7 @@ impl<S: ObjectStore> Peer<S> {
                 for op in &ops {
                     for record in log_records(op) {
                         if let Some(log) = self.keys.unsure(record) {
+                            let _ = self.refs.set_unsure(log, true);
                             self.forget_log_reads(log);
                         }
                     }
@@ -5412,7 +5443,13 @@ impl<S: ObjectStore> Peer<S> {
     }
 }
 
-/// The access log records `op` carries, each signed here.
+/// The access log records `op` carries, each signed here: what `Peer::write_appending` notes as
+/// appended once the server takes them (`KeyBook::appended`), or as perhaps appended when the
+/// connection dropped first (`KeyBook::unsure`). Every write that may append a lowering goes
+/// through it, a person's removal too (`Peer::remove_member`: `Op::DeleteAgent` for an agent,
+/// a member record for anyone else). A new phrase does not (`contacts::set_recovery_key_in`,
+/// `Op::SetRecoveryKey`): what it changes in the logs goes with a rotation of the account
+/// block's keys in the same write, so nothing is sealed after it under an epoch from before.
 fn log_records(op: &be_block_protocol::Op) -> Vec<&Vec<u8>> {
     use be_block_protocol::{LogRecord, Op};
     match op {
