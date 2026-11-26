@@ -317,7 +317,9 @@ impl Root {
     /// what it waited on. A page that draws only on demand asks `requestAnimationFrame` for a
     /// frame, which steps the root with what arrived. It is called from a microtask of its own,
     /// never from inside a call into the root or its host, and never while a frame is drawn,
-    /// whose wakes resume that frame instead.
+    /// whose wakes resume that frame instead; what arrived as a frame ended is heard once it has.
+    /// A timer or a task that resumes a frame already drawn may call it with nothing to step
+    /// for, which costs a page that draws on demand one frame more at most.
     pub fn on_wake(&self, wake: impl Fn() + 'static) {
         *self.shared.woken.borrow_mut() = Some(Rc::new(wake));
     }
@@ -773,6 +775,16 @@ impl Shared {
                 let hears = self.drawn.borrow_mut().take();
                 if let Some(hears) = hears {
                     hears(drawn);
+                }
+                // What arrived as the frame ended, or a wake of the root's own in the step that
+                // answered it, which `ring` let pass while the root was stepped, waits for the
+                // next frame: the page hears of it (`on_wake`), as natively.
+                let owed = {
+                    let core = self.core.borrow();
+                    core.owes_step() || core.guest.transport.woken.get()
+                };
+                if owed {
+                    ring(self.id);
                 }
             }
             Progress::Pending { until } => {

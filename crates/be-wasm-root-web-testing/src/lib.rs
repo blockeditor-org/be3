@@ -9,7 +9,7 @@
 #![cfg(target_arch = "wasm32")]
 
 use std::{
-    cell::{Cell, RefCell},
+    cell::RefCell,
     future::Future,
     rc::Rc,
     sync::Arc,
@@ -21,7 +21,9 @@ use be_wasm_guest_host::Wake;
 use be_wasm_ops::{Connection, Incoming, Side};
 use be_wasm_root_api::{FrameDone, FrameRequest};
 use be_wasm_root_host::{Root, Staged};
-use be_wasm_root_testing::{CHILD, CHILD_ENTRY, CHILD_LAYER, HANGS_CHILD, ROOT_LAYER, SPINS};
+use be_wasm_root_testing::{
+    CHILD, CHILD_ENTRY, CHILD_LAYER, HANGS_CHILD, ROOT_LAYER, SPINS, WAKES_ONCE,
+};
 use be_wasm_sandbox_api::{
     embed, guest,
     sandbox::{Config, FromBytes, Source},
@@ -268,18 +270,25 @@ async fn an_app_a_linked_root_spawns_draws_into_a_canvas_its_worker_is_handed()
     element.set_width(screen.size.0);
     element.set_height(screen.size.1);
     document.body().ok_or("no body")?.append_child(&element)?;
-    let canvas = element.transfer_control_to_offscreen()?;
-    root.show_app_surface(2, &canvas, instance, surface)?;
-    // The worker draws into it what the triangle presents, from its next step on.
-    let mut shown = [0; 4];
-    for time in 2..40 {
-        frame(&root, time, Duration::from_millis(500)).await??;
-        shown = middle_of(&element)?;
-        if shown[3] != 0 {
-            break;
+    // Whatever the test finds, the canvas leaves the page with it.
+    let shown = async {
+        let canvas = element.transfer_control_to_offscreen()?;
+        root.show_app_surface(2, &canvas, instance, surface)?;
+        // The worker draws into it what the triangle presents, from its next step on, in its
+        // own time: the page sees it once the worker's frame reaches the screen.
+        let mut shown = [0; 4];
+        for time in 2..40 {
+            frame(&root, time, Duration::from_millis(500)).await??;
+            shown = middle_of(&element)?;
+            if shown[3] != 0 {
+                break;
+            }
         }
+        Ok::<_, JsValue>(shown)
     }
+    .await;
     element.remove();
+    let shown = shown?;
     check(shown[3] != 0, || {
         format!("the canvas the triangle's worker was handed shows nothing at its middle: {shown:?}")
     })?;
@@ -335,43 +344,37 @@ async fn a_frame_past_its_deadline_draws_without_the_child_it_waits_for() -> Res
 async fn a_root_with_something_to_step_between_frames_wakes_its_page() -> Result<String, JsValue>
 {
     let root = Rc::new(root().await?.with_patience(PATIENT));
-    let woken = Rc::new(Cell::new(0_u32));
-    let counts = Rc::clone(&woken);
-    root.on_wake(move || counts.set(counts.get() + 1));
     // The frame ends at its deadline, which has passed: the child it spawned answers after it,
     // between frames, which the page hears of.
+    let woken = next_wake(&root);
     frame(&root, 1, Duration::ZERO).await??;
-    let during = woken.get();
-    for _ in 0..100 {
-        if woken.get() > during {
-            break;
-        }
-        sleep(Duration::from_millis(100)).await?;
-    }
-    check(woken.get() > during, || {
-        "the page heard of nothing the root had to step for between frames".to_owned()
-    })?;
+    woken.await;
     // The frame the page draws for it steps the root with what arrived.
     let done = frame(&root, 2, PATIENT).await??;
     let shown = shown(&done)?;
     check(shown == vec![ROOT_LAYER, CHILD_LAYER], || {
         format!("the frame drawn for the wake showed {shown:?}, not the child over the root")
     })?;
-    Ok("a root with something to step between frames woke its page, which drew it a frame"
+    // A root that wakes itself in the step that answers its frame has something to step for
+    // once the frame ends, though the wake came while it was stepped.
+    let woken = next_wake(&root);
+    frame(&root, WAKES_ONCE, PATIENT).await??;
+    woken.await;
+    Ok("a root with something to step between frames, or once its frame ended, woke its page, \
+        which drew it a frame"
         .to_owned())
 }
 
-/// Answers once `wait` has passed, on the page's timer.
-async fn sleep(wait: Duration) -> Result<(), JsValue> {
-    let promise = Promise::new(&mut |resolve, _| {
-        let global = js_sys::global();
-        if let Ok(set) = js_sys::Reflect::get(&global, &"setTimeout".into())
-            && let Ok(set) = set.dyn_into::<Function>()
-        {
-            let _ = set.call2(&global, &resolve, &(wait.as_millis() as f64).into());
+/// Answers the first time the root's `on_wake` is called from now on.
+fn next_wake(root: &Root) -> impl Future<Output = ()> {
+    let (woken, answer) = promised::<()>();
+    let answer = RefCell::new(Some(answer));
+    root.on_wake(move || {
+        if let Some(answer) = answer.borrow_mut().take() {
+            answer(());
         }
     });
-    JsFuture::from(promise).await.map(drop)
+    woken
 }
 
 async fn a_root_that_keeps_waking_itself_stops_at_its_patience() -> Result<String, JsValue> {

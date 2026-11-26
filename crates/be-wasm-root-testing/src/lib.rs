@@ -57,6 +57,10 @@ pub const HANGS_CHILD: u64 = u64::MAX;
 /// root stuck in a busy loop of its own would.
 pub const SPINS: u64 = u64::MAX - 1;
 
+/// A frame at this time answers at once, showing the root alone, and the root wakes itself in
+/// the step that answers it: it has something to step for once the frame ends.
+pub const WAKES_ONCE: u64 = u64::MAX - 3;
+
 const HANG: &[u8] = b"hang";
 
 /// A frame at this time spawns `PAINTER` rather than settling the echo guest, and shows the
@@ -108,6 +112,8 @@ struct Frames {
     child: Rc<RefCell<Option<Rc<Instance>>>>,
     painter: Rc<RefCell<Option<Rc<Instance>>>>,
     spinning: Rc<Cell<bool>>,
+    /// Whether the root wakes itself once more after the step it is in (`WAKES_ONCE`).
+    waking: Rc<Cell<bool>>,
     /// A router per window over the layers the root drew last: who holds the pointer, the hover
     /// and the focus.
     windows: Rc<RefCell<Windows>>,
@@ -127,6 +133,7 @@ impl Default for Frames {
             child: Rc::default(),
             painter: Rc::default(),
             spinning: Rc::default(),
+            waking: Rc::default(),
             windows: Rc::new(RefCell::new(Windows::new(ROOT_LAYER))),
             heard: Rc::default(),
             routed: Rc::default(),
@@ -162,6 +169,11 @@ impl frames::Guest for Frames {
         if request.time == SPINS {
             self.spinning.set(true);
             return Box::pin(std::future::pending());
+        }
+        if request.time == WAKES_ONCE {
+            self.waking.set(true);
+            let drawn = self.drew(layers(false));
+            return Box::pin(async move { drawn });
         }
         let frames = self.clone();
         if request.time == PAINTS {
@@ -438,6 +450,7 @@ pub struct Settling {
     executor: Executor,
     waker: Waker,
     spinning: Rc<Cell<bool>>,
+    waking: Rc<Cell<bool>>,
 }
 
 impl Guest for Settling {
@@ -448,6 +461,7 @@ impl Guest for Settling {
         let frames = Frames::default();
         Ok(Self {
             spinning: Rc::clone(&frames.spinning),
+            waking: Rc::clone(&frames.waking),
             executor: be_wasm_root_api::guest::executor(frames),
             waker,
         })
@@ -460,7 +474,7 @@ impl Guest for Settling {
         outbound: &mut Vec<Vec<u8>>,
     ) -> Result<Flow, String> {
         self.executor.step(inbound, outbound)?;
-        if self.spinning.get() {
+        if self.spinning.get() || self.waking.replace(false) {
             self.waker.wake();
         }
         Ok(Flow::Running)
