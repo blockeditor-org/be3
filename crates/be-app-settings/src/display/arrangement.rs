@@ -46,6 +46,7 @@ impl View {
         }
     }
 
+    #[cfg(test)]
     pub(super) fn to_area(self, point: Pos2) -> Pos2 {
         self.corner + (point - self.origin) * self.fit
     }
@@ -60,10 +61,30 @@ impl View {
     }
 }
 
+/// Every place `id` can be carried to (each touches another tile), as desktop rects.
+pub(super) fn carry_places(tiles: &[Tile], id: &str) -> Vec<Rect> {
+    let Some(size) = tiles
+        .iter()
+        .find(|tile| tile.id == id)
+        .map(|tile| tile.rect.size())
+    else {
+        return Vec::new();
+    };
+    let others: Vec<Rect> = tiles
+        .iter()
+        .filter(|tile| tile.id != id)
+        .map(|tile| tile.rect)
+        .collect();
+    touching::places(size, &others)
+        .into_iter()
+        .map(|place| place.rect)
+        .collect()
+}
+
 /// The desktop rect the places' rests are relative to: every tile and, a tile's size beyond
 /// them on each side, every place one can be carried to (each touches another). Fixed while
-/// a carry lasts, as the tiles are, so rests read from it at the lift stay right however the
-/// view refits.
+/// a carry lasts, as the tiles are, so rests read from it at the lift stay right once the
+/// view refits for the carry.
 fn reach(tiles: &[Tile]) -> Rect {
     let largest = tiles
         .iter()
@@ -147,10 +168,10 @@ const SNAP: f32 = 12.0;
 
 /// The places a carried display can be let go: every place it lines up touching another
 /// display (`touching::places`), and within `SNAP` of none, anywhere in the area. What a
-/// place means is the display's rect on the desktop. The view refits while the carry lasts,
-/// so rests are in desktop pixels, relative to `desktop`, a node drawn through the view at
-/// `reach`, and the board reads them through the view at each point; a place anywhere else
-/// maps the item through the view at that point.
+/// place means is the display's rect on the desktop. The view refits at the lift (to these
+/// places), after the layout the spec is read from, so rests are in desktop pixels, relative
+/// to `desktop`, a node drawn through the view at `reach`, and the board reads them through
+/// the view at each point; a place anywhere else maps the item through the view at that point.
 fn arrangement_spec(
     tiles: &[Tile],
     id: &str,
@@ -212,14 +233,16 @@ pub(super) fn ArrangementRow(
         let arrangement = merged.with(DisplaySettings::arrangement);
         displays.with(|displays| tiles(displays, &arrangement))
     });
-    // While a display is carried, the view also fits each place it has been over, and only
-    // grows: a place chosen stays in sight, and the view settles rather than swinging
-    // between two places that each refit it away from the other.
-    let grown = create_signal(None::<Rect>);
+    // While a display is carried the view fits, from the lift, every place it can be let go
+    // as well as the tiles, so no place is out of sight and nothing under the pointer moves
+    // while the carry lasts.
+    let carried = create_memo(move || carrying::<Carried>().into_iter().next());
     let view = create_memo(move || {
         laid.with(|tiles| {
             let mut rects: Vec<Rect> = tiles.iter().map(|tile| tile.rect).collect();
-            rects.extend(grown.get());
+            if let Some(Carried(id)) = carried.get() {
+                rects.extend(carry_places(tiles, &id));
+            }
             View::of(&rects)
         })
     });
@@ -231,7 +254,7 @@ pub(super) fn ArrangementRow(
     let save = settings.setter(&DisplaySettings::arrangement_setting());
     let area = NodeRef::new();
     let desktop = NodeRef::new();
-    let site = use_drop_site(
+    use_drop_site(
         Func::new(|_: Carried| true),
         Func::new(move |Carried(id): Carried| {
             laid.with_untracked(|tiles| arrangement_spec(tiles, &id, view, area, desktop))
@@ -248,24 +271,6 @@ pub(super) fn ArrangementRow(
             save.call(Some(arrangement));
         }),
     );
-    create_effect(move || {
-        let Some(Carried(id)) = carrying::<Carried>().into_iter().next() else {
-            if grown.get_untracked().is_some() {
-                grown.set(None);
-            }
-            return;
-        };
-        let Some(rect) = site.over.get() else {
-            return;
-        };
-        let rest = laid.with_untracked(|tiles| settled(tiles, &id, rect));
-        let wider = grown
-            .get_untracked()
-            .map_or(rest, |grown| grown.union(rest));
-        if grown.get_untracked() != Some(wider) {
-            grown.set(Some(wider));
-        }
-    });
     let canvas = create_memo(move || Some(view.get().canvas()));
     view! {
         <SettingsRow

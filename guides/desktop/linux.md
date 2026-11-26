@@ -60,10 +60,12 @@ else one from its pixel density (beui-platform-drm's `density.rs`).
 each display's use (part of the desktop, a mirror, or off) and the main display. These are kept per
 device and reach the platform as `DisplayConfig`'s `uses`, `main` and `places`. A changed main
 display or use must be kept like a new mode (`display/guard.rs`), or it reverts. The area draws
-the arrangement through a canvas camera fitted to it; while a display is carried the camera also
-fits every place it has been over, growing only until the carry ends, so a display carried past
-the fit (below another) is drawn whole. The places' rests are in desktop pixels, relative to a
-zoomed canvas item, so the board reads them through the camera as it is at each point.
+the arrangement through a canvas camera fitted to the displays; from a display's lift until the
+carry ends it fits the displays and every place that display can be let go (`carry_places`), so
+a display carried past the first fit (below another) is drawn whole and nothing under the pointer
+moves while it is carried. That refit comes after the layout the places are read from, so their
+rests are in desktop pixels, relative to a zoomed canvas item, and the board reads them through
+the camera as it is at each point.
 
 **Outputs.** be-host-wayland advertises one `wl_output` per display at its desktop position
 (`Compositor::set_monitors`, `heads.rs`), with one mode and its scale rounded up for integer-scale

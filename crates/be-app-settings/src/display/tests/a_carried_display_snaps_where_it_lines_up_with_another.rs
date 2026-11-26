@@ -1,5 +1,5 @@
 use super::*;
-use crate::display::arrangement::{View, tiles};
+use crate::display::arrangement::{View, carry_places, tiles};
 use be_sdk_beui::be_block::display_settings::Arrangement;
 use be_sdk_beui::beui::{PointerButton, pos2, vec2};
 
@@ -9,16 +9,20 @@ fn a_carried_display_snaps_where_it_lines_up_with_another() {
     let mut settings = Harness::in_a_session(displays.clone()).on_this_device();
 
     let laid = tiles(&displays, &Arrangement::default());
-    let view = View::of(&laid.iter().map(|tile| tile.rect).collect::<Vec<_>>());
+    let rects: Vec<_> = laid.iter().map(|tile| tile.rect).collect();
+    let view = View::of(&rects);
+    // From the lift, the area fits every place the laptop can go.
+    let carry = View::of(&[rects.clone(), carry_places(&laid, LAPTOP)].concat());
     let desk = settings.editor.rect_of("display.arrangement");
-    let on_desk = |point: be_sdk_beui::beui::Pos2| desk.min + view.to_area(point).to_vec2();
+    let on_desk =
+        |view: View, point: be_sdk_beui::beui::Pos2| desk.min + view.to_area(point).to_vec2();
     let (laptop, monitor) = (laid[0].rect, laid[1].rect);
     // The shorter laptop held just off the place left of the monitor where their tops
-    // line up; it stands lined up with neither, and the place is inside the area's fit.
+    // line up; it stands lined up with neither.
     let grab = laptop.center() - laptop.min;
     let near = pos2(monitor.left() - laptop.width(), monitor.top()) + grab;
-    let from = on_desk(laptop.center());
-    let to = on_desk(near) + vec2(3.0, 2.0);
+    let from = on_desk(view, laptop.center());
+    let to = on_desk(carry, near) + vec2(3.0, 2.0);
     settings.editor.down(from, PointerButton::Primary);
     settings.editor.hover(from + (to - from) / 2.0);
     settings.editor.hover(to);

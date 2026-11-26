@@ -66,6 +66,7 @@ impl PanZoomView {
 }
 
 pub struct PanZoomHandle {
+    /// The camera in the content's own points: hand it to a `Canvas` with `local_view`.
     pub view: Memo<Option<CanvasView>>,
     pub scale: Memo<f32>,
     pub panning: ReadSignal<bool>,
@@ -179,7 +180,10 @@ pub fn PanZoom(
         }
     });
     let content_node = content.call(PanZoomHandle {
-        view: create_memo(move || Some(current.get().canvas(rect.get()))),
+        view: create_memo(move || {
+            let size = rect.get().size();
+            Some(current.get().canvas(Rect::from_min_size(Pos2::ZERO, size)))
+        }),
         scale: create_memo(move || current.get().scale),
         panning,
         focused: focused.read_only(),
