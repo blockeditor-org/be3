@@ -4,11 +4,12 @@
 //! logarithmic number of times. A segment more than half masked is rewritten
 //! alone, and one wholly masked is dropped.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 
 use crate::{
-    Error, Id, Index, Parts, PartsOut, Place, Retired, Written,
-    segment::{self, Meta, Posting},
+    Entry, Error, Id, Index, PartKind, Parts, PartsOut, Place, Retired, Written,
+    scan::{DocumentReader, TermReader},
+    segment::{self, Document, Meta, Posting, TermWriter},
     table,
 };
 
@@ -192,8 +193,18 @@ impl<P: Parts, O: PartsOut> Parts for Overlay<'_, P, O> {
     }
 }
 
+/// A local id `merge_segments` drops.
+const GONE: u32 = u32::MAX;
+
 /// One segment of the live documents of `inputs` (those the table points
-/// to), written through `out`, moving their table entries to it.
+/// to), written through `out` as it is read, moving their table entries to it.
+///
+/// Each input's documents are in local order (newest first, then by document), so a k-way
+/// merge of them gives the new segment's order, and of their dictionaries its terms. The
+/// documents are read twice: once for the new local ids and record offsets, once to write the
+/// records after them. What is held is a `u32` per document of each and one term's postings,
+/// besides each input part's read window (`scan::Window`). It writes what `segment::build`
+/// writes from the same documents and terms.
 async fn merge_segments(
     parts: &impl Parts,
     out: &impl PartsOut,
@@ -201,62 +212,173 @@ async fn merge_segments(
     id: Id,
     table: &mut table::Edit,
 ) -> Result<Meta, Error> {
-    let mut documents = Vec::new();
-    let mut from: Vec<(usize, u32)> = Vec::new();
-    for (input, meta) in inputs.iter().enumerate() {
-        let deletions = meta.deletions(parts).await?;
-        for (local, document) in meta.documents(parts).await?.into_iter().enumerate() {
-            let local = local as u32;
-            if deletions.get(local) {
+    let name = |kind| crate::PartName { origin: id, kind };
+    let mut documents = Vec::with_capacity(inputs.len());
+    let mut deletions = Vec::with_capacity(inputs.len());
+    for meta in inputs {
+        documents.push(DocumentReader::open(parts, meta).await?);
+        deletions.push(meta.deletions(parts).await?);
+    }
+    // Each input's local ids to the new ones, GONE for those dropped.
+    let mut maps: Vec<Vec<u32>> = vec![Vec::new(); inputs.len()];
+    // The next live document of each input, with its table entry.
+    let mut heads: Vec<Option<(Document, Entry)>> = Vec::with_capacity(inputs.len());
+    for input in 0..inputs.len() {
+        heads.push(
+            next_live(
+                parts,
+                &inputs[input],
+                &mut documents[input],
+                &deletions[input],
+                &mut maps[input],
+                table,
+            )
+            .await?,
+        );
+    }
+    let order = |document: &Document| (std::cmp::Reverse(document.commit), document.doc.clone());
+    let mut offsets = vec![0u32];
+    let mut lengths = [0u64; 2];
+    let mut previous = None;
+    while let Some(input) = (0..inputs.len())
+        .filter(|&input| heads[input].is_some())
+        .min_by_key(|&input| order(&heads[input].as_ref().unwrap().0))
+    {
+        let (document, mut entry) = heads[input].take().unwrap();
+        let key = order(&document);
+        if previous.as_ref().is_some_and(|previous| *previous >= key) {
+            return Err(Error::Corrupt("documents order"));
+        }
+        previous = Some(key);
+        let local = offsets.len() as u32 - 1;
+        maps[input].push(local);
+        entry.place = Some(Place { segment: id, local });
+        table.put(entry);
+        let end = offsets[offsets.len() - 1]
+            .checked_add(segment::record(&document).len() as u32)
+            .ok_or(Error::Corrupt("documents"))?;
+        offsets.push(end);
+        lengths[0] += u64::from(document.lengths[0]);
+        lengths[1] += u64::from(document.lengths[1]);
+        heads[input] = next_live(
+            parts,
+            &inputs[input],
+            &mut documents[input],
+            &deletions[input],
+            &mut maps[input],
+            table,
+        )
+        .await?;
+    }
+    let count = offsets.len() as u32 - 1;
+
+    // The documents part: the count, the offsets, then the records again in the new order.
+    let part = name(PartKind::Documents);
+    out.write(&part, &count.to_le_bytes())?;
+    for window in offsets.chunks(1024) {
+        let bytes: Vec<u8> = window.iter().flat_map(|offset| offset.to_le_bytes()).collect();
+        out.write(&part, &bytes)?;
+    }
+    let mut documents = Vec::with_capacity(inputs.len());
+    for meta in inputs {
+        documents.push(DocumentReader::open(parts, meta).await?);
+    }
+    let mut next = vec![0usize; inputs.len()];
+    for local in 0..count {
+        let input = (0..inputs.len())
+            .find(|&input| {
+                while maps[input].get(next[input]) == Some(&GONE) {
+                    next[input] += 1;
+                }
+                maps[input].get(next[input]) == Some(&local)
+            })
+            .expect("every new local id is some input's");
+        let document = documents[input].get(parts, next[input] as u32).await?;
+        next[input] += 1;
+        let record = segment::record(&document);
+        if record.len() as u64
+            != u64::from(offsets[local as usize + 1] - offsets[local as usize])
+        {
+            return Err(Error::Corrupt("documents"));
+        }
+        out.write(&part, &record)?;
+    }
+    out.finish(&part)?;
+
+    // The terms: each input's dictionary merged in order, a term's postings at a time.
+    let mut readers: Vec<TermReader> = inputs.iter().map(TermReader::new).collect();
+    let mut writer = TermWriter::new();
+    let mut previous: Option<Vec<u8>> = None;
+    loop {
+        let mut term: Option<Vec<u8>> = None;
+        for reader in &mut readers {
+            if let Some(next) = reader.peek(parts).await?
+                && term.as_ref().is_none_or(|term| next < term.as_slice())
+            {
+                term = Some(next.to_vec());
+            }
+        }
+        let Some(term) = term else {
+            break;
+        };
+        if previous.as_ref().is_some_and(|previous| *previous >= term) {
+            return Err(Error::Corrupt("dictionary order"));
+        }
+        let mut list: Vec<Posting> = Vec::new();
+        for (input, reader) in readers.iter_mut().enumerate() {
+            if reader.peek(parts).await? != Some(term.as_slice()) {
                 continue;
             }
+            list.extend(
+                reader
+                    .take(parts)
+                    .await?
+                    .into_iter()
+                    .filter_map(|mut posting| {
+                        posting.doc = *maps[input]
+                            .get(posting.doc as usize)
+                            .filter(|&&local| local != GONE)?;
+                        Some(posting)
+                    }),
+            );
+        }
+        if !list.is_empty() {
+            list.sort_by_key(|posting| posting.doc);
+            writer.add(&term, &list, &mut |kind, bytes| out.write(&name(kind), bytes))?;
+        }
+        previous = Some(term);
+    }
+    for kind in [PartKind::Dictionary, PartKind::Postings, PartKind::Positions] {
+        out.finish(&name(kind))?;
+    }
+    Ok(writer.finish(id, count, lengths))
+}
+
+/// The next document of an input the table points to, noting those before it as dropped.
+async fn next_live(
+    parts: &impl Parts,
+    meta: &Meta,
+    documents: &mut DocumentReader,
+    deletions: &segment::Bits,
+    map: &mut Vec<u32>,
+    table: &mut table::Edit,
+) -> Result<Option<(Document, Entry)>, Error> {
+    while (map.len() as u64) < u64::from(meta.docs) {
+        let local = map.len() as u32;
+        if !deletions.get(local) {
+            let document = documents.get(parts, local).await?;
             let here = Place {
                 segment: meta.id,
                 local,
             };
-            if table
-                .get(parts, &document.doc)
-                .await?
-                .is_none_or(|entry| entry.place != Some(here))
+            if let Some(entry) = table.get(parts, &document.doc).await?
+                && entry.place == Some(here)
             {
-                continue;
-            }
-            documents.push(document);
-            from.push((input, local));
-        }
-    }
-    let locals = segment::assign(&documents);
-    let remap: HashMap<(usize, u32), u32> =
-        from.iter().copied().zip(locals.iter().copied()).collect();
-    let mut terms: BTreeMap<Vec<u8>, Vec<Posting>> = BTreeMap::new();
-    for (input, meta) in inputs.iter().enumerate() {
-        for (term, list) in meta.read_all(parts).await? {
-            let moved: Vec<Posting> = list
-                .into_iter()
-                .filter_map(|mut posting| {
-                    posting.doc = *remap.get(&(input, posting.doc))?;
-                    Some(posting)
-                })
-                .collect();
-            if !moved.is_empty() {
-                terms.entry(term).or_default().extend(moved);
+                let entry = entry.clone();
+                return Ok(Some((document, entry)));
             }
         }
+        map.push(GONE);
     }
-    for list in terms.values_mut() {
-        list.sort_by_key(|posting| posting.doc);
-    }
-    for (document, &local) in documents.iter().zip(&locals) {
-        if let Some(mut entry) = table.get(parts, &document.doc).await?.cloned() {
-            entry.place = Some(Place { segment: id, local });
-            table.put(entry);
-        }
-    }
-    let documents = segment::sorted(documents, &locals);
-    let (meta, built) = segment::build(id, &documents, &terms);
-    for (name, bytes) in built {
-        out.write(&name, &bytes)?;
-        out.finish(&name)?;
-    }
-    Ok(meta)
+    Ok(None)
 }

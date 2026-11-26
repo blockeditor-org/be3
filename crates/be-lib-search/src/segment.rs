@@ -134,6 +134,7 @@ impl Meta {
         postcard::from_bytes(&record).map_err(|_| Error::Corrupt("document"))
     }
 
+    #[cfg(test)]
     pub(crate) async fn documents(&self, parts: &impl Parts) -> Result<Vec<Document>, Error> {
         let bytes = parts
             .read(&self.part(PartKind::Documents), 0..u64::MAX)
@@ -159,7 +160,8 @@ impl Meta {
             .collect()
     }
 
-    /// Every term with its postings and positions, for compaction.
+    /// Every term with its postings and positions.
+    #[cfg(test)]
     pub(crate) async fn read_all(
         &self,
         parts: &impl Parts,
@@ -209,7 +211,7 @@ impl Meta {
     }
 }
 
-fn le(bytes: &[u8], at: usize) -> Result<u32, Error> {
+pub(crate) fn le(bytes: &[u8], at: usize) -> Result<u32, Error> {
     let slice = bytes
         .get(at..at.checked_add(4).ok_or(Error::Corrupt("offsets"))?)
         .ok_or(Error::Corrupt("offsets"))?;
@@ -221,7 +223,7 @@ pub(crate) fn add(a: u64, b: u64) -> Result<u64, Error> {
 }
 
 /// `len` bytes of `bytes` from `start`, or Corrupt past its end.
-fn slice(bytes: &[u8], start: u64, len: u64) -> Result<&[u8], Error> {
+pub(crate) fn slice(bytes: &[u8], start: u64, len: u64) -> Result<&[u8], Error> {
     let end = add(start, len)?;
     let (start, end) = (usize::try_from(start), usize::try_from(end));
     match (start, end) {
@@ -432,7 +434,7 @@ pub(crate) fn decode_positions(bytes: &[u8], block: &mut [Posting]) -> Result<()
     Ok(())
 }
 
-fn decode_dictionary_block(bytes: &[u8]) -> Result<Vec<(Vec<u8>, TermInfo)>, Error> {
+pub(crate) fn decode_dictionary_block(bytes: &[u8]) -> Result<Vec<(Vec<u8>, TermInfo)>, Error> {
     let mut reader = varint::Reader::new(bytes);
     let mut out: Vec<(Vec<u8>, TermInfo)> = Vec::new();
     let mut term: Vec<u8> = Vec::new();
@@ -503,25 +505,45 @@ impl Dictionary<'_> {
     }
 }
 
-/// Builds a segment from documents in local id order and their terms.
-pub(crate) fn build(
-    id: Id,
-    documents: &[Document],
-    terms: &BTreeMap<Vec<u8>, Vec<Posting>>,
-) -> (Meta, Named) {
-    let mut dictionary = Vec::new();
-    let mut postings = Vec::new();
-    let mut positions = Vec::new();
-    let mut blocks = vec![0u32];
-    let mut firsts: Vec<Vec<u8>> = Vec::new();
-    let mut max_df: Vec<u32> = Vec::new();
-    let mut block_start = 0;
-    let mut previous_term: &[u8] = &[];
-    for (term, list) in terms {
-        let info_start = postings.len() as u64;
-        let positions_start = positions.len() as u64;
+/// Writes a segment's dictionary, postings and positions a term at a time, in term order,
+/// handing each part's next bytes to `emit`: what `build` writes, without holding the parts.
+pub(crate) struct TermWriter {
+    /// The bytes of each part written so far.
+    dictionary: u64,
+    postings: u64,
+    positions: u64,
+    block_start: u64,
+    blocks: Vec<u32>,
+    firsts: Vec<Vec<u8>>,
+    max_df: Vec<u32>,
+    previous: Vec<u8>,
+}
+
+impl TermWriter {
+    pub(crate) fn new() -> Self {
+        Self {
+            dictionary: 0,
+            postings: 0,
+            positions: 0,
+            block_start: 0,
+            blocks: vec![0],
+            firsts: Vec::new(),
+            max_df: Vec::new(),
+            previous: Vec::new(),
+        }
+    }
+
+    /// Writes `term`, after every term written before it, with its postings (sorted by
+    /// document, at least one).
+    pub(crate) fn add(
+        &mut self,
+        term: &[u8],
+        list: &[Posting],
+        emit: &mut impl FnMut(PartKind, &[u8]) -> Result<(), Error>,
+    ) -> Result<(), Error> {
         let mut skip = Vec::new();
         let mut body = Vec::new();
+        let mut positions = Vec::new();
         varint::put(&mut skip, list.len().div_ceil(POSTINGS_BLOCK) as u64);
         let mut previous_last = 0;
         let mut previous_doc = 0;
@@ -558,38 +580,89 @@ pub(crate) fn build(
         }
         let info = TermInfo {
             df: list.len() as u32,
-            postings: info_start,
+            postings: self.postings,
             skip_len: skip.len() as u32,
             postings_len: (skip.len() + body.len()) as u32,
-            positions: positions_start,
+            positions: self.positions,
         };
-        postings.extend(skip);
-        postings.extend(body);
-        if dictionary.len() - block_start >= DICTIONARY_BLOCK {
-            blocks.push(dictionary.len() as u32);
-            block_start = dictionary.len();
+        emit(PartKind::Postings, &skip)?;
+        emit(PartKind::Postings, &body)?;
+        emit(PartKind::Positions, &positions)?;
+        self.postings += (skip.len() + body.len()) as u64;
+        self.positions += positions.len() as u64;
+        if self.dictionary - self.block_start >= DICTIONARY_BLOCK as u64 {
+            self.blocks.push(self.dictionary as u32);
+            self.block_start = self.dictionary;
         }
-        let shared = if dictionary.len() == block_start {
-            firsts.push(term.clone());
-            max_df.push(0);
+        let shared = if self.dictionary == self.block_start {
+            self.firsts.push(term.to_vec());
+            self.max_df.push(0);
             0
         } else {
-            previous_term
+            self.previous
                 .iter()
                 .zip(term)
                 .take_while(|(a, b)| a == b)
                 .count()
         };
-        varint::put(&mut dictionary, shared as u64);
-        varint::put(&mut dictionary, (term.len() - shared) as u64);
-        dictionary.extend_from_slice(&term[shared..]);
-        info.encode(&mut dictionary);
-        let block_df = max_df.last_mut().unwrap();
+        let mut entry = Vec::new();
+        varint::put(&mut entry, shared as u64);
+        varint::put(&mut entry, (term.len() - shared) as u64);
+        entry.extend_from_slice(&term[shared..]);
+        info.encode(&mut entry);
+        emit(PartKind::Dictionary, &entry)?;
+        self.dictionary += entry.len() as u64;
+        let block_df = self.max_df.last_mut().unwrap();
         *block_df = (*block_df).max(info.df);
-        previous_term = term;
+        self.previous.clear();
+        self.previous.extend_from_slice(term);
+        Ok(())
     }
-    if !dictionary.is_empty() {
-        blocks.push(dictionary.len() as u32);
+
+    /// The header's description of the segment, of `docs` documents whose field lengths sum
+    /// to `lengths`.
+    pub(crate) fn finish(mut self, id: Id, docs: u32, lengths: [u64; 2]) -> Meta {
+        if self.dictionary != 0 {
+            self.blocks.push(self.dictionary as u32);
+        }
+        Meta {
+            id,
+            docs,
+            deleted: 0,
+            lengths,
+            firsts: self.firsts,
+            max_df: self.max_df,
+            blocks: self.blocks,
+            deletions: None,
+        }
+    }
+}
+
+/// A document's record in the documents part.
+pub(crate) fn record(document: &Document) -> Vec<u8> {
+    postcard::to_allocvec(document).expect("a document encodes")
+}
+
+/// Builds a segment from documents in local id order and their terms.
+pub(crate) fn build(
+    id: Id,
+    documents: &[Document],
+    terms: &BTreeMap<Vec<u8>, Vec<Posting>>,
+) -> (Meta, Named) {
+    let (mut dictionary, mut postings, mut positions) = (Vec::new(), Vec::new(), Vec::new());
+    let mut writer = TermWriter::new();
+    for (term, list) in terms {
+        writer
+            .add(term, list, &mut |kind, bytes| {
+                match kind {
+                    PartKind::Dictionary => &mut dictionary,
+                    PartKind::Postings => &mut postings,
+                    _ => &mut positions,
+                }
+                .extend_from_slice(bytes);
+                Ok(())
+            })
+            .expect("writing to memory");
     }
     let mut records = Vec::new();
     let mut offsets = Vec::with_capacity(4 * (documents.len() + 2));
@@ -597,22 +670,13 @@ pub(crate) fn build(
     offsets.extend_from_slice(&0u32.to_le_bytes());
     let mut lengths = [0u64; 2];
     for document in documents {
-        records.extend(postcard::to_allocvec(document).expect("a document encodes"));
+        records.extend(record(document));
         offsets.extend_from_slice(&(records.len() as u32).to_le_bytes());
         lengths[0] += u64::from(document.lengths[0]);
         lengths[1] += u64::from(document.lengths[1]);
     }
     offsets.extend(records);
-    let meta = Meta {
-        id,
-        docs: documents.len() as u32,
-        deleted: 0,
-        lengths,
-        firsts,
-        max_df,
-        blocks,
-        deletions: None,
-    };
+    let meta = writer.finish(id, documents.len() as u32, lengths);
     let parts = vec![
         (meta.part(PartKind::Dictionary), dictionary),
         (meta.part(PartKind::Postings), postings),
