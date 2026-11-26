@@ -412,7 +412,7 @@ impl Root {
     }
 
     /// Does `act` with the children the session's editor places, while it runs.
-    fn with_children<R>(&self, act: impl FnOnce(&mut Children) -> R) -> Option<R> {
+    pub(super) fn with_children<R>(&self, act: impl FnOnce(&mut Children) -> R) -> Option<R> {
         match &mut *self.session.borrow_mut() {
             Some(Session {
                 state: Showing::Running(_),

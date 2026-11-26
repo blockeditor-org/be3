@@ -2920,35 +2920,43 @@ impl Instances {
     /// there as the commit is applied, whether the child's app runs yet or not
     /// (decisions/keys_are_never_held.md): one event an editor per commit.
     pub(super) fn hear_keyboard_asks(&mut self, children: &[ChildPlacements]) {
-        let mut asked: Vec<(EditorInstanceId, ChildId, u64)> = Vec::new();
+        // Each editor's highest ask, with the view placing its child and, for a host panel,
+        // which takes no keys of its own, that view: the view takes the keyboard instead.
+        let mut asked: Vec<(EditorInstanceId, ChildId, u64, Option<ViewId>)> = Vec::new();
         for placements in children {
             for placement in &placements.children {
+                let panel = matches!(placement.content, ChildContent::Host(_))
+                    .then_some(placements.view);
+                let ask = (
+                    placements.instance,
+                    placement.child,
+                    placement.keyboard_ask,
+                    panel,
+                );
                 match asked
                     .iter_mut()
                     .find(|(editor, ..)| *editor == placements.instance)
                 {
-                    Some(held) if placement.keyboard_ask > held.2 => {
-                        *held = (placements.instance, placement.child, placement.keyboard_ask);
-                    }
+                    Some(held) if placement.keyboard_ask > held.2 => *held = ask,
                     Some(_) => {}
-                    None => {
-                        asked.push((placements.instance, placement.child, placement.keyboard_ask))
-                    }
+                    None => asked.push(ask),
                 }
             }
         }
-        for (instance, child, ask) in asked {
+        for (instance, child, ask, panel) in asked {
             let Some(entry) = self.entries.get_mut(&instance) else {
                 continue;
             };
             if ask > entry.keyboard_ask {
                 entry.keyboard_ask = ask;
-                entry.asked_child = Some(child);
-                super::events::emit(
-                    &self.app_id,
-                    instance,
-                    InstanceEvent::KeyboardAsked(Some(child)),
-                );
+                let event = match panel {
+                    Some(view) => InstanceEvent::FocusRequested(view),
+                    None => {
+                        entry.asked_child = Some(child);
+                        InstanceEvent::KeyboardAsked(Some(child))
+                    }
+                };
+                super::events::emit(&self.app_id, instance, event);
             }
         }
         // An ask whose child its editor no longer places is withdrawn.

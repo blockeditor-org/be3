@@ -220,6 +220,11 @@ fn SubregionView(
     let tab = beui::dock::use_dock_tab();
     let pane = beui::dock::use_dock_pane();
     let on_focus = Callback::new(move |()| {
+        // Heard while the editor's own view has the keyboard, it is stale: the keyboard went
+        // into the child and came back to the view since its host told it.
+        if beui::native::try_with_document(|document| document.has_keyboard()).unwrap_or(false) {
+            return;
+        }
         if let Some(pane) = pane {
             pane.focus();
         }
@@ -322,7 +327,8 @@ fn growths(count: Prop<u64>) -> ReadSignal<u64> {
 }
 
 /// Counts the times the dock gives `tab` the keyboard, or brings its window forward, while the
-/// child it shows takes input (an active or live block, a dock tab's body, a program window) and
+/// child it shows takes input (an active or live block, a dock tab's body, a program window, a
+/// host panel, whose host gives the keyboard to the view placing it) and
 /// no popover or keyboard-taking layer of the editor's is open: each is an ask that the child
 /// take the keyboard, which the child's placement carries (`keyboard-asks`).
 fn tab_keyboard_asks(
@@ -345,6 +351,7 @@ fn tab_keyboard_asks(
                         SubregionContent::Block(_)
                             | SubregionContent::DockTab(_)
                             | SubregionContent::Window(_)
+                            | SubregionContent::Host(_)
                     )
                 )
             })

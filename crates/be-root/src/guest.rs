@@ -1753,9 +1753,12 @@ impl frames::Guest for Root {
                 .borrow()
                 .as_ref()
                 .and_then(|accounts| accounts.surface.next());
+            // An ask that a child take the keyboard is acted on at the next frame's drawing.
+            let asking = root.with_children(|children| children.asking()) == Some(true);
             let next = wants
                 .next
                 .into_iter()
+                .chain(asking.then_some(time))
                 .chain(root.panels_next())
                 .chain(documents)
                 .chain(dialog)

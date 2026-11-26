@@ -2045,6 +2045,16 @@ impl Children {
         )
     }
 
+    /// Whether an editor asked a child take the keyboard in the settle just made, any number of
+    /// levels deep: the next frame acts on it (`keyboard`), so the root wants one.
+    pub fn asking(&self) -> bool {
+        self.asks.iter().any(|ask| ask.new)
+            || self
+                .shown
+                .iter()
+                .any(|child| child.editor.nested.borrow().asking())
+    }
+
     /// Moves the keyboard where an ask says, with the keyboard now in the layer `focused` and
     /// the layers just drawn told by `drawn`. An ask is acted on only while the keyboard is
     /// within its editor's views and the children they show (or nowhere, as one the ask took
@@ -2064,6 +2074,25 @@ impl Children {
         for mut ask in std::mem::take(&mut self.asks) {
             let new = std::mem::replace(&mut ask.new, false);
             if focused.is_some_and(|focused| !self.within(ask.editor, focused)) {
+                continue;
+            }
+            // A host panel the root draws takes no keys of its own: the view placing it does,
+            // whose dock shows it in the pane it gave the keyboard, as be-host has its view take
+            // it (`FocusRequested`).
+            let panel = self
+                .panels
+                .iter()
+                .find(|(place, ..)| place.editor == ask.editor && place.child == ask.child)
+                .map(|(place, ..)| place.view);
+            if let Some(view) = panel {
+                let placing = self
+                    .placers
+                    .iter()
+                    .find(|(_, editor, at)| *editor == ask.editor && *at == view)
+                    .map(|(layer, ..)| *layer);
+                if let Some(layer) = placing.filter(|layer| drawn(*layer)) {
+                    moved = moved.or(Some(KeyboardMove::Into(layer)));
+                }
                 continue;
             }
             let Some(child) = self
@@ -2103,20 +2132,31 @@ impl Children {
     }
 
     /// Whether the layer `layer` shows one of `editor`'s views or a child it placed, any number
-    /// of levels deep.
+    /// of levels deep: a host panel the root draws among them (the host's menu in its popover),
+    /// so an ask made while one still has the keyboard, closing as it opens what was asked for,
+    /// is acted on.
     fn within(&self, editor: EditorInstanceId, layer: LayerId) -> bool {
         self.placers
             .iter()
             .any(|(placer, shows, _)| *shows == editor && *placer == layer)
+            || self
+                .panels
+                .iter()
+                .any(|(place, _, shown)| place.editor == editor && shows_panel(shown, layer))
             || self
                 .shown
                 .iter()
                 .any(|child| child.placer == editor && child.holds(layer))
     }
 
-    /// Whether `layer` shows a view of the app these are the children of, or of a child of it.
+    /// Whether `layer` shows a view of the app these are the children of, or of a child of it,
+    /// or a host panel one of them placed.
     fn holds(&self, layer: LayerId) -> bool {
         self.placers.iter().any(|(placer, ..)| *placer == layer)
+            || self
+                .panels
+                .iter()
+                .any(|(_, _, shown)| shows_panel(shown, layer))
             || self.shown.iter().any(|child| child.holds(layer))
     }
 
@@ -3103,6 +3143,11 @@ impl Future for All {
             false => Poll::Pending,
         }
     }
+}
+
+/// Whether `shown`, the layer the root showed a host panel on, is `layer`.
+fn shows_panel(shown: &Option<Layer>, layer: LayerId) -> bool {
+    shown.as_ref().is_some_and(|shown| shown.id == layer)
 }
 
 #[cfg(test)]
