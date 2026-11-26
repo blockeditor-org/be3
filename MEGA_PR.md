@@ -150,6 +150,7 @@ Landed on 2026-11-24:
 - `backlog-12-store-s10-3`: a commit refused as stamped too far ahead is stamped again by the server's clock and sent; the refs keep what replaced what, a seal on a replaced commit is made again holding the replacement's objects, and an exhausted rewrite is retried on the next drain.
 - `gpu-wasi-webgpu-7`: the guest names dropped tickets to the host in `[poll]`, which lets them go; maps and work-done still run, their answers forgotten.
 - `host-adapter-4g7g2c`: a linked root runs on the web page with its own gpu device, its apps draw into canvases their workers are handed, the root wakes its page between frames, and be-host's root serving moves into root::serving.
+- `backlog-32`: `./scripts/test` runs a crate's named test targets as built; Linux windows are named by the installed applications' entries as a signal, with one way to list Linux programs; a Host change held during a join and older than its answer is dropped.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
