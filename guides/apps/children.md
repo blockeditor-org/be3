@@ -370,8 +370,9 @@ nothing but its `Docking`.
   it counts as taken a restore that reaches no root, whose root lets the
   child go or stops being the root (it joins another dock, or the child's
   declaration is withdrawn from it), or whose root goes away. The root counts a descendant's restore when it grafts it, which
-  waits until it hosts the descendant's group, and drops one for a group
-  the child no longer declares. A dock that does not join is wrapped
+  waits until it hosts the descendant's group, holding back only that
+  descendant's later requests (and its own descendants'), and drops one for a
+  group the child no longer declares. A dock that does not join is wrapped
   in a `DockHost` and kept under the same key (`DockKeeper`), so a bar moved
   in one place shows there everywhere. An editor that saves its own dock
   (be-sdk-shell's `Workspace`) provides `DockKeeper::none()`.

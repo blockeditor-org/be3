@@ -15,7 +15,8 @@ pub(crate) struct Docks {
     declared: HashMap<ViewId, Option<DockDeclaration>>,
     sent: HashMap<ViewId, Option<DockDeclaration>>,
     requests: Vec<(ViewId, DockRequest)>,
-    /// How many restores each view has asked for.
+    /// How many restores each view has asked for: only the main view's count, since the host
+    /// answers only its restores.
     restores: HashMap<ViewId, u64>,
     hosting: HashMap<ChildId, DockHold>,
     /// The `epoch` of the last declaration or withdrawal heard for each child.
@@ -44,7 +45,8 @@ impl EditorHost {
     pub fn request_dock(&self, view: ViewId, request: DockRequest) {
         let mut docks = self.docks.borrow_mut();
         docks.used = true;
-        if matches!(request, DockRequest::Restore(_)) {
+        // Only the main view joins a dock: the host answers no other's restores.
+        if view == ViewId::MAIN && matches!(request, DockRequest::Restore(_)) {
             *docks.restores.entry(view).or_default() += 1;
         }
         docks.requests.push((view, request));
@@ -58,6 +60,7 @@ impl EditorHost {
 
     /// Whether the root hosts `view`'s dock as it is after every restore the view asked for:
     /// what it hosted before it took the last one has a smaller `DockHosted::restored`.
+    /// Only `ViewId::MAIN` joins a dock, so only its restores are counted.
     pub fn dock_restored(&self, view: ViewId) -> bool {
         let docks = self.docks.borrow();
         let asked = docks.restores.get(&view).copied().unwrap_or(0);
@@ -85,8 +88,9 @@ impl EditorHost {
     }
 
     /// Hands `take` the requests `child` and its descendants made, in order, with the owner
-    /// each came from. `take` answers whether it took one: the first it leaves, and every one
-    /// after it, wait for the next call. Each restore taken counts in the child's holds
+    /// each came from. `take` answers whether it took one: one it leaves waits for the next
+    /// call, and so does every later one from the same owner or a descendant of it, while
+    /// other owners' requests go on past it. Each restore taken counts in the child's holds
     /// (`DockHosted::restored`), so the asker knows what the root hosts from then on has it.
     pub fn take_child_dock_requests(
         &self,
@@ -102,16 +106,22 @@ impl EditorHost {
             !here
         });
         let mut restored = 0;
-        let left: Vec<_> = held
-            .into_iter()
-            .skip_while(|(_, owner, request)| {
-                let taken = take(owner, request);
-                if taken && matches!(request, DockRequest::Restore(_)) {
+        let mut waiting: Vec<Vec<ChildId>> = Vec::new();
+        let mut left = Vec::new();
+        for request in held {
+            let (_, owner, asked) = &request;
+            let behind = waiting.iter().any(|waiting| owner.starts_with(waiting));
+            if !behind && take(owner, asked) {
+                if matches!(asked, DockRequest::Restore(_)) {
                     restored += 1;
                 }
-                taken
-            })
-            .collect();
+                continue;
+            }
+            if !behind {
+                waiting.push(owner.clone());
+            }
+            left.push(request);
+        }
         let mut docks = self.docks.borrow_mut();
         docks.child_requests.splice(0..0, left);
         if restored > 0 {
@@ -299,3 +309,6 @@ impl EditorHost {
         self.request_frame_in(std::time::Duration::ZERO);
     }
 }
+
+#[cfg(test)]
+mod tests;
