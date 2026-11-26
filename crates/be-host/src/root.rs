@@ -202,6 +202,7 @@ fn publish_tree(
     tree: Option<&[u8]>,
 ) {
     let document = graft.document();
+    // Actions on the root's nodes are not forwarded to it yet (the host adapter plan's Left).
     context.take_accessibility_actions(document);
     if let Some(tree) = tree.and_then(be_sdk_api::ops::decode::<be_sdk_api::accesskit::TreeUpdate>)
     {
@@ -402,6 +403,9 @@ impl RootShell {
             .surfaces
             .frame(root, request, deadline, self.waker.clone())
         else {
+            // The window's tree holds the root's as its last frame described it meanwhile: beui
+            // drops a document no frame publishes, and the next answer would resend the whole tree.
+            publish_tree(&mut self.tree, context, area, None);
             return;
         };
         let done = match done {
