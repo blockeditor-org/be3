@@ -173,6 +173,7 @@ Landed on 2026-11-24:
 - `backlog-15-snapshot`: a restarted app's editor is always sent its snapshot (shown by a be-host-runtime test); the root closes a let-go instance's editors (`Forwarded::close_all`), which had kept their blocks open for good.
 - `backlog-24-cdp`: the browser rasterizer drives chrome-headless-shell over the DevTools protocol pipe itself; Node and Playwright leave the previews (release 424 MB to 281 MB, 54 s to 15 s).
 - `streamed-part-writes`: a type module streams a part through a host part-writer (plans/streamed_part_writes.md step 1); writers are refused under a stateless request, bounded to 8 MiB unsealed, and let go of when dropped or their module restarts; Peer::put_part is gone.
+- `backlog-15-closeall`: the host's served editors are a `Served` list that closes their instances however one is let go; exiting and a stopped root shell close every instance.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
