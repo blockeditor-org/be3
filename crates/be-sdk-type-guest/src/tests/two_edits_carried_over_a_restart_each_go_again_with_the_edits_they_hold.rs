@@ -34,7 +34,10 @@ fn two_edits_carried_over_a_restart_each_go_again_with_the_edits_they_hold() {
         gesture: None,
         operation: ChecklistContent::encode_operation(&Checklist::set_text(item, text)),
     };
-    let (on_its_way, behind) = (edit(first, "first, revised"), edit(second, "second, revised"));
+    let (on_its_way, behind) = (
+        edit(first, "first, revised"),
+        edit(second, "second, revised"),
+    );
     // Its submissions are held on their way: the first, and the one carried over the restart
     // that comes while it is on its way. The second waits behind the first throughout.
     sim.stalled_from = Some(1);
@@ -57,7 +60,10 @@ fn two_edits_carried_over_a_restart_each_go_again_with_the_edits_they_hold() {
     let restarts = sim.devices[1].status.restarts;
     assert!(restarts > 0, "the session restarted");
     let held = Submitted::decode(&carried.payload).expect("a submission decodes");
-    assert_eq!(held.through, 1, "the carried first holds its own edit alone");
+    assert_eq!(
+        held.through, 1,
+        "the carried first holds its own edit alone"
+    );
 
     sim.kept_opening = Some((restarts, 0));
     sim.kept_submitted = held.through;

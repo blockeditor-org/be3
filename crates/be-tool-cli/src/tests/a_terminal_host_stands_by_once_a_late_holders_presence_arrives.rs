@@ -26,7 +26,10 @@ async fn hosted() {
     let mut first = host("first-box").on_clock(clock.clone());
     let mut second = host("second-box").on_clock(clock.clone());
     let mut standing = second.standing();
-    let claims = [("first-box", first.claims()), ("second-box", second.claims())];
+    let claims = [
+        ("first-box", first.claims()),
+        ("second-box", second.claims()),
+    ];
     let (stop_first, first_stopped) = oneshot::channel::<()>();
     let (stop_second, second_stopped) = oneshot::channel::<()>();
     let (start_second, second_starts) = oneshot::channel::<()>();
@@ -66,9 +69,10 @@ async fn hosted() {
             clock.advance(crate::terminal_host::CLAIM_INTERVAL * 2);
             viewer.run("echo held-$((3*3))").await;
             viewer
-                .until("read the first host's shell while the presence was held", |viewer| {
-                    viewer.answered("held-9")
-                })
+                .until(
+                    "read the first host's shell while the presence was held",
+                    |viewer| viewer.answered("held-9"),
+                )
                 .await;
             standing.changed().await.unwrap();
             assert_eq!(
@@ -89,7 +93,10 @@ async fn hosted() {
             // unmoved short of `CLAIM_INTERVAL` and `UNHEARD_HOLDER`, and the other stands by
             // rather than claim beside it. The first host is held still meanwhile, so what the
             // second does is seen apart from it.
-            let before: Vec<u64> = claims.iter().map(|(_, claimed)| *claimed.borrow()).collect();
+            let before: Vec<u64> = claims
+                .iter()
+                .map(|(_, claimed)| *claimed.borrow())
+                .collect();
             be_lib_test_pause::hold(SESSION_PAUSE, first_key);
             // Woken by a message, the first host comes to the pause once it has taken it.
             viewer.send(TerminalMessage::Resize(SIZE)).await;
@@ -135,7 +142,11 @@ async fn hosted() {
             assert_eq!(viewer.machine().as_deref(), Some(first_by_client));
             for ((machine, claimed), before) in claims.iter().zip(before) {
                 if *machine != first_by_client {
-                    assert_eq!(*claimed.borrow(), before, "{machine} never claimed the lease");
+                    assert_eq!(
+                        *claimed.borrow(),
+                        before,
+                        "{machine} never claimed the lease"
+                    );
                 }
             }
             viewer.leave().await;
