@@ -25,12 +25,15 @@ fn instances_that_go_with_their_app_let_go_of_their_blocks() {
         sent.iter()
             .any(|message| matches!(message, ToEditor::Snapshot(_)))
     });
-    be_host_stack::wait_until("the editor's block held, in step with the server", |shared| {
-        (shared.blocks.contains_key(&block)
-            && shared.busy(true).is_empty()
-            && shared.unsynced().is_empty())
-        .then_some(())
-    });
+    be_host_stack::wait_until(
+        "the editor's block held, in step with the server",
+        |shared| {
+            (shared.blocks.contains_key(&block)
+                && shared.busy(true).is_empty()
+                && shared.unsynced().is_empty())
+            .then_some(())
+        },
+    );
 
     instances.close_all();
 

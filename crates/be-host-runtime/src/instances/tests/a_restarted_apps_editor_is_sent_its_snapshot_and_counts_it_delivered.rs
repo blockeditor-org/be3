@@ -46,10 +46,16 @@ fn resend_and_take_snapshots(instances: &mut Instances, blocks: [Uuid; 2]) {
 
 /// How many times each link's content reached the editor after it lacked it, own block first.
 fn deliveries(instances: &Instances, [own, watched]: [Uuid; 2]) -> (u64, u64) {
-    let entry = instances.entries.get(&INSTANCE).expect("the instance is open");
+    let entry = instances
+        .entries
+        .get(&INSTANCE)
+        .expect("the instance is open");
     assert_eq!(entry.role.block().map(|block| block.id), Some(own));
     let own = entry.content.as_ref().expect("its block is linked");
-    let watched = entry.watched.get(&watched).expect("the block it holds is linked");
+    let watched = entry
+        .watched
+        .get(&watched)
+        .expect("the block it holds is linked");
     (own.deliveries, watched.deliveries)
 }
 
