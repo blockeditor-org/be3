@@ -3353,10 +3353,14 @@ where
         self.ordered_bytes += ordered_bytes(&op);
         match Submitted::decode(&op.payload) {
             Some(Submitted { through, entry }) => {
-                self.note_origin(op.id.origin, through, sequence);
+                if !below_floor(&op, &entry) {
+                    self.note_origin(op.id.origin, through, sequence);
+                    if mine {
+                        self.own_through = self.own_through.max(through);
+                        self.own_numbered.push_back((sequence, through));
+                    }
+                }
                 if mine {
-                    self.own_through = self.own_through.max(through);
-                    self.own_numbered.push_back((sequence, through));
                     self.own_in_journal = true;
                 }
                 match entry {
@@ -3520,13 +3524,18 @@ where
             self.incompatible = true;
             return self.passed(&op, mine);
         };
-        self.note_origin(op.id.origin, through, op.sequence);
+        let passed = below_floor(&op, &entry);
+        if !passed {
+            self.note_origin(op.id.origin, through, op.sequence);
+        }
         if mine {
-            if !self.pending.iter().any(|sent| sent.id == op.id) {
-                self.heard_own(op.id.counter);
+            if !passed {
+                if !self.pending.iter().any(|sent| sent.id == op.id) {
+                    self.heard_own(op.id.counter);
+                }
+                self.own_through = self.own_through.max(through);
+                self.own_numbered.push_back((op.sequence, through));
             }
-            self.own_through = self.own_through.max(through);
-            self.own_numbered.push_back((op.sequence, through));
             self.lacking.numbered(op.id.counter, op.sequence);
         }
         match entry {
@@ -5705,6 +5714,20 @@ where
         // They go again as new submissions: the ones on their way are passed over.
         self.lacking.unsubmitted();
     }
+}
+
+/// Whether every replica passes `op` over for being based before the order's floor (made
+/// before a restart): it puts none of the local edits it holds in the order, which the origin's
+/// replica carries over and sends again, and its next opening must still be given.
+fn below_floor(op: &SessionOp, entry: &Entry) -> bool {
+    op.base < op.floor
+        && match entry {
+            Entry::Operation(_) => true,
+            Entry::Reload {
+                replace, restart, ..
+            } => !replace && !restart,
+            Entry::Keep { .. } => false,
+        }
 }
 
 /// The operation a kept submission of the local edits through `through` holds inline: none for
