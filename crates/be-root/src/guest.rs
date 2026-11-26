@@ -1661,6 +1661,16 @@ impl frames::Guest for Root {
                 .collect();
             // The list is taken as drawn first, so an ask can focus a layer it holds; what the
             // apps want is read after, as it was before (nothing between changes it).
+            // The session's editor takes the chords it intercepts over its children's views, as
+            // be-host's own UI hands them to the session's view.
+            let interceptor = match &*root.session.borrow() {
+                Some(Session {
+                    state: Showing::Running(hosted),
+                    ..
+                }) => Some((hosted.app.instance(), SESSION_SCREEN)),
+                _ => None,
+            };
+            root.embedding.borrow_mut().intercept_for(interceptor);
             let drawn = root.embedding.borrow_mut().drew(list);
             // A child asked to take the keyboard that now shows takes it there, unless the root's
             // own takes it below.

@@ -1115,6 +1115,14 @@ impl Embedded {
         Some((area, raster(placement)))
     }
 
+    /// What the screen `screen` asks of its window, as its last layout applied said, and the
+    /// surface it is painted on, once it is.
+    pub(crate) fn screen_window(&self, screen: ScreenId) -> Option<(u32, WindowRequests)> {
+        let state = self.state.borrow();
+        let surface = state.painted.get(&screen)?.surface;
+        Some((surface, state.windows.get(&screen)?.clone()))
+    }
+
     /// What the screen showing `surface` asks of its window (its cursor, the pointer lock,
     /// every sample, its input method's area), as its last layout applied said.
     pub(crate) fn window(&self, surface: u32) -> Option<WindowRequests> {

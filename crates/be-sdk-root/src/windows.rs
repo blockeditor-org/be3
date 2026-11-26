@@ -68,6 +68,11 @@ impl Windows {
         }
     }
 
+    /// The layer intercepted chords and system gestures go to.
+    pub(crate) fn compositor(&self) -> LayerId {
+        self.compositor
+    }
+
     /// Hands `chords` to the compositor in every window from now on, ahead of the layer focused
     /// there, in place of those it took before: a key pressed with one of them goes to the
     /// compositor, and so does its release. A dialog takes Escape this way while it is open.
