@@ -267,7 +267,10 @@ async fn merge_segments(
     let part = name(PartKind::Documents);
     out.write(&part, &count.to_le_bytes())?;
     for window in offsets.chunks(1024) {
-        let bytes: Vec<u8> = window.iter().flat_map(|offset| offset.to_le_bytes()).collect();
+        let bytes: Vec<u8> = window
+            .iter()
+            .flat_map(|offset| offset.to_le_bytes())
+            .collect();
         out.write(&part, &bytes)?;
     }
     drop(documents);
@@ -288,9 +291,7 @@ async fn merge_segments(
         let document = documents[input].get(parts, next[input] as u32).await?;
         next[input] += 1;
         let record = segment::record(&document);
-        if record.len() as u64
-            != u64::from(offsets[local as usize + 1] - offsets[local as usize])
-        {
+        if record.len() as u64 != u64::from(offsets[local as usize + 1] - offsets[local as usize]) {
             return Err(Error::Corrupt("documents"));
         }
         out.write(&part, &record)?;
@@ -337,11 +338,17 @@ async fn merge_segments(
         }
         if !list.is_empty() {
             list.sort_by_key(|posting| posting.doc);
-            writer.add(&term, &list, &mut |kind, bytes| out.write(&name(kind), bytes))?;
+            writer.add(&term, &list, &mut |kind, bytes| {
+                out.write(&name(kind), bytes)
+            })?;
         }
         previous = Some(term);
     }
-    for kind in [PartKind::Dictionary, PartKind::Postings, PartKind::Positions] {
+    for kind in [
+        PartKind::Dictionary,
+        PartKind::Postings,
+        PartKind::Positions,
+    ] {
         out.finish(&name(kind))?;
     }
     Ok(writer.finish(id, count, lengths))

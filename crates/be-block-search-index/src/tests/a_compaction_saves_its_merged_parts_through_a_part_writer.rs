@@ -25,7 +25,9 @@ impl PartsOut for Saving<'_> {
         let bytes = self.writing.borrow_mut().remove(part).unwrap_or_default();
         let mut writer = self.vault.part_writer(self.key).unwrap();
         writer.write(&bytes).unwrap();
-        self.saved.borrow_mut().insert(*part, writer.finish().unwrap());
+        self.saved
+            .borrow_mut()
+            .insert(*part, writer.finish().unwrap());
         Ok(())
     }
 }

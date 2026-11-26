@@ -37,8 +37,16 @@ fn compaction_gives_the_same_answers_as_one_index_built_from_scratch() {
                 ..Batch::default()
             },
         );
-        let written =
-            run(index.compact(&store, &store, id(1000 + batch), 0, usize::MAX, u64::MAX, |_| 0)).unwrap();
+        let written = run(index.compact(
+            &store,
+            &store,
+            id(1000 + batch),
+            0,
+            usize::MAX,
+            u64::MAX,
+            |_| 0,
+        ))
+        .unwrap();
         store.keep(&written);
         most_segments = most_segments.max(index.segment_count());
     }

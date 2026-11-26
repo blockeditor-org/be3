@@ -91,7 +91,9 @@ fn merging_two_indexes_gives_the_same_answers_as_one_built_from_scratch() {
     let (again, written) = run(merged.merge(&reverse, &store, id(302))).unwrap();
     store.keep(&written);
     let mut compacted = again.clone();
-    store.keep(&run(compacted.compact(&store, &store, id(303), 0, usize::MAX, u64::MAX, |_| 0)).unwrap());
+    store.keep(
+        &run(compacted.compact(&store, &store, id(303), 0, usize::MAX, u64::MAX, |_| 0)).unwrap(),
+    );
     same_answers((&again, &store), (&fresh, &fresh_store), 330);
     same_answers((&compacted, &store), (&fresh, &fresh_store), 330);
 }

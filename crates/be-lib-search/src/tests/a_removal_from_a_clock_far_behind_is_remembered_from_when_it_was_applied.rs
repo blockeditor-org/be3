@@ -29,7 +29,9 @@ fn a_removal_from_a_clock_far_behind_is_remembered_from_when_it_was_applied() {
         },
     );
     // A compaction now forgets what is older than a week; the removal is a few seconds old here.
-    store.keep(&run(removing.compact(&store, &store, id(3), now, usize::MAX, u64::MAX, |_| 0)).unwrap());
+    store.keep(
+        &run(removing.compact(&store, &store, id(3), now, usize::MAX, u64::MAX, |_| 0)).unwrap(),
+    );
     removing.forget_before(now - 7 * DAY);
     assert_eq!(
         removing.removed_blocks.len(),

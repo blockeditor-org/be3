@@ -75,7 +75,10 @@ impl DocumentReader {
         if local >= self.docs {
             return Err(Error::Corrupt("document id"));
         }
-        let pair = self.offsets.read(parts, 4 + 4 * u64::from(local), 8).await?;
+        let pair = self
+            .offsets
+            .read(parts, 4 + 4 * u64::from(local), 8)
+            .await?;
         let (start, end) = (segment::le(pair, 0)?, segment::le(pair, 4)?);
         if start > end {
             return Err(Error::Corrupt("documents"));
@@ -139,7 +142,8 @@ impl<'a> TermReader<'a> {
             .postings
             .read(parts, info.postings, u64::from(info.postings_len))
             .await?;
-        let skip = segment::decode_skip(segment::slice(bytes, 0, u64::from(info.skip_len))?, info.df)?;
+        let skip =
+            segment::decode_skip(segment::slice(bytes, 0, u64::from(info.skip_len))?, info.df)?;
         let mut list = Vec::new();
         let mut at = u64::from(info.skip_len);
         let mut previous = 0;

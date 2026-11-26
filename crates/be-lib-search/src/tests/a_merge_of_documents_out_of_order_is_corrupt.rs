@@ -18,9 +18,14 @@ fn documents_part(documents: &[Document]) -> Vec<u8> {
 fn a_merge_of_documents_out_of_order_is_corrupt() {
     let mut store = Store::default();
     let mut index = Index::default();
-    for (batch, puts) in [vec![put(0, 0, 2), put(1, 0, 1)], vec![put(2, 0, 0)], vec![put(3, 0, 0)], vec![put(4, 0, 0)]]
-        .into_iter()
-        .enumerate()
+    for (batch, puts) in [
+        vec![put(0, 0, 2), put(1, 0, 1)],
+        vec![put(2, 0, 0)],
+        vec![put(3, 0, 0)],
+        vec![put(4, 0, 0)],
+    ]
+    .into_iter()
+    .enumerate()
     {
         apply(
             &mut index,
@@ -46,6 +51,9 @@ fn a_merge_of_documents_out_of_order_is_corrupt() {
         .get_mut()
         .insert(meta.part(PartKind::Documents), documents_part(&documents));
 
-    let compacted = run(index.clone().compact(&store, &store, id(50), 0, usize::MAX, u64::MAX, |_| 0));
+    let compacted =
+        run(index
+            .clone()
+            .compact(&store, &store, id(50), 0, usize::MAX, u64::MAX, |_| 0));
     assert_eq!(compacted, Err(Error::Corrupt("documents order")));
 }

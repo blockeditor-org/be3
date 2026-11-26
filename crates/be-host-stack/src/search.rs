@@ -2785,7 +2785,11 @@ impl<'a, S: ObjectStore> Saving<'a, S> {
 }
 
 impl<S: ObjectStore> be_lib_search::PartsOut for Saving<'_, S> {
-    fn write(&self, part: &be_lib_search::PartName, bytes: &[u8]) -> Result<(), be_lib_search::Error> {
+    fn write(
+        &self,
+        part: &be_lib_search::PartName,
+        bytes: &[u8],
+    ) -> Result<(), be_lib_search::Error> {
         let mut writing = self.writing.borrow_mut();
         let writer = match writing.entry(*part) {
             std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
@@ -2798,9 +2802,7 @@ impl<S: ObjectStore> be_lib_search::PartsOut for Saving<'_, S> {
 
     fn finish(&self, part: &be_lib_search::PartName) -> Result<(), be_lib_search::Error> {
         let saved = match self.writing.borrow_mut().remove(part) {
-            Some(writer) => writer
-                .finish()
-                .map_err(unsaved)?,
+            Some(writer) => writer.finish().map_err(unsaved)?,
             None => None,
         };
         self.saved.borrow_mut().insert(*part, saved);
@@ -2813,7 +2815,10 @@ fn unsaved(error: impl std::fmt::Display) -> be_lib_search::Error {
 }
 
 impl<S: ObjectStore> SavedParts for Saving<'_, S> {
-    fn saved(&self, part: &be_lib_search::PartName) -> Result<Option<PartRef>, be_lib_search::Error> {
+    fn saved(
+        &self,
+        part: &be_lib_search::PartName,
+    ) -> Result<Option<PartRef>, be_lib_search::Error> {
         self.saved
             .borrow()
             .get(part)

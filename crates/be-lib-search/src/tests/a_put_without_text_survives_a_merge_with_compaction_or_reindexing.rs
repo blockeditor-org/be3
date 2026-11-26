@@ -45,7 +45,9 @@ fn a_put_without_text_survives_a_merge_with_compaction_or_reindexing() {
 
     // The other side compacted the segment the newer entry points into.
     let mut compacted = base.clone();
-    store.keep(&run(compacted.compact(&store, &store, id(20), 0, usize::MAX, u64::MAX, |_| 0)).unwrap());
+    store.keep(
+        &run(compacted.compact(&store, &store, id(20), 0, usize::MAX, u64::MAX, |_| 0)).unwrap(),
+    );
     assert_eq!(compacted.segment_count(), 1);
     for (a, b) in [(&compacted, &moved), (&moved, &compacted)] {
         let (merged, written) = run(a.merge(b, &store, id(30))).unwrap();

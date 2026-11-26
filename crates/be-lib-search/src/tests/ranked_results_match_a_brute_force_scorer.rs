@@ -99,7 +99,9 @@ fn ranked_results_match_a_brute_force_scorer() {
     check(&index, &store);
 
     let mut compacted = index.clone();
-    store.keep(&run(compacted.compact(&store, &store, id(100), 0, usize::MAX, u64::MAX, |_| 0)).unwrap());
+    store.keep(
+        &run(compacted.compact(&store, &store, id(100), 0, usize::MAX, u64::MAX, |_| 0)).unwrap(),
+    );
     assert!(compacted.segment_count() < index.segment_count());
     check(&compacted, &store);
 

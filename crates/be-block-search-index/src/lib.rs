@@ -209,7 +209,9 @@ impl SearchIndexContent {
                     return Ok((name, Held::Bytes(bytes)));
                 }
                 if written.saved.contains(&name) {
-                    let held = saved.saved(&name)?.map_or(Held::Bytes(Vec::new()), Held::Saved);
+                    let held = saved
+                        .saved(&name)?
+                        .map_or(Held::Bytes(Vec::new()), Held::Saved);
                     return Ok((name, held));
                 }
                 sides
@@ -285,9 +287,11 @@ impl<F: AsyncRead> Parts for Reader<'_, F> {
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, Error>> + 'a>> {
         match self.parts.get(part) {
             Some(held) => read_held(held, range, self.read),
-            None => Box::pin(async move {
-                Err(Error::Read(format!("the index names no part {part:?}")))
-            }),
+            None => {
+                Box::pin(
+                    async move { Err(Error::Read(format!("the index names no part {part:?}"))) },
+                )
+            }
         }
     }
 }

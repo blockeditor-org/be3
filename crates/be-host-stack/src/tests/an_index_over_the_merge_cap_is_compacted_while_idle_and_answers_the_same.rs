@@ -170,9 +170,9 @@ fn an_index_over_the_merge_cap_is_compacted_while_idle_and_answers_the_same() {
     // server with the commit: another device reads them from there.
     let elsewhere = std::sync::Arc::clone(&other.peer.borrow());
     for (word, note) in words.iter().zip(&notes) {
-        let (found, segments) = other.runtime.block_on(crate::search::found_on_server(
-            &elsewhere, index, word,
-        ));
+        let (found, segments) = other
+            .runtime
+            .block_on(crate::search::found_on_server(&elsewhere, index, word));
         assert_eq!(found, [*note], "another device finds {word}");
         assert_eq!(segments, after);
     }

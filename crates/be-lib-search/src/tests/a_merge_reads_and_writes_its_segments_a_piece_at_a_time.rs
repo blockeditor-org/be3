@@ -83,8 +83,16 @@ fn a_merge_reads_and_writes_its_segments_a_piece_at_a_time() {
     let written =
         run(index.compact(&bounded, &sink, id(50), 0, usize::MAX, u64::MAX, |_| 0)).unwrap();
     assert_eq!(index.segment_count(), 1);
-    assert!(bounded.most.get() <= BOUND, "read {} bytes at once", bounded.most.get());
-    assert!(sink.most.get() <= BOUND, "wrote {} bytes at once", sink.most.get());
+    assert!(
+        bounded.most.get() <= BOUND,
+        "read {} bytes at once",
+        bounded.most.get()
+    );
+    assert!(
+        sink.most.get() <= BOUND,
+        "wrote {} bytes at once",
+        sink.most.get()
+    );
     assert_eq!(written.saved, index.segments[0].parts());
 
     // What one batch of the same documents builds, byte for byte.

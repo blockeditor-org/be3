@@ -4,9 +4,14 @@ use super::*;
 fn a_merge_drops_a_document_the_table_moved_though_unmasked() {
     let mut store = Store::default();
     let mut index = Index::default();
-    for (batch, puts) in [vec![put(0, 0, 1), put(1, 0, 1)], vec![put(0, 1, 2)], vec![put(2, 0, 3)], vec![put(3, 0, 4)]]
-        .into_iter()
-        .enumerate()
+    for (batch, puts) in [
+        vec![put(0, 0, 1), put(1, 0, 1)],
+        vec![put(0, 1, 2)],
+        vec![put(2, 0, 3)],
+        vec![put(3, 0, 4)],
+    ]
+    .into_iter()
+    .enumerate()
     {
         apply(
             &mut index,
@@ -21,7 +26,9 @@ fn a_merge_drops_a_document_the_table_moved_though_unmasked() {
     assert_eq!(index.segment_count(), 4);
 
     // The first segment's deletions forgotten: only the table says document 0 moved on.
-    let deletions = index.segments[0].deletions.expect("document 0's first version is masked");
+    let deletions = index.segments[0]
+        .deletions
+        .expect("document 0's first version is masked");
     store.parts.parts.get_mut().insert(deletions, Vec::new());
 
     let written =

@@ -41,8 +41,8 @@ fn a_compaction_leaves_the_segments_it_merged_for_the_next() {
 
     // The four small ones merge into a fourth of four; that one would make the tier above
     // whole, but a merge taking it would drop parts this pass sealed already.
-    let written = run(index.compact(&out.store, &out, id(50), 0, usize::MAX, u64::MAX, |_| 0))
-        .unwrap();
+    let written =
+        run(index.compact(&out.store, &out, id(50), 0, usize::MAX, u64::MAX, |_| 0)).unwrap();
     out.store.keep(&written);
     assert_eq!(index.segment_count(), 4);
     let named = index.parts();
@@ -51,11 +51,14 @@ fn a_compaction_leaves_the_segments_it_merged_for_the_next() {
     }
 
     // The next pass merges it.
-    let written = run(index.compact(&out.store, &out, id(51), 1, usize::MAX, u64::MAX, |_| 0))
-        .unwrap();
+    let written =
+        run(index.compact(&out.store, &out, id(51), 1, usize::MAX, u64::MAX, |_| 0)).unwrap();
     out.store.keep(&written);
     assert_eq!(index.segment_count(), 1);
     for n in 0..n {
-        assert_eq!(found(&index, &out.store, &format!("uniq{n}v0x ")), [doc(n)].into());
+        assert_eq!(
+            found(&index, &out.store, &format!("uniq{n}v0x ")),
+            [doc(n)].into()
+        );
     }
 }
