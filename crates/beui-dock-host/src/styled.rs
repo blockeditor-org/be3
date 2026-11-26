@@ -231,7 +231,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
         title,
         icon,
         picture,
-        count,
+        unread,
         selected,
         hovered,
         active,
@@ -258,7 +258,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
                         title
                         icon
                         picture
-                        count
+                        unread
                         grouped
                         vertical
                         selected
@@ -387,7 +387,7 @@ fn DockTabChrome(
     title: Prop<String>,
     icon: Memo<Option<Glyph>>,
     picture: Memo<Option<Image>>,
-    count: Memo<u32>,
+    unread: Memo<u32>,
     grouped: bool,
     vertical: bool,
     selected: Memo<bool>,
@@ -440,8 +440,10 @@ fn DockTabChrome(
                 <ListItem grow=title_grow shrink=title_shrink>
                     <Text color={label} overflow=Overflow::Ellipsis>{title}</Text>
                 </ListItem>
-                <Show value={move || count.get() > 0}>
-                    <CountBadge count={count} />
+                <Show value={move || unread.get() > 0}>
+                    <Tooltip label={move || format!("{} unread", unread.get())}>
+                        <CountBadge count={unread} />
+                    </Tooltip>
                 </Show>
                 <Show value={waiting}>
                     <Frame

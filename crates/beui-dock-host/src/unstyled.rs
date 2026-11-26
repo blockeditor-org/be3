@@ -102,8 +102,8 @@ pub struct DockTabHandle {
     pub title: Memo<String>,
     pub icon: Memo<Option<Glyph>>,
     pub picture: Memo<Option<Image>>,
-    /// A count the tab shows beside its title as a badge; zero shows none.
-    pub count: Memo<u32>,
+    /// An unread count the tab shows beside its title as a badge; zero shows none.
+    pub unread: Memo<u32>,
     pub tabs: Memo<Vec<TabId>>,
     pub has_next: Memo<bool>,
     pub selected: Memo<bool>,
@@ -266,7 +266,7 @@ struct State {
     group_host: Func<GroupId, Option<TabId>>,
     icon: Func<TabId, Option<Glyph>>,
     picture: Func<TabId, Option<Image>>,
-    count: Func<TabId, u32>,
+    unread: Func<TabId, u32>,
     closable: Func<TabId, bool>,
     back_closes: Func<TabId, bool>,
     menu: MenuStyle,
@@ -641,9 +641,9 @@ impl State {
         }
     }
 
-    fn entry_count(&self, entry: Entry) -> u32 {
+    fn entry_unread(&self, entry: Entry) -> u32 {
         self.standing_tab(entry)
-            .map_or(0, |tab| self.count.call(tab))
+            .map_or(0, |tab| self.unread.call(tab))
     }
 
     fn entry_picture(&self, entry: Entry) -> Option<Image> {
@@ -1508,7 +1508,7 @@ pub(crate) struct DockConfig {
     pub(crate) hosts: Memo<Vec<TabId>>,
     pub(crate) icon: Func<TabId, Option<Glyph>>,
     pub(crate) picture: Func<TabId, Option<Image>>,
-    pub(crate) count: Func<TabId, u32>,
+    pub(crate) unread: Func<TabId, u32>,
     pub(crate) closable: Func<TabId, bool>,
     pub(crate) back_closes: Func<TabId, bool>,
     pub(crate) menu: MenuStyle,
@@ -1572,7 +1572,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         hosts,
         icon,
         picture,
-        count,
+        unread,
         closable,
         back_closes,
         menu,
@@ -1683,7 +1683,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         group_host,
         icon,
         picture,
-        count,
+        unread,
         closable,
         back_closes,
         menu,
@@ -3122,7 +3122,7 @@ fn DockTabView(
     let title = create_memo(move || dock.entry_title(entry));
     let icon = create_memo(move || dock.entry_icon(entry));
     let picture = create_memo(move || dock.entry_picture(entry));
-    let count = create_memo(move || dock.entry_count(entry));
+    let unread = create_memo(move || dock.entry_unread(entry));
     let tabs = create_memo(move || state.with(|state| state.entry_tabs(entry)));
     let has_next = create_memo(move || {
         state.with(|state| {
@@ -3190,7 +3190,7 @@ fn DockTabView(
         title,
         icon,
         picture,
-        count,
+        unread,
         tabs,
         has_next,
         selected,

@@ -1195,6 +1195,12 @@ impl Graph {
         (wanted, std::mem::take(&mut self.unknown))
     }
 
+    /// A read of `block`'s summary answered that this account may not know of it: the server
+    /// let its follow go with that read, so it is not unfollowed again.
+    pub fn known_gone(&mut self, block: Uuid) {
+        self.known.remove(&block);
+    }
+
     /// Keeps `known` to the nodes this account may only know exist.
     fn track_known(&mut self, block: Uuid, known_only: bool) {
         match (known_only, self.known.contains_key(&block)) {

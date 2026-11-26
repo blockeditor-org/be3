@@ -1303,21 +1303,17 @@ impl Client {
                     organization: identity.organization,
                     block: blocks[0],
                 };
-                // Followed before it is read, so no change during the read is missed; let go
-                // when the caller may not know of the block, which tells it nothing of it.
+                // Followed before it is read, so no change during the read is missed. The read
+                // starts what the follow tells changes of, or lets it go when the caller may not
+                // know of the block, which tells it nothing of it (`answer`).
                 connection.hub.follow_known(connection.client, place).await?;
-                let page = self
-                    .answer(
-                        admitted,
-                        Query::Blocks {
-                            blocks,
-                            contents: false,
-                            held,
-                        },
-                    )
-                    .await;
-                let known = matches!(&page, Ok(Page::Summaries(read)) if read.first().is_some_and(Option::is_some));
-                if !known {
+                let query = Query::Blocks {
+                    blocks,
+                    contents: false,
+                    held,
+                };
+                let page = self.answer(admitted, query).await;
+                if page.is_err() {
                     let connection = &self.connection;
                     connection.hub.unfollow_known(connection.client, place).await;
                 }
@@ -1521,11 +1517,26 @@ impl Client {
                         be_block_protocol::MAX_SUMMARIES_ASKED
                     )));
                 }
-                Page::Summaries(
-                    store
-                        .read_summaries(admitted.identity()?, blocks, SUMMARY_BYTES)
-                        .await?,
-                )
+                let identity = admitted.identity()?;
+                let read = store
+                    .read_summaries(identity, blocks.clone(), SUMMARY_BYTES)
+                    .await?;
+                // A read of a block followed as one known of is what its next change is told
+                // past (`WatchHub::known_read`).
+                if connection.hub.follows_known(connection.client).await {
+                    for (block, summary) in blocks.iter().zip(&read) {
+                        let place = Place {
+                            organization: identity.organization,
+                            block: *block,
+                        };
+                        let state = summary.as_ref().map(crate::blocks::KnownState::of);
+                        connection
+                            .hub
+                            .known_read(connection.client, place, state)
+                            .await;
+                    }
+                }
+                Page::Summaries(read)
             }
             Query::Blocks {
                 blocks,
@@ -3422,9 +3433,7 @@ pub(crate) async fn advance(
     let Ok((sequence, path)) = advanced else {
         return;
     };
-    // Whoever follows a block on the path as a block it knows of (`topic.known`) hears it
-    // changed, and reads its summary again: what it may know of it is the summary's to say.
-    hub.known_changed(organization, &path).await;
+    tell_known(store, hub, organization, &path).await;
     let followers = hub.followers(organization, &path).await;
     if followers.is_empty() {
         return;
@@ -3446,6 +3455,32 @@ pub(crate) async fn advance(
             // It lost view of what it follows (a grant revoked, a move): told once, it reads
             // the tree, is refused and lets go of what it showed of it.
             false => hub.left(client, place, sequence).await,
+        }
+    }
+}
+
+/// Tells whoever follows a block on `path` as one it knows of (`topic.known`) that it changed,
+/// only when what its summary says moved past what the follower last read: a change below the
+/// block, which the follower may not know of, moves nothing of it. One that may no longer know
+/// of the block (a revoke, a move out of reach) is told once more and let go, so it reads the
+/// summary again and lets go of what it showed.
+async fn tell_known(store: &ServerStore, hub: &WatchHub, organization: Uuid, path: &[Uuid]) {
+    let followers = hub.known_followers(organization, path).await;
+    if followers.is_empty() {
+        return;
+    }
+    let asked = followers
+        .iter()
+        .map(|(_, identity, place, _)| (*identity, place.block))
+        .collect();
+    let Ok(states) = store.known_states(organization, asked).await else {
+        return;
+    };
+    for ((client, _, place, read), state) in followers.into_iter().zip(states) {
+        match state {
+            None => hub.known_changed(client, place, true).await,
+            Some(state) if read != Some(state) => hub.known_changed(client, place, false).await,
+            Some(_) => {}
         }
     }
 }

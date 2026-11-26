@@ -433,9 +433,14 @@ the connection a stopping stack closed.
   to send, or that the server refused for now (`Drained::Failed`, `Refused`),
   drains again on what may let it through (`Tasks::drain_missed`): keys
   changing, a lane command ending (a revoke and its rotation), an open block's
-  key changing. After a revoke, a drain running beside the lane's rotation can
-  meet the old epoch shown outdated before the new one exists, and the timer
-  alone would hold the edit 30 s.
+  key changing; one that comes while a drain is under way drains once more if
+  that drain missed (`Outbox::signalled`). After a revoke, a drain running
+  beside the lane's rotation can meet the old epoch shown outdated before the
+  new one exists (not reproduced: no test makes a drain fail this way), and the
+  timer alone would hold the edit 30 s. A drain does not wait for the lane's
+  commands on its blocks instead: a lane command first waits for the drain to
+  send what it needs of its block (`Tasks::sent`), so a drain that skipped the
+  lane's blocks would leave that command waiting on itself.
 - **Session calls off the loop.** Relays, claims, leaves, unwatches
   and resynchronizing joins are answered in tasks (`Io::*`). They are written
   the moment they are made, so a leave and the next join reach the server in
@@ -711,7 +716,7 @@ which be-app-file-tree's
 Where a block is shown, its count shows the same way: a `CountBadge` with the
 name bold on a file-tree row and a block picker row (`TreeRow::unread`), and a
 `CountBadge` beside an editor tab's title (`Workspace::tab_unread`, `DockTab`
-`count`); be-app-workspace's
+`unread`); be-app-workspace's
 `a_block_tab_shows_what_is_unread_in_its_block` and
 `the_pickers_rows_show_what_is_unread_in_each_block` paint them.
 

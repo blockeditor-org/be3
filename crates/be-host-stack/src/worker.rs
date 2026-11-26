@@ -5097,6 +5097,7 @@ async fn follow_known(
             }
             Ok(None) => {
                 let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                held.graph.known_gone(block);
                 if !held.graph.unsettled(block) {
                     held.graph.forget(block);
                 }
@@ -5129,7 +5130,10 @@ async fn reread_known_only(
             }
             // Not one made or changed here that the server has yet to hear of.
             None if held.graph.unsettled(block) => {}
-            None => held.graph.forget(block),
+            None => {
+                held.graph.known_gone(block);
+                held.graph.forget(block);
+            }
         }
     }
 }
@@ -5358,6 +5362,9 @@ struct Outbox {
     /// may let it through (keys arriving, a rotation finishing) drains again
     /// (`Tasks::drain_missed`).
     missed: bool,
+    /// Something that may let a missed change through came while a drain was under way: it
+    /// drains again if that drain missed.
+    signalled: bool,
 }
 
 impl Tasks {
@@ -5414,6 +5421,10 @@ impl Tasks {
                     drain_outbox(&peer, &shared).await;
                 let mut held = outbox.borrow_mut();
                 held.missed = missed;
+                // A signal heard while it ran may have come after the change it missed.
+                if std::mem::take(&mut held.signalled) && missed {
+                    held.again = true;
+                }
                 held.diverged.extend(diverged);
                 held.published.extend(published);
                 held.not_appended.extend(not_appended);
@@ -5434,9 +5445,14 @@ impl Tasks {
     pub(super) fn drain_missed(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
         let missed = {
             let mut outbox = self.outbox.borrow_mut();
-            // One under way may have failed before what was signalled: it goes once more
-            // (`sync`), and says again whether it missed.
-            outbox.draining || std::mem::take(&mut outbox.missed)
+            // One under way may miss a change before what was signalled: it is noted, and the
+            // drain goes once more only if it missed.
+            if outbox.draining {
+                outbox.signalled = true;
+                false
+            } else {
+                std::mem::take(&mut outbox.missed)
+            }
         };
         if missed {
             self.sync(peer, shared);

@@ -679,7 +679,7 @@ fn HostedDock(layout: DockHostLayout, style: HostStyle) -> NodeId {
     let title = Func::new(move |tab: TabId| read(tab).map(|tab| tab.title).unwrap_or_default());
     let icon = Func::new(move |tab: TabId| read(tab).and_then(|tab| tab.icon));
     let picture = Func::new(move |tab: TabId| read(tab).and_then(|tab| tab.picture));
-    let count = Func::new(move |tab: TabId| read(tab).map_or(0, |tab| tab.count));
+    let unread = Func::new(move |tab: TabId| read(tab).map_or(0, |tab| tab.unread));
     let closable = Func::new(move |tab: TabId| read(tab).is_some_and(|tab| tab.closable));
     let back_closes = Func::new(move |tab: TabId| read(tab).is_none_or(|tab| tab.back_closes));
     let group_host = Func::new(move |group: GroupId| {
@@ -807,7 +807,7 @@ fn HostedDock(layout: DockHostLayout, style: HostStyle) -> NodeId {
                 hosts,
                 icon,
                 picture,
-                count,
+                unread,
                 closable,
                 back_closes,
                 menu,

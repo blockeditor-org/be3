@@ -126,10 +126,22 @@ struct Joined {
     log_follows: HashMap<u64, HashSet<Place>>,
     /// The connections following each block's signed log.
     log_followers: HashMap<Place, HashSet<u64>>,
-    /// The blocks each connection follows as blocks it knows of (`topic.known`).
-    known_follows: HashMap<u64, HashSet<Place>>,
+    /// The blocks each connection follows as blocks it knows of (`topic.known`), with what it
+    /// was told of each.
+    known_follows: HashMap<u64, HashMap<Place, KnownTold>>,
     /// The connections following each block as one they know of.
     known_followers: HashMap<Place, HashSet<u64>>,
+}
+
+/// What a connection was told of a block it follows as one it knows of (`topic.known`): what
+/// its summary said when the connection last read it, and whether it was told of a change since.
+/// Told once, it is told nothing more of the block until it reads the summary again, so a burst
+/// of changes reaches it once.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct KnownTold {
+    /// None until the read that starts the follow answers.
+    pub(crate) read: Option<crate::blocks::KnownState>,
+    pub(crate) outstanding: bool,
 }
 
 /// What a connection was told of an entry point it follows. Once it is told the tree advanced,
@@ -178,7 +190,7 @@ impl Joined {
         for place in self.log_follows.remove(&client).unwrap_or_default() {
             unindex(&mut self.log_followers, place, client);
         }
-        for place in self.known_follows.remove(&client).unwrap_or_default() {
+        for place in self.known_follows.remove(&client).unwrap_or_default().into_keys() {
             unindex(&mut self.known_followers, place, client);
         }
     }
@@ -208,7 +220,7 @@ impl Joined {
         }
         if let Some(follows) = self.known_follows.get_mut(&client) {
             let left: Vec<Place> = follows
-                .iter()
+                .keys()
                 .filter(|place| place.organization == organization)
                 .copied()
                 .collect();
@@ -344,8 +356,8 @@ impl WatchHub {
     }
 
     /// Follows `place` as a block the connection knows of (`topic.known`), before the read that
-    /// starts it. Refused once the connection follows `MAX_FOLLOWS_PER_CONNECTION` of them, and
-    /// while it does not work in the organization.
+    /// starts it (`known_read`). Refused once the connection follows `MAX_FOLLOWS_PER_CONNECTION`
+    /// of them, and while it does not work in the organization.
     pub async fn follow_known(&self, client: u64, place: Place) -> Result<(), ServerError> {
         let mut joined = self.joined.lock().await;
         if joined
@@ -356,19 +368,62 @@ impl WatchHub {
             return Ok(());
         }
         let follows = joined.known_follows.entry(client).or_default();
-        if !follows.contains(&place) && follows.len() >= MAX_FOLLOWS_PER_CONNECTION {
+        if !follows.contains_key(&place) && follows.len() >= MAX_FOLLOWS_PER_CONNECTION {
             return Err(crate::limits::too_many(
                 "known blocks one connection follows; unfollow some first",
                 MAX_FOLLOWS_PER_CONNECTION,
             ));
         }
-        follows.insert(place);
+        follows.entry(place).or_default();
         joined
             .known_followers
             .entry(place)
             .or_default()
             .insert(client);
         Ok(())
+    }
+
+    /// `client` read the summary of `place`, which it follows as a block it knows of, as
+    /// `state`: told again of the next change past it. None, when it may not know of it, lets
+    /// the follow go.
+    pub(crate) async fn known_read(
+        &self,
+        client: u64,
+        place: Place,
+        state: Option<crate::blocks::KnownState>,
+    ) {
+        let mut joined = self.joined.lock().await;
+        let Some(told) = joined
+            .known_follows
+            .get_mut(&client)
+            .and_then(|follows| follows.get_mut(&place))
+        else {
+            return;
+        };
+        match state {
+            Some(state) => {
+                *told = KnownTold {
+                    read: Some(state),
+                    outstanding: false,
+                };
+            }
+            None => {
+                if let Some(follows) = joined.known_follows.get_mut(&client) {
+                    follows.remove(&place);
+                }
+                unindex(&mut joined.known_followers, place, client);
+            }
+        }
+    }
+
+    /// Whether `client` follows any block as one it knows of, so a summary read needs no lock
+    /// of the hub otherwise.
+    pub async fn follows_known(&self, client: u64) -> bool {
+        let joined = self.joined.lock().await;
+        joined
+            .known_follows
+            .get(&client)
+            .is_some_and(|follows| !follows.is_empty())
     }
 
     pub async fn unfollow_known(&self, client: u64, place: Place) {
@@ -379,28 +434,64 @@ impl WatchHub {
         unindex(&mut joined.known_followers, place, client);
     }
 
-    /// Tells the connections following any of `blocks` in `organization` as blocks they know of
-    /// that it changed.
-    pub async fn known_changed(&self, organization: Uuid, blocks: &[Uuid]) {
-        let told: Vec<(u64, Place)> = {
-            let joined = self.joined.lock().await;
-            blocks
-                .iter()
-                .map(|block| Place {
-                    organization,
-                    block: *block,
-                })
-                .flat_map(|place| {
-                    joined
-                        .known_followers
-                        .get(&place)
-                        .into_iter()
-                        .flatten()
-                        .map(move |client| (*client, place))
-                })
-                .collect()
+    /// The connections following any of `blocks` in `organization` as blocks they know of that
+    /// have not been told of a change since their last read, with who each is there and what
+    /// that read said: those a change on the path of `blocks` may have to tell.
+    pub(crate) async fn known_followers(
+        &self,
+        organization: Uuid,
+        blocks: &[Uuid],
+    ) -> Vec<(u64, Identity, Place, Option<crate::blocks::KnownState>)> {
+        let joined = self.joined.lock().await;
+        let mut found = Vec::new();
+        for block in blocks {
+            let place = Place {
+                organization,
+                block: *block,
+            };
+            for client in joined.known_followers.get(&place).into_iter().flatten() {
+                let Some(told) = joined
+                    .known_follows
+                    .get(client)
+                    .and_then(|follows| follows.get(&place))
+                else {
+                    continue;
+                };
+                if told.outstanding {
+                    continue;
+                }
+                if let Some(identity) = joined.identity(*client, organization) {
+                    found.push((*client, identity, place, told.read));
+                }
+            }
+        }
+        found
+    }
+
+    /// Tells `client` that `place`, which it follows as a block it knows of, changed: once,
+    /// until it reads the summary again (`known_read`). With `gone`, it may no longer know of
+    /// it: told once more, and the follow let go.
+    pub async fn known_changed(&self, client: u64, place: Place, gone: bool) {
+        let send = {
+            let mut joined = self.joined.lock().await;
+            let Some(told) = joined
+                .known_follows
+                .get_mut(&client)
+                .and_then(|follows| follows.get_mut(&place))
+            else {
+                return;
+            };
+            let send = !told.outstanding;
+            told.outstanding = true;
+            if gone {
+                if let Some(follows) = joined.known_follows.get_mut(&client) {
+                    follows.remove(&place);
+                }
+                unindex(&mut joined.known_followers, place, client);
+            }
+            send
         };
-        for (client, place) in told {
+        if send {
             self.send_to(client, Push::Known(place)).await;
         }
     }

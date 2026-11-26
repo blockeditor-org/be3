@@ -56,7 +56,7 @@ fn one(key: &str, tab: u64, menu: &[&str]) -> DockDeclaration {
             glyph: String::new(),
             closable: false,
             back_closes: true,
-            count: 0,
+            unread: 0,
             menu: MenuEntry::flatten(&entries),
         }],
         dialogs: Vec::new(),

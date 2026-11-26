@@ -310,7 +310,7 @@ fn DockGatheredTab(dock: State, tab: TabId, shown: Memo<Option<TabId>>, vertical
         title: create_memo(move || dock.title(tab)),
         icon: create_memo(move || dock.icon(tab)),
         picture: create_memo(move || dock.picture.call(tab)),
-        count: create_memo(move || dock.count.call(tab)),
+        unread: create_memo(move || dock.unread.call(tab)),
         tabs: create_memo(move || vec![tab]),
         has_next: create_memo(|| false),
         selected,

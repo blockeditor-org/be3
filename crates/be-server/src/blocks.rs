@@ -493,6 +493,23 @@ fn require_owner_of_owner_only(
     }
 }
 
+/// What a summary says that a follow of a block known of (`topic.known`) tells changes of: its
+/// access and its own `changed`. A change below the block moves neither, so it is not told.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct KnownState {
+    pub(crate) access: Access,
+    pub(crate) changed: u64,
+}
+
+impl KnownState {
+    pub(crate) fn of(summary: &BlockSummary) -> Self {
+        Self {
+            access: summary.access,
+            changed: summary.changed,
+        }
+    }
+}
+
 fn summary(graph: &BlockGraph, identity: Identity, block: Uuid) -> Option<BlockSummary> {
     summary_with(graph, &visibility(identity), block)
 }
@@ -818,6 +835,27 @@ impl ServerStore {
             Ok(asked
                 .into_iter()
                 .map(|(identity, block)| visibility(identity).can_view(graph, block))
+                .collect())
+        })
+        .await
+    }
+
+    /// What each asker's summary of a block says of it now, for a follow of it as a block known
+    /// of (`topic.known`): its access and `changed`, as `read_summaries` would answer them, or
+    /// none once the asker may not know of it (or it is gone).
+    pub(crate) async fn known_states(
+        &self,
+        organization: Uuid,
+        asked: Vec<(Identity, Uuid)>,
+    ) -> Result<Vec<Option<KnownState>>, ServerError> {
+        self.with_graph(organization, move |_, graph, _| {
+            Ok(asked
+                .into_iter()
+                .map(|(identity, block)| {
+                    summary_with(graph, &visibility(identity), block)
+                        .filter(|summary| summary.access.can_know_exists())
+                        .map(|summary| KnownState::of(&summary))
+                })
                 .collect())
         })
         .await

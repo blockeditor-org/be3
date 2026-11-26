@@ -1482,7 +1482,7 @@ pub fn BlockTab(
 ) -> DockEntry {
     let title = workspace.tab_title(tab);
     let icon = workspace.tab_glyph(tab);
-    let count = workspace.tab_unread(tab);
+    let unread = workspace.tab_unread(tab);
     let bar = RenderFn::new(move |()| match bar {
         Some(bar) => bar.call(),
         None => view! {
@@ -1495,7 +1495,7 @@ pub fn BlockTab(
             .map(|item| format!("block:{}", item.block_type))
     });
     view! {
-        <DockTab id=tab title icon count group on_close={move || workspace.close(tab)}>
+        <DockTab id=tab title icon unread group on_close={move || workspace.close(tab)}>
             <BlockPanel workspace={workspace} tab bar={move || bar.call(())} preview on_details />
         </DockTab>
     }
