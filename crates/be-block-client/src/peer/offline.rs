@@ -694,6 +694,7 @@ impl<S: ObjectStore> Peer<S> {
             };
             match outcome {
                 Drained::Published { .. } => {
+                    self.withheld_drains.lock().unwrap().remove(&block);
                     outcomes.retain(|held| {
                         !matches!(held, Drained::Published { block: other, .. } if *other == block)
                     });
@@ -1126,10 +1127,23 @@ impl<S: ObjectStore> Peer<S> {
             // aside, never sent, when this account may no longer write the block as the logs
             // show now, or no such epoch can be made; tried again at the next drain while a log
             // is short of a lowering this device appended, or unsure of one (`Peer::reseal`).
+            // A block tried again that often while the log stays withheld or unreadable is set
+            // aside too, never sent (`WITHHELD_DRAINS`).
             Err(ClientError::Outdated(_)) => {
-                if reseal && self.reseal(block).await? {
-                    return Ok(Drained::Resealed { block });
+                let resealed = match reseal {
+                    true => self.reseal(block).await,
+                    false => Ok(false),
+                };
+                match resealed {
+                    Ok(true) => {
+                        self.withheld_drains.lock().unwrap().remove(&block);
+                        return Ok(Drained::Resealed { block });
+                    }
+                    Ok(false) => {}
+                    Err(ClientError::Withheld(_)) if self.withheld_again(block) => {}
+                    Err(error) => return Err(error),
                 }
+                self.withheld_drains.lock().unwrap().remove(&block);
                 self.move_to_unsent(block, Some(crate::refs::Aside::KeyOutdated))?;
                 Ok(Drained::SetAside {
                     block,
@@ -1138,6 +1152,16 @@ impl<S: ObjectStore> Peer<S> {
             }
             Err(error) => Err(error),
         }
+    }
+
+    /// Counts a drain that found `block`'s edit outdated while a log stays withheld or
+    /// unreadable (`Peer::withheld_drains`): whether it has been tried `WITHHELD_DRAINS` times,
+    /// so it is set aside rather than tried again.
+    fn withheld_again(&self, block: Uuid) -> bool {
+        let mut drains = self.withheld_drains.lock().unwrap();
+        let tried = drains.entry(block).or_default();
+        *tried += 1;
+        *tried >= crate::peer::WITHHELD_DRAINS
     }
 
     async fn contains(&self, head: CommitId, commit: CommitId) -> Result<bool, ClientError> {

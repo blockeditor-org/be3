@@ -314,6 +314,10 @@ mod an_owner_restarted_after_it_revokes_a_member_is_withheld_a_log_without_the_r
 mod an_owner_s_saves_while_the_server_withholds_its_revocation_are_locked_and_mint_nothing;
 mod an_owner_s_save_after_its_revocation_s_answer_was_lost_reads_the_log_again;
 mod an_owner_s_offline_save_after_its_revocation_s_answer_was_lost_is_never_sent_under_the_old_epoch;
+mod an_owner_s_offline_save_after_its_revocation_was_dropped_unanswered_stays_unsent_across_a_restart;
+mod an_edit_whose_log_stays_withheld_after_a_lost_revocation_is_set_aside_after_some_drains;
+mod a_read_sent_before_a_newer_lowering_leaves_its_log_unsure;
+mod an_offline_save_whose_log_read_failed_reads_it_again_before_it_is_sent;
 mod an_owner_s_offline_save_while_the_server_withholds_its_revocation_is_kept_and_sent_once_served;
 mod an_owner_s_save_after_it_revokes_a_member_is_sealed_under_a_new_epoch;
 mod an_owner_s_save_after_it_revokes_a_member_rotates_though_key_work_lists_no_rotation;
@@ -985,11 +989,20 @@ impl Withheld {
     }
 }
 
-/// An owner's second device connected through a fault relay, with a team the owner granted
-/// `bob` View in and a note in it the device saved once (so it checked and kept the team's
-/// log), and the relay; then the device revokes bob, the server takes it, and the relay holds
-/// the answer and cuts the connection, so the device never learns whether it landed
-/// (`KeyBook::unsure`).
+/// How `LostRevocation` loses the revocation's answer.
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum Lose {
+    /// The relay cuts the connection.
+    Cut,
+    /// The write is dropped while its answer waits at the relay (the app quit, the task was
+    /// aborted), and the device restarts offline from what it kept, as after the process died.
+    Dropped,
+}
+
+/// An owner's second device connected through a fault relay, keeping its refs, with a team the
+/// owner granted `bob` View in and a note in it the device saved once (so it checked and kept
+/// the team's log), and the relay; then the device revokes bob, the server takes it, and the
+/// relay holds the answer, so the device never learns whether it landed (`KeyBook::sending`).
 struct LostRevocation {
     harness: Harness,
     bob: Peer<MemoryStore>,
@@ -999,10 +1012,16 @@ struct LostRevocation {
     before: Option<be_block_commit::CommitId>,
     tablet: Peer<MemoryStore>,
     relay: std::sync::Arc<be_block_fault_relay::Relay>,
+    /// The owner's token, to sign the device in again.
+    token: String,
 }
 
 impl LostRevocation {
     async fn start() -> Self {
+        Self::losing(Lose::Cut).await
+    }
+
+    async fn losing(lose: Lose) -> Self {
         let harness = Harness::start().await;
         let admin = harness.owner("admin@example.com").await;
         let bob = harness.member(&admin, "bob@example.com").await;
@@ -1022,14 +1041,17 @@ impl LostRevocation {
             .parse()
             .expect("the server listens on an address");
         let relay = std::sync::Arc::new(be_block_fault_relay::Relay::start(server));
+        let refs = refs::RefsDb::memory();
+        let store = MemoryStore::new();
         let tablet = Peer::connect(
             PeerConfig::new(
                 &relay.url(),
                 admin.keys().identity().clone(),
                 Credentials::Token(admin.token().to_owned()),
             )
-            .organization(Some(admin.organization())),
-            MemoryStore::new(),
+            .organization(Some(admin.organization()))
+            .refs(refs.clone()),
+            store.clone(),
         )
         .await
         .unwrap();
@@ -1055,19 +1077,44 @@ impl LostRevocation {
             false
         });
         let held = relay.held();
-        let (revoked, ()) = tokio::join!(tablet.grant(team, bob.account(), Access::None), async {
-            relay.held_beyond(held).await;
-            relay.cut();
-        });
+        let tablet = match lose {
+            Lose::Cut => {
+                let (revoked, ()) =
+                    tokio::join!(tablet.grant(team, bob.account(), Access::None), async {
+                        relay.held_beyond(held).await;
+                        relay.cut();
+                    });
+                assert!(revoked.is_err(), "the revocation's answer never arrived");
+                tablet
+            }
+            Lose::Dropped => {
+                tokio::select! {
+                    _ = tablet.grant(team, bob.account(), Access::None) => {
+                        panic!("the revocation's answer arrived")
+                    }
+                    () = relay.held_beyond(held) => {}
+                }
+                // Its refs are kept by the server it signed in to: the relay's address.
+                let config = PeerConfig {
+                    url: relay.url(),
+                    ..harness.config(&tablet, &refs)
+                };
+                let account = tablet.account();
+                drop(tablet);
+                relay.cut();
+                Peer::cached(config, account, store).unwrap()
+            }
+        };
         relay.hold_answers(false);
-        assert!(revoked.is_err(), "the revocation's answer never arrived");
         assert_eq!(
             admin.access_log(team).await.unwrap().len(),
             logged + 1,
             "the server took the revocation"
         );
+        let token = admin.token();
         drop(admin);
         Self {
+            token,
             harness,
             bob,
             team,
@@ -1081,7 +1128,7 @@ impl LostRevocation {
     /// The device connected again, straight to the server.
     async fn reconnect(&self) {
         self.harness
-            .reconnect(&self.tablet, self.tablet.token())
+            .reconnect(&self.tablet, self.token.clone())
             .await;
     }
 

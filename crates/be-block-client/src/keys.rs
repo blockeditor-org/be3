@@ -113,13 +113,17 @@ struct Roots {
     /// them: until then every epoch judged by that log is outdated, its log is read again before
     /// the next seal, and one served short of them is withheld.
     awaited: HashMap<Uuid, EntryHash>,
-    /// Logs this device appended a lowering to whose answer never came (the connection dropped:
-    /// `KeyBook::unsure`), until a read of the log answers (`KeyBook::answered`): until then,
+    /// Logs this device is appending a lowering to (`KeyBook::sending`, marked before the write
+    /// is sent), or appended one to whose answer never came (the connection dropped, the write
+    /// was dropped, or the process ended first), until a read of the log sent after the newest
+    /// mark answers with no lowering to it still in flight (`KeyBook::answered`): until then,
     /// as for `awaited`, every epoch judged by that log is outdated and its log is read again
     /// before each seal. Whether or not the log the read answers holds the lowering, it is
     /// judged by that log after: one without it means the append never landed, or the server
     /// withholds it, as it could by refusing the append.
-    unsure: HashSet<Uuid>,
+    unsure: HashMap<Uuid, Unsure>,
+    /// The generation the next mark in `unsure` takes, counted across logs.
+    next_unsure: u64,
     /// Blocks this device set out to make whose creation no server has taken yet, with the root
     /// it made (`KeyBook::pin_root`) and any other root a key of them carried meanwhile: a
     /// creation the server refuses as made by someone else lets its root go, and the other root
@@ -131,6 +135,24 @@ struct Roots {
     /// block, so the same root carried by another key (one a device of this account sealed
     /// once it really made the block) pins as any does.
     unmade: HashSet<Uuid>,
+}
+
+/// A log marked unsure (`Roots::unsure`).
+#[derive(Clone, Copy, Debug)]
+struct Unsure {
+    /// Which mark this is: a read captured under an older one (`KeyBook::is_unsure`) was sent
+    /// before the newest lowering may have landed, and clears nothing.
+    generation: u64,
+    /// Writes carrying a lowering to the log still waiting for their answer: none clears while
+    /// any is in flight, as a read may be answered before the write lands.
+    sending: usize,
+}
+
+/// A lowering this device is about to send (`KeyBook::sending`): its log and the mark it made.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Sending {
+    pub log: Uuid,
+    pub generation: u64,
 }
 
 /// A root this device made for a block no server has taken yet (`Roots::made`).
@@ -155,11 +177,25 @@ pub enum RootPin {
 }
 
 impl Roots {
+    /// Marks `log` unsure (`unsure`) under a new generation, keeping the writes in flight.
+    fn mark_unsure(&mut self, log: Uuid) -> u64 {
+        self.next_unsure += 1;
+        let generation = self.next_unsure;
+        self.unsure
+            .entry(log)
+            .and_modify(|unsure| unsure.generation = generation)
+            .or_insert(Unsure {
+                generation,
+                sending: 0,
+            });
+        generation
+    }
+
     /// Whether this device appended a lowering to `log` that no log of it checked here holds
     /// yet (`awaited`), or whose answer never came with no read of the log answering since
     /// (`unsure`).
     fn behind(&self, log: Uuid) -> bool {
-        self.unsure.contains(&log)
+        self.unsure.contains_key(&log)
             || self.awaited.get(&log).is_some_and(|awaited| {
                 !self.logs.get(&log).is_some_and(|log| log.holds(awaited))
             })
@@ -1342,19 +1378,37 @@ impl KeyBook {
     /// The logs this device appended a lowering to in an earlier run whose answer never came
     /// and that no read answered since (`unsure`), from the refs.
     pub fn set_unsure(&self, unsure: impl IntoIterator<Item = Uuid>) {
-        self.roots.lock().unwrap().unsure.extend(unsure);
+        let mut roots = self.roots.lock().unwrap();
+        for log in unsure {
+            roots.mark_unsure(log);
+        }
     }
 
-    /// Whether `log` had a lowering appended whose answer never came and no read of it answered
-    /// since (`unsure`).
-    pub fn is_unsure(&self, log: Uuid) -> bool {
-        self.roots.lock().unwrap().unsure.contains(&log)
+    /// The mark `log` holds, when it had a lowering appended whose answer never came, or one
+    /// is in flight, and no read of it answered since (`unsure`): what a read of it captures
+    /// before it is sent, for `answered`.
+    pub fn is_unsure(&self, log: Uuid) -> Option<u64> {
+        self.roots
+            .lock()
+            .unwrap()
+            .unsure
+            .get(&log)
+            .map(|unsure| unsure.generation)
     }
 
-    /// Notes that a read of `log`, sent after it was marked `unsure`, answered: from now it is
-    /// judged by the log checked. Answers whether it was unsure, to clear in the refs.
-    pub fn answered(&self, log: Uuid) -> bool {
-        self.roots.lock().unwrap().unsure.remove(&log)
+    /// Notes that a read of `log`, sent while it was marked `unsure` as `generation`, answered:
+    /// from now it is judged by the log checked, unless it was marked again since (a lowering
+    /// sent after the read was), or a lowering to it is still in flight. Answers whether the
+    /// mark went, to clear in the refs.
+    pub fn answered(&self, log: Uuid, generation: u64) -> bool {
+        let mut roots = self.roots.lock().unwrap();
+        match roots.unsure.get(&log) {
+            Some(unsure) if unsure.generation == generation && unsure.sending == 0 => {
+                roots.unsure.remove(&log);
+                true
+            }
+            _ => false,
+        }
     }
 
     /// Whether `log` (a block's, or the organization's by its id) falls short of a lowering this
@@ -1672,13 +1726,15 @@ impl KeyBook {
         Some(log)
     }
 
-    /// Notes `signed`, an access log entry this device signed whose append the server may or may
-    /// not have taken (the connection dropped before it answered): one that lowered anyone drops
-    /// the log this run checked of it and marks it unsure, so every epoch it judges is outdated
-    /// and each seal reads it again until a read answers (`answered`); the kept log, from before
-    /// the lowering, judges nothing meanwhile. Answers the log, when it lowered. The entry is not
-    /// awaited: an append that never landed would leave the log withheld here for good.
-    pub fn unsure(&self, signed: &[u8]) -> Option<Uuid> {
+    /// Notes `signed`, an access log entry this device signed, as about to be sent: one that
+    /// lowered anyone drops the log this run checked of it and marks it unsure, before the write
+    /// leaves, so that however the write ends (answered, refused, the connection or the write
+    /// dropped, the process stopped) every epoch the log judges is outdated and each seal reads
+    /// it again until the write's answer settles it (`sent`) or a read answers (`answered`); the
+    /// kept log, from before the lowering, judges nothing meanwhile. Answers the mark, when it
+    /// lowered, to settle once the write ends. The entry is not awaited yet: an append that
+    /// never landed would leave the log withheld here for good.
+    pub fn sending(&self, signed: &[u8]) -> Option<Sending> {
         let entry = be_block_keys::Entry::decode(signed).ok()?;
         if !entry.lowers {
             return None;
@@ -1687,8 +1743,29 @@ impl KeyBook {
         let mut roots = self.roots.lock().unwrap();
         roots.logs.remove(&log);
         roots.entries.remove(&log);
-        roots.unsure.insert(log);
-        Some(log)
+        let generation = roots.mark_unsure(log);
+        if let Some(unsure) = roots.unsure.get_mut(&log) {
+            unsure.sending += 1;
+        }
+        Some(Sending { log, generation })
+    }
+
+    /// Notes that the write `sending` was marked for ended: settled (the server took it, after
+    /// `appended` noted it as awaited, or refused it, so nothing landed) when `settled`, or with
+    /// no answer. A settled write clears the mark unless the log was marked again since or
+    /// another lowering to it is in flight; one with no answer leaves it for a read to answer.
+    /// Answers whether the mark went, to clear in the refs.
+    pub fn sent(&self, sending: Sending, settled: bool) -> bool {
+        let mut roots = self.roots.lock().unwrap();
+        let Some(unsure) = roots.unsure.get_mut(&sending.log) else {
+            return false;
+        };
+        unsure.sending = unsure.sending.saturating_sub(1);
+        if settled && unsure.generation == sending.generation && unsure.sending == 0 {
+            roots.unsure.remove(&sending.log);
+            return true;
+        }
+        false
     }
 
     /// The scopes whose logs `outdated` judges `key`, of `block`'s scope, by, that this device

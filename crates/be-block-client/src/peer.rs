@@ -423,6 +423,11 @@ pub struct Peer<S: ObjectStore> {
     /// The scope logs read in this run to judge each key (`Peer::outdated`), each asked for
     /// once.
     log_reads: Mutex<HashSet<(Uuid, Uuid)>>,
+    /// How many drains in this run found each block's waiting edit outdated while a log its
+    /// keys are judged by stayed short of a lowering this device sent, or unsure of one
+    /// (`ClientError::Withheld` from `Peer::reseal`): past `WITHHELD_DRAINS` the edit is set
+    /// aside rather than tried again forever.
+    withheld_drains: Mutex<HashMap<Uuid, u32>>,
     /// How far this device's clock reads past `now_milliseconds` (`local_now`): a test's fast
     /// clock, beside a server in the same process that reads the true one.
     #[cfg(test)]
@@ -468,6 +473,13 @@ pub(crate) const SERVED_ENTRIES: usize = 1 << 16;
 /// How long a read of an access log before a write may take before what was kept of it is
 /// used instead (`Peer::bounded_read`).
 const LOG_READ_LIMIT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// How many drains in a run try an edit again while the log its keys are judged by stays short
+/// of a lowering this device sent, or unsure of one, before setting it aside
+/// (`Peer::withheld_drains`): a log whose read keeps failing for a reason other than the server
+/// being out of reach (a block deleted or no longer readable, a root this device cannot place)
+/// would otherwise hold the edit back for good, never offered to the person.
+pub(crate) const WITHHELD_DRAINS: u32 = 3;
 
 /// What this device knows of the server's clock (`Peer::server_now`).
 struct ServerClock {
@@ -709,6 +721,7 @@ impl<S: ObjectStore> Peer<S> {
             account_records: false,
             settled_here: Mutex::new(HashSet::new()),
             log_reads: Mutex::new(HashSet::new()),
+            withheld_drains: Mutex::new(HashMap::new()),
             #[cfg(test)]
             clock_ahead: std::sync::atomic::AtomicI64::new(0),
             #[cfg(test)]
@@ -2874,14 +2887,24 @@ impl<S: ObjectStore> Peer<S> {
         Ok(taken)
     }
 
-    /// Notes that a read of `log` answered: when it was unsure of a lowering this device
-    /// appended (`KeyBook::unsure`) before the read was sent (`unsure`), the read was sent past
-    /// the dropped append, and from now the log is judged by what it serves (`KeyBook::answered`).
-    /// A read sent before the mark may have been answered before the append landed, so it clears
-    /// nothing.
-    pub(crate) fn answered(&self, log: Uuid, unsure: bool) {
-        if unsure && self.keys.answered(log) {
-            let _ = self.refs.set_unsure(log, false);
+    /// Notes that a read of `log` answered: when it was unsure of a lowering this device sent
+    /// (`KeyBook::sending`) before the read was sent (`unsure`, the mark it held then), the read
+    /// was sent past the lowering, and from now the log is judged by what it serves
+    /// (`KeyBook::answered`). A read sent before the mark, or before a newer one, may have been
+    /// answered before the append landed, so it clears nothing.
+    pub(crate) fn answered(&self, log: Uuid, unsure: Option<u64>) {
+        if let Some(generation) = unsure
+            && self.keys.answered(log, generation)
+        {
+            self.clear_unsure(log);
+        }
+    }
+
+    /// Clears `log`'s unsure mark in the refs, once the key book let it go. One that fails to
+    /// clear stays marked there, which fails closed: a restart reads the log again first.
+    fn clear_unsure(&self, log: Uuid) {
+        if let Err(error) = self.refs.set_unsure(log, false) {
+            tracing::warn!("an access log's unsure mark was not cleared: {error}");
         }
     }
 
@@ -5160,28 +5183,43 @@ impl<S: ObjectStore> Peer<S> {
         Ok(())
     }
 
-    /// Writes `ops` in one write, noting the access log records they carry: as appended once the
-    /// server took them (`appended`), and, when the connection dropped before it answered, as
-    /// perhaps appended (`KeyBook::unsure`), so the next seal reads their logs again.
+    /// Writes `ops` in one write, noting the access log records they carry. Each that lowers
+    /// anyone marks its log unsure before the write is sent, in the refs too
+    /// (`KeyBook::sending`), so that however the write ends (with no answer, dropped, or the
+    /// process stopped while it was out) the next seal reads the log again rather than judge
+    /// by one from before the lowering; a mark that cannot be kept sends nothing. Once the
+    /// server took them they are awaited (`appended`) and the mark goes; once it refused them
+    /// nothing landed, and the mark goes too; with no answer it stays until a read answers.
     pub(crate) async fn write_appending(
         &self,
         ops: Vec<be_block_protocol::Op>,
     ) -> Result<(), ClientError> {
+        let mut marked = Marked {
+            keys: &self.keys,
+            marks: Vec::new(),
+        };
+        for record in ops.iter().flat_map(log_records) {
+            if let Some(mark) = self.keys.sending(record) {
+                marked.marks.push(mark);
+            }
+        }
+        for mark in &marked.marks {
+            self.forget_log_reads(mark.log);
+            self.refs.set_unsure(mark.log, true)?;
+        }
         let written =
             be_block_protocol::write_all::<(), _>(&self.connection(), Some(self.organization), ops.clone())
                 .await;
-        match &written {
-            Ok(Ok(())) => ops.iter().for_each(|op| self.appended(op)),
-            Ok(Err(_)) => {}
-            Err(_) => {
-                for op in &ops {
-                    for record in log_records(op) {
-                        if let Some(log) = self.keys.unsure(record) {
-                            let _ = self.refs.set_unsure(log, true);
-                            self.forget_log_reads(log);
-                        }
-                    }
-                }
+        let unkept = match &written {
+            Ok(Ok(())) => ops.iter().flat_map(|op| self.appended(op)).collect(),
+            _ => HashSet::new(),
+        };
+        let settled = matches!(written, Ok(_));
+        for mark in std::mem::take(&mut marked.marks) {
+            // A lowering awaited only in memory is cleared from the refs by no mark: a restart
+            // must still read its log first.
+            if self.keys.sent(mark, settled) && !unkept.contains(&mark.log) {
+                self.clear_unsure(mark.log);
             }
         }
         Ok(written??)
@@ -5200,20 +5238,28 @@ impl<S: ObjectStore> Peer<S> {
     /// (`KeyBook::appended`): one that lowered anyone has the epochs before it outdated here at
     /// once, and its log read again before each seal until it shows it (`read_logs`), rather
     /// than this device sealing on by the log it read before signing it.
-    fn appended(&self, op: &be_block_protocol::Op) {
-        for record in log_records(op) {
-            if let Some(log) = self.keys.appended(record) {
-                self.keep_awaited(log);
-            }
-        }
+    /// Answers the logs whose awaited lowering could not be written to the refs.
+    fn appended(&self, op: &be_block_protocol::Op) -> Vec<Uuid> {
+        log_records(op)
+            .into_iter()
+            .filter_map(|record| self.keys.appended(record))
+            .filter(|log| !self.keep_awaited(*log))
+            .collect()
     }
 
     /// Writes the lowering this device awaits on `log` (`KeyBook::awaited`) to the refs, or
     /// clears it once a log checked here holds it, so a restart still withholds a log served
     /// short of it. A lost append (an honest server restored from a backup made before it)
-    /// leaves the log withheld here until it is appended again, which fails closed.
-    pub(crate) fn keep_awaited(&self, log: Uuid) {
-        let _ = self.refs.set_awaited(log, self.keys.awaited(log));
+    /// leaves the log withheld here until it is appended again, which fails closed. Answers
+    /// whether the refs took it.
+    pub(crate) fn keep_awaited(&self, log: Uuid) -> bool {
+        match self.refs.set_awaited(log, self.keys.awaited(log)) {
+            Ok(()) => true,
+            Err(error) => {
+                tracing::warn!("an awaited access log entry was not kept: {error}");
+                false
+            }
+        }
     }
 
     /// The op granting `access` to `account`, by the record `signed_grant` signs.
@@ -5440,6 +5486,22 @@ impl<S: ObjectStore> Peer<S> {
 
     pub fn first_search_for(&self, key: Uuid) -> bool {
         self.tried.lock().unwrap().insert(key)
+    }
+}
+
+/// The lowerings `Peer::write_appending` marked before sending (`KeyBook::sending`): a write
+/// dropped before its answer (the task aborted, the app quitting) notes each as ended with no
+/// answer, so its mark stays for a read to answer.
+struct Marked<'a> {
+    keys: &'a KeyBook,
+    marks: Vec<crate::keys::Sending>,
+}
+
+impl Drop for Marked<'_> {
+    fn drop(&mut self) {
+        for mark in self.marks.drain(..) {
+            self.keys.sent(mark, false);
+        }
     }
 }
 
