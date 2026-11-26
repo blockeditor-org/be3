@@ -14,7 +14,7 @@
 //! shows the error (`Searching::write_failed`).
 //!
 //! **Compacting while idle.** A batch's write compacts a few segments with it, none whose merge
-//! reads more than `MERGE_BYTES`; the merges that cap leaves, up to `IDLE_MERGE_BYTES`, are made
+//! reads more than `MERGE_BYTES`; the merges that cap leaves, however large, are made
 //! while the host is idle (`compact_idle_indexes`) by the device that wrote the index's last
 //! batch, one index at a time.
 //!
@@ -35,7 +35,7 @@ use be_block_client::{ListedBlock, Peer, Write};
 use be_block_commit::CommitId;
 use be_block_content::{BlockContent, BlockMetadata, SEARCH_INDEX, be_block_model::BlockRef};
 use be_block_graph::{Access, BlockParent, EDIT_KINDS, SEARCH_INDEX_TYPE, SETTINGS_TYPE};
-use be_block_search_index::{AsyncRead, IDLE_MERGE_BYTES, MERGE_BYTES, Saving, SearchIndexContent};
+use be_block_search_index::{AsyncRead, MERGE_BYTES, Saving, SearchIndexContent};
 use be_block_store::{ObjectStore, PartRef};
 use be_lib_search::{Batch, DocId, Put, Query, Text};
 use std::sync::Mutex;
@@ -1105,7 +1105,7 @@ pub(crate) async fn step(
 /// running, no command waiting, nothing in the outbox, no module working) and the device at
 /// rest (the person away and on mains power, as far as the host can tell: `Rest`), compacts an
 /// index
-/// whose compaction leaves a merge over `MERGE_BYTES`, with merges up to `IDLE_MERGE_BYTES`, in
+/// whose compaction leaves a merge over `MERGE_BYTES`, with merges of any size, in
 /// a task. Only an index whose newest head here is the one this device's last write left
 /// (`Searching::last_written`) is looked at: the device that wrote the last batch compacts, so
 /// two devices never make the same merge, and nothing is loaded for an index no write here
@@ -2517,6 +2517,29 @@ pub(crate) async fn entries<S: ObjectStore>(
         .unwrap_or_default()
 }
 
+/// The blocks a search for `text` finds in `index` at the server's head, and its segments, as
+/// a device that reads every part from the server finds them.
+#[cfg(test)]
+pub(crate) async fn found_on_server<S: ObjectStore>(
+    peer: &Peer<S>,
+    index: Uuid,
+    text: &str,
+) -> (Vec<Uuid>, usize) {
+    let head = peer.remote_head(index).await.expect("the server answers");
+    let content = load(peer, index, head.expect("the index has a head"))
+        .await
+        .expect("the index loads");
+    let hits = content
+        .search(&PeerParts(peer), &Query::parse(text), 100, i64::MAX)
+        .await
+        .expect("the search reads its parts");
+    let found = hits
+        .iter()
+        .map(|hit| Uuid::from_slice(&hit.doc.block).expect("a document is a block"))
+        .collect();
+    (found, content.index().segment_count())
+}
+
 /// How many segments `index` has at its newest head.
 #[cfg(test)]
 pub(crate) async fn segment_count<S: ObjectStore>(peer: &Peer<S>, index: Uuid) -> usize {
@@ -2604,9 +2627,9 @@ pub async fn write<S: ObjectStore>(
 }
 
 /// Compacts the index at `head`, this device's last write to it, when a batch's compaction,
-/// capped at `cap` (`MERGE_BYTES`), would leave a merge over it: with merges up to
-/// `IDLE_MERGE_BYTES`, sealing the commit into the outbox. Answers whether it did; not when the
-/// merges left are over that cap too.
+/// capped at `cap` (`MERGE_BYTES`), would leave a merge over it: with merges of any size, their
+/// parts written through `Peer`'s part writers (`Saving`) as they are merged, sealing the commit
+/// into the outbox. Answers whether it did.
 pub async fn compact_past<S: ObjectStore>(
     peer: &Peer<S>,
     index: Uuid,
@@ -2633,7 +2656,7 @@ pub async fn compact_past<S: ObjectStore>(
             &out,
             Uuid::new_v4().into_bytes(),
             be_block_commit::now_milliseconds(),
-            IDLE_MERGE_BYTES,
+            u64::MAX,
         )
         .await
         .map_err(|error| match parts.gone.get() {

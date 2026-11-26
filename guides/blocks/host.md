@@ -797,12 +797,19 @@ index and search it locally.
   being made or written; an edit on a root it cannot edit is never queued.
 - **Compaction.** A batch's write also compacts a few segments
   (`SearchIndexContent::compact`), none whose merge reads more than
-  `MERGE_BYTES` (8 MiB), so no edit waits on a large merge. What the cap leaves
+  `MERGE_BYTES` (8 MiB), so no edit waits on a large merge. A merge streams:
+  be-lib-search's `merge_segments` reads each input part forward a window at a
+  time (`scan::Window`, about a sealed chunk) and merges the inputs' documents
+  (twice: new local ids and offsets, then the records) and dictionaries k-way,
+  one term's postings held at once, holding otherwise a `u32` per document; it
+  writes its four parts through a `PartsOut` as it goes (`Written::saved` names
+  them), which be-block-search-index's `Saving` seals a chunk at a time with
+  `Vault::part_writer` under the index's key. The parts it saves are
+  `Held::Saved`, reused by the commit and uploaded by its drain. What the cap leaves
   (`SearchIndexContent::merges_over`) is merged while the host is idle
   (`compact_idle_indexes`): nothing queued, written or caught up for search, no
   search running, no command waiting, the outbox empty and no module working.
-  One index at a time, a commit a pass, with merges up to `IDLE_MERGE_BYTES`
-  (128 MiB, since a merge reads its segments whole into memory), sealed and sent
+  One index at a time, a commit a pass, with merges of any size, sealed and sent
   like a batch (it counts as one being written, so the host is busy meanwhile and
   that index's batches wait). The mirror follows each index the pass may
   compact (`Owner::Search`), as it reads the index's access there and no search

@@ -118,15 +118,6 @@ Fixed items are removed as they land.
   no presence" cannot be told from one whose presence is late until the replica says when a
   peer's presence (empty included) has arrived.
 
-## 11. Search
-
-- **Idle compaction merges larger tiers.** The idle pass waits for the device to
-  be at rest (`be_host_stack::Rest`), but is still capped at `IDLE_MERGE_BYTES`
-  (128 MiB), as a merge reads its segments whole into memory. Done: a merge
-  streams its segments, and the idle pass at rest merges tiers past that cap,
-  shown by a be-block-search-index test merging segments larger than the memory
-  it may hold. Planned in plans/streamed_part_writes.md.
-
 ## 12. Large folders
 
 - **A listing read again is applied whole in memory.** A listing now writes only the

@@ -140,8 +140,8 @@ fn an_index_over_the_merge_cap_is_compacted_while_idle_and_answers_the_same() {
     let before = runtime.block_on(crate::search::segment_count(&peer, index));
     assert!(before > notes.len(), "{before} segments");
 
-    // Once this device writes a batch, idle, it merges what the cap left, a commit at a time,
-    // until nothing is over it.
+    // Once this device writes a batch, idle, it merges what the cap left, however large, a
+    // commit at a time, until no merge is left.
     type_text(notes[0], 0, "grapefruit ");
     flush();
     crate::wait_until("compacted the index while idle", |shared| {
@@ -166,6 +166,16 @@ fn an_index_over_the_merge_cap_is_compacted_while_idle_and_answers_the_same() {
     }
     assert_eq!(found("figs "), all);
     assert_eq!(found("grapefruit "), [notes[0]]);
+    // The merged segments' parts, sealed a chunk at a time as they were merged, reached the
+    // server with the commit: another device reads them from there.
+    let elsewhere = std::sync::Arc::clone(&other.peer.borrow());
+    for (word, note) in words.iter().zip(&notes) {
+        let (found, segments) = other.runtime.block_on(crate::search::found_on_server(
+            &elsewhere, index, word,
+        ));
+        assert_eq!(found, [*note], "another device finds {word}");
+        assert_eq!(segments, after);
+    }
     // The other device's note never joined the workspace's children, so the mirror comes to
     // show it detached and search hides it; the merged index still holds it.
     let held = runtime.block_on(crate::search::entries(&peer, index, grapes));

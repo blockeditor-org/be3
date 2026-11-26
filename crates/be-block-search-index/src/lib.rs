@@ -48,15 +48,11 @@ const REMEMBERED: i64 = 7 * SEARCH_INDEX_KEPT;
 /// The segment merges one compaction makes at most, so no one batch rewrites the index.
 const MERGES_PER_PASS: usize = 2;
 
-/// The most bytes of parts one merge reads as a batch is written. Segments whose merge would
-/// read more are left for a pass while the device is idle (`SearchIndexContent::merges_over`),
-/// which compacts up to `IDLE_MERGE_BYTES`.
+/// The most bytes of parts one merge reads as a batch is written, so a batch's write stays
+/// quick. Segments whose merge would read more are left for a pass while the device is idle
+/// (`SearchIndexContent::merges_over`), which merges any: a merge reads its inputs and writes
+/// its output a piece at a time, so its size is no matter for memory.
 pub const MERGE_BYTES: u64 = 8 << 20;
-
-/// The most bytes of parts one merge reads in a pass while the device is idle. A merge reads
-/// its segments whole into memory, so even then it is capped, until the pass waits for the
-/// device to be idle and on power (plans/backlog.md, "Search").
-pub const IDLE_MERGE_BYTES: u64 = 128 << 20;
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 struct Header {
