@@ -3299,6 +3299,7 @@ version = "0.1.0"
 dependencies = [
  "be-wasm-gpu-abi",
  "be-wasm-gpu-convert",
+ "be-wasm-ops",
  "wgpu",
 ]
 

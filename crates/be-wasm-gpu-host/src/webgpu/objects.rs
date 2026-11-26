@@ -933,10 +933,10 @@ impl Host for Gpu {
     ) -> Result<web::GpuQuerySet, web::CreateQuerySetError> {
         let allowed = self.allowed(this.0);
         let kind: wgpu::QueryType = descriptor.r#type.convert();
-        if allowed.query_set(kind).is_err() {
+        if let Err(message) = allowed.query_set(kind) {
             return Err(web::CreateQuerySetError {
                 kind: web::CreateQuerySetErrorKind::TypeError,
-                message: "timestamp queries need the timestamp-query feature".to_owned(),
+                message,
             });
         }
         let handle = self.make(Some(this.0), Kind::QuerySet, descriptor.label.as_deref(), |gpu| &mut gpu.query_sets, |gpu| {
@@ -1063,14 +1063,19 @@ impl Host for Gpu {
             (false, true) => Ok(abi::MapMode::Write),
             _ => Err(Failure::validation("a map is for reading or for writing, not both or neither")),
         };
+        // Mapping a destroyed buffer is a validation error wgpu raises on the device, so the
+        // map is made inside the host's scopes.
         let started = mapping.and_then(|mapping| {
             let (buffer, offset, size) = self.buffer_range(this.0, offset, size)?;
             let end = offset
                 .checked_add(size)
                 .filter(|end| *end <= buffer.size())
                 .ok_or_else(|| Failure::validation(format!("a map of {size} bytes from {offset} runs past the end of its buffer")))?;
-            self.settling
-                .map(&self.device, &buffer, this.0, mapping, offset..end)
+            let mapped = self.wrapped(device, |gpu| {
+                Ok(gpu.settling.map(&gpu.device, &buffer, this.0, mapping, offset..end))
+            });
+            mapped
+                .unwrap_or_else(|| Err(format!("buffer {} could not be mapped", this.0)))
                 .map_err(Failure::validation)
         });
         match started {
@@ -1142,9 +1147,13 @@ impl Host for Gpu {
 
     fn gpu_buffer_unmap(&mut self, this: web::GpuBuffer) -> Result<(), web::UnmapError> {
         self.settling.forget(this.0);
-        if let Ok(buffer) = self.buffers.get(this.0, "buffer") {
-            buffer.unmap();
-        }
+        let device = self.device_of(Kind::Buffer, this.0);
+        self.wrapped(device, |gpu| {
+            if let Ok(buffer) = gpu.buffers.get(this.0, "buffer") {
+                buffer.unmap();
+            }
+            Ok(())
+        });
         Ok(())
     }
 

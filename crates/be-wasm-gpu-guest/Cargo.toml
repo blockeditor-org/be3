@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 be-wasm-gpu-abi = { path = "../be-wasm-gpu-abi" }
 be-wasm-gpu-convert = { path = "../be-wasm-gpu-convert" }
+be-wasm-ops = { path = "../be-wasm-ops" }
 wgpu = { version = "30", default-features = false, features = ["custom", "std", "web", "wgsl"] }
 
 [lints]

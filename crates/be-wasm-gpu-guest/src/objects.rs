@@ -1,284 +1,425 @@
 use core::{
     fmt,
-    future::{Future, ready},
-    mem::ManuallyDrop,
+    future::Future,
     ops::Range,
     pin::Pin,
     task::{Context, Poll, Waker},
 };
-use std::{cell::RefCell, collections::HashSet, sync::Arc};
+use std::{cell::RefCell, collections::HashMap, collections::HashSet, sync::Arc};
 
-use be_wasm_gpu_abi::{device as abi, guest::device as gpu};
-use be_wasm_gpu_convert::Convert;
+use be_wasm_gpu_abi::guest::webgpu as gpu;
+use be_wasm_gpu_abi::webgpu::webgpu as web;
+use be_wasm_ops::local::{Items, Ticket};
 use wgpu::custom::*;
 
-use crate::convert::{self, custom};
-use crate::features::Allowed;
+use crate::convert::{self, custom, to_web};
+use crate::passes::{CommandEncoder, RenderBundleEncoder};
 
-mod compute;
-
-pub(crate) fn last_error() -> String {
-    gpu::take_error().unwrap_or_default()
-}
-
-struct Scope {
-    filter: wgpu::ErrorFilter,
-    error: Option<wgpu::Error>,
-}
-
-struct Map {
-    ticket: u64,
-    buffer: abi::Buffer,
-    callback: BufferMapCallback,
-}
-
-struct Work {
-    ticket: u64,
-    callback: BoxSubmittedWorkDoneCallback,
-}
-
+/// What waits for the host to settle it: each is answered by `settle`, from the tickets
+/// wasi:webgpu's calls answer, so the futures wgpu is handed hold only numbers.
 #[derive(Default)]
-struct Lost {
-    lost: bool,
-    callback: Option<BoxDeviceLostCallback>,
+struct Waiting {
+    maps: Vec<(Ticket<Result<(), web::MapAsyncError>>, web::GpuBuffer, BufferMapCallback)>,
+    work: Vec<(Ticket<()>, BoxSubmittedWorkDoneCallback)>,
+    pops: HashMap<u32, Ticket<Result<Option<web::GpuError>, web::PopErrorScopeError>>>,
+    popped: HashMap<u32, Option<wgpu::Error>>,
+    compiling: HashMap<u32, Ticket<web::GpuCompilationInfo>>,
+    compiled: HashMap<u32, wgpu::CompilationInfo>,
+    wakers: Vec<Waker>,
+    lost: Option<(Ticket<web::GpuDeviceLostInfo>, BoxDeviceLostCallback)>,
+    uncaptured: Option<(Items<web::GpuError>, Arc<dyn wgpu::UncapturedErrorHandler>)>,
+    handler: Option<Arc<dyn wgpu::UncapturedErrorHandler>>,
+    /// The app's open error scopes, as the host has them, each with an error the guest raised
+    /// itself (where WebGPU throws and wgpu reports a validation error instead).
+    scopes: Vec<(wgpu::ErrorFilter, Option<wgpu::Error>)>,
+    next: u32,
 }
 
 thread_local! {
-    static SCOPES: RefCell<Vec<Scope>> = const { RefCell::new(Vec::new()) };
-    static MAPS: RefCell<Vec<Map>> = const { RefCell::new(Vec::new()) };
-    static WORK: RefCell<Vec<Work>> = const { RefCell::new(Vec::new()) };
-    static COMPILING: RefCell<Vec<Waker>> = const { RefCell::new(Vec::new()) };
-    static LOST: RefCell<Lost> = RefCell::new(Lost::default());
+    static WAITING: RefCell<Waiting> = RefCell::new(Waiting::default());
+    /// Buffers mapped at creation, whose mapped range starts zeroed rather than read back.
     static FRESH: RefCell<HashSet<u32>> = RefCell::new(HashSet::new());
-    static UNCAPTURED: RefCell<Option<Arc<dyn wgpu::UncapturedErrorHandler>>> =
-        const { RefCell::new(None) };
+}
+
+fn waiting<R>(act: impl FnOnce(&mut Waiting) -> R) -> R {
+    WAITING.with(|waiting| act(&mut waiting.borrow_mut()))
+}
+
+/// A pipeline the host compiled asynchronously, which the next `create_*_pipeline` takes in
+/// place of compiling it again (`crate::create_render_pipeline_async`).
+#[derive(Default)]
+struct Prepared {
+    render: Option<gpu::GpuRenderPipeline>,
+    compute: Option<gpu::GpuComputePipeline>,
+}
+
+thread_local! {
+    static PREPARED: RefCell<Prepared> = RefCell::new(Prepared::default());
+}
+
+/// A pipeline descriptor in wasi:webgpu's terms, with the constants it names, which must live
+/// until the pipeline is made.
+struct Described<D> {
+    descriptor: D,
+    _constants: [Option<gpu::RecordGpuPipelineConstantValue>; 2],
+}
+
+fn render_descriptor(desc: &wgpu::RenderPipelineDescriptor<'_>) -> Described<web::GpuRenderPipelineDescriptor> {
+    let vertex_constants = convert::constants(&desc.vertex.compilation_options);
+    let fragment_constants = desc
+        .fragment
+        .as_ref()
+        .and_then(|fragment| convert::constants(&fragment.compilation_options));
+    let descriptor = web::GpuRenderPipelineDescriptor {
+        vertex: web::GpuVertexState {
+            buffers: Some(
+                desc.vertex
+                    .buffers
+                    .iter()
+                    .map(|buffer| {
+                        buffer.as_ref().map(|buffer| web::GpuVertexBufferLayout {
+                            array_stride: buffer.array_stride,
+                            step_mode: Some(to_web(buffer.step_mode)),
+                            attributes: buffer
+                                .attributes
+                                .iter()
+                                .map(|attribute| web::GpuVertexAttribute {
+                                    format: to_web(attribute.format),
+                                    offset: attribute.offset,
+                                    shader_location: attribute.shader_location,
+                                })
+                                .collect(),
+                        })
+                    })
+                    .collect(),
+            ),
+            module: convert::module_handle(desc.vertex.module),
+            entry_point: desc.vertex.entry_point.map(str::to_owned),
+            constants: vertex_constants.as_ref().map(|record| record.handle()),
+        },
+        primitive: Some(web::GpuPrimitiveState {
+            topology: Some(to_web(desc.primitive.topology)),
+            strip_index_format: desc.primitive.strip_index_format.map(to_web),
+            front_face: Some(to_web(desc.primitive.front_face)),
+            cull_mode: Some(match desc.primitive.cull_mode {
+                None => web::GpuCullMode::None,
+                Some(wgpu::Face::Front) => web::GpuCullMode::Front,
+                Some(wgpu::Face::Back) => web::GpuCullMode::Back,
+            }),
+            unclipped_depth: Some(desc.primitive.unclipped_depth),
+        }),
+        depth_stencil: desc.depth_stencil.as_ref().map(|state| {
+            let face = |face: wgpu::StencilFaceState| web::GpuStencilFaceState {
+                compare: Some(to_web(face.compare)),
+                fail_op: Some(to_web(face.fail_op)),
+                depth_fail_op: Some(to_web(face.depth_fail_op)),
+                pass_op: Some(to_web(face.pass_op)),
+            };
+            web::GpuDepthStencilState {
+                format: to_web(state.format),
+                depth_write_enabled: state.depth_write_enabled,
+                depth_compare: state.depth_compare.map(to_web),
+                stencil_front: Some(face(state.stencil.front)),
+                stencil_back: Some(face(state.stencil.back)),
+                stencil_read_mask: Some(state.stencil.read_mask),
+                stencil_write_mask: Some(state.stencil.write_mask),
+                depth_bias: Some(state.bias.constant),
+                depth_bias_slope_scale: Some(state.bias.slope_scale),
+                depth_bias_clamp: Some(state.bias.clamp),
+            }
+        }),
+        multisample: Some(web::GpuMultisampleState {
+            count: Some(desc.multisample.count),
+            mask: Some(desc.multisample.mask as u32),
+            alpha_to_coverage_enabled: Some(desc.multisample.alpha_to_coverage_enabled),
+        }),
+        fragment: desc.fragment.as_ref().map(|fragment| web::GpuFragmentState {
+            targets: fragment
+                .targets
+                .iter()
+                .map(|target| {
+                    target.as_ref().map(|target| {
+                        let component = |component: wgpu::BlendComponent| web::GpuBlendComponent {
+                            operation: Some(to_web(component.operation)),
+                            src_factor: Some(to_web(component.src_factor)),
+                            dst_factor: Some(to_web(component.dst_factor)),
+                        };
+                        web::GpuColorTargetState {
+                            format: to_web(target.format),
+                            blend: target.blend.map(|blend| web::GpuBlendState {
+                                color: component(blend.color),
+                                alpha: component(blend.alpha),
+                            }),
+                            write_mask: Some(web::GpuColorWrite::from_bits(target.write_mask.bits())),
+                        }
+                    })
+                })
+                .collect(),
+            module: convert::module_handle(fragment.module),
+            entry_point: fragment.entry_point.map(str::to_owned),
+            constants: fragment_constants.as_ref().map(|record| record.handle()),
+        }),
+        layout: convert::layout(desc.layout),
+        label: convert::label(desc.label),
+    };
+    Described {
+        descriptor,
+        _constants: [vertex_constants, fragment_constants],
+    }
+}
+
+fn compute_descriptor(desc: &wgpu::ComputePipelineDescriptor<'_>) -> Described<web::GpuComputePipelineDescriptor> {
+    let constants = convert::constants(&desc.compilation_options);
+    let descriptor = web::GpuComputePipelineDescriptor {
+        compute: web::GpuProgrammableStage {
+            module: convert::module_handle(desc.module),
+            entry_point: desc.entry_point.map(str::to_owned),
+            constants: constants.as_ref().map(|record| record.handle()),
+        },
+        layout: convert::layout(desc.layout),
+        label: convert::label(desc.label),
+    };
+    Described {
+        descriptor,
+        _constants: [constants, None],
+    }
+}
+
+/// The app's device behind `device`, which this backend made.
+fn device_of(device: &wgpu::Device) -> &gpu::GpuDevice {
+    &custom::<Device>(device.as_custom()).device
+}
+
+/// Polls the host once when `ticket` is not yet in, as `Settled` does.
+async fn answered<T>(mut ticket: Ticket<T>) -> T {
+    if let Some(value) = ticket.take() {
+        return value;
+    }
+    settle(false);
+    ticket.await
+}
+
+pub(crate) async fn render_pipeline_async(
+    device: &wgpu::Device,
+    desc: &wgpu::RenderPipelineDescriptor<'_>,
+) -> Result<(), String> {
+    let described = render_descriptor(desc);
+    let ticket = device_of(device).create_render_pipeline_async(&described.descriptor);
+    let made = answered(ticket).await.map_err(|error| error.message)?;
+    PREPARED.with(|prepared| prepared.borrow_mut().render = Some(gpu::GpuRenderPipeline::from_handle(made)));
+    Ok(())
+}
+
+pub(crate) async fn compute_pipeline_async(
+    device: &wgpu::Device,
+    desc: &wgpu::ComputePipelineDescriptor<'_>,
+) -> Result<(), String> {
+    let described = compute_descriptor(desc);
+    let ticket = device_of(device).create_compute_pipeline_async(&described.descriptor);
+    let made = answered(ticket).await.map_err(|error| error.message)?;
+    PREPARED.with(|prepared| prepared.borrow_mut().compute = Some(gpu::GpuComputePipeline::from_handle(made)));
+    Ok(())
 }
 
 #[derive(Debug)]
-struct Rejected(String);
+struct Raised(String);
 
-impl fmt::Display for Rejected {
+impl fmt::Display for Raised {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(&self.0)
     }
 }
 
-impl std::error::Error for Rejected {}
+impl std::error::Error for Raised {}
 
-fn reject(message: String) {
-    if LOST.with(|lost| lost.borrow().lost) {
-        return;
-    }
+/// Raises an error the guest found itself, as wgpu does: into the innermost validation scope,
+/// or to the uncaptured error handler, or, with none, as a panic.
+pub(crate) fn raise(message: String) {
     let error = wgpu::Error::Validation {
-        source: Box::new(Rejected(message.clone())),
+        source: Box::new(Raised(message.clone())),
         description: message,
     };
-    let unscoped = SCOPES.with(|scopes| {
-        let mut scopes = scopes.borrow_mut();
-        match scopes
+    let unscoped = waiting(|waiting| {
+        match waiting
+            .scopes
             .iter_mut()
             .rev()
-            .find(|scope| scope.filter == wgpu::ErrorFilter::Validation)
+            .find(|(filter, _)| *filter == wgpu::ErrorFilter::Validation)
         {
-            Some(scope) => {
-                scope.error.get_or_insert(error);
+            Some((_, caught)) => {
+                caught.get_or_insert(error);
                 None
             }
-            None => Some(error),
+            None => Some((error, waiting.handler.clone())),
         }
     });
-    let Some(error) = unscoped else {
-        return;
-    };
-    match UNCAPTURED.with(|handler| handler.borrow().clone()) {
-        Some(handler) => handler(error),
-        None => panic!("the app gpu abi rejected a request: {error}"),
+    match unscoped {
+        None => {}
+        Some((error, Some(handler))) => handler(error),
+        Some((error, None)) => panic!("wasi:webgpu refused a request: {error}"),
     }
 }
 
-fn checked() {
-    if SCOPES.with(|scopes| scopes.borrow().is_empty()) {
-        return;
-    }
-    let message = last_error();
-    if !message.is_empty() {
-        reject(message);
+/// A wasi:webgpu error as wgpu's.
+fn error(handle: web::GpuError) -> wgpu::Error {
+    let error = gpu::GpuError::from_handle(handle);
+    let message = error.message();
+    match error.kind() {
+        web::GpuErrorKind::OutOfMemoryError => wgpu::Error::OutOfMemory {
+            source: Box::new(Raised(message)),
+        },
+        web::GpuErrorKind::InternalError => wgpu::Error::Internal {
+            source: Box::new(Raised(message.clone())),
+            description: message,
+        },
+        web::GpuErrorKind::ValidationError => wgpu::Error::Validation {
+            source: Box::new(Raised(message.clone())),
+            description: message,
+        },
     }
 }
 
-pub(crate) fn fresh_device() {
-    gpu::request_device();
-    LOST.with(|lost| *lost.borrow_mut() = Lost::default());
-}
-
+/// Takes what settled and answers the callbacks and futures waiting on it, all after the
+/// waiting list is let go of, since a callback may ask the gpu for more. Answers whether nothing
+/// still waits on the gpu.
 pub(crate) fn settle(wait: bool) -> bool {
-    let settling = || {
-        MAPS.with(|maps| !maps.borrow().is_empty()) || WORK.with(|work| !work.borrow().is_empty())
-    };
-    let losing = LOST.with(|lost| lost.borrow().callback.is_some());
-    if settling() || losing {
-        let settled = gpu::poll(wait);
-        settle_maps(settled.maps);
-        settle_work(settled.work_done);
-        if let Some(info) = settled.lost {
-            settle_loss(info);
-        }
+    // An app that never reached the gpu (one whose surfaces are not rendered) never polls it.
+    if gpu::waiting() {
+        gpu::settle(wait);
     }
-    for waker in COMPILING.with(|compiling| compiling.take()) {
+    let mut maps = Vec::new();
+    let mut work = Vec::new();
+    let mut lost = None;
+    let mut uncaptured = Vec::new();
+    let mut wakers = Vec::new();
+    let pending = waiting(|waiting| {
+        for (mut ticket, buffer, callback) in std::mem::take(&mut waiting.maps) {
+            match ticket.take() {
+                Some(mapped) => maps.push((mapped, callback)),
+                None => waiting.maps.push((ticket, buffer, callback)),
+            }
+        }
+        for (mut ticket, callback) in std::mem::take(&mut waiting.work) {
+            match ticket.take() {
+                Some(()) => work.push(callback),
+                None => waiting.work.push((ticket, callback)),
+            }
+        }
+        let pops: Vec<u32> = waiting.pops.keys().copied().collect();
+        for id in pops {
+            let settled = waiting.pops.get_mut(&id).and_then(Ticket::take);
+            if let Some(popped) = settled {
+                waiting.pops.remove(&id);
+                let caught = popped.ok().flatten().map(error);
+                waiting.popped.insert(id, caught);
+            }
+        }
+        let compiling: Vec<u32> = waiting.compiling.keys().copied().collect();
+        for id in compiling {
+            let settled = waiting.compiling.get_mut(&id).and_then(Ticket::take);
+            if let Some(info) = settled {
+                waiting.compiling.remove(&id);
+                waiting.compiled.insert(id, compilation_info(info));
+            }
+        }
+        if let Some((ticket, _)) = &mut waiting.lost
+            && let Some(info) = ticket.take()
+        {
+            lost = waiting.lost.take().map(|(_, callback)| (info, callback));
+        }
+        if let Some((items, handler)) = &mut waiting.uncaptured {
+            while let Some(raised) = items.try_next() {
+                uncaptured.push((raised, Arc::clone(handler)));
+            }
+        }
+        wakers = std::mem::take(&mut waiting.wakers);
+        !waiting.maps.is_empty() || !waiting.work.is_empty()
+    });
+    for (mapped, callback) in maps {
+        callback(mapped.map_err(|_| wgpu::BufferAsyncError));
+    }
+    for callback in work {
+        callback();
+    }
+    if let Some((info, callback)) = lost {
+        let info = gpu::GpuDeviceLostInfo::from_handle(info);
+        let reason = match info.reason() {
+            web::GpuDeviceLostReason::Destroyed => wgpu::DeviceLostReason::Destroyed,
+            web::GpuDeviceLostReason::Unknown => wgpu::DeviceLostReason::Unknown,
+        };
+        callback(reason, info.message());
+    }
+    for (raised, handler) in uncaptured {
+        handler(error(raised));
+    }
+    for waker in wakers {
         waker.wake();
     }
-    !settling()
+    !pending
 }
 
-fn settle_work(done: Vec<u64>) {
-    if done.is_empty() {
-        return;
-    }
-    let done: HashSet<u64> = done.into_iter().collect();
-    let done: Vec<Work> = WORK.with(|work| {
-        let mut work = work.borrow_mut();
-        let (finished, waiting) = work.drain(..).partition(|work| done.contains(&work.ticket));
-        *work = waiting;
-        finished
-    });
-    for work in done {
-        (work.callback)();
-    }
+fn compilation_info(info: web::GpuCompilationInfo) -> wgpu::CompilationInfo {
+    let info = gpu::GpuCompilationInfo::from_handle(info);
+    let messages = info
+        .messages()
+        .into_iter()
+        .map(|message| {
+            let message = gpu::GpuCompilationMessage::from_handle(message);
+            let length = message.length();
+            wgpu::CompilationMessage {
+                message: message.message(),
+                message_type: match message.r#type() {
+                    web::GpuCompilationMessageType::Error => wgpu::CompilationMessageType::Error,
+                    web::GpuCompilationMessageType::Warning => wgpu::CompilationMessageType::Warning,
+                    web::GpuCompilationMessageType::Info => wgpu::CompilationMessageType::Info,
+                },
+                location: (message.line_num() > 0).then(|| wgpu::SourceLocation {
+                    line_number: message.line_num() as u32,
+                    line_position: message.line_pos() as u32,
+                    offset: message.offset() as u32,
+                    length: length as u32,
+                }),
+            }
+        })
+        .collect();
+    wgpu::CompilationInfo { messages }
 }
 
-fn settle_loss(info: abi::DeviceLostInfo) {
-    let callback = LOST.with(|lost| {
-        let mut lost = lost.borrow_mut();
-        lost.lost = true;
-        lost.callback.take()
-    });
-    if let Some(callback) = callback {
-        let reason = match info.reason {
-            abi::DeviceLostReason::Unknown => wgpu::DeviceLostReason::Unknown,
-            abi::DeviceLostReason::Destroyed => wgpu::DeviceLostReason::Destroyed,
-        };
-        callback(reason, info.message);
-    }
-}
-
-/// Calls back each map that settled. A ticket no map waits on is one the guest already
-/// aborted, on unmap or destroy.
-fn settle_maps(settled: Vec<(u64, bool)>) {
-    if settled.is_empty() {
-        return;
-    }
-    let settled: Vec<(Map, bool)> = MAPS.with(|maps| {
-        let mut maps = maps.borrow_mut();
-        settled
+fn abort_maps(buffer: web::GpuBuffer) {
+    let aborted: Vec<BufferMapCallback> = waiting(|waiting| {
+        let (aborted, kept) = std::mem::take(&mut waiting.maps)
             .into_iter()
-            .filter_map(|(ticket, mapped)| {
-                let index = maps.iter().position(|map| map.ticket == ticket)?;
-                Some((maps.remove(index), mapped))
-            })
-            .collect()
+            .partition(|(_, mapped, _)| *mapped == buffer);
+        waiting.maps = kept;
+        aborted.into_iter().map(|(_, _, callback)| callback).collect()
     });
-    for (map, mapped) in settled {
-        (map.callback)(match mapped {
-            true => Ok(()),
-            false => Err(wgpu::BufferAsyncError),
-        });
-    }
-}
-
-fn abort_maps(buffer: abi::Buffer) {
-    let aborted: Vec<Map> = MAPS.with(|maps| {
-        let mut maps = maps.borrow_mut();
-        let (aborted, kept) = maps.drain(..).partition(|map| map.buffer == buffer);
-        *maps = kept;
-        aborted
-    });
-    for map in aborted {
-        (map.callback)(Err(wgpu::BufferAsyncError));
+    for callback in aborted {
+        callback(Err(wgpu::BufferAsyncError));
     }
 }
 
 macro_rules! resource {
-    ($name:ident) => {
+    ($name:ident, $owner:ident) => {
         #[derive(Debug)]
-        pub(crate) struct $name(pub(crate) gpu::$name);
-
-        impl $name {
-            fn created(made: Option<gpu::$name>) -> Self {
-                Self(made.unwrap_or_else(|| {
-                    reject(last_error());
-                    gpu::$name::from_handle(abi::$name(0))
-                }))
-            }
-
-            #[allow(dead_code)]
-            fn refused(message: String) -> Self {
-                reject(message);
-                Self(gpu::$name::from_handle(abi::$name(0)))
-            }
-        }
+        pub(crate) struct $name(pub(crate) gpu::$owner);
     };
 }
 
 pub(crate) use resource;
 
-resource!(Buffer);
-resource!(Texture);
-resource!(TextureView);
-resource!(Sampler);
-resource!(BindGroupLayout);
-resource!(BindGroup);
-resource!(PipelineLayout);
-resource!(RenderPipeline);
-resource!(CommandBuffer);
-resource!(CommandEncoder);
-resource!(RenderPass);
-resource!(QuerySet);
-resource!(RenderBundleEncoder);
-resource!(RenderBundle);
-
-#[derive(Debug)]
-pub(crate) struct ShaderModule(pub(crate) gpu::ShaderModule, Option<String>);
-
-impl ShaderModule {
-    fn refused(message: String) -> Self {
-        reject(message.clone());
-        Self(
-            gpu::ShaderModule::from_handle(abi::ShaderModule(0)),
-            Some(message),
-        )
-    }
-}
-
-struct Compiling {
-    module: abi::ShaderModule,
-    refused: Option<String>,
-}
-
-impl Future for Compiling {
-    type Output = wgpu::CompilationInfo;
-
-    fn poll(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Self::Output> {
-        if let Some(message) = &self.refused {
-            return Poll::Ready(wgpu::CompilationInfo {
-                messages: vec![wgpu::CompilationMessage {
-                    message: message.clone(),
-                    message_type: wgpu::CompilationMessageType::Error,
-                    location: None,
-                }],
-            });
-        }
-        let module = ManuallyDrop::new(gpu::ShaderModule::from_handle(self.module));
-        match module.get_compilation_info() {
-            Some(messages) => Poll::Ready(wgpu::CompilationInfo {
-                messages: messages.iter().map(Convert::convert).collect(),
-            }),
-            None => {
-                COMPILING.with(|compiling| compiling.borrow_mut().push(context.waker().clone()));
-                Poll::Pending
-            }
-        }
-    }
-}
+resource!(Buffer, GpuBuffer);
+resource!(Texture, GpuTexture);
+resource!(TextureView, GpuTextureView);
+resource!(Sampler, GpuSampler);
+resource!(BindGroupLayout, GpuBindGroupLayout);
+resource!(BindGroup, GpuBindGroup);
+resource!(PipelineLayout, GpuPipelineLayout);
+resource!(RenderPipeline, GpuRenderPipeline);
+resource!(ComputePipeline, GpuComputePipeline);
+resource!(CommandBuffer, GpuCommandBuffer);
+resource!(QuerySet, GpuQuerySet);
+resource!(RenderBundle, GpuRenderBundle);
+resource!(ShaderModule, GpuShaderModule);
 
 impl Drop for Buffer {
     fn drop(&mut self) {
@@ -288,10 +429,34 @@ impl Drop for Buffer {
     }
 }
 
-impl Drop for RenderPass {
-    fn drop(&mut self) {
-        self.0.end();
-        checked();
+/// A future answered once `settle` has the value its id names.
+struct Settled<F> {
+    id: u32,
+    take: F,
+}
+
+impl<T, F: Fn(&mut Waiting, u32) -> Option<T> + Unpin> Future for Settled<F> {
+    type Output = T;
+
+    /// Polls the host once when the value is not yet in: a native host settles what it was
+    /// asked at once, so a pop or compilation info is ready on the first poll there, as wgpu's
+    /// own backends' are.
+    fn poll(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<T> {
+        if let Some(value) = waiting(|waiting| (self.take)(waiting, self.id)) {
+            return Poll::Ready(value);
+        }
+        settle(false);
+        let found = waiting(|waiting| match (self.take)(waiting, self.id) {
+            Some(value) => Some(value),
+            None => {
+                waiting.wakers.push(context.waker().clone());
+                None
+            }
+        });
+        match found {
+            Some(value) => Poll::Ready(value),
+            None => Poll::Pending,
+        }
     }
 }
 
@@ -302,7 +467,7 @@ pub(crate) struct StagingBuffer {
 
 #[derive(Debug)]
 pub(crate) struct MappedRange {
-    buffer: abi::Buffer,
+    buffer: web::GpuBuffer,
     offset: u64,
     bytes: Vec<u8>,
     written: bool,
@@ -313,31 +478,33 @@ impl Drop for MappedRange {
         if !self.written {
             return;
         }
-        let buffer = ManuallyDrop::new(gpu::Buffer::from_handle(self.buffer));
-        buffer.write_mapped(self.offset, &self.bytes);
+        let buffer = core::mem::ManuallyDrop::new(gpu::GpuBuffer::from_handle(self.buffer));
+        let length = self.bytes.len() as u64;
+        // A range outside what is mapped was refused when it was got.
+        let _ = buffer.get_mapped_range_set_with_copy(&self.bytes, Some(self.offset), Some(length));
+    }
+}
+
+pub(crate) struct Device {
+    device: gpu::GpuDevice,
+    features: wgpu::Features,
+    limits: wgpu::Limits,
+}
+
+impl fmt::Debug for Device {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.debug_struct("Device").field("device", &self.device).finish()
     }
 }
 
 #[derive(Debug)]
-pub(crate) struct Device {
-    allowed: Allowed,
-    limits: wgpu::Limits,
-}
-
-#[derive(Debug)]
-pub(crate) struct Queue;
+pub(crate) struct Queue(pub(crate) gpu::GpuQueue);
 
 impl Device {
-    pub(crate) fn new(
-        features: wgpu::Features,
-        offered: wgpu::Features,
-        limits: wgpu::Limits,
-    ) -> Self {
+    pub(crate) fn new(device: gpu::GpuDevice, features: wgpu::Features, limits: wgpu::Limits) -> Self {
         Self {
-            allowed: Allowed {
-                requested: features,
-                offered,
-            },
+            device,
+            features,
             limits,
         }
     }
@@ -346,7 +513,7 @@ impl Device {
 // unsafe(ffi)
 impl DeviceInterface for Device {
     fn features(&self) -> wgpu::Features {
-        self.allowed.requested
+        self.features
     }
 
     fn limits(&self) -> wgpu::Limits {
@@ -354,17 +521,21 @@ impl DeviceInterface for Device {
     }
 
     fn adapter_info(&self) -> wgpu::AdapterInfo {
+        let info = self.device.adapter_info();
         wgpu::AdapterInfo {
-            name: "BE3 app host".into(),
+            name: info.description(),
             vendor: 0,
             device: 0,
-            device_type: wgpu::DeviceType::Other,
+            device_type: match info.is_fallback_adapter() {
+                true => wgpu::DeviceType::Cpu,
+                false => wgpu::DeviceType::Other,
+            },
             device_pci_bus_id: String::new(),
-            driver: "be3".into(),
-            driver_info: String::new(),
+            driver: info.vendor(),
+            driver_info: info.architecture(),
             backend: wgpu::Backend::Noop,
-            subgroup_min_size: 0,
-            subgroup_max_size: 0,
+            subgroup_min_size: info.subgroup_min_size(),
+            subgroup_max_size: info.subgroup_max_size(),
             transient_saves_memory: Some(false),
             limit_bucket: None,
         }
@@ -375,28 +546,15 @@ impl DeviceInterface for Device {
         desc: wgpu::ShaderModuleDescriptor<'_>,
         _shader_bound_checks: wgpu::ShaderRuntimeChecks,
     ) -> DispatchShaderModule {
-        let wgsl = match desc.source {
+        let code = match desc.source {
             wgpu::ShaderSource::Wgsl(source) => source.into_owned(),
-            _ => panic!("the app gpu abi only accepts wgsl shaders, as browser WebGPU does"),
+            _ => panic!("wasi:webgpu only takes WGSL shaders, as browser WebGPU does"),
         };
-        if let Err(message) = self.allowed.shader(&wgsl) {
-            return DispatchShaderModule::custom(ShaderModule::refused(message));
-        }
-        let descriptor = abi::ShaderModuleDescriptor {
-            label: convert::label(desc.label),
-            wgsl,
-        };
-        let made = gpu::create_shader_module(&descriptor);
-        let message = last_error();
-        DispatchShaderModule::custom(match made {
-            Some(module) => {
-                if !message.is_empty() {
-                    reject(message);
-                }
-                ShaderModule(module, None)
-            }
-            None => ShaderModule::refused(message),
-        })
+        DispatchShaderModule::custom(ShaderModule(self.device.create_shader_module(&web::GpuShaderModuleDescriptor {
+                code,
+                compilation_hints: None,
+                label: convert::label(desc.label),
+            })))
     }
 
     unsafe fn create_shader_module_passthrough(
@@ -412,151 +570,55 @@ impl DeviceInterface for Device {
         &self,
         desc: &wgpu::BindGroupLayoutDescriptor<'_>,
     ) -> DispatchBindGroupLayout {
-        if let Err(message) = self.allowed.group_layout(desc) {
-            return DispatchBindGroupLayout::custom(BindGroupLayout::refused(message));
-        }
-        let descriptor = abi::BindGroupLayoutDescriptor {
+        let descriptor = web::GpuBindGroupLayoutDescriptor {
+            entries: desc.entries.iter().map(convert::layout_entry).collect(),
             label: convert::label(desc.label),
-            entries: desc
-                .entries
-                .iter()
-                .map(|entry| abi::BindGroupLayoutEntry {
-                    binding: entry.binding,
-                    visibility: entry.visibility.bits(),
-                    r#type: convert::to_abi(entry.ty),
-                    count: entry.count.map(|count| count.get()),
-                })
-                .collect(),
         };
-        DispatchBindGroupLayout::custom(BindGroupLayout::created(gpu::create_bind_group_layout(
-            &descriptor,
-        )))
+        DispatchBindGroupLayout::custom(BindGroupLayout(self.device.create_bind_group_layout(&descriptor)))
     }
 
     fn create_bind_group(&self, desc: &wgpu::BindGroupDescriptor<'_>) -> DispatchBindGroup {
-        let descriptor = abi::BindGroupDescriptor {
-            label: convert::label(desc.label),
+        let descriptor = web::GpuBindGroupDescriptor {
             layout: convert::group_layout_handle(desc.layout),
             entries: desc
                 .entries
                 .iter()
-                .map(|entry| abi::BindGroupEntry {
+                .map(|entry| web::GpuBindGroupEntry {
                     binding: entry.binding,
                     resource: convert::binding_resource(&entry.resource),
                 })
                 .collect(),
+            label: convert::label(desc.label),
         };
-        DispatchBindGroup::custom(BindGroup::created(gpu::create_bind_group(&descriptor)))
+        DispatchBindGroup::custom(BindGroup(self.device.create_bind_group(&descriptor)))
     }
 
     fn create_pipeline_layout(
         &self,
         desc: &wgpu::PipelineLayoutDescriptor<'_>,
     ) -> DispatchPipelineLayout {
-        let descriptor = abi::PipelineLayoutDescriptor {
-            label: convert::label(desc.label),
+        let descriptor = web::GpuPipelineLayoutDescriptor {
             bind_group_layouts: desc
                 .bind_group_layouts
                 .iter()
                 .map(|layout| layout.map(convert::group_layout_handle))
                 .collect(),
+            immediate_size: (desc.immediate_size > 0).then_some(desc.immediate_size),
+            label: convert::label(desc.label),
         };
-        DispatchPipelineLayout::custom(PipelineLayout::created(gpu::create_pipeline_layout(
-            &descriptor,
-        )))
+        DispatchPipelineLayout::custom(PipelineLayout(self.device.create_pipeline_layout(&descriptor)))
     }
 
     fn create_render_pipeline(
         &self,
         desc: &wgpu::RenderPipelineDescriptor<'_>,
     ) -> DispatchRenderPipeline {
-        if let Err(message) = self.allowed.render_pipeline(desc) {
-            return DispatchRenderPipeline::custom(RenderPipeline::refused(message));
-        }
-        let descriptor = abi::RenderPipelineDescriptor {
-            label: convert::label(desc.label),
-            layout: desc.layout.map(convert::layout_handle),
-            vertex: abi::VertexState {
-                module: convert::module_handle(desc.vertex.module),
-                entry_point: desc.vertex.entry_point.map(str::to_owned),
-                constants: convert::constants(&desc.vertex.compilation_options),
-                buffers: desc
-                    .vertex
-                    .buffers
-                    .iter()
-                    .map(|buffer| {
-                        buffer.as_ref().map(|buffer| abi::VertexBufferLayout {
-                            array_stride: buffer.array_stride,
-                            step_mode: convert::to_abi(buffer.step_mode),
-                            attributes: buffer
-                                .attributes
-                                .iter()
-                                .map(|attribute| abi::VertexAttribute {
-                                    format: convert::to_abi(attribute.format),
-                                    offset: attribute.offset,
-                                    shader_location: attribute.shader_location,
-                                })
-                                .collect(),
-                        })
-                    })
-                    .collect(),
-            },
-            primitive: abi::PrimitiveState {
-                topology: convert::to_abi(desc.primitive.topology),
-                strip_index_format: desc.primitive.strip_index_format.map(convert::to_abi),
-                front_face: convert::to_abi(desc.primitive.front_face),
-                cull_mode: desc.primitive.cull_mode.map(convert::to_abi),
-                unclipped_depth: desc.primitive.unclipped_depth,
-                polygon_mode: convert::to_abi(desc.primitive.polygon_mode),
-                conservative: desc.primitive.conservative,
-            },
-            depth_stencil: desc
-                .depth_stencil
-                .as_ref()
-                .map(|state| abi::DepthStencilState {
-                    format: convert::to_abi(state.format),
-                    depth_write_enabled: state.depth_write_enabled.unwrap_or(false),
-                    depth_compare: state.depth_compare.map(convert::to_abi),
-                    stencil: abi::StencilState {
-                        front: convert::to_abi(state.stencil.front),
-                        back: convert::to_abi(state.stencil.back),
-                        read_mask: state.stencil.read_mask,
-                        write_mask: state.stencil.write_mask,
-                    },
-                    bias: abi::DepthBiasState {
-                        constant: state.bias.constant,
-                        slope_scale: state.bias.slope_scale,
-                        clamp: state.bias.clamp,
-                    },
-                }),
-            multisample: abi::MultisampleState {
-                count: desc.multisample.count,
-                mask: desc.multisample.mask,
-                alpha_to_coverage_enabled: desc.multisample.alpha_to_coverage_enabled,
-            },
-            fragment: desc.fragment.as_ref().map(|fragment| abi::FragmentState {
-                module: convert::module_handle(fragment.module),
-                entry_point: fragment.entry_point.map(str::to_owned),
-                constants: convert::constants(&fragment.compilation_options),
-                targets: fragment
-                    .targets
-                    .iter()
-                    .map(|target| {
-                        target.as_ref().map(|target| abi::ColorTargetState {
-                            format: convert::to_abi(target.format),
-                            blend: target.blend.map(|blend| abi::BlendState {
-                                color: convert::to_abi(blend.color),
-                                alpha: convert::to_abi(blend.alpha),
-                            }),
-                            write_mask: target.write_mask.bits(),
-                        })
-                    })
-                    .collect(),
-            }),
-        };
-        DispatchRenderPipeline::custom(RenderPipeline::created(gpu::create_render_pipeline(
-            &descriptor,
-        )))
+        let made = PREPARED.with(|prepared| prepared.borrow_mut().render.take());
+        let pipeline = made.unwrap_or_else(|| {
+            let described = render_descriptor(desc);
+            self.device.create_render_pipeline(&described.descriptor)
+        });
+        DispatchRenderPipeline::custom(RenderPipeline(pipeline))
     }
 
     fn create_mesh_pipeline(
@@ -570,7 +632,12 @@ impl DeviceInterface for Device {
         &self,
         desc: &wgpu::ComputePipelineDescriptor<'_>,
     ) -> DispatchComputePipeline {
-        compute::pipeline(desc)
+        let made = PREPARED.with(|prepared| prepared.borrow_mut().compute.take());
+        let pipeline = made.unwrap_or_else(|| {
+            let described = compute_descriptor(desc);
+            self.device.create_compute_pipeline(&described.descriptor)
+        });
+        DispatchComputePipeline::custom(ComputePipeline(pipeline))
     }
 
     unsafe fn create_pipeline_cache(
@@ -583,13 +650,13 @@ impl DeviceInterface for Device {
     }
 
     fn create_buffer(&self, desc: &wgpu::BufferDescriptor<'_>) -> DispatchBuffer {
-        let descriptor = abi::BufferDescriptor {
-            label: convert::label(desc.label),
+        let descriptor = web::GpuBufferDescriptor {
             size: desc.size,
-            usage: desc.usage.bits(),
-            mapped_at_creation: desc.mapped_at_creation,
+            usage: web::GpuBufferUsage::from_bits(desc.usage.bits() & 0x3ff),
+            mapped_at_creation: Some(desc.mapped_at_creation),
+            label: convert::label(desc.label),
         };
-        let buffer = Buffer::created(gpu::create_buffer(&descriptor));
+        let buffer = Buffer(self.device.create_buffer(&descriptor));
         if desc.mapped_at_creation {
             FRESH.with(|fresh| fresh.borrow_mut().insert(buffer.0.handle().0));
         }
@@ -597,24 +664,18 @@ impl DeviceInterface for Device {
     }
 
     fn create_texture(&self, desc: &wgpu::TextureDescriptor<'_>) -> DispatchTexture {
-        if let Err(message) = self.allowed.texture(desc) {
-            return DispatchTexture::custom(Texture::refused(message));
-        }
-        let descriptor = abi::TextureDescriptor {
+        let descriptor = web::GpuTextureDescriptor {
+            size: convert::extent(desc.size),
+            mip_level_count: Some(desc.mip_level_count),
+            sample_count: Some(desc.sample_count),
+            dimension: Some(to_web(desc.dimension)),
+            format: to_web(desc.format),
+            usage: web::GpuTextureUsage::from_bits(desc.usage.bits() & 0x3f),
+            view_formats: Some(desc.view_formats.iter().map(|format| to_web(*format)).collect()),
+            texture_binding_view_dimension: None,
             label: convert::label(desc.label),
-            size: convert::to_abi(desc.size),
-            mip_level_count: desc.mip_level_count,
-            sample_count: desc.sample_count,
-            dimension: convert::to_abi(desc.dimension),
-            format: convert::to_abi(desc.format),
-            usage: desc.usage.bits(),
-            view_formats: desc
-                .view_formats
-                .iter()
-                .map(|format| convert::to_abi(*format))
-                .collect(),
         };
-        DispatchTexture::custom(Texture::created(gpu::create_texture(&descriptor)))
+        DispatchTexture::custom(Texture(self.device.create_texture(&descriptor)))
     }
 
     fn create_external_texture(
@@ -638,52 +699,58 @@ impl DeviceInterface for Device {
     }
 
     fn create_sampler(&self, desc: &wgpu::SamplerDescriptor<'_>) -> DispatchSampler {
-        let descriptor = abi::SamplerDescriptor {
+        if desc.border_color.is_some() {
+            unimplemented!("border colors are not in browser WebGPU");
+        }
+        let descriptor = web::GpuSamplerDescriptor {
+            address_mode_u: Some(to_web(desc.address_mode_u)),
+            address_mode_v: Some(to_web(desc.address_mode_v)),
+            address_mode_w: Some(to_web(desc.address_mode_w)),
+            mag_filter: Some(to_web(desc.mag_filter)),
+            min_filter: Some(to_web(desc.min_filter)),
+            mipmap_filter: Some(to_web(desc.mipmap_filter)),
+            lod_min_clamp: Some(desc.lod_min_clamp),
+            lod_max_clamp: Some(desc.lod_max_clamp),
+            compare: desc.compare.map(to_web),
+            max_anisotropy: Some(desc.anisotropy_clamp),
             label: convert::label(desc.label),
-            address_mode_u: convert::to_abi(desc.address_mode_u),
-            address_mode_v: convert::to_abi(desc.address_mode_v),
-            address_mode_w: convert::to_abi(desc.address_mode_w),
-            mag_filter: convert::to_abi(desc.mag_filter),
-            min_filter: convert::to_abi(desc.min_filter),
-            mipmap_filter: convert::to_abi(desc.mipmap_filter),
-            lod_min_clamp: desc.lod_min_clamp,
-            lod_max_clamp: desc.lod_max_clamp,
-            compare: desc.compare.map(convert::to_abi),
-            anisotropy_clamp: desc.anisotropy_clamp,
-            border_color: desc.border_color.map(convert::to_abi),
         };
-        DispatchSampler::custom(Sampler::created(gpu::create_sampler(&descriptor)))
+        DispatchSampler::custom(Sampler(self.device.create_sampler(&Some(descriptor))))
     }
 
     fn create_query_set(&self, desc: &wgpu::QuerySetDescriptor<'_>) -> DispatchQuerySet {
         let kind = match desc.ty {
-            wgpu::QueryType::Occlusion => abi::QueryType::Occlusion,
-            wgpu::QueryType::Timestamp => abi::QueryType::Timestamp,
+            wgpu::QueryType::Occlusion => web::GpuQueryType::Occlusion,
+            wgpu::QueryType::Timestamp => web::GpuQueryType::Timestamp,
             wgpu::QueryType::PipelineStatistics(_) => {
                 unimplemented!("pipeline statistics queries are not in browser WebGPU")
             }
         };
-        if let Err(message) = self.allowed.query_set(desc.ty) {
-            return DispatchQuerySet::custom(QuerySet::refused(message));
-        }
-        let descriptor = abi::QuerySetDescriptor {
-            label: convert::label(desc.label),
+        let descriptor = web::GpuQuerySetDescriptor {
             r#type: kind,
             count: desc.count,
+            label: convert::label(desc.label),
         };
-        DispatchQuerySet::custom(QuerySet::created(gpu::create_query_set(&descriptor)))
+        // A query set the device's features do not allow is WebGPU's TypeError: an exception
+        // in a browser, a panic here.
+        let set = match self.device.create_query_set(&descriptor) {
+            Ok(set) => set,
+            Err(error) => {
+                raise(error.message);
+                web::GpuQuerySet(0)
+            }
+        };
+        DispatchQuerySet::custom(QuerySet(gpu::GpuQuerySet::from_handle(set)))
     }
 
     fn create_command_encoder(
         &self,
         desc: &wgpu::CommandEncoderDescriptor<'_>,
     ) -> DispatchCommandEncoder {
-        let descriptor = abi::CommandEncoderDescriptor {
+        let descriptor = web::GpuCommandEncoderDescriptor {
             label: convert::label(desc.label),
         };
-        DispatchCommandEncoder::custom(CommandEncoder::created(gpu::create_command_encoder(
-            &descriptor,
-        )))
+        DispatchCommandEncoder::custom(CommandEncoder(self.device.create_command_encoder(&Some(descriptor))))
     }
 
     fn create_render_bundle_encoder(
@@ -693,53 +760,66 @@ impl DeviceInterface for Device {
         if desc.multiview.is_some() {
             unimplemented!("multiview render bundles are not in browser WebGPU")
         }
-        let descriptor = abi::RenderBundleEncoderDescriptor {
-            label: convert::label(desc.label),
+        let descriptor = web::GpuRenderBundleEncoderDescriptor {
+            depth_read_only: desc.depth_stencil.map(|state| state.depth_read_only),
+            stencil_read_only: desc.depth_stencil.map(|state| state.stencil_read_only),
             color_formats: desc
                 .color_formats
                 .iter()
-                .map(|format| format.map(convert::to_abi))
+                .map(|format| format.map(to_web))
                 .collect(),
-            depth_stencil: desc
-                .depth_stencil
-                .map(|state| abi::RenderBundleDepthStencil {
-                    format: convert::to_abi(state.format),
-                    depth_read_only: state.depth_read_only,
-                    stencil_read_only: state.stencil_read_only,
-                }),
-            sample_count: desc.sample_count,
+            depth_stencil_format: desc.depth_stencil.map(|state| to_web(state.format)),
+            sample_count: Some(desc.sample_count),
+            label: convert::label(desc.label),
         };
-        DispatchRenderBundleEncoder::custom(RenderBundleEncoder::created(
-            gpu::create_render_bundle_encoder(&descriptor),
-        ))
+        DispatchRenderBundleEncoder::custom(RenderBundleEncoder(self.device.create_render_bundle_encoder(&descriptor)))
     }
 
     fn set_device_lost_callback(&self, device_lost_callback: BoxDeviceLostCallback) {
-        LOST.with(|lost| lost.borrow_mut().callback = Some(device_lost_callback));
+        let ticket = self.device.lost();
+        waiting(|waiting| waiting.lost = Some((ticket, device_lost_callback)));
     }
 
     fn on_uncaptured_error(&self, handler: Arc<dyn wgpu::UncapturedErrorHandler>) {
-        UNCAPTURED.with(|held| *held.borrow_mut() = Some(handler));
+        let items = self.device.on_uncaptured_error();
+        waiting(|waiting| {
+            waiting.handler = Some(Arc::clone(&handler));
+            waiting.uncaptured = Some((items, handler));
+        });
     }
 
     fn push_error_scope(&self, filter: wgpu::ErrorFilter) -> u32 {
-        SCOPES.with(|scopes| {
-            let mut scopes = scopes.borrow_mut();
-            scopes.push(Scope {
-                filter,
-                error: None,
-            });
-            scopes.len() as u32 - 1
+        self.device.push_error_scope(match filter {
+            wgpu::ErrorFilter::Validation => web::GpuErrorFilter::Validation,
+            wgpu::ErrorFilter::OutOfMemory => web::GpuErrorFilter::OutOfMemory,
+            wgpu::ErrorFilter::Internal => web::GpuErrorFilter::Internal,
+        });
+        waiting(|waiting| {
+            waiting.scopes.push((filter, None));
+            waiting.scopes.len() as u32 - 1
         })
     }
 
-    fn pop_error_scope(&self, index: u32) -> Pin<Box<dyn PopErrorScopeFuture>> {
-        let error = SCOPES.with(|scopes| {
-            let mut scopes = scopes.borrow_mut();
-            let popped = scopes.drain(index as usize..).next();
-            popped.and_then(|scope| scope.error)
+    /// The scope's error: one the guest raised itself first, else what the host caught.
+    fn pop_error_scope(&self, _index: u32) -> Pin<Box<dyn PopErrorScopeFuture>> {
+        let ticket = self.device.pop_error_scope();
+        let id = waiting(|waiting| {
+            waiting.next += 1;
+            let raised = waiting.scopes.pop().and_then(|(_, raised)| raised);
+            match raised {
+                Some(error) => {
+                    waiting.popped.insert(waiting.next, Some(error));
+                }
+                None => {
+                    waiting.pops.insert(waiting.next, ticket);
+                }
+            }
+            waiting.next
         });
-        Box::pin(ready(error))
+        Box::pin(Settled {
+            id,
+            take: |waiting: &mut Waiting, id: u32| waiting.popped.remove(&id),
+        })
     }
 
     unsafe fn start_graphics_debugger_capture(&self) {}
@@ -766,15 +846,15 @@ impl DeviceInterface for Device {
     }
 
     fn destroy(&self) {
-        gpu::destroy_device();
-        LOST.with(|lost| lost.borrow_mut().lost = true);
+        self.device.destroy();
     }
 }
 
 impl QueueInterface for Queue {
     fn write_buffer(&self, buffer: &DispatchBuffer, offset: wgpu::BufferAddress, data: &[u8]) {
-        gpu::write_buffer(&custom::<Buffer>(buffer.as_custom()).0, offset, data);
-        checked();
+        // The data is whole, so only the host's own checks can refuse it, into the device's
+        // error scopes.
+        let _ = self.0.write_buffer_with_copy(&custom::<Buffer>(buffer.as_custom()).0, offset, data, None, None);
     }
 
     fn create_staging_buffer(&self, size: wgpu::BufferSize) -> Option<DispatchQueueWriteBuffer> {
@@ -799,7 +879,7 @@ impl QueueInterface for Queue {
         staging_buffer: &DispatchQueueWriteBuffer,
     ) {
         let Some(staging) = staging_buffer.as_custom::<StagingBuffer>() else {
-            panic!("a staging buffer from another wgpu backend reached the app gpu abi");
+            panic!("a staging buffer from another wgpu backend reached wasi:webgpu");
         };
         self.write_buffer(buffer, offset, &staging.bytes);
     }
@@ -811,13 +891,12 @@ impl QueueInterface for Queue {
         data_layout: wgpu::TexelCopyBufferLayout,
         size: wgpu::Extent3d,
     ) {
-        gpu::write_texture(
-            convert::texel_copy_texture(texture),
+        self.0.write_texture_with_copy(
+            &convert::texel_copy_texture(texture),
             data,
             convert::texel_copy_buffer_layout(data_layout),
-            convert::to_abi(size),
+            convert::extent(size),
         );
-        checked();
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -831,15 +910,12 @@ impl QueueInterface for Queue {
     }
 
     fn submit(&self, command_buffers: &mut dyn Iterator<Item = DispatchCommandBuffer>) -> u64 {
-        let buffers: Vec<gpu::CommandBuffer> = command_buffers
-            .map(|buffer| {
-                let handle = custom::<CommandBuffer>(buffer.as_custom()).0.handle();
-                std::mem::forget(buffer);
-                gpu::CommandBuffer::from_handle(handle)
-            })
+        let buffers: Vec<DispatchCommandBuffer> = command_buffers.collect();
+        let owned: Vec<&gpu::GpuCommandBuffer> = buffers
+            .iter()
+            .map(|buffer| &custom::<CommandBuffer>(buffer.as_custom()).0)
             .collect();
-        gpu::submit(buffers);
-        checked();
+        self.0.submit(&owned);
         0
     }
 
@@ -848,8 +924,8 @@ impl QueueInterface for Queue {
     }
 
     fn on_submitted_work_done(&self, callback: BoxSubmittedWorkDoneCallback) {
-        let ticket = gpu::on_submitted_work_done();
-        WORK.with(|work| work.borrow_mut().push(Work { ticket, callback }));
+        let ticket = self.0.on_submitted_work_done();
+        waiting(|waiting| waiting.work.push((ticket, callback)));
     }
 
     fn compact_blas(&self, _blas: &DispatchBlas) -> (Option<u64>, DispatchBlas) {
@@ -863,9 +939,15 @@ impl QueueInterface for Queue {
 
 impl ShaderModuleInterface for ShaderModule {
     fn get_compilation_info(&self) -> Pin<Box<dyn ShaderCompilationInfoFuture>> {
-        Box::pin(Compiling {
-            module: self.0.handle(),
-            refused: self.1.clone(),
+        let ticket = self.0.get_compilation_info();
+        let id = waiting(|waiting| {
+            waiting.next += 1;
+            waiting.compiling.insert(waiting.next, ticket);
+            waiting.next
+        });
+        Box::pin(Settled {
+            id,
+            take: |waiting: &mut Waiting, id: u32| waiting.compiled.remove(&id),
         })
     }
 }
@@ -877,17 +959,21 @@ impl SamplerInterface for Sampler {}
 impl PipelineLayoutInterface for PipelineLayout {}
 impl CommandBufferInterface for CommandBuffer {}
 impl QuerySetInterface for QuerySet {
-    /// The host frees a query set when the app drops it, so destroying one
-    /// early has nothing to free sooner.
-    fn destroy(&self) {}
+    fn destroy(&self) {
+        self.0.destroy();
+    }
 }
 impl RenderBundleInterface for RenderBundle {}
 
 impl RenderPipelineInterface for RenderPipeline {
     fn get_bind_group_layout(&self, index: u32) -> DispatchBindGroupLayout {
-        DispatchBindGroupLayout::custom(BindGroupLayout::created(
-            self.0.get_bind_group_layout(index),
-        ))
+        DispatchBindGroupLayout::custom(BindGroupLayout(self.0.get_bind_group_layout(index)))
+    }
+}
+
+impl ComputePipelineInterface for ComputePipeline {
+    fn get_bind_group_layout(&self, index: u32) -> DispatchBindGroupLayout {
+        DispatchBindGroupLayout::custom(BindGroupLayout(self.0.get_bind_group_layout(index)))
     }
 }
 
@@ -899,25 +985,20 @@ impl BufferInterface for Buffer {
         callback: BufferMapCallback,
     ) {
         let mode = match mode {
-            wgpu::MapMode::Read => abi::MapMode::Read,
-            wgpu::MapMode::Write => abi::MapMode::Write,
+            wgpu::MapMode::Read => web::GpuMapMode::READ,
+            wgpu::MapMode::Write => web::GpuMapMode::WRITE,
         };
-        let ticket = self
-            .0
-            .map_async(mode, range.start, range.end.saturating_sub(range.start));
-        checked();
-        MAPS.with(|maps| {
-            maps.borrow_mut().push(Map {
-                ticket,
-                buffer: self.0.handle(),
-                callback,
-            })
-        });
+        let ticket = self.0.map_async(
+            mode,
+            Some(range.start),
+            Some(range.end.saturating_sub(range.start)),
+        );
+        waiting(|waiting| waiting.maps.push((ticket, self.0.handle(), callback)));
     }
 
-    /// Copies the range out of the host's map once. A buffer mapped at creation starts
-    /// zeroed instead, and a range written through `get_mapped_range_mut` goes back to the
-    /// host when dropped.
+    /// Copies the range out of the host's map once. A buffer mapped at creation starts zeroed
+    /// instead, and a range written through `get_mapped_range_mut` goes back to the host when
+    /// dropped.
     fn get_mapped_range(
         &self,
         sub_range: Range<wgpu::BufferAddress>,
@@ -926,9 +1007,11 @@ impl BufferInterface for Buffer {
         let fresh = FRESH.with(|fresh| fresh.borrow().contains(&self.0.handle().0));
         let bytes = match fresh {
             true => vec![0u8; length as usize],
-            false => self.0.read_mapped(sub_range.start, length),
+            false => self
+                .0
+                .get_mapped_range_get_with_copy(Some(sub_range.start), Some(length))
+                .unwrap_or_else(|error| panic!("{}", error.message)),
         };
-        checked();
         Ok(DispatchBufferMappedRange::custom(MappedRange {
             buffer: self.0.handle(),
             offset: sub_range.start,
@@ -940,37 +1023,37 @@ impl BufferInterface for Buffer {
     fn unmap(&self) {
         FRESH.with(|fresh| fresh.borrow_mut().remove(&self.0.handle().0));
         abort_maps(self.0.handle());
-        self.0.unmap();
-        checked();
+        let _ = self.0.unmap();
     }
 
     fn destroy(&self) {
         FRESH.with(|fresh| fresh.borrow_mut().remove(&self.0.handle().0));
         abort_maps(self.0.handle());
         self.0.destroy();
-        checked();
     }
 }
 
 impl TextureInterface for Texture {
     fn create_view(&self, desc: &wgpu::TextureViewDescriptor<'_>) -> DispatchTextureView {
-        let descriptor = abi::TextureViewDescriptor {
-            label: convert::label(desc.label),
-            format: desc.format.map(convert::to_abi),
-            dimension: desc.dimension.map(convert::to_abi),
-            usage: desc.usage.map(|usage| usage.bits()),
-            aspect: convert::to_abi(desc.aspect),
-            base_mip_level: desc.base_mip_level,
+        let descriptor = web::GpuTextureViewDescriptor {
+            format: desc.format.map(to_web),
+            dimension: desc.dimension.map(to_web),
+            usage: desc
+                .usage
+                .map(|usage| web::GpuTextureUsage::from_bits(usage.bits() & 0x3f)),
+            aspect: Some(to_web(desc.aspect)),
+            base_mip_level: Some(desc.base_mip_level),
             mip_level_count: desc.mip_level_count,
-            base_array_layer: desc.base_array_layer,
+            base_array_layer: Some(desc.base_array_layer),
             array_layer_count: desc.array_layer_count,
+            swizzle: None,
+            label: convert::label(desc.label),
         };
-        DispatchTextureView::custom(TextureView::created(self.0.create_view(&descriptor)))
+        DispatchTextureView::custom(TextureView(self.0.create_view(&Some(descriptor))))
     }
 
     fn destroy(&self) {
         self.0.destroy();
-        checked();
     }
 }
 
@@ -998,524 +1081,5 @@ impl BufferMappedRangeInterface for MappedRange {
     unsafe fn write_slice(&mut self) -> wgpu::WriteOnly<'_, [u8]> {
         self.written = true;
         wgpu::WriteOnly::from_mut(&mut self.bytes)
-    }
-}
-
-impl CommandEncoderInterface for CommandEncoder {
-    fn copy_buffer_to_buffer(
-        &self,
-        source: &DispatchBuffer,
-        source_offset: wgpu::BufferAddress,
-        destination: &DispatchBuffer,
-        destination_offset: wgpu::BufferAddress,
-        copy_size: Option<wgpu::BufferAddress>,
-    ) {
-        self.0.copy_buffer_to_buffer(
-            &custom::<Buffer>(source.as_custom()).0,
-            source_offset,
-            &custom::<Buffer>(destination.as_custom()).0,
-            destination_offset,
-            copy_size,
-        );
-        checked();
-    }
-
-    fn copy_buffer_to_texture(
-        &self,
-        source: wgpu::TexelCopyBufferInfo<'_>,
-        destination: wgpu::TexelCopyTextureInfo<'_>,
-        copy_size: wgpu::Extent3d,
-    ) {
-        self.0.copy_buffer_to_texture(
-            convert::texel_copy_buffer(source),
-            convert::texel_copy_texture(destination),
-            convert::to_abi(copy_size),
-        );
-        checked();
-    }
-
-    fn copy_texture_to_buffer(
-        &self,
-        source: wgpu::TexelCopyTextureInfo<'_>,
-        destination: wgpu::TexelCopyBufferInfo<'_>,
-        copy_size: wgpu::Extent3d,
-    ) {
-        self.0.copy_texture_to_buffer(
-            convert::texel_copy_texture(source),
-            convert::texel_copy_buffer(destination),
-            convert::to_abi(copy_size),
-        );
-        checked();
-    }
-
-    fn copy_texture_to_texture(
-        &self,
-        source: wgpu::TexelCopyTextureInfo<'_>,
-        destination: wgpu::TexelCopyTextureInfo<'_>,
-        copy_size: wgpu::Extent3d,
-    ) {
-        self.0.copy_texture_to_texture(
-            convert::texel_copy_texture(source),
-            convert::texel_copy_texture(destination),
-            convert::to_abi(copy_size),
-        );
-        checked();
-    }
-
-    fn begin_compute_pass(&self, desc: &wgpu::ComputePassDescriptor<'_>) -> DispatchComputePass {
-        compute::pass(&self.0, desc)
-    }
-
-    fn begin_render_pass(&self, desc: &wgpu::RenderPassDescriptor<'_>) -> DispatchRenderPass {
-        let descriptor = abi::RenderPassDescriptor {
-            label: convert::label(desc.label),
-            color_attachments: desc
-                .color_attachments
-                .iter()
-                .map(|attachment| {
-                    attachment.as_ref().map(|attachment| abi::ColorAttachment {
-                        view: convert::view_handle(attachment.view),
-                        resolve_target: attachment.resolve_target.map(convert::view_handle),
-                        load: match attachment.ops.load {
-                            wgpu::LoadOp::Clear(value) => {
-                                abi::ColorLoadOp::Clear(convert::to_abi(value))
-                            }
-                            wgpu::LoadOp::Load | wgpu::LoadOp::DontCare(_) => {
-                                abi::ColorLoadOp::Load
-                            }
-                        },
-                        store: convert::to_abi(attachment.ops.store),
-                        depth_slice: attachment.depth_slice,
-                    })
-                })
-                .collect(),
-            depth_stencil_attachment: desc.depth_stencil_attachment.as_ref().map(|attachment| {
-                abi::DepthStencilAttachment {
-                    view: convert::view_handle(attachment.view),
-                    depth_load: attachment.depth_ops.map(|ops| match ops.load {
-                        wgpu::LoadOp::Clear(value) => abi::DepthLoadOp::Clear(value),
-                        wgpu::LoadOp::Load | wgpu::LoadOp::DontCare(_) => abi::DepthLoadOp::Load,
-                    }),
-                    depth_store: attachment
-                        .depth_ops
-                        .map_or(abi::StoreOp::Store, |ops| convert::to_abi(ops.store)),
-                    depth_read_only: attachment.depth_ops.is_none(),
-                    stencil_load: attachment.stencil_ops.map(|ops| match ops.load {
-                        wgpu::LoadOp::Clear(value) => abi::StencilLoadOp::Clear(value),
-                        wgpu::LoadOp::Load | wgpu::LoadOp::DontCare(_) => abi::StencilLoadOp::Load,
-                    }),
-                    stencil_store: attachment
-                        .stencil_ops
-                        .map_or(abi::StoreOp::Store, |ops| convert::to_abi(ops.store)),
-                    stencil_read_only: attachment.stencil_ops.is_none(),
-                }
-            }),
-            occlusion_query_set: desc
-                .occlusion_query_set
-                .map(|set| custom::<QuerySet>(set.as_custom()).0.handle()),
-            timestamp_writes: desc.timestamp_writes.as_ref().map(|writes| {
-                abi::PassTimestampWrites {
-                    query_set: custom::<QuerySet>(writes.query_set.as_custom()).0.handle(),
-                    beginning_of_pass_write_index: writes.beginning_of_pass_write_index,
-                    end_of_pass_write_index: writes.end_of_pass_write_index,
-                }
-            }),
-        };
-        DispatchRenderPass::custom(RenderPass::created(self.0.begin_render_pass(&descriptor)))
-    }
-
-    fn finish(&mut self) -> DispatchCommandBuffer {
-        DispatchCommandBuffer::custom(CommandBuffer::created(self.0.finish()))
-    }
-
-    fn clear_texture(
-        &self,
-        _texture: &DispatchTexture,
-        _subresource_range: &wgpu::ImageSubresourceRange,
-    ) {
-        unimplemented!("texture clears are not in browser WebGPU")
-    }
-
-    fn clear_buffer(
-        &self,
-        buffer: &DispatchBuffer,
-        offset: wgpu::BufferAddress,
-        size: Option<wgpu::BufferAddress>,
-    ) {
-        self.0
-            .clear_buffer(&custom::<Buffer>(buffer.as_custom()).0, offset, size);
-        checked();
-    }
-
-    fn insert_debug_marker(&self, label: &str) {
-        self.0.insert_debug_marker(label);
-        checked();
-    }
-
-    fn push_debug_group(&self, label: &str) {
-        self.0.push_debug_group(label);
-        checked();
-    }
-
-    fn pop_debug_group(&self) {
-        self.0.pop_debug_group();
-        checked();
-    }
-
-    fn write_timestamp(&self, _query_set: &DispatchQuerySet, _query_index: u32) {
-        unimplemented!("timestamps written inside command encoders are not in browser WebGPU")
-    }
-
-    fn resolve_query_set(
-        &self,
-        query_set: &DispatchQuerySet,
-        first_query: u32,
-        query_count: u32,
-        destination: &DispatchBuffer,
-        destination_offset: wgpu::BufferAddress,
-    ) {
-        self.0.resolve_query_set(
-            &custom::<QuerySet>(query_set.as_custom()).0,
-            first_query,
-            query_count,
-            &custom::<Buffer>(destination.as_custom()).0,
-            destination_offset,
-        );
-        checked();
-    }
-
-    fn mark_acceleration_structures_built<'a>(
-        &self,
-        _blas: &mut dyn Iterator<Item = &'a wgpu::Blas>,
-        _tlas: &mut dyn Iterator<Item = &'a wgpu::Tlas>,
-    ) {
-    }
-
-    fn build_acceleration_structures<'a>(
-        &self,
-        _blas: &mut dyn Iterator<Item = &'a wgpu::BlasBuildEntry<'a>>,
-        _tlas: &mut dyn Iterator<Item = &'a wgpu::Tlas>,
-    ) {
-    }
-
-    fn transition_resources<'a>(
-        &mut self,
-        _buffer_transitions: &mut dyn Iterator<Item = wgpu::BufferTransition<&'a DispatchBuffer>>,
-        _texture_transitions: &mut dyn Iterator<
-            Item = wgpu::TextureTransition<&'a DispatchTexture>,
-        >,
-    ) {
-    }
-}
-
-impl RenderPassInterface for RenderPass {
-    fn set_pipeline(&mut self, pipeline: &DispatchRenderPipeline) {
-        self.0
-            .set_pipeline(&custom::<RenderPipeline>(pipeline.as_custom()).0);
-    }
-
-    fn set_bind_group(
-        &mut self,
-        index: u32,
-        bind_group: Option<&DispatchBindGroup>,
-        offsets: &[wgpu::DynamicOffset],
-    ) {
-        let group = bind_group.map(|group| &custom::<BindGroup>(group.as_custom()).0);
-        self.0.set_bind_group(index, group, offsets);
-    }
-
-    fn set_index_buffer(
-        &mut self,
-        buffer: &DispatchBuffer,
-        index_format: wgpu::IndexFormat,
-        offset: wgpu::BufferAddress,
-        size: Option<wgpu::BufferSize>,
-    ) {
-        self.0.set_index_buffer(
-            &custom::<Buffer>(buffer.as_custom()).0,
-            convert::to_abi(index_format),
-            offset,
-            convert::size(size),
-        );
-    }
-
-    fn set_vertex_buffer(
-        &mut self,
-        slot: u32,
-        buffer: Option<&DispatchBuffer>,
-        offset: wgpu::BufferAddress,
-        size: Option<wgpu::BufferSize>,
-    ) {
-        self.0.set_vertex_buffer(
-            slot,
-            buffer.map(|buffer| &custom::<Buffer>(buffer.as_custom()).0),
-            offset,
-            convert::size(size),
-        );
-    }
-
-    fn set_immediates(&mut self, _offset: u32, _data: &[u8]) {
-        unimplemented!("immediate data is not in browser WebGPU")
-    }
-
-    fn set_blend_constant(&mut self, color: wgpu::Color) {
-        self.0.set_blend_constant(convert::to_abi(color));
-    }
-
-    fn set_scissor_rect(&mut self, x: u32, y: u32, width: u32, height: u32) {
-        self.0.set_scissor_rect(x, y, width, height);
-    }
-
-    fn set_viewport(
-        &mut self,
-        x: f32,
-        y: f32,
-        width: f32,
-        height: f32,
-        min_depth: f32,
-        max_depth: f32,
-    ) {
-        self.0
-            .set_viewport(x, y, width, height, min_depth, max_depth);
-    }
-
-    fn set_stencil_reference(&mut self, reference: u32) {
-        self.0.set_stencil_reference(reference);
-    }
-
-    fn draw(&mut self, vertices: Range<u32>, instances: Range<u32>) {
-        self.0.draw(
-            vertices.end.saturating_sub(vertices.start),
-            instances.end.saturating_sub(instances.start),
-            vertices.start,
-            instances.start,
-        );
-    }
-
-    fn draw_indexed(&mut self, indices: Range<u32>, base_vertex: i32, instances: Range<u32>) {
-        self.0.draw_indexed(
-            indices.end.saturating_sub(indices.start),
-            instances.end.saturating_sub(instances.start),
-            indices.start,
-            base_vertex,
-            instances.start,
-        );
-    }
-
-    fn draw_mesh_tasks(&mut self, _x: u32, _y: u32, _z: u32) {
-        unimplemented!("mesh shaders are not in browser WebGPU")
-    }
-
-    fn draw_indirect(&mut self, buffer: &DispatchBuffer, offset: wgpu::BufferAddress) {
-        self.0
-            .draw_indirect(&custom::<Buffer>(buffer.as_custom()).0, offset);
-    }
-
-    fn draw_indexed_indirect(&mut self, buffer: &DispatchBuffer, offset: wgpu::BufferAddress) {
-        self.0
-            .draw_indexed_indirect(&custom::<Buffer>(buffer.as_custom()).0, offset);
-    }
-
-    fn draw_mesh_tasks_indirect(&mut self, _buffer: &DispatchBuffer, _offset: wgpu::BufferAddress) {
-        unimplemented!("mesh shaders are not in browser WebGPU")
-    }
-
-    fn multi_draw_indirect(
-        &mut self,
-        _buffer: &DispatchBuffer,
-        _offset: wgpu::BufferAddress,
-        _count: u32,
-    ) {
-        unimplemented!("multi-draw-indirect is not in browser WebGPU")
-    }
-
-    fn multi_draw_indexed_indirect(
-        &mut self,
-        _buffer: &DispatchBuffer,
-        _offset: wgpu::BufferAddress,
-        _count: u32,
-    ) {
-        unimplemented!("multi-draw-indirect is not in browser WebGPU")
-    }
-
-    fn multi_draw_indirect_count(
-        &mut self,
-        _buffer: &DispatchBuffer,
-        _offset: wgpu::BufferAddress,
-        _count_buffer: &DispatchBuffer,
-        _count_buffer_offset: wgpu::BufferAddress,
-        _max_count: u32,
-    ) {
-        unimplemented!("multi-draw-indirect counts are not in browser WebGPU")
-    }
-
-    fn multi_draw_mesh_tasks_indirect(
-        &mut self,
-        _buffer: &DispatchBuffer,
-        _offset: wgpu::BufferAddress,
-        _count: u32,
-    ) {
-        unimplemented!("mesh shaders are not in browser WebGPU")
-    }
-
-    fn multi_draw_indexed_indirect_count(
-        &mut self,
-        _buffer: &DispatchBuffer,
-        _offset: wgpu::BufferAddress,
-        _count_buffer: &DispatchBuffer,
-        _count_buffer_offset: wgpu::BufferAddress,
-        _max_count: u32,
-    ) {
-        unimplemented!("multi-draw-indirect counts are not in browser WebGPU")
-    }
-
-    fn multi_draw_mesh_tasks_indirect_count(
-        &mut self,
-        _buffer: &DispatchBuffer,
-        _offset: wgpu::BufferAddress,
-        _count_buffer: &DispatchBuffer,
-        _count_buffer_offset: wgpu::BufferAddress,
-        _max_count: u32,
-    ) {
-        unimplemented!("mesh shaders are not in browser WebGPU")
-    }
-
-    fn insert_debug_marker(&mut self, label: &str) {
-        self.0.insert_debug_marker(label);
-    }
-
-    fn push_debug_group(&mut self, group_label: &str) {
-        self.0.push_debug_group(group_label);
-    }
-
-    fn pop_debug_group(&mut self) {
-        self.0.pop_debug_group();
-    }
-
-    fn write_timestamp(&mut self, _query_set: &DispatchQuerySet, _query_index: u32) {
-        unimplemented!(
-            "timestamps written inside passes are not in browser WebGPU: use the pass's timestamp writes"
-        )
-    }
-
-    fn begin_occlusion_query(&mut self, query_index: u32) {
-        self.0.begin_occlusion_query(query_index);
-    }
-
-    fn end_occlusion_query(&mut self) {
-        self.0.end_occlusion_query();
-    }
-
-    fn begin_pipeline_statistics_query(
-        &mut self,
-        _query_set: &DispatchQuerySet,
-        _query_index: u32,
-    ) {
-        unimplemented!("pipeline statistics queries are not in browser WebGPU")
-    }
-
-    fn end_pipeline_statistics_query(&mut self) {
-        unimplemented!("pipeline statistics queries are not in browser WebGPU")
-    }
-
-    fn execute_bundles(&mut self, render_bundles: &mut dyn Iterator<Item = &DispatchRenderBundle>) {
-        let bundles: Vec<&gpu::RenderBundle> = render_bundles
-            .map(|bundle| &custom::<RenderBundle>(bundle.as_custom()).0)
-            .collect();
-        self.0.execute_bundles(&bundles);
-    }
-}
-
-impl RenderBundleEncoderInterface for RenderBundleEncoder {
-    fn set_pipeline(&mut self, pipeline: &DispatchRenderPipeline) {
-        self.0
-            .set_pipeline(&custom::<RenderPipeline>(pipeline.as_custom()).0);
-    }
-
-    fn set_bind_group(
-        &mut self,
-        index: u32,
-        bind_group: Option<&DispatchBindGroup>,
-        offsets: &[wgpu::DynamicOffset],
-    ) {
-        let group = bind_group.map(|group| &custom::<BindGroup>(group.as_custom()).0);
-        self.0.set_bind_group(index, group, offsets);
-    }
-
-    fn set_index_buffer(
-        &mut self,
-        buffer: &DispatchBuffer,
-        index_format: wgpu::IndexFormat,
-        offset: wgpu::BufferAddress,
-        size: Option<wgpu::BufferSize>,
-    ) {
-        self.0.set_index_buffer(
-            &custom::<Buffer>(buffer.as_custom()).0,
-            convert::to_abi(index_format),
-            offset,
-            convert::size(size),
-        );
-    }
-
-    fn set_vertex_buffer(
-        &mut self,
-        slot: u32,
-        buffer: Option<&DispatchBuffer>,
-        offset: wgpu::BufferAddress,
-        size: Option<wgpu::BufferSize>,
-    ) {
-        self.0.set_vertex_buffer(
-            slot,
-            buffer.map(|buffer| &custom::<Buffer>(buffer.as_custom()).0),
-            offset,
-            convert::size(size),
-        );
-    }
-
-    fn set_immediates(&mut self, _offset: u32, _data: &[u8]) {
-        unimplemented!("immediate data is not in browser WebGPU")
-    }
-
-    fn draw(&mut self, vertices: Range<u32>, instances: Range<u32>) {
-        self.0.draw(
-            vertices.end.saturating_sub(vertices.start),
-            instances.end.saturating_sub(instances.start),
-            vertices.start,
-            instances.start,
-        );
-    }
-
-    fn draw_indexed(&mut self, indices: Range<u32>, base_vertex: i32, instances: Range<u32>) {
-        self.0.draw_indexed(
-            indices.end.saturating_sub(indices.start),
-            instances.end.saturating_sub(instances.start),
-            indices.start,
-            base_vertex,
-            instances.start,
-        );
-    }
-
-    fn draw_indirect(&mut self, buffer: &DispatchBuffer, offset: wgpu::BufferAddress) {
-        self.0
-            .draw_indirect(&custom::<Buffer>(buffer.as_custom()).0, offset);
-    }
-
-    fn draw_indexed_indirect(&mut self, buffer: &DispatchBuffer, offset: wgpu::BufferAddress) {
-        self.0
-            .draw_indexed_indirect(&custom::<Buffer>(buffer.as_custom()).0, offset);
-    }
-
-    fn finish(self, desc: &wgpu::RenderBundleDescriptor<'_>) -> DispatchRenderBundle {
-        Box::new(self).finish_boxed(desc)
-    }
-
-    fn finish_boxed(
-        self: Box<Self>,
-        desc: &wgpu::RenderBundleDescriptor<'_>,
-    ) -> DispatchRenderBundle {
-        let descriptor = abi::RenderBundleDescriptor {
-            label: convert::label(desc.label),
-        };
-        DispatchRenderBundle::custom(RenderBundle::created(self.0.finish(&descriptor)))
     }
 }

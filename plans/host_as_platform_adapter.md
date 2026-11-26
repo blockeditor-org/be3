@@ -811,7 +811,7 @@ Each step lands on its own.
        - The root's own surfaces. A pure guest may be given the host's device
          (`be_wasm_host::Host::with_display`; be-wasm-host offers it the gpu imports then,
          never fast ones, since its memory is its own), and the root draws on it as an app
-         draws its screens, through `be3:gpu`'s surfaces; its layer list names each as
+         draws its screens, through `be3:gpu/host`'s surfaces; its layer list names each as
          `Surface::Root(id)`, which `Root::own_surface` resolves to the texture it presented
          last (its generation changing only when it presents again), and be-host's `--root`
          draws it as it draws a screen. `Root` keeps what each own surface showed when last
@@ -823,7 +823,7 @@ Each step lands on its own.
          `a_root_in_place_of_the_hosts_ui_shows_the_editor_it_embeds` check it, the second by
          the window's pixels: the root's colour beside the screen and through its clear
          corner, the window's background past the root's surface. The root draws with
-         be3:gpu's raw bindings (be-wasm-gpu-abi), not wgpu: a root linking wgpu needed it
+         wasi:webgpu's raw bindings (be-wasm-gpu-abi), not wgpu: a root linking wgpu needed it
          built for a pure guest, which 4g2 settled by linking a root as an app is.
        - The gpu shim got a plan and a platform of its own (`wasm32_bindgen`, the `bindgen`
          constraint): in the shared wasm32 plan its `wgpu` feature reached be-wasm-gpu-abi, so
@@ -863,7 +863,7 @@ Each step lands on its own.
        rejected: it would be a second build of beui and wgpu for a triple no app uses.
        `crates/be-sdk-beui-root`'s `BeuiSurface` draws a beui document on one of the root's
        `OwnSurface`s: beui's runner runs it as a program whose one window is the surface, beui's
-       wgpu renderer draws it over `be3:gpu`'s `custom` backend into the surface's texture
+       wgpu renderer draws it over be-wasm-gpu-guest's `custom` backend on wasi:webgpu into the surface's texture
        (`be_wasm_gpu_guest::texture`), and it hears what the router lands on the surface
        (`Embedding::input` and `drew`'s `own`) in its points. `BeuiRoot` is what a root's surfaces share: the device, the
        fonts and the host's clocks, pinned as beui's now each frame, so a document reads no
