@@ -2079,6 +2079,8 @@ Each step lands on its own.
              matches be-host's.
              - Left: Lock, which be-host's palette lists while its lock screen runs, comes with
                4g7g's lock.
+             - be-root's `host_rows` copies be-host's `HostActions` (`src/ui.rs`); the copy goes
+               when be-host's palette goes with `src/ui` (4g7g2).
            An editor a joined dock's tab shows is kept unplaced, the workspace's still
            (`Children::opener_of`), and any screen its layout has offers its actions, painted
            or not, as be-host's `offers_actions` keeps a main view's: a canvas on the
