@@ -3901,16 +3901,15 @@ impl HostCore {
                 .push((heard.app_id.clone(), heard.instance, open.clone()));
             return;
         }
-        // Leaving a block the root asks about in its own dialog (`core-view`'s `leaving`), as
-        // be-host's asks in its own.
+        // The rest of what they ask (placing a block a picker made, moving, deleting, undoing,
+        // leaving, which the root asks about in its own dialog) the host does as it does
+        // be-host's own editors', for no editor of its own: what only be-host's shell shows
+        // (a share or export dialog, history) waits on a shell the root has none of.
         #[cfg(not(target_os = "android"))]
         if self.under_root
-            && let be_host_runtime::InstanceEvent::Action(EditorAction::Command {
-                id,
-                command: BlockCommand::Leave,
-            }) = &heard.event
+            && let be_host_runtime::InstanceEvent::Action(action) = &heard.event
         {
-            ask_to_leave(&mut self.leaving, *id);
+            self.handle_editor_action(None, action.clone());
             return;
         }
         if matches!(
