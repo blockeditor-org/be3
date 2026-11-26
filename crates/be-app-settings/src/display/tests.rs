@@ -16,6 +16,7 @@ use uuid::Uuid;
 
 use crate::display::DisplaySettingsRoot;
 
+mod a_carried_display_stays_under_the_pointer_where_it_was_grabbed;
 mod a_carried_display_snaps_where_it_lines_up_with_another;
 mod a_change_here_goes_to_every_device_and_a_toast_says_so;
 mod a_carried_display_fits_the_arrangement_to_every_place;

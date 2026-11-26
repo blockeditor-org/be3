@@ -331,10 +331,14 @@ fn carrying(
             // pressed.
             if carry.item.is_none() {
                 let at = origin.get().unwrap_or(press);
-                carry.item = Some(Rect::from_min_size(
-                    Pos2::ZERO - at.local.to_vec2(),
-                    at.size,
-                ));
+                let item = Rect::from_min_size(Pos2::ZERO - at.local.to_vec2(), at.size);
+                // Drawn as itself, it is held as it is drawn at each point; a site or a
+                // preview draws it as it was lifted (a `Reorder` collapses the source).
+                let drawn = matches!(carry.face(), crate::drag::CarryFace::Source);
+                carry = match source.try_get().filter(|_| drawn) {
+                    Some(node) => carry.of_source(node, item),
+                    None => carry.item(item),
+                };
             }
             let face = carry.face().clone();
             debug_assert!(
@@ -438,6 +442,22 @@ fn carrying(
             .and_then(|measured| measured.get())
             .map(|measured| measured.rect.min)
     });
+    // A source laid out at another size while carried (a canvas refitting under it) is
+    // placed again at once, so the board measures it as it is drawn now.
+    let size = create_memo(move || {
+        measured
+            .get()
+            .and_then(|measured| measured.get())
+            .map(|measured| measured.rect.size())
+    });
+    crate::reactive::create_effect_on_change(
+        move || size.get(),
+        move |_, _| {
+            if let (Some(_), Some(driver)) = (mine.get(), crate::drag::driver()) {
+                driver.retrack();
+            }
+        },
+    );
     let offset = create_memo(move || match (raised.get(), frame.get(), placed.get()) {
         (true, Some(frame), Some(placed)) => frame.item.min - placed,
         _ => Vec2::ZERO,
@@ -720,10 +740,11 @@ fn lift_by_keys(
         return false;
     };
     if carry.item.is_none() {
-        carry.item = Some(Rect::from_min_size(
-            Pos2::ZERO - rect.size() / 2.0,
-            rect.size(),
-        ));
+        let item = Rect::from_min_size(Pos2::ZERO - rect.size() / 2.0, rect.size());
+        carry = match carry.face() {
+            crate::drag::CarryFace::Source => carry.of_source(node, item),
+            _ => carry.item(item),
+        };
     }
     let face = carry.face().clone();
     match driver.lift(carry, crate::drag::DragPoint::of(at)) {

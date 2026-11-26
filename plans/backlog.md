@@ -417,3 +417,16 @@ Peers' derived views of a held edit: plans/peers_preview_held_edits.md.
   leaves open, so closing the canvas while the box is still empty keeps an
   invisible empty Text entity, as an undo step. Done: plans/deferred/canvas.md,
   step 4 (a draft written on its first keystroke), with its test.
+
+## 34. Pan and zoom
+
+- **One meaning for a canvas's view.** A `Canvas` reads its view's origin in the frame's
+  points unless `local_view` puts it in its own, a second form every canvas that owns its
+  camera opts into (`PanZoom`'s, Settings' display arrangement, beui-tests' fixture). The
+  frame-point form stays only for `editor.canvas()` (the pan-zoom example, map, PDF, video
+  timeline, deterministic game, infinite canvas), whose camera be-sdk hands in frame points
+  since it does not know where the editor's canvas sits in its content, and for the host's
+  `follows_view` mapping of a child that took the frame (guides/pan_and_zoom.md, Drawing
+  through it). Done: be-sdk hands an editor a camera in its canvas's own points (the editor
+  naming its canvas, as it names its content), the host maps a child that took the frame
+  from that, every canvas reads its view locally on both cores, and `local_view` is gone.
