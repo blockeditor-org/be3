@@ -101,6 +101,7 @@ fn a_compaction_let_go_leaves_nothing_once_the_idle_host_collects() {
         .copied()
         .collect();
     assert!(!unnamed.is_empty(), "the merge sealed parts the head does not name");
+    eprintln!("DEBUG unnamed {} noted {} collected {:?}", unnamed.len(), vault.unnamed_count(), crate::with_shared(|s| s.search.collected));
 
     // The host, idle, collects them; the head keeps every part.
     send(Command::Sync);

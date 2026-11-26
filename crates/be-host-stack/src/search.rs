@@ -1123,6 +1123,10 @@ fn compact_idle_indexes(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, ta
         && !held.arriving
         && !held.draining
         && held.search.busy_with(wants_index(&held)).is_none();
+    #[cfg(test)]
+    if peer.commits().vault().unnamed_count() > 0 {
+        eprintln!("DEBUG quiet {quiet}: waiting {} pending {} typing {} arriving {} draining {} busy {:?}", held.waiting, held.pending(), held.typing.len(), held.arriving, held.draining, held.search.busy_with(wants_index(&held)));
+    }
     if !quiet {
         return;
     }
