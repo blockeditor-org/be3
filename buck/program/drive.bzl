@@ -23,8 +23,7 @@ def headless(name, program, program_name, args = [], data = False, archive = Non
     )
 
 # What a browser test needs on a worker, where it runs: Node, Playwright and the headless Chromium it installs, all
-# pinned downloads (buck/tools), and the libraries that Chromium loads and the workers' image lacks
-# (buck/sysroot:amd64-browser). Chromium runs as root with no sandbox, which browser.mjs asks for.
+# pinned downloads (buck/tools), and the libraries Chromium and Node load (buck/sysroot:amd64-browser). Chromium runs as root with no sandbox, which browser.mjs asks for.
 _BROWSER_ENV = {
     "BE3_CHROME": "$(location //buck/tools:chrome-headless-shell)/chrome-headless-shell",
     "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64-browser)/usr/lib/x86_64-linux-gnu",
@@ -144,16 +143,28 @@ def web_host_test(name, bundle, server, caddyfile, test, root = None):
 #   DIR/<script's name>   each of scripts
 #   DIR/node              the browser tests' Node, its executable alone
 #   DIR/node_modules/     their Playwright, which a script beside it requires
-#   DIR/chrome/chrome-headless-shell   their Chromium
-#   DIR/lib/              the libraries it loads (buck/sysroot:amd64-browser), for LD_LIBRARY_PATH
+#   DIR/chrome/chrome-headless-shell   their Chromium, with only its American English locale, which
+#                         it falls back to in any language (the others are about 50 MB)
+#   DIR/lib/              the libraries it and Node load (buck/sysroot:amd64-browser), for LD_LIBRARY_PATH
 #
 # Each is copied, so the program's own path is in DIR. `./scripts/buck run :<name>` runs it. It is
-# about 650 MB, two fifths of it Chromium and two fifths the libraries (Mesa's, which libgbm
-# brings, are most of those).
+# about 400 MB, two thirds of it Chromium and a third Node.
 def _browser_program_impl(ctx: AnalysisContext) -> list[Provider]:
+    chrome = ctx.actions.declare_output("chrome-en-US", dir = True)
+    ctx.actions.run(
+        cmd_args(
+            "sh",
+            "-c",
+            'cp -a "$1/." "$2" && find "$2/locales" -type f ! -name "en-US*" -delete',
+            "--",
+            ctx.attrs._chrome[DefaultInfo].default_outputs[0],
+            chrome.as_output(),
+        ),
+        category = "chrome_en_us",
+    )
     files = {
         ctx.attrs.name: ctx.attrs.program[DefaultInfo].default_outputs[0],
-        "chrome": ctx.attrs._chrome[DefaultInfo].default_outputs[0],
+        "chrome": chrome,
         "lib": ctx.attrs._libraries[DefaultInfo].default_outputs[0].project("usr/lib/x86_64-linux-gnu"),
         "node": ctx.attrs._node[DefaultInfo].default_outputs[0].project("bin/node"),
         "node_modules": ctx.attrs._modules[DefaultInfo].default_outputs[0],

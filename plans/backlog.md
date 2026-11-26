@@ -436,16 +436,15 @@ Fixed items are removed as they land.
   the browser rasterizer ran `render.mjs` (those with
   crates/be-tool-browser-rasterizer/requirements.txt); a newer checkout skips
   it. Done: no open pull request lacks `render.mjs`, and the step is deleted.
-- **The browser rasterizer is about 650 MB.** `browser_program` copies
-  chrome-headless-shell (about 260 MB), node (about 120 MB) and the
-  `buck/sysroot:amd64-browser` libraries (about 250 MB, mostly Mesa's `libLLVM`
-  and `libgallium`, which `libgbm1` brings in), and CI downloads it all to draw
-  the previews. Check whether chrome-headless-shell drawing with
-  `--disable-gpu` (SwiftShader) needs `libgbm` and Mesa at all, and trim the
-  sysroot to what it loads; if it cannot shrink, render the previews remotely
-  as buck actions instead. Done: CI's download for the previews is
-  measured and well under its present size, and the previews still draw every
-  `.browser.paint` the same.
+- **The browser rasterizer still carries Node.** CI downloads the
+  `browser_program` directory (about 410 MB) to draw the previews: Chromium
+  (about 225 MB), Node (about 125 MB), Playwright (about 20 MB) and the
+  `buck/sysroot:amd64-browser` libraries (about 35 MB). render.mjs uses only
+  Playwright's launch, request routing, a few evaluations and a screenshot,
+  which the rasterizer could do itself over the DevTools protocol on
+  `--remote-debugging-pipe`, leaving Node and Playwright out. Done: the
+  rasterizer starts Chromium itself, the directory is under 300 MB, and the
+  previews still draw every `.browser.paint` the same.
 
 ## 25. Tentative gestures
 

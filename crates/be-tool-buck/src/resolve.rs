@@ -6,7 +6,7 @@ use std::process::ExitCode;
 use crate::starlark::quote;
 
 pub fn run(arguments: &[String]) -> Result<ExitCode, String> {
-    let usage = "usage: resolve OUT BASE_URL ARCHITECTURE=PACKAGES.gz... -- NAME:ARCHITECTURE:PACKAGE[,PACKAGE...]...";
+    let usage = "usage: resolve OUT BASE_URL ARCHITECTURE=PACKAGES.gz... -- NAME:ARCHITECTURE:PACKAGE[,PACKAGE|-PACKAGE...]...";
     let [output, base, rest @ ..] = arguments else {
         return Err(usage.into());
     };
@@ -110,10 +110,20 @@ pub fn stanzas(text: &str) -> Vec<Fields> {
     found
 }
 
-fn resolve<'a>(
+/// The closure of what `wanted` names. A name with a leading `-` is left out, and so is what
+/// only it depends on: a dependency on it counts as met.
+pub(crate) fn resolve<'a>(
     packages: &'a BTreeMap<String, Fields>,
     wanted: &[&str],
 ) -> Result<BTreeMap<&'a str, &'a Fields>, String> {
+    let (left_out, wanted): (Vec<&str>, Vec<&str>) =
+        wanted.iter().copied().partition(|name| name.starts_with('-'));
+    let left_out: Vec<&str> = left_out.iter().map(|name| &name[1..]).collect();
+    for name in &left_out {
+        if !packages.contains_key(*name) {
+            return Err(format!("{name}, which is left out, is not in the snapshot"));
+        }
+    }
     let mut providers: HashMap<&str, Vec<&str>> = HashMap::new();
     for (name, fields) in packages {
         for provided in field(fields, "Provides").split(',') {
@@ -154,6 +164,12 @@ fn resolve<'a>(
                         .unwrap_or_default()
                 })
                 .collect();
+            if alternatives
+                .iter()
+                .any(|alternative| left_out.contains(alternative))
+            {
+                continue;
+            }
             let mut pick = alternatives
                 .iter()
                 .find(|alternative| chosen.contains_key(**alternative))

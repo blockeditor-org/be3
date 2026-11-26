@@ -38,10 +38,14 @@ test_runtime = [
     "xkb-data",
 ]
 
-# What the browser tests' headless Chromium loads and the workers' image lacks, as `ldd` reports it inside the
-# image worker_properties names: the X extensions, ALSA, ATK and AT-SPI, D-Bus, GBM, NSS and NSPR, and xkbcommon.
-# Its own set, so that a change here moves neither the compiles' key nor the other tests'.
+# What the browser tests' headless Chromium and Node load: the X extensions, ALSA, ATK and AT-SPI, D-Bus, GBM,
+# NSS and NSPR, udev, xkbcommon and libstdc++, as they open them drawing with SwiftShader (which Chromium bundles)
+# in a root holding only these, so the rasterizer's directory (browser_program) runs with nothing installed.
+# Chromium links libgbm but opens a GBM device only on a GPU, so the Mesa drivers behind it (mesa-libgallium, and
+# LLVM under that, about 200 MB) are left out. Its own set, so that a change here moves neither the compiles' key
+# nor the other tests'.
 browser_runtime = [
+    "-mesa-libgallium",
     "libasound2t64",
     "libatk-bridge2.0-0t64",
     "libatk1.0-0t64",
@@ -50,6 +54,8 @@ browser_runtime = [
     "libgbm1",
     "libnspr4",
     "libnss3",
+    "libstdc++6",
+    "libudev1",
     "libxcomposite1",
     "libxdamage1",
     "libxfixes3",

@@ -459,7 +459,7 @@ alias(
 # What the browser tests run on a worker (web_drive_test and page_test, buck/program/drive.bzl): Node, Playwright's two
 # packages as buck/program/browser-tests' lockfile pins them (the integrity there is these files'), and the headless
 # Chromium that Playwright version installs (its browsers.json: chromium-headless-shell revision 1243, Chrome
-# 153.0.8010.12). The libraries Chromium loads that the workers' image lacks come from buck/sysroot:amd64-browser.
+# 153.0.8010.12). The libraries Chromium and Node load come from buck/sysroot:amd64-browser.
 http_archive(
     name = "node",
     sha256 = "1805bcd35e6815559bd2eb97db438d3fdb0eb3a5e6a977b7c1badca76337e9ce",
