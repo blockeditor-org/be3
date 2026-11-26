@@ -25,7 +25,7 @@ async fn an_edit_made_offline_under_a_made_up_key_is_sealed_again_under_a_key_bo
     );
     // A part goes up at once, judged by nothing later: refused rather than sealed under the
     // made-up key, out of reach until a connection lets the team get a new epoch.
-    let part = offline.put_part(revoked.note, b"a part").await;
+    let part = put_part(&offline, revoked.note, b"a part").await;
     assert!(
         matches!(&part, Err(error) if error.is_unreachable()),
         "a part was sealed under an outdated key: {part:?}"

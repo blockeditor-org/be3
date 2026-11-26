@@ -3,7 +3,7 @@ use be_type_text::TextContent;
 
 use super::*;
 
-/// A part written a piece at a time (`Peer::part_writer`) is the part `put_part` makes of the
+/// A part written a piece at a time (`Peer::part_writer`) is the part a whole write makes of the
 /// same bytes, and a commit reusing it drains with its objects, so another device reads it.
 #[tokio::test]
 async fn a_part_written_in_pieces_is_saved_and_read_by_another_device() {
@@ -42,7 +42,7 @@ async fn a_part_written_in_pieces_is_saved_and_read_by_another_device() {
     expected.extend_from_slice(&segment);
     assert_eq!(reader.read_manifest(&head).await.unwrap(), expected);
     assert_eq!(
-        owner.put_part(block, &segment).await.unwrap(),
+        put_part(&owner, block, &segment).await.unwrap(),
         part,
         "a part put whole is the part written in pieces"
     );

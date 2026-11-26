@@ -12,7 +12,7 @@ fn a_replica_reaches_no_part_of_a_block_it_was_not_handed() {
         let [mine, source, other] = [block(&peer).await, block(&peer).await, block(&peer).await];
         let put = |block: Uuid, bytes: &'static [u8]| {
             let peer = Arc::clone(&peer);
-            async move { peer.put_part(block, bytes).await.expect("the part is put") }
+            async move { put_part(&peer, block, bytes).await.expect("the part is put") }
         };
         let reach = Mutex::new(Reach::default());
         let reached = |part| reaches(&reach, &peer, mine, part);

@@ -14,8 +14,7 @@ use super::*;
 fn a_part_read_for_an_editor_keeps_the_replicas_unsettled_until_answered() {
     with_test_types(|peer, shared, mut replicas| async move {
         let mine = block(&peer).await;
-        let own = peer
-            .put_part(mine, b"this block's")
+        let own = put_part(&peer, mine, b"this block's")
             .await
             .expect("the part is put");
         replicas

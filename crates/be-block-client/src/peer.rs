@@ -4333,7 +4333,7 @@ impl<S: ObjectStore> Peer<S> {
         let mut room = CARRIED_BYTES;
         let mut carried = Vec::with_capacity(hashes.len());
         for hash in hashes {
-            // A part another device put (`put_part`) is on the server and maybe not here.
+            // A part another device held (`hold_part`) is on the server and maybe not here.
             let Some(bytes) = store.get(hash)? else {
                 return Ok(None);
             };
@@ -4385,23 +4385,6 @@ impl<S: ObjectStore> Peer<S> {
         Ok(())
     }
 
-    /// Seals `bytes` as a part of `block` under its current key and uploads it, held for the
-    /// block until a commit that uses it publishes (`host.part-writer` in be-sdk-type-api), so an
-    /// operation can name it by its ref and every replica save a commit that reuses it.
-    pub async fn put_part(
-        &self,
-        block: Uuid,
-        bytes: &[u8],
-    ) -> Result<be_block_store::PartRef, ClientError> {
-        let mut writer = self.part_writer(block).await?;
-        writer.write(bytes)?;
-        let part = writer
-            .finish()?
-            .ok_or_else(|| ClientError::Encoding("a part needs at least one byte".to_owned()))?;
-        self.hold_part(block, part).await?;
-        Ok(part)
-    }
-
     /// A writer of a part of `block`, sealed under its current key on this device a chunk at a
     /// time as it is written (`Vault::part_writer`). The part it answers can go into content
     /// this device saves as `Part::Reused`, whose drain uploads it; one an operation names is
@@ -4415,7 +4398,8 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// Uploads `part`, which this device wrote (`part_writer`), and has the server hold it for
-    /// `block` until a commit that uses it publishes, as `put_part` does.
+    /// `block` until a commit that uses it publishes, so an operation can name it by its ref
+    /// and every replica save a commit that reuses it (`host.part-writer` in be-sdk-type-api).
     pub async fn hold_part(
         &self,
         block: Uuid,
@@ -4426,7 +4410,7 @@ impl<S: ObjectStore> Peer<S> {
             .await
     }
 
-    /// Every object of `parts`, which this device put (`put_part`) or holds: what a journal's
+    /// Every object of `parts`, which this device wrote (`part_writer`) or holds: what a journal's
     /// base names so the server keeps them while it names them (`journal-base.parts`).
     pub fn part_objects(
         &self,

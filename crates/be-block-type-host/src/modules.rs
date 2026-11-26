@@ -1053,6 +1053,10 @@ impl Modules {
         let Some(ticket) = self.call(module, call) else {
             return Err(OpError::Canceled);
         };
+        // The calls made under the request, and under those (a resource's methods have the
+        // resource as their parent): `scope.take` refuses a resource's constructor, so its
+        // methods are refused here too, or the module would wait on them.
+        let mut under = HashSet::new();
         loop {
             let held = &self.modules[module];
             if held.worker.is_none() || held.generation != generation {
@@ -1070,6 +1074,7 @@ impl Modules {
                         parent: Some(parent),
                         call,
                     } if from == module && parent == ticket.op() => {
+                        under.insert(op);
                         let held = &mut self.modules[module];
                         match scope.take(&mut held.connection, op, call) {
                             Under::Read(read) => reads.push(Ok(read)),
@@ -1081,6 +1086,18 @@ impl Modules {
                         }
                         self.flush(module);
                     }
+                    Heard::Call {
+                        op,
+                        parent: Some(parent),
+                        ..
+                    } if from == module && under.contains(&parent) => {
+                        under.insert(op);
+                        self.modules[module]
+                            .connection
+                            .complete(op, Outcome::Err(OpError::Canceled));
+                        self.flush(module);
+                    }
+                    Heard::Canceled { op } if from == module && under.contains(&op) => {}
                     heard => self.backlog.push_back((from, heard)),
                 }
             }
