@@ -174,6 +174,11 @@ impl<C: Channel> Worker<C> {
         self.ready
     }
 
+    /// The channel to the guest, for what the host hands it beside its frames.
+    pub fn channel(&self) -> &C {
+        &self.channel
+    }
+
     pub fn queue(&mut self, frames: Vec<Vec<u8>>) -> Option<String> {
         self.pending.extend(frames);
         if self.pending.is_empty() {
