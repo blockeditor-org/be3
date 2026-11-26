@@ -89,7 +89,10 @@ impl Platform {
             checking: lock.checking(),
             refused: lock.refused().map(str::to_owned),
             user: lock.user().to_owned(),
-            power: lock_powers(core).into_iter().filter_map(root_power).collect(),
+            power: lock_powers(core)
+                .into_iter()
+                .filter_map(root_power)
+                .collect(),
             retry_at: lock.retry_at().map(on_roots),
         };
         self.locked_shown = shown.locked;
@@ -107,7 +110,12 @@ impl Platform {
 
     /// No screen lock off Linux: `be3:root` shows it unavailable and drops what is asked of it.
     #[cfg(not(target_os = "linux"))]
-    fn serve_lock(&mut self, _core: &mut HostCore, root: &mut Root, _on_roots: impl Fn(Duration) -> u64) {
+    fn serve_lock(
+        &mut self,
+        _core: &mut HostCore,
+        root: &mut Root,
+        _on_roots: impl Fn(Duration) -> u64,
+    ) {
         root.take_lock_asked();
         root.take_lock_powers();
         drop(root.take_unlock());

@@ -6,7 +6,13 @@ fn a_lock_power_is_done_only_while_locked_and_offered() {
         be_sdk_api::PowerAction::Suspend,
         be_sdk_api::PowerAction::PowerOff,
     ];
-    let asked = || vec![PowerAction::Suspend, PowerAction::Restart, PowerAction::PowerOff];
+    let asked = || {
+        vec![
+            PowerAction::Suspend,
+            PowerAction::Restart,
+            PowerAction::PowerOff,
+        ]
+    };
     assert_eq!(
         powers_to_do(true, &offered, asked()),
         vec![

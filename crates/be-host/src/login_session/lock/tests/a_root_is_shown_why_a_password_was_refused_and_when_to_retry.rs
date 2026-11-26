@@ -41,5 +41,9 @@ fn a_root_is_shown_why_a_password_was_refused_and_when_to_retry() {
     );
     unlocked.submit(password("right"), now, &mut recorder);
     unlocked.answered(recorder.last(), Verdict::Accepted, now);
-    assert_eq!(unlocked.refused(), None, "an unlocked session shows no refusal");
+    assert_eq!(
+        unlocked.refused(),
+        None,
+        "an unlocked session shows no refusal"
+    );
 }
