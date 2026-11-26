@@ -17,14 +17,13 @@ use uuid::Uuid;
 
 use crate::display::DisplaySettingsRoot;
 
+mod a_carried_display_fits_the_arrangement_to_every_place;
 mod a_carried_display_grabbed_by_its_corner_snaps_by_the_rect_it_is_drawn_at;
 mod a_carried_display_reaches_the_areas_far_corner;
-mod a_carried_display_stays_under_the_pointer_where_it_was_grabbed;
 mod a_carried_display_snaps_where_it_lines_up_with_another;
+mod a_carried_display_stays_under_the_pointer_where_it_was_grabbed;
 mod a_change_here_goes_to_every_device_and_a_toast_says_so;
-mod a_carried_display_fits_the_arrangement_to_every_place;
 mod a_display_carried_from_the_keyboard_reaches_a_place_past_the_fit;
-mod escape_returns_the_arrangement_to_its_fit;
 mod a_display_turned_off_or_made_main_is_kept_on_this_device;
 mod a_focused_display_steps_to_the_next_place_from_the_keyboard;
 mod a_profile_shows_the_theme_it_inherits;
@@ -40,6 +39,7 @@ mod choosing_a_theme_stores_it;
 mod choosing_never_keeps_the_screens_on;
 mod dragging_a_display_rearranges_the_desktop;
 mod each_tile_is_drawn_turned_from_the_rotation_shown_now;
+mod escape_returns_the_arrangement_to_its_fit;
 mod in_a_windowed_desktop_only_the_keyboard_button_goes_in_the_bar;
 mod keeping_a_setting_copies_it_here_and_later_changes_stay_here;
 mod keeping_makes_this_devices_display_block_when_it_has_none;
@@ -354,7 +354,9 @@ fn tile_fill(editor: &BeuiTest<DisplaySettingsRoot>, test_id: &str) -> Color32 {
     let laid = editor.rect_of(test_id);
     filled_rects(editor)
         .into_iter()
-        .find(|(rect, _)| (rect.min - laid.min).length() < 0.5 && (rect.max - laid.max).length() < 0.5)
+        .find(|(rect, _)| {
+            (rect.min - laid.min).length() < 0.5 && (rect.max - laid.max).length() < 0.5
+        })
         .map(|(_, color)| color)
         .unwrap_or_else(|| panic!("{test_id} is drawn filled where it is laid out"))
 }

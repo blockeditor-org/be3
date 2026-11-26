@@ -1060,7 +1060,8 @@ fn CanvasFixture() -> NodeId {
     let pan = create_signal(Vec2::ZERO);
     let scale = create_signal(1.0_f32);
     let canvas = NodeRef::new();
-    let view = create_memo(move || Some(CanvasView::new(beui::Pos2::ZERO + pan.get(), scale.get())));
+    let view =
+        create_memo(move || Some(CanvasView::new(beui::Pos2::ZERO + pan.get(), scale.get())));
     let item = view! {
         <Frame width=20.0 height=20.0 fill={AMBER} @test_id="canvas.item" />
     };

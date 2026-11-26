@@ -13,9 +13,19 @@ fn a_canvas_with_a_local_view_places_its_items_from_its_own_corner() {
                     <List spacing={0.0}>
                         {swatch(AMBER, 240.0, 60.0)}
                         <Frame padding={Sides::all(24.0)}>
-                            <Frame width={180.0} height={90.0} outline={Some(Outline::new(INK, 1.0))}>
+                            <Frame
+                                width={180.0}
+                                height={90.0}
+                                outline={Some(Outline::new(INK, 1.0))}
+                            >
                                 <Canvas view={view} local_view={true}>
-                                    <CanvasItem x={3.0} y={4.0} width={40.0} height={20.0} scales={true}>
+                                    <CanvasItem
+                                        x={3.0}
+                                        y={4.0}
+                                        width={40.0}
+                                        height={20.0}
+                                        scales={true}
+                                    >
                                         <Frame fill={BLUE} />
                                     </CanvasItem>
                                     <CanvasItem x={50.0} y={10.0} width={30.0} height={20.0}>

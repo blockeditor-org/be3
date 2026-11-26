@@ -17,7 +17,10 @@ fn a_display_carried_from_the_keyboard_reaches_a_place_past_the_fit() {
         "below the monitor is beyond the fit before the lift"
     );
 
-    let tile = settings.editor.rect_of("display.arrangement.eDP-1").center();
+    let tile = settings
+        .editor
+        .rect_of("display.arrangement.eDP-1")
+        .center();
     let fill = tile_fill(&settings.editor, "display.arrangement.eDP-1");
     settings.editor.click(tile);
     let lifted = settings.editor.rect_of("display.arrangement.eDP-1");

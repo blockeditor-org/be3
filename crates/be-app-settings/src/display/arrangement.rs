@@ -194,11 +194,9 @@ fn arrangement_spec(
     let rects: Vec<Rect> = others.iter().map(|tile| tile.rect).collect();
     let corner = reach(tiles).min.to_vec2();
     let places = touching::places(size, &rects).into_iter().map(|place| {
-        drag::Candidate::new(place.rect, place.rect.translate(-corner), desktop).labelled(place_label(
-            &others[place.beside].name,
-            place.side,
-            place.line,
-        ))
+        drag::Candidate::new(place.rect, place.rect.translate(-corner), desktop).labelled(
+            place_label(&others[place.beside].name, place.side, place.line),
+        )
     });
     drag::closest(places)
         .when_far(drag::free(area, move |rect: Rect| {
@@ -325,7 +323,8 @@ fn ArrangedTile(
     });
     let tile =
         create_memo(move || shown.with(|tiles| tiles.iter().find(|tile| tile.id == key).cloned()));
-    let rect = create_memo(move || tile.with(|tile| tile.as_ref().map_or(Rect::ZERO, |tile| tile.rect)));
+    let rect =
+        create_memo(move || tile.with(|tile| tile.as_ref().map_or(Rect::ZERO, |tile| tile.rect)));
     let shown_size = create_memo(move || rect.get().size() * view.get().fit);
     let width = create_memo(move || Length::Size(Size::Custom(shown_size.get().x)));
     let height = create_memo(move || Length::Size(Size::Custom(shown_size.get().y)));
@@ -371,7 +370,9 @@ fn ArrangedTile(
                             {name}
                         </Text>
                         <Show value={says_main}>
-                            <Text size=TextSize::Xs color=TextColor::Accent align=TextAlign::Center>"Main"</Text>
+                            <Text size=TextSize::Xs color=TextColor::Accent align=TextAlign::Center>
+                                "Main"
+                            </Text>
                         </Show>
                     </List>
                 </Frame>
