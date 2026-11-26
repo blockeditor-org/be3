@@ -1293,7 +1293,8 @@ pub(crate) fn administered(
             .map(|step| be_block_keys::Step::decode(step))
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| forged())?;
-        let head: be_block_keys::EntryHash = log.head.as_slice().try_into().map_err(|_| forged())?;
+        let head: be_block_keys::EntryHash =
+            log.head.as_slice().try_into().map_err(|_| forged())?;
         let root = steps.first().ok_or_else(forged)?.hash();
         let checked = be_block_keys::check_log(
             be_block_keys::LogKind::Organization,

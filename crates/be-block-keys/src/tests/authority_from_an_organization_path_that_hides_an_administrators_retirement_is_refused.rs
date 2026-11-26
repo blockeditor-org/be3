@@ -55,12 +55,7 @@ fn authority_from_an_organization_path_that_hides_an_administrators_retirement_i
             administrator,
         )
     };
-    let before = vec![
-        root.clone(),
-        bob_administers,
-        invited,
-        dana_joins.clone(),
-    ];
+    let before = vec![root.clone(), bob_administers, invited, dana_joins.clone()];
     let check = |entries: &[Entry]| {
         check_log(
             LogKind::Organization,

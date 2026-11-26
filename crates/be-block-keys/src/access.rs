@@ -1461,8 +1461,7 @@ impl Checked {
                     // An honest organization path reduces only the retirements of members who
                     // never administered it, whose keys grant nothing outside it; the entry's
                     // hash commits to whether it retired an administrator.
-                    if reduced.retires
-                        && (kind == LogKind::Block || reduced.retires_administrator)
+                    if reduced.retires && (kind == LogKind::Block || reduced.retires_administrator)
                     {
                         state.hides_retirement = true;
                     }
