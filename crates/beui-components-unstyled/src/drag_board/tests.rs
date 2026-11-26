@@ -17,6 +17,13 @@ impl Space for Flat {
     fn visible(&self, node: NodeId) -> Option<Rect> {
         Some(self.rects.borrow().get(&node)?.0)
     }
+
+    fn window(&self, node: NodeId) -> Option<WindowId> {
+        self.rects
+            .borrow()
+            .contains_key(&node)
+            .then_some(WindowId::MAIN)
+    }
 }
 
 #[derive(Default)]

@@ -108,10 +108,12 @@ impl EdgeScroller {
     }
 }
 
-/// Where a core's nodes are: their rect and scale, and the part of them that shows.
+/// Where a core's nodes are: their rect and scale, the part of them that shows, and the
+/// window they are in (None for a node the core does not hold).
 pub trait Space {
     fn placed(&self, node: crate::node::NodeId) -> Option<(Rect, f32)>;
     fn visible(&self, node: crate::node::NodeId) -> Option<Rect>;
+    fn window(&self, node: crate::node::NodeId) -> Option<WindowId>;
 }
 
 /// A node's paint order and window, as the core that tracks a drag knows them.

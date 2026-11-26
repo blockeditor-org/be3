@@ -104,9 +104,11 @@ impl Board {
         self.known_window(node).unwrap_or(WindowId::MAIN)
     }
 
-    /// The window `node` was in at the last point the core tracked, if it was noted.
+    /// The window `node` was in at the last point the core tracked, if it was noted, else
+    /// the one the core puts it in now (at a lift, before any point was tracked).
     fn known_window(&self, node: NodeId) -> Option<WindowId> {
-        self.orders.borrow().get(&node).map(|(_, window)| *window)
+        let noted = self.orders.borrow().get(&node).map(|(_, window)| *window);
+        noted.or_else(|| self.space.window(node))
     }
 
     fn painted(&self, node: NodeId) -> Option<Vec<usize>> {

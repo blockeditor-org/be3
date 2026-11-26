@@ -11,6 +11,7 @@ mod a_carry_let_go_outside_every_window_tells_its_source_where;
 mod a_lifted_item_is_offered_to_every_site_that_takes_it_and_dropped_on_the_one_chosen;
 mod a_lists_slots_rest_where_the_carried_row_would_land_among_rows_of_any_length;
 mod a_place_in_another_window_is_never_chosen_by_the_pointer;
+mod a_place_in_another_window_is_not_chosen_at_the_lift;
 mod a_site_gone_mid_carry_is_never_dropped_on;
 mod a_site_hears_of_the_place_chosen_in_it_only_when_it_changes;
 mod an_item_from_another_list_gets_a_place_at_each_gap_its_size;
@@ -18,9 +19,9 @@ mod another_pointer_neither_moves_nor_drops_a_carry;
 mod each_pointer_carries_its_own_item_and_escape_puts_down_every_one;
 mod two_sites_that_float_when_far_leave_the_item_to_the_near_ones_place;
 
-/// Nodes where tests put them, at scale 1.
+/// Nodes where tests put them, at scale 1, in the main window unless a test moves them.
 #[derive(Default)]
-struct Flat(RefCell<HashMap<NodeId, Rect>>);
+struct Flat(RefCell<HashMap<NodeId, Rect>>, RefCell<HashMap<NodeId, WindowId>>);
 
 impl Space for Flat {
     fn placed(&self, node: NodeId) -> Option<(Rect, f32)> {
@@ -29,6 +30,16 @@ impl Space for Flat {
 
     fn visible(&self, node: NodeId) -> Option<Rect> {
         self.0.borrow().get(&node).copied()
+    }
+
+    fn window(&self, node: NodeId) -> Option<WindowId> {
+        self.0.borrow().contains_key(&node).then(|| {
+            self.1
+                .borrow()
+                .get(&node)
+                .copied()
+                .unwrap_or(WindowId::MAIN)
+        })
     }
 }
 
