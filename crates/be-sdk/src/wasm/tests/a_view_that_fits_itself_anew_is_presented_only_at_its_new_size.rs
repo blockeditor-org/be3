@@ -40,6 +40,10 @@ fn a_view_that_fits_itself_anew_is_presented_only_at_its_new_size() {
         .filter(|placement| placement.surface == surface)
         .map(|placement| (placement.width, placement.height))
         .collect();
-    assert_eq!(drawn, [(100, 80)], "the next frame presents it at its new size");
+    assert_eq!(
+        drawn,
+        [(100, 80)],
+        "the next frame presents it at its new size"
+    );
     assert!(!rig.surfaces.take_owed(), "and owes no other");
 }
