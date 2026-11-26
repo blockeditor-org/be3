@@ -27,6 +27,8 @@ fn a_text_shown_while_its_app_is_slow_takes_the_caret_once_it_catches_up() {
     host.key("ctrl+shift+Tab");
     host.wait("Tab \"One\" selected");
     host.run(&["hold", "off"]);
+    // The frames it sends catching up wait on the stopped clock, as drive says when this is left out.
+    host.pause(100);
     host.wait("MultilineTextInput value=\"one\" focused");
     host.type_text("!");
     host.wait("MultilineTextInput value=\"one!\" focused");
