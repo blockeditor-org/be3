@@ -430,7 +430,8 @@ impl DockState {
     }
 
     /// Puts a bar that came with a saved slot among its pane's bars by slot: before the first
-    /// with a later one, else after the last with an earlier one. With no slot, or none of the
+    /// with a later one, else after the last with an earlier one. A pane's bars are those
+    /// `number_bar_slots` counted on it (`slot_pane`). With no slot, or none of the
     /// pane's others with one, it stays where it is, or goes where a new bar would.
     pub fn place_by_slot(&mut self, bar: TabId) {
         let Some(from) = self.bars.iter().position(|held| held.bar == bar) else {
@@ -440,12 +441,12 @@ impl DockState {
             return;
         };
         let moved = self.bars.remove(from);
-        let tab = self.bar_pane(&moved).map(|(tab, _)| tab);
+        let tab = self.slot_pane(&moved);
         let slotted: Vec<(usize, usize)> = self
             .bars
             .iter()
             .enumerate()
-            .filter(|(_, held)| tab.is_some() && self.bar_pane(held).map(|(shown, _)| shown) == tab)
+            .filter(|(_, held)| tab.is_some() && self.slot_pane(held) == tab)
             .filter_map(|(at, held)| Some((at, held.slot?)))
             .collect();
         let at = match (

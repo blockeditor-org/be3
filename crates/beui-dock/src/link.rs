@@ -400,19 +400,18 @@ impl Registry {
     /// `state` with the bar panes it names through docks joined since resolved to tabs it holds,
     /// if any were.
     pub(crate) fn resolve_bar_panes(&self, state: &DockState) -> Option<DockState> {
-        let mut next = state.clone();
-        let mut changed = false;
+        let mut next: Option<DockState> = None;
         for bar in state.bars() {
             let Some(pane) = state.bar_pane_tab(bar).filter(|pane| !pane.via.is_empty()) else {
                 continue;
             };
             if let Some(tab) = self.resolve(pane).filter(|tab| state.contains(*tab)) {
+                let next = next.get_or_insert_with(|| state.clone());
                 next.set_bar_pane_tab(bar, Some(DockBarPane::own(tab)));
                 next.place_by_slot(bar);
-                changed = true;
             }
         }
-        changed.then_some(next)
+        next
     }
 
     pub(crate) fn graft(&self, state: &mut DockState, host: TabId, from: &DockState) -> bool {
