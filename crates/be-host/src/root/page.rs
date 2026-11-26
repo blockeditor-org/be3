@@ -52,6 +52,9 @@ pub(super) struct Surfaces {
     /// What the root answered a frame with after the host frame that asked for it.
     answered: Rc<RefCell<Option<Result<FrameDone, String>>>>,
     shown: HashMap<Key, Canvas>,
+    /// The screens of apps that could not be handed a canvas (an app that stopped), until their
+    /// layers leave the list: none is made for them again each frame.
+    refused: std::collections::HashSet<Key>,
     next: u32,
 }
 
@@ -150,6 +153,7 @@ impl Surfaces {
         // CSS pixels a point, as be-host places its apps' screens.
         let scale = context.pixels_per_point() / context.native_pixels_per_point();
         let mut left = std::mem::take(&mut self.shown);
+        let mut refused = std::collections::HashSet::new();
         let layers = list
             .windows
             .into_iter()
@@ -168,13 +172,20 @@ impl Surfaces {
             let Some(style) = be_host_runtime::canvas_style(&layer, scale, order) else {
                 continue;
             };
+            if self.refused.contains(&key) {
+                refused.insert(key);
+                continue;
+            }
             let mut canvas = match left.remove(&key) {
                 Some(canvas) => canvas,
                 None => match self.create(root, key) {
                     Ok(canvas) => canvas,
                     // An app that stopped, which the list names until the root hears so, shows
                     // nothing; the root's own surfaces must show.
-                    Err(_) if matches!(key, Key::App { .. }) => continue,
+                    Err(_) if matches!(key, Key::App { .. }) => {
+                        refused.insert(key);
+                        continue;
+                    }
                     Err(why) => return Err(why),
                 },
             };
@@ -187,6 +198,7 @@ impl Surfaces {
         for (key, canvas) in left {
             forget(root, key, &canvas);
         }
+        self.refused = refused;
         root.paint().map(|_| ())
     }
 

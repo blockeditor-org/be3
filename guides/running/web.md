@@ -113,7 +113,9 @@ shim, one linked root a page (be-wasm-root-host's web `Root`). Each layer of its
 a canvas of its own in `#layers` above the host's canvas (`data-kind="root"` for its own,
 `"screen"` for an app's, which that app's worker draws), placed by the layer's CSS as an app's
 screen is (`root/page.rs`); the host's canvas shows only the background. Open it on a page with
-no other tab of the host open, since one tab holds the files. `//crates/be-host:root-web-host-test`
+no other tab of the host open, since one tab holds the files. A root that fails to start or
+stops ends the host, as natively: the page is left without it, and the console (`browser.log`)
+says why (`be-host: the root APP stopped: ...`). `//crates/be-host:root-web-host-test`
 runs it.
 
 ## Files and offline

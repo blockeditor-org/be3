@@ -2543,7 +2543,9 @@ Each step lands on its own.
                  retains, as be-host-runtime's `Canvases` keeps it (so a tab shown again shows
                  nothing until its app draws it anew); drive's `paint` reads nothing of the
                  root on the web; the root's canvases follow its frames, not the host's
-                 present. `web_host_test`'s `root` runs a page script under the root once each
+                 present; on the web be-host's `busy` does not say whether the root's apps
+                 are settled (the native `Root::apps_unsettled`), which the web `Root` does not
+                 answer yet. `web_host_test`'s `root` runs a page script under the root once each
                  account signed in. Run so, `a_child_placed_in_a_popover_shows_above_it` waits
                  in vain for `Pane "Canvas"` after the picker's Canvas, the two-pages chat test
                  finds no `#host.contacts.new-link` in the Contacts the menu opens, and the

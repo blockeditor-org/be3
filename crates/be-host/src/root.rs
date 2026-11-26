@@ -330,8 +330,9 @@ impl RootShell {
     /// Asks the root for a frame for `time` and shows its layer list.
     fn frame(&mut self, context: &beui::native::Context, time: Duration, area: beui::Rect) {
         // On the page the root loads asynchronously, and is asked for frames once it has.
+        // A root that loaded after the host stopped it (`stopped`) is let go.
         #[cfg(target_arch = "wasm32")]
-        if self.root.is_none() {
+        if self.root.is_none() && self.stopped.borrow().is_none() {
             match self.surfaces.loaded() {
                 Some(Ok(root)) => self.root = Some(root),
                 Some(Err(why)) => return self.stopped(&format!("it did not start: {why}")),
