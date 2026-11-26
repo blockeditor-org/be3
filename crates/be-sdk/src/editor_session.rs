@@ -297,8 +297,8 @@ impl EditorSession {
         self.host.set_organization_id(organization);
     }
 
-    pub(crate) fn set_local_account(&self, local: bool) {
-        self.host.set_local_account(local);
+    pub(crate) fn set_offers_share(&self, offered: bool) {
+        self.host.set_offers_share(offered);
     }
 
     pub(crate) fn set_page_origin(&self, origin: String) {

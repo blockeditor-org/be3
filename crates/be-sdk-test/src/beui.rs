@@ -446,7 +446,7 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
             account_id,
             organization_id,
             client_id,
-            local_account: false,
+            offers_share: true,
             kind: opening_kind,
         };
         let frame = match &kind {

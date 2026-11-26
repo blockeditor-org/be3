@@ -265,9 +265,11 @@ platform, the web too. Having nothing to sign out of, the account picker offers 
 account…" instead of "Log out", and what needs a server (sharing, members, contacts, agents,
 invitations) answers that a local account has none. On the web it lives only in that origin's
 browser storage, which clearing site data or a private window loses with no phrase to recover
-it; making one there says so, and asks the browser to keep the origin's storage rather than
-evict it (`platform::keep_storage`, `navigator.storage.persist()`), with a notice when it will
-not. Its block menus offer no Share (`opening.local-account`, `EditorHost::local_account`). With one member it holds every block, so it goes without what
+it; making one there says so. Each time one starts there, the host asks the browser to keep
+the origin's storage rather than evict it, unless it already does (`platform::keep_storage`,
+`navigator.storage.persisted()` then `persist()`), with a notice when it will not as the account
+is made. Its editors offer no Share and no viewing access (`opening.offers-share`,
+`EditorHost::offers_share`). With one member it holds every block, so it goes without what
 the server enforces between members: `may_create`'s reserved ids and who makes workspaces,
 access and visibility, and a block agent's scoping (`bound_may`; it makes no agents). The
 app sandbox is the host's own and holds the same.

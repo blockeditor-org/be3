@@ -29,7 +29,10 @@ pub(crate) fn with_block_menu(
         ICON_ARROW_DOWN_LEFT,
         &info.backrefs,
     ));
-    added.push(access(workspace, info));
+    // The access a block is viewed at is part of sharing, which a local account has none of.
+    if workspace.host().offers_share() {
+        added.push(access(workspace, info));
+    }
     added.extend(notifications(workspace, info));
     added.push(MenuNode::Separator);
     let at = nodes

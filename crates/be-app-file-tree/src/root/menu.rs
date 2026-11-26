@@ -121,7 +121,7 @@ fn SectionMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_
     let unshareable =
         move || !row.with(|row| row.as_ref().is_some_and(|row| row.access.can_manage()));
     // A local account has no server to share through.
-    let offers_share = !editor.host().local_account();
+    let offers_share = editor.host().offers_share();
     let deletable = move || !row.with(|row| row.as_ref().is_some_and(|row| row.can_delete));
     let my_files = be_block::my_files(editor.host().organization_id(), editor.host().account_id());
     let offers_delete =
@@ -239,7 +239,7 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
     let unshareable =
         move || !row.with(|row| row.as_ref().is_some_and(|row| row.access.can_manage()));
     // A local account has no server to share through.
-    let offers_share = !editor.host().local_account();
+    let offers_share = editor.host().offers_share();
     let unlinkable = move || {
         !row.get()
             .is_some_and(|row| row.is_reference && row.unlink.is_ok())

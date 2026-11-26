@@ -552,7 +552,7 @@ impl Screens {
             account_id,
             organization_id,
             client_id,
-            local_account,
+            offers_share,
             kind,
         } = opening;
         let session = self.open(instance, Uuid::from_bytes(editor));
@@ -560,7 +560,7 @@ impl Screens {
         session.set_client_id(Uuid::from_bytes(client_id));
         session.set_account_id(Uuid::from_bytes(account_id));
         session.set_organization_id(Uuid::from_bytes(organization_id));
-        session.set_local_account(local_account);
+        session.set_offers_share(offers_share);
         match kind {
             OpeningKind::Block(open) => {
                 session.set_view_block(open.view_block.map(Uuid::from_bytes));
