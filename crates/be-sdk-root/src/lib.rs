@@ -55,6 +55,7 @@
 mod children;
 mod embedded;
 mod floating;
+mod intercept;
 mod own;
 mod windows;
 
@@ -112,6 +113,9 @@ pub struct Embedding {
     /// What was routed to surfaces the host owns (`Surface::Host`: program windows) since it
     /// was last taken (`take_host_input`), in order.
     host_input: Vec<Delivery>,
+    /// The chords taken ahead of the focus: the root's own, and the session's editor's
+    /// (`Embedding::intercept_for`).
+    intercepting: intercept::Intercepting,
 }
 
 /// An anchored view that asks for the keyboard, as be-host gives it: to the child placed in it,
@@ -186,6 +190,7 @@ impl Embedding {
             keyed: Vec::new(),
             own_trees: Default::default(),
             host_input: Vec::new(),
+            intercepting: intercept::Intercepting::default(),
         }
     }
 
@@ -261,7 +266,13 @@ impl Embedding {
                 self.pointers.push((window, *at));
             }
         }
+        let modifiers = events.iter().filter_map(|event| match event.input {
+            input::Input::Modifiers(modifiers) => Some((modifiers, event.time)),
+            _ => None,
+        });
+        let modifiers: Vec<_> = modifiers.collect();
         let mut routed = self.windows.route(window, events);
+        self.hand_intercepted(window, &mut routed, &modifiers);
         routed.splice(0..0, lifted);
         self.carry();
         self.follow_files(window, &routed);
@@ -761,7 +772,8 @@ impl Embedding {
     /// of the layer focused there, in place of those it took before (`Windows::intercept`): the
     /// root's own shortcuts, and Escape while a dialog of its own is open.
     pub fn intercept(&mut self, chords: Vec<KeyChord>) {
-        self.windows.intercept(chords);
+        self.intercepting.own = chords;
+        self.reintercept();
     }
 
     /// The layer focused in `window`, as it was drawn last: the one its keys, text and input
@@ -995,6 +1007,7 @@ impl Embedding {
         told.extend(self.lift());
         self.carry();
         told.extend(self.key_anchored());
+        self.follow_interceptor();
         let apps = &self.apps;
         told.extend(self.windows.lock(|layer| {
             let Some((instance, surface)) = app_surface(layer.surface) else {
