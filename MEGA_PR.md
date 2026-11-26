@@ -171,6 +171,7 @@ Landed on 2026-11-24:
 - `backlog-34-2`: the drag threshold review's follow-ups: `Board::placed_in` shared by `place` and `rests_of`, the canvas pencil asks for every pen sample before its stroke begins, `be_host_runtime::app_ids` for `holdable`, and `drive hold` documented as refusing an app before it starts.
 - `backlog-7-3`: terminal hosts claim the lease from a viewer in turn by client, counting only hosts that may edit and waiting on a stuck host before them for `UNHEARD_HOLDER` at most; a replica's opening carries its device's presence (`opening.shown`), so presence survives reopening and a terminal host shows itself from its first presence; one `below_floor` predicate for passed-over entries; a kept submission carried over a restart goes again under its id.
 - `backlog-15-snapshot`: a restarted app's editor is always sent its snapshot (shown by a be-host-runtime test); the root closes a let-go instance's editors (`Forwarded::close_all`), which had kept their blocks open for good.
+- `backlog-24-cdp`: the browser rasterizer drives chrome-headless-shell over the DevTools protocol pipe itself; Node and Playwright leave the previews (release 424 MB to 281 MB, 54 s to 15 s).
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
