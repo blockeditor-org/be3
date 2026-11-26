@@ -1359,8 +1359,8 @@ impl Presented {
     }
 }
 
-/// beui's default dialog width, in points, which be-host's alerts keep.
-const DIALOG_POINTS: f32 = 400.0;
+/// beui's default dialog width (`Size::Dialog`), in points, which be-host's alerts keep.
+const DIALOG_POINTS: f32 = 360.0;
 
 /// The chords the root takes ahead of whatever has the keyboard, while the session is not
 /// locked: its palette's, F6 and Shift+F6, which move the keyboard between the apps' views,

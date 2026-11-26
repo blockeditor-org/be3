@@ -131,6 +131,12 @@ APPS = {
     "be_root_in_place_of_the_hosts_ui_warns_of_a_member_no_invitation_signed_in": ["//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_shows_the_link_to_send_the_invited_person": ["//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_creates_an_agent_in_a_personal_organization": ["//crates/be-root"],
+    "be_root_in_place_of_the_hosts_ui_asks_before_connecting_two_accounts_by_a_contact_link": ["//crates/be-root"],
+    "be_root_in_place_of_the_hosts_ui_keeps_the_key_it_saw_of_a_contact_the_server_rolls_back": ["//crates/be-root"],
+    "be_root_in_place_of_the_hosts_ui_asks_before_leaving_a_workspace_someone_shared": ["//crates/be-root"],
+    "be_root_in_place_of_the_hosts_ui_asks_before_opening_a_block_someone_shared_by_a_link": ["//crates/be-root"],
+    "be_root_in_place_of_the_hosts_ui_opens_a_share_link_for_an_outsider_as_a_guest": ["settings", "//crates/be-root"],
+    "be_root_in_place_of_the_hosts_ui_lets_a_player_dig_through_the_editor_that_hosts_the_hunt": ["gem-hunt", "settings", "//crates/be-root"],
 
     "choosing_a_scale_draws_the_host_larger": ["settings"],
     "choosing_another_workspace_on_the_add_pickers_location_page_moves_it_there": [],
