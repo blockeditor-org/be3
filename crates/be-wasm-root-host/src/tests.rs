@@ -155,6 +155,7 @@ fn own_paintings(root: &mut Root, time: u64) -> Vec<(u64, beui_paint_format::Pai
             utc_offset: 0,
             window: window(),
             describe: false,
+            phone: false,
         },
         Instant::now() + PATIENT,
     )
@@ -220,6 +221,7 @@ fn step(root: &mut Root, time: u64) -> FrameDone {
             utc_offset: 0,
             window: window(),
             describe: false,
+            phone: false,
         },
         Instant::now() + PATIENT,
     )

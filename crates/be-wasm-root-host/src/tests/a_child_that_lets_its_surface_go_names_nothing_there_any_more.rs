@@ -12,6 +12,7 @@ fn a_child_that_lets_its_surface_go_names_nothing_there_any_more() {
                     utc_offset: 0,
                     window: window(),
                     describe: false,
+                    phone: false,
                 },
                 Instant::now() + PATIENT,
             )
