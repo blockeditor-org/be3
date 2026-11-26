@@ -571,7 +571,10 @@ impl Inner {
                     .retain(|(at, refused, ..)| *at != block || *refused != id);
                 reply.send(&mut self.host, &());
             }
-            Call::PutPart { reply, .. } => {
+            // A writer is ended by the guest dropping it (`Incoming::Canceled`).
+            Call::PartWriterNew { .. } => {}
+            Call::PartWriterWrite { reply, .. } => reply.send(&mut self.host, &()),
+            Call::PartWriterFinish { reply, .. } => {
                 reply.send(
                     &mut self.host,
                     &Err("commits here have no parts".to_owned()),

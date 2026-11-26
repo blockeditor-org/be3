@@ -641,6 +641,8 @@ struct Sim<C: LiveEdit + Clone + Default> {
     sent: Vec<(usize, Vec<u8>)>,
     part_reads: usize,
     parts_put: usize,
+    /// The bytes written to each part writer a device made, until it is dropped.
+    writers: BTreeMap<(usize, OpId), Vec<u8>>,
     fail_puts: usize,
     fail_reads: usize,
     /// Loads answered `LoadError::NotYet`, as a host answers one of a commit not to be had yet.
@@ -732,6 +734,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             sent: Vec::new(),
             part_reads: 0,
             parts_put: 0,
+            writers: BTreeMap::new(),
             fail_puts: 0,
             fail_reads: 0,
             not_yet_loads: 0,
@@ -1352,6 +1355,12 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                         reply.fail(host, be_sdk_type_api::ops::OpError::Canceled)
                     });
                 }
+                // A part writer the device dropped ends.
+                if self.writers.remove(&(device, op)).is_some() {
+                    self.to(device, |host| {
+                        host.complete(op, Outcome::Err(be_sdk_type_api::ops::OpError::Canceled))
+                    });
+                }
             }
             Incoming::Credited { op } => {
                 if let Some(mut clock) = self.devices[device].clock.take() {
@@ -1687,8 +1696,22 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 };
                 self.to(device, |host| reply.send(host, &Ok(page)));
             }
-            call @ Call::PutPart { .. } if self.stalled => self.held.push((device, call)),
-            Call::PutPart { reply, bytes } => {
+            Call::PartWriterNew { resource } => {
+                self.writers.insert((device, resource.op()), Vec::new());
+            }
+            Call::PartWriterWrite { this, reply, bytes } => {
+                if let Some(written) = self.writers.get_mut(&(device, this.op())) {
+                    written.extend(bytes);
+                }
+                self.to(device, |host| reply.send(host, &()));
+            }
+            call @ Call::PartWriterFinish { .. } if self.stalled => self.held.push((device, call)),
+            Call::PartWriterFinish { this, reply } => {
+                let bytes = self
+                    .writers
+                    .get_mut(&(device, this.op()))
+                    .map(std::mem::take)
+                    .unwrap_or_default();
                 self.parts_put += 1;
                 if self.fail_puts > 0 {
                     self.fail_puts -= 1;

@@ -34,7 +34,7 @@ interface objects {
         lasting,
         /// Until a commit of the block that holds them publishes, or
         /// `ServerConfig::upload_grace` passes: a part an operation names by
-        /// its hash before any commit uses it (`put-part` in
+        /// its hash before any commit uses it (`part-writer` in
         /// `be3:block-type`).
         until-committed,
     }

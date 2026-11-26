@@ -427,7 +427,7 @@ counts and records nothing: `reserve-uploads` did before it signed.
 - **Objects** are served only to a member who can view a block that holds them
   (by a commit, `commit_objects`, or by `HoldObjects`, `block_objects`); anything else reads as
   missing. A `lasting` hold (a repository's snapshots) lasts as long as the
-  block; an `until-committed` one (`put-part`) ends when a commit of the block
+  block; an `until-committed` one (`part-writer`) ends when a commit of the block
   holding the object publishes (`release_committed`), or once `upload_grace`
   passes after its last hold while the block's journal is empty and its base
   does not name the object (`journal_base_parts`, a session state that goes by a

@@ -344,6 +344,9 @@ pub enum Answered {
         Reply<Result<Vec<u8>, String>, wire::Fallible<wire::Bytes, wire::Plain>>,
         Result<Vec<u8>, String>,
     ),
+    /// A `part-writer.write`, answered once its bytes are sealed.
+    Wrote(Reply<()>),
+    /// A `part-writer.finish`.
     PutPart(
         Reply<Result<be_block_store::PartRef, String>>,
         Result<be_block_store::PartRef, String>,
@@ -369,16 +372,111 @@ impl Answered {
         matches!(self, Answered::Stash(..))
     }
 
-    fn send(self, connection: &mut Connection) {
+    pub(crate) fn send(self, connection: &mut Connection) {
         match self {
             Answered::Load(reply, result) => reply.send(connection, &result),
             Answered::ReadPart(reply, result) => reply.send(connection, &result),
+            Answered::Wrote(reply) => reply.send(connection, &()),
             Answered::PutPart(reply, result) => reply.send(connection, &result),
             Answered::Append(reply, result) => reply.send(connection, &result),
             Answered::ReadLog(reply, result) => reply.send(connection, &result),
             Answered::Stash(reply, result) => reply.send(connection, &result),
             Answered::Resume(reply, result) => reply.send(connection, &result),
             Answered::Submit(reply, submitted) => reply.send(connection, &submitted),
+        }
+    }
+}
+
+/// A part writer a replica made (`host.part-writer`): its replica, and the feed of its task.
+struct PartWriting {
+    replica: ReplicaId,
+    feed: UnboundedSender<Feed>,
+}
+
+/// A part writer's call, in the order the module made them.
+pub(crate) enum Feed {
+    Write(Vec<u8>, Reply<()>),
+    Finish(Reply<Result<be_block_store::PartRef, String>>),
+}
+
+/// Where a task answers a replica's calls (`Io::Answer`), as `Replicas::answer_later` does.
+struct Answering {
+    io: UnboundedSender<Io>,
+    replica: ReplicaId,
+    module: usize,
+    generation: u64,
+    epoch: u64,
+}
+
+impl Answering {
+    fn answer<H: Host>(&self, answer: Answered) {
+        let _ = self.io.send(Io::Answer {
+            replica: self.replica,
+            module: self.module,
+            generation: self.generation,
+            epoch: self.epoch,
+            answer: Box::new(answer),
+            published: None,
+        });
+        H::wake();
+    }
+}
+
+/// Serves one part writer: seals each write a chunk at a time with a `Peer::part_writer`, so
+/// the host holds at most a chunk of it, and at `finish` has the server hold the part for the
+/// block (`Peer::hold_part`). A write that fails is answered all the same, and `finish` answers
+/// its failure. The feed ending first (the writer dropped, its replica or module gone) lets go
+/// of the writer; the chunks it sealed stay in the vault, which nothing collects yet
+/// (plans/streamed_part_writes.md). `answer` sends each answer to the module, and `locked` says
+/// the block was found locked, as of the `Peer::arrivals` the writer started at.
+pub(crate) async fn write_part<S: be_block_store::ObjectStore>(
+    peer: Arc<Peer<S>>,
+    block: Uuid,
+    made_up: bool,
+    reach: Arc<Mutex<Reach>>,
+    mut fed: UnboundedReceiver<Feed>,
+    answer: impl Fn(Answered),
+    locked: impl FnOnce(u64),
+) {
+    let arrivals = peer.arrivals();
+    let mut writing = match made_up {
+        true => Err(ClientError::Disconnected(
+            "the server does not have this block yet".to_owned(),
+        )),
+        false => peer.part_writer(block).await,
+    };
+    while let Some(feed) = fed.recv().await {
+        match feed {
+            Feed::Write(bytes, reply) => {
+                if let Ok(writer) = &mut writing
+                    && let Err(error) = writer.write(&bytes)
+                {
+                    writing = Err(error.into());
+                }
+                answer(Answered::Wrote(reply));
+            }
+            Feed::Finish(reply) => {
+                let put = async {
+                    let part = writing?.finish()?.ok_or_else(|| {
+                        ClientError::Encoding("a part needs at least one byte".to_owned())
+                    })?;
+                    peer.hold_part(block, part).await?;
+                    Ok::<_, ClientError>(part)
+                }
+                .await;
+                if let Err(ClientError::Locked(_)) = &put {
+                    locked(arrivals);
+                }
+                if let Ok(part) = &put {
+                    reach
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .hand([*part]);
+                }
+                let result = put.map_err(|error| error.to_string());
+                answer(Answered::PutPart(reply, result));
+                return;
+            }
         }
     }
 }
@@ -1185,6 +1283,9 @@ pub struct Replicas<H: Host> {
     replies: HashMap<(usize, OpId), Waiting>,
     asked: HashMap<(usize, OpId), (ReplicaId, Asked)>,
     scopes: HashMap<(usize, OpId), types::Scope>,
+    /// The part writers replicas made (`host.part-writer`), by the writer's op: each feeds a
+    /// task of its own that holds its `Peer::part_writer` (`write_part`).
+    writers: HashMap<(usize, OpId), PartWriting>,
     pending: Vec<Io>,
     relaying: usize,
     /// Parts of blocks' stored forms read for their replicas (`Call::ReadPart`) and not
@@ -1300,6 +1401,7 @@ impl<H: Host> Replicas<H> {
             replies: HashMap::new(),
             asked: HashMap::new(),
             scopes: HashMap::new(),
+            writers: HashMap::new(),
             pending: Vec::new(),
             relaying: 0,
             reading_parts: 0,
@@ -5182,6 +5284,7 @@ impl<H: Host> Replicas<H> {
         self.handles.retain(|(from, _), _| *from != module);
         self.contents.retain(|(from, _), _| *from != module);
         self.scopes.retain(|(from, _), _| *from != module);
+        self.writers.retain(|(from, _), _| *from != module);
         let mut waiting: HashMap<OpId, Waiting> = HashMap::new();
         for key in self
             .replies
@@ -5417,6 +5520,9 @@ impl<H: Host> Replicas<H> {
                 false
             }
             Heard::Canceled { op } => {
+                // A writer dropped before it finished: its task ends with its feed, letting go
+                // of what it wrote.
+                self.writers.remove(&(module, op));
                 self.refuse(module, op);
                 false
             }
@@ -5463,6 +5569,14 @@ impl<H: Host> Replicas<H> {
                 }
                 false
             }
+            Heard::Call {
+                op,
+                parent: Some(parent),
+                call,
+            } if self.writers.contains_key(&(module, parent)) => {
+                self.feed_writer(module, parent, op, call);
+                false
+            }
             Heard::Call { op, parent, call } => {
                 let replica = parent
                     .and_then(|parent| self.handles.get(&(module, parent)).copied())
@@ -5478,6 +5592,29 @@ impl<H: Host> Replicas<H> {
                     }
                 }
             }
+        }
+    }
+
+    /// A call on a part writer (`writers`), handed to its task in order; anything else made
+    /// under a writer is refused. A writer whose replica ended takes nothing more.
+    fn feed_writer(&mut self, module: usize, writer: OpId, op: OpId, call: Call) {
+        let fed = match self.writers.get(&(module, writer)) {
+            Some(writing) if self.open.contains_key(&writing.replica) => match call {
+                Call::PartWriterWrite { bytes, reply, .. } => {
+                    writing.feed.send(Feed::Write(bytes, reply)).is_ok()
+                }
+                Call::PartWriterFinish { reply, .. } => {
+                    let fed = writing.feed.send(Feed::Finish(reply)).is_ok();
+                    self.writers.remove(&(module, writer));
+                    fed
+                }
+                _ => false,
+            },
+            _ => false,
+        };
+        if !fed {
+            self.writers.remove(&(module, writer));
+            self.refuse(module, op);
         }
     }
 
@@ -6040,31 +6177,36 @@ impl<H: Host> Replicas<H> {
                 });
                 false
             }
-            Call::PutPart { reply, bytes } => {
-                let peer = Arc::clone(peer);
-                let io = self.io.clone();
-                self.answer_later(replica, module, async move {
-                    let arrivals = peer.arrivals();
-                    let put = match made_up {
-                        true => Err(ClientError::Disconnected(
-                            "the server does not have this block yet".to_owned(),
-                        )),
-                        false => peer.put_part(block, &bytes).await,
-                    };
-                    if let Err(ClientError::Locked(_)) = &put {
+            Call::PartWriterNew { resource } => {
+                let (feed, fed) = unbounded_channel();
+                let answer = Answering {
+                    io: self.io.clone(),
+                    replica,
+                    module,
+                    generation: self.modules.generation(module),
+                    epoch: self.open.get(&replica).map_or(0, |open| open.epoch),
+                };
+                let locked = {
+                    let io = self.io.clone();
+                    move |arrivals| {
                         let _ = io.send(Io::Locked { replica, arrivals });
                     }
-                    if let Ok(put) = &put {
-                        reach
-                            .lock()
-                            .unwrap_or_else(PoisonError::into_inner)
-                            .hand([*put]);
-                    }
-                    let result = put.map_err(|error| error.to_string());
-                    (Answered::PutPart(reply, result), None)
-                });
+                };
+                H::spawn(write_part(
+                    Arc::clone(peer),
+                    block,
+                    made_up,
+                    reach,
+                    fed,
+                    move |answered| answer.answer::<H>(answered),
+                    locked,
+                ));
+                self.writers
+                    .insert((module, resource.op()), PartWriting { replica, feed });
                 false
             }
+            // A writer's methods have the writer as their parent (`feed_writer`).
+            Call::PartWriterWrite { .. } | Call::PartWriterFinish { .. } => false,
             Call::Publish {
                 reply,
                 expected,

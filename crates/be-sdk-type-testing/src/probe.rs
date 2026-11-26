@@ -88,10 +88,10 @@ impl Merge for Probe {
 fn reach(target: Option<PartRef>, parts: PartReader) -> impl Future<Output = String> + 'static {
     let request = ops::request();
     async move {
-        let put = || host::put_part(b"a probe".to_vec());
+        let call = || host::read_log(0, 1);
         let called = match request {
-            Some(request) => ops::with_parent(request, put),
-            None => put(),
+            Some(request) => ops::with_parent(request, call),
+            None => call(),
         }
         .await;
         let read = match target {

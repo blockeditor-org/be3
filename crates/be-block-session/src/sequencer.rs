@@ -11,7 +11,7 @@ pub struct OpId {
 
 /// An operation as a session carries it: its encoded bytes, or for one too large to submit
 /// inline (over `LARGEST_RELAYED_OPERATION` in be-sdk-type-guest) the part its sender put them
-/// as (`put-part`), which a replica reads before it applies the operation.
+/// as (`part-writer`), which a replica reads before it applies the operation.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum Payload {
     Inline(#[serde(with = "serde_bytes")] Vec<u8>),

@@ -5,7 +5,7 @@ use be_type_text::TextContent;
 
 use super::*;
 
-/// What an operation adding a part by its hash does across devices (`host.put-part`): one
+/// What an operation adding a part by its hash does across devices (`host.part-writer`): one
 /// member puts the part, and another saves a commit reusing it from the part's ref alone,
 /// uploading none of it and never reading its bytes.
 #[tokio::test]
