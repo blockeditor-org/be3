@@ -23,18 +23,21 @@ pub(crate) struct Intercepting {
     screen: Option<(u64, ScreenId)>,
     /// The chords it intercepts, as its last layout said: those with a command modifier (Ctrl,
     /// Alt or Super), and media keys, as be-host takes them.
-    chords: Vec<KeyChord>,
+    pub(crate) chords: Vec<KeyChord>,
     /// The keys the root's layer handed on, in each window, and where: their repeats and
     /// releases go there too.
     handed: Vec<(Option<u64>, Key, Handed)>,
     /// The modifiers still held of those held as the screen took a chord, in its window, which
     /// it hears let go one by one.
     held: Option<(Option<u64>, LayerId, Surface, Modifiers)>,
+    /// The app whose screen intercepts and how many times its windows' requests had changed
+    /// when they were last read (`Embedded::window_changes`).
+    seen: Option<(u64, u64)>,
 }
 
 /// Where the root's layer handed a key on.
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum Handed {
+pub(crate) enum Handed {
     /// To the intercepting screen, as an intercepted key.
     Screen(LayerId, Surface),
     /// To the focus, as the key it is.
@@ -50,24 +53,28 @@ impl Embedding {
             return;
         }
         self.intercepting.screen = screen;
-        self.intercepting.chords.clear();
+        self.intercepting.seen = None;
         self.follow_interceptor();
-        self.reintercept();
     }
 
-    /// Takes the chords the intercepting screen asks for as its last layout said.
+    /// Takes the chords the intercepting screen asks for, read again once its app's layouts
+    /// changed what its screens ask of their windows (`Embedded::window_changes`).
     pub(crate) fn follow_interceptor(&mut self) {
-        let chords: Vec<KeyChord> = self
-            .intercepting
-            .screen
-            .and_then(|(instance, screen)| {
-                let app = self.apps.iter().find(|app| app.instance() == instance)?;
-                Some(app.screen_window(screen)?.1.intercepted_keys)
-            })
+        let app = self.intercepting.screen.and_then(|(instance, screen)| {
+            let app = self.apps.iter().find(|app| app.instance() == instance)?;
+            Some((app, screen))
+        });
+        let seen = app.map(|(app, _)| (app.instance(), app.window_changes()));
+        if seen.is_some() && seen == self.intercepting.seen {
+            return;
+        }
+        let chords: Vec<KeyChord> = app
+            .and_then(|(app, screen)| Some(app.screen_window(screen)?.1.intercepted_keys))
             .unwrap_or_default()
             .into_iter()
             .filter(|chord| !chord.tap && (chord.modifiers.command() || chord.key.is_media()))
             .collect();
+        self.intercepting.seen = seen;
         if chords != self.intercepting.chords {
             self.intercepting.chords = chords;
             self.reintercept();
@@ -98,28 +105,63 @@ impl Embedding {
             .map(|layer| (layer.id, layer.surface))
     }
 
-    /// Hands on what of `routed` reached the root's own layer that the intercepting screen took
-    /// and the root did not, and tells the screen holding a chord the `modifiers` the window's
-    /// input changed to, with when.
+    /// What `routed`, the deliveries one event of `window`'s made, become: what reached the
+    /// root's own layer that the intercepting screen took and the root did not is handed on in
+    /// its place. An event that changed the `modifiers` (with when) tells the screen holding a
+    /// chord those it let go of after it.
     pub(crate) fn hand_intercepted(
         &mut self,
         window: Option<u64>,
-        routed: &mut Vec<Delivery>,
-        modifiers: &[(Modifiers, Option<u64>)],
-    ) {
+        routed: Vec<Delivery>,
+        modifiers: Option<(Modifiers, Option<u64>)>,
+    ) -> Vec<Delivery> {
         let compositor = self.windows.compositor();
-        let mut handed = Vec::new();
-        for delivery in std::mem::take(routed) {
+        let to = self.hand_to(window);
+        self.intercepting
+            .hand(window, compositor, to, routed, modifiers)
+    }
+
+    /// Where a chord the intercepting screen takes goes in `window`: to the screen, unless the
+    /// focus is on it or on a surface of the root's own, or the screen does not show there,
+    /// where it goes to the focus, as if no one had intercepted it; nowhere with no focus then.
+    fn hand_to(&self, window: Option<u64>) -> Option<Handed> {
+        let focused = self.windows.focused(window);
+        let to_focus = || focused.map(|focused| Handed::Focus(focused.id, focused.surface));
+        let Some((target, surface)) = self.interceptor(window) else {
+            return to_focus();
+        };
+        match focused {
+            Some(focused) if focused.id == target || matches!(focused.surface, Surface::Root(_)) => {
+                to_focus()
+            }
+            _ => Some(Handed::Screen(target, surface)),
+        }
+    }
+}
+
+impl Intercepting {
+    /// What `routed`, the deliveries one event of `window`'s made, become
+    /// (`Embedding::hand_intercepted`), with the root's layer `compositor` and where a chord the
+    /// screen takes goes now (`to`).
+    pub(crate) fn hand(
+        &mut self,
+        window: Option<u64>,
+        compositor: LayerId,
+        to: Option<Handed>,
+        routed: Vec<Delivery>,
+        modifiers: Option<(Modifiers, Option<u64>)>,
+    ) -> Vec<Delivery> {
+        let mut out = Vec::with_capacity(routed.len());
+        for delivery in routed {
             let Input::Key(stroke) = &delivery.input else {
-                routed.push(delivery);
+                out.push(delivery);
                 continue;
             };
             let Some(key) = stroke.key.filter(|_| delivery.target == compositor) else {
-                routed.push(delivery);
+                out.push(delivery);
                 continue;
             };
             let held = self
-                .intercepting
                 .handed
                 .iter()
                 .position(|(at, held, _)| *at == window && *held == key);
@@ -132,33 +174,33 @@ impl Embedding {
                         repeat: false,
                         modifiers: delivery.modifiers,
                     };
-                    let own = self.intercepting.own.iter().any(|chord| chord.matches(press));
-                    let asked = self.intercepting.chords.iter().any(|chord| chord.matches(press));
+                    let own = self.own.iter().any(|chord| chord.matches(press));
+                    let asked = self.chords.iter().any(|chord| chord.matches(press));
                     if let Some(at) = held {
-                        self.intercepting.handed.remove(at);
+                        self.handed.remove(at);
                     }
-                    match (!own && asked).then(|| self.hand_to(window)).flatten() {
+                    match to.filter(|_| !own && asked) {
                         Some(to) => {
-                            self.intercepting.handed.push((window, key, to));
+                            self.handed.push((window, key, to));
                             to
                         }
                         None => {
-                            routed.push(delivery);
+                            out.push(delivery);
                             continue;
                         }
                     }
                 }
-                (false, Some(at)) if stroke.pressed => self.intercepting.handed[at].2,
-                (false, Some(at)) => self.intercepting.handed.remove(at).2,
+                (false, Some(at)) if stroke.pressed => self.handed[at].2,
+                (false, Some(at)) => self.handed.remove(at).2,
                 (false, None) => {
-                    routed.push(delivery);
+                    out.push(delivery);
                     continue;
                 }
             };
             match to {
                 Handed::Screen(target, surface) => {
                     if stroke.pressed && !stroke.repeat {
-                        self.intercepting.held = Some((window, target, surface, delivery.modifiers));
+                        self.held = Some((window, target, surface, delivery.modifiers));
                     }
                     for input in [
                         Input::Modifiers(delivery.modifiers),
@@ -168,7 +210,7 @@ impl Embedding {
                             repeat: stroke.repeat,
                         },
                     ] {
-                        handed.push(Delivery {
+                        out.push(Delivery {
                             target,
                             surface,
                             input,
@@ -176,7 +218,7 @@ impl Embedding {
                         });
                     }
                 }
-                Handed::Focus(target, surface) => handed.push(Delivery {
+                Handed::Focus(target, surface) => out.push(Delivery {
                     target,
                     surface,
                     ..delivery
@@ -184,23 +226,21 @@ impl Embedding {
             }
         }
         // The screen holding a chord hears its modifiers let go, as be-host's `intercept_keys`
-        // tells it, until none of them is held.
-        for &(now, time) in modifiers {
-            let Some((at, target, surface, was)) = self.intercepting.held else {
-                break;
-            };
-            if at != window {
-                break;
-            }
+        // tells it, until none of them is held: only changes after its press, in order.
+        if let Some((now, time)) = modifiers
+            && let Some((at, target, surface, was)) = self.held
+            && at == window
+        {
             let still = Modifiers {
                 alt: was.alt && now.alt,
                 ctrl: was.ctrl && now.ctrl,
                 shift: was.shift && now.shift,
                 logo: was.logo && now.logo,
             };
-            self.intercepting.held = (still != Modifiers::NONE).then_some((at, target, surface, still));
+            self.held =
+                (still != Modifiers::NONE).then_some((at, target, surface, still));
             if still != was {
-                handed.push(Delivery {
+                out.push(Delivery {
                     target,
                     surface,
                     input: Input::Modifiers(still),
@@ -209,19 +249,9 @@ impl Embedding {
                 });
             }
         }
-        routed.extend(handed);
-    }
-
-    /// Where a chord the intercepting screen takes goes in `window`: to the screen, unless the
-    /// focus is on it or on a surface of the root's own, where it goes to the focus; nowhere
-    /// while the screen does not show there.
-    fn hand_to(&self, window: Option<u64>) -> Option<Handed> {
-        let (target, surface) = self.interceptor(window)?;
-        match self.windows.focused(window) {
-            Some(focused) if focused.id == target || matches!(focused.surface, Surface::Root(_)) => {
-                Some(Handed::Focus(focused.id, focused.surface))
-            }
-            _ => Some(Handed::Screen(target, surface)),
-        }
+        out
     }
 }
+
+#[cfg(test)]
+mod tests;
