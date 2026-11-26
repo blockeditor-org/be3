@@ -158,6 +158,9 @@ struct State {
     /// What each screen asks of its window (its input method's area, its cursor), as its
     /// last layout applied said.
     windows: HashMap<ScreenId, WindowRequests>,
+    /// Counts the windows' requests the app's layouts changed, which say when to read them
+    /// again (`Embedded::window_changes`).
+    window_changes: u64,
     /// The children each of its editors' views placed, as its last layout applied said
     /// (`Embedded::placed`).
     placed: Vec<ChildPlacements>,
@@ -539,6 +542,7 @@ impl Embedded {
             painted: HashMap::default(),
             surfaces: HashMap::default(),
             windows: HashMap::default(),
+            window_changes: 0,
             placed: Vec::new(),
             placing: false,
             docks: Vec::new(),
@@ -1140,6 +1144,12 @@ impl Embedded {
 
     /// What the screen `screen` asks of its window, as its last layout applied said, and the
     /// surface it is painted on, once it is.
+    /// How many times its layouts changed what a screen asks of its window: what it asks is read
+    /// again only once this moves.
+    pub(crate) fn window_changes(&self) -> u64 {
+        self.state.borrow().window_changes
+    }
+
     pub(crate) fn screen_window(&self, screen: ScreenId) -> Option<(u32, WindowRequests)> {
         let state = self.state.borrow();
         let surface = state.painted.get(&screen)?.surface;
@@ -1659,7 +1669,10 @@ impl State {
                     if let Held::Laid(laid) = held {
                         self.hear_sizes(laid.sizes);
                         for window in laid.windows {
-                            self.windows.insert(window.screen, window.window);
+                            if self.windows.get(&window.screen) != Some(&window.window) {
+                                self.windows.insert(window.screen, window.window);
+                                self.window_changes += 1;
+                            }
                         }
                         self.place(laid.children);
                         self.hear_docks(laid.docks);

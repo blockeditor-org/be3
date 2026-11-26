@@ -266,13 +266,17 @@ impl Embedding {
                 self.pointers.push((window, *at));
             }
         }
-        let modifiers = events.iter().filter_map(|event| match event.input {
-            input::Input::Modifiers(modifiers) => Some((modifiers, event.time)),
-            _ => None,
-        });
-        let modifiers: Vec<_> = modifiers.collect();
-        let mut routed = self.windows.route(window, events);
-        self.hand_intercepted(window, &mut routed, &modifiers);
+        // Each event is routed by itself, so what the root's layer hands on of it (the chords the
+        // session's editor intercepts) keeps its place among the rest.
+        let mut routed = Vec::new();
+        for event in events {
+            let modifiers = match event.input {
+                input::Input::Modifiers(modifiers) => Some((modifiers, event.time)),
+                _ => None,
+            };
+            let delivered = self.windows.route(window, vec![event]);
+            routed.extend(self.hand_intercepted(window, delivered, modifiers));
+        }
         routed.splice(0..0, lifted);
         self.carry();
         self.follow_files(window, &routed);
