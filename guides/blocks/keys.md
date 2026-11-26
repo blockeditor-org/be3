@@ -376,7 +376,10 @@ last, up to `SERVED_ENTRIES` entries, and after a restart the whole log it
 kept checked with the refs, `KeptLog::steps`, and its root): the server sends
 only the entries after it while it stores that entry there from that root, and
 the first must name it as the one before; a root stored in another's place is
-sent whole, for the device to refuse. A prefix the device checked before is not hashed again
+sent whole, for the device to refuse. The refs keep a log as a row of its own and a row
+per place (`refs::kept_logs`: the entry's hash and step, and the levels and placement the
+check noted there), so keeping a log that grew from the one kept writes its own row and the
+places it added alone. A prefix the device checked before is not hashed again
 (`Checked::resume_trusting`, `HeldLog::checked`): only its last, to tie it to
 the kept head. A hosted block's log checked from a root a contact's grant
 vouches for (`joined_log`) is checked once and taken (`Peer::take_checked`), not
