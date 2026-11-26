@@ -28,8 +28,7 @@ fn a_peers_held_drag_shows_on_each_frame_and_leaves_at_its_commit() {
     let (snapshots, landed) = super::tentative::landings(&mut sim, 1, 2);
     assert_eq!(snapshots, 0);
     assert_eq!(landed.len(), 1);
-    assert_eq!(landed[0].beneath, Some(Vec::new()));
-    assert!(landed[0].operation.is_some());
+    assert!(matches!(&landed[0].landed, Landed::Beneath { local, .. } if local.is_empty()));
     for device in 0..2 {
         assert_eq!(texts(&sim.content(device)), ["2", "typed"]);
         assert_eq!(texts(sim.mirror(device, 2)), ["2", "typed"]);

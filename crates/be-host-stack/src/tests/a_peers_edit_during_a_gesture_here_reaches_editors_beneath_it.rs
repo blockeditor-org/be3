@@ -48,7 +48,7 @@ fn a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it() {
     assert!(
         operations
             .iter()
-            .any(|operation| operation.beneath.is_some()),
+            .any(|operation| matches!(operation.landed, be_block_content::Landed::Beneath { .. })),
         "the owner's add goes beneath this peer's adds: {operations:?}"
     );
     assert_eq!(editor.mirror.pending(), 0);

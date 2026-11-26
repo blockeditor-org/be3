@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use be_block_content::{LiveEdit, Settling, Touched};
+use be_block_content::{Landed, LiveEdit, Settling, Touched};
 use be_sdk_type_api::ClientId;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
@@ -142,25 +142,13 @@ pub struct Lacked {
     pub failed: bool,
 }
 
+/// What landed on what a replica shows, encoded (`Landed`: an edit on top, beneath the
+/// unsettled ones, under the held layers, or what is unsettled laid again), and whether this
+/// editor made it.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct EditorOperation {
-    /// None for a landing that only lays what is unsettled again (`beneath`): a peer's held
-    /// layer that left or was laid again (`Landed::Relaid`).
-    #[serde(
-        serialize_with = "be_wasm_ops::wire::serialize::<be_wasm_ops::wire::Optional<be_wasm_ops::wire::Bytes>, _, _>",
-        deserialize_with = "be_wasm_ops::wire::deserialize::<be_wasm_ops::wire::Optional<be_wasm_ops::wire::Bytes>, _, _>"
-    )]
-    pub operation: Option<Vec<u8>>,
+    pub landed: Landed<Vec<u8>>,
     pub mine: bool,
-    pub unsettled: u64,
-    #[serde(
-        serialize_with = "be_wasm_ops::wire::serialize::<be_wasm_ops::wire::Optional<be_wasm_ops::wire::List<be_wasm_ops::wire::Bytes>>, _, _>",
-        deserialize_with = "be_wasm_ops::wire::deserialize::<be_wasm_ops::wire::Optional<be_wasm_ops::wire::List<be_wasm_ops::wire::Bytes>>, _, _>"
-    )]
-    pub beneath: Option<Vec<Vec<u8>>>,
-    /// For a local edit made while a tentative layer is held: how many of the last unsettled
-    /// edits (the layer) it goes beneath, which stay on top. Zero for one made on top.
-    pub above: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1060,114 +1048,142 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
     }
 
     fn take(&mut self, landed: EditorOperation) -> bool {
-        let Some(confirmed) = self.confirmed.as_mut() else {
-            return false;
-        };
-        let Some(bytes) = &landed.operation else {
-            let Some(Ok(local)) = landed.beneath.map(|local| {
-                local
-                    .iter()
-                    .map(|operation| C::decode_operation(operation))
-                    .collect::<Result<Vec<_>, _>>()
-            }) else {
-                return false;
-            };
-            if !confirmed.relay(landed.unsettled, local) {
-                return false;
-            }
-            self.rebuild();
-            return true;
-        };
-        let Ok(operation) = C::decode_operation(bytes) else {
-            return false;
-        };
-        let bytes = bytes.clone();
-        if let Some(local) = landed.beneath {
-            let Ok(local) = local
+        let EditorOperation { landed, mine } = landed;
+        let decoded = |local: &[Vec<u8>]| {
+            local
                 .iter()
                 .map(|operation| C::decode_operation(operation))
                 .collect::<Result<Vec<_>, _>>()
-            else {
-                return false;
-            };
-            let landed = confirmed.beneath(
-                &mut self.visible,
-                &operation,
-                landed.unsettled,
-                local,
-                self.pending
-                    .iter()
-                    .filter(|sent| !sent.voided)
-                    .map(|sent| sent.operation.clone()),
-                &mut self.touched,
-            );
-            if landed {
-                self.changed(Projected::Rebuilt);
-            }
-            return landed;
-        }
-        if landed.above > 0 {
-            // Made beneath a held tentative layer, which stays on top.
-            if landed.mine {
-                self.answered(&bytes);
-            }
-            let Some(confirmed) = self.confirmed.as_mut() else {
-                return false;
-            };
-            let landed = confirmed.under_shown(
-                &mut self.visible,
-                &operation,
-                landed.unsettled,
-                landed.above,
-                self.pending
-                    .iter()
-                    .filter(|sent| !sent.voided)
-                    .map(|sent| sent.operation.clone()),
-                &mut self.touched,
-            );
-            if landed {
-                self.changed(Projected::Rebuilt);
-            }
-            return landed;
-        }
-        if landed.mine {
-            // The replica may have taken it otherwise than it went (carried over a reload this
-            // editor had not been shown, `FromEditor::Shown`): what it shows is then rebuilt.
-            let taken_as_sent = self.answered(&bytes);
-            let Some(confirmed) = self.confirmed.as_mut() else {
-                return false;
-            };
-            confirmed.push(operation, landed.unsettled);
-            if !taken_as_sent {
+                .ok()
+        };
+        let (bytes, unsettled) = match &landed {
+            Landed::Relaid { unsettled, local } => {
+                let Some(local) = decoded(local) else {
+                    return false;
+                };
+                let Some(confirmed) = self.confirmed.as_mut() else {
+                    return false;
+                };
+                if !confirmed.relay(*unsettled, local) {
+                    return false;
+                }
                 self.rebuild();
+                return true;
             }
-            return true;
+            Landed::On {
+                operation,
+                unsettled,
+            }
+            | Landed::Beneath {
+                operation,
+                unsettled,
+                ..
+            }
+            | Landed::Under {
+                operation,
+                unsettled,
+                ..
+            } => (operation.clone(), *unsettled),
+        };
+        let Ok(operation) = C::decode_operation(&bytes) else {
+            return false;
+        };
+        let pending = |mirror: &Self| -> Vec<C::Op> {
+            mirror
+                .pending
+                .iter()
+                .filter(|sent| !sent.voided)
+                .map(|sent| sent.operation.clone())
+                .collect()
+        };
+        match landed {
+            Landed::Beneath { local, .. } => {
+                let Some(local) = decoded(&local) else {
+                    return false;
+                };
+                let ahead = pending(self);
+                let Some(confirmed) = self.confirmed.as_mut() else {
+                    return false;
+                };
+                let landed = confirmed.beneath(
+                    &mut self.visible,
+                    &operation,
+                    unsettled,
+                    local,
+                    ahead,
+                    &mut self.touched,
+                );
+                if landed {
+                    self.changed(Projected::Rebuilt);
+                }
+                landed
+            }
+            Landed::Under { above, .. } => {
+                // Made beneath a held tentative layer, which stays on top.
+                if mine {
+                    self.answered(&bytes);
+                }
+                let ahead = pending(self);
+                let Some(confirmed) = self.confirmed.as_mut() else {
+                    return false;
+                };
+                let landed = confirmed.under_shown(
+                    &mut self.visible,
+                    &operation,
+                    unsettled,
+                    above,
+                    ahead,
+                    &mut self.touched,
+                );
+                if landed {
+                    self.changed(Projected::Rebuilt);
+                }
+                landed
+            }
+            Landed::On { .. } if mine => {
+                // The replica may have taken it otherwise than it went (carried over a reload
+                // this editor had not been shown, `FromEditor::Shown`): what it shows is then
+                // rebuilt.
+                let taken_as_sent = self.answered(&bytes);
+                let Some(confirmed) = self.confirmed.as_mut() else {
+                    return false;
+                };
+                confirmed.push(operation, unsettled);
+                if !taken_as_sent {
+                    self.rebuild();
+                }
+                true
+            }
+            Landed::On { .. } | Landed::Relaid { .. } => {
+                let idle = self.pending.iter().all(|sent| sent.voided);
+                let ahead = pending(self);
+                let Some(confirmed) = self.confirmed.as_mut() else {
+                    return false;
+                };
+                if idle {
+                    self.visible.apply_touching(&operation, &mut self.touched);
+                    confirmed.push(operation.clone(), unsettled);
+                    self.changed(Projected::Applied(operation));
+                    return true;
+                }
+                if unsettled == 0 {
+                    confirmed.settle_to(0);
+                    confirmed.beneath(
+                        &mut self.visible,
+                        &operation,
+                        0,
+                        Vec::new(),
+                        ahead,
+                        &mut self.touched,
+                    );
+                    self.changed(Projected::Rebuilt);
+                    return true;
+                }
+                confirmed.push(operation, unsettled);
+                self.rebuild();
+                true
+            }
         }
-        if self.pending.iter().all(|sent| sent.voided) {
-            self.visible.apply_touching(&operation, &mut self.touched);
-            confirmed.push(operation.clone(), landed.unsettled);
-            self.changed(Projected::Applied(operation));
-            return true;
-        }
-        if landed.unsettled == 0 {
-            confirmed.settle_to(0);
-            confirmed.beneath(
-                &mut self.visible,
-                &operation,
-                0,
-                Vec::new(),
-                self.pending
-                    .iter()
-                    .filter(|sent| !sent.voided)
-                    .map(|sent| sent.operation.clone()),
-                &mut self.touched,
-            );
-            self.changed(Projected::Rebuilt);
-            return true;
-        }
-        confirmed.push(operation, landed.unsettled);
-        self.rebuild();
-        true
     }
 
     fn rebuild(&mut self) {

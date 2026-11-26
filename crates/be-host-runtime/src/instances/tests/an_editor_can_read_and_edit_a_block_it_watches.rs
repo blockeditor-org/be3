@@ -51,12 +51,12 @@ fn an_editor_can_read_and_edit_a_block_it_watches() {
     assert_eq!(
         sent,
         [ToEditor::Operations(vec![EditorOperation {
-            operation: Some(add),
+            landed: be_block_content::Landed::On {
+                operation: add,
+                // Its own edit stays unsettled until the server's order holds it.
+                unsettled: 1,
+            },
             mine: true,
-            // Its own edit stays unsettled until the server's order holds it.
-            unsettled: 1,
-            beneath: None,
-            above: 0,
         }])]
     );
 

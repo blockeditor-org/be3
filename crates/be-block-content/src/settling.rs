@@ -2,7 +2,9 @@ use std::collections::VecDeque;
 
 use crate::{LiveEdit, Touched};
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+/// An edit landing on what shows, as a replica tells its editors (`ToEditor::Operations`):
+/// `unsettled` is how many of the edits shown stay unsettled after it.
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub enum Landed<Op> {
     On {
         operation: Op,

@@ -28,10 +28,13 @@ fn a_peer_edit_numbered_first_goes_beneath_an_unconfirmed_edit() {
     assert!(operations[0].mine);
     let beneath = operations
         .iter()
-        .find(|operation| operation.beneath.is_some())
+        .find(|operation| matches!(operation.landed, Landed::Beneath { .. }))
         .expect("the peer's edit lands beneath this replica's");
     assert!(!beneath.mine);
-    assert_eq!(beneath.beneath.as_ref().map(Vec::len), Some(1));
+    let Landed::Beneath { local, .. } = &beneath.landed else {
+        unreachable!()
+    };
+    assert_eq!(local.len(), 1);
     let expected = vec!["theirs".to_owned(), "mine".to_owned()];
     for device in 0..2 {
         assert_eq!(texts(&sim.content(device)), expected);

@@ -5312,49 +5312,9 @@ where
         for editor in &shown {
             let operations = encoded
                 .iter()
-                .map(|(landed, origin)| {
-                    let mine = *origin == Some(*editor);
-                    match landed {
-                        Landed::On {
-                            operation,
-                            unsettled,
-                        } => EditorOperation {
-                            operation: Some(operation.clone()),
-                            mine,
-                            unsettled: *unsettled,
-                            beneath: None,
-                            above: 0,
-                        },
-                        Landed::Beneath {
-                            operation,
-                            unsettled,
-                            local,
-                        } => EditorOperation {
-                            operation: Some(operation.clone()),
-                            mine,
-                            unsettled: *unsettled,
-                            beneath: Some(local.clone()),
-                            above: 0,
-                        },
-                        Landed::Relaid { unsettled, local } => EditorOperation {
-                            operation: None,
-                            mine,
-                            unsettled: *unsettled,
-                            beneath: Some(local.clone()),
-                            above: 0,
-                        },
-                        Landed::Under {
-                            operation,
-                            unsettled,
-                            above,
-                        } => EditorOperation {
-                            operation: Some(operation.clone()),
-                            mine,
-                            unsettled: *unsettled,
-                            beneath: None,
-                            above: *above,
-                        },
-                    }
+                .map(|(landed, origin)| EditorOperation {
+                    landed: landed.clone(),
+                    mine: *origin == Some(*editor),
                 })
                 .collect();
             self.tell_editor(*editor, &ToEditor::Operations(operations));

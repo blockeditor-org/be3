@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use be_block_store::{ChunkerConfig, ContentKey, Hash, Keyring, Manifest, MemoryStore, Vault};
 use be_sdk_api::{BlockCommand, EditorInstanceId, StoredHead};
-use be_sdk_beui::be_block_content::{LiveEdit, Merge, Undo};
+use be_sdk_beui::be_block_content::{Landed, LiveEdit, Merge, Undo};
 use be_sdk_beui::{BlockInfo, BlockParent, BlockQuery, SeededContent};
 use be_sdk_type_guest::api::{
     Announcement, Change, ClientId, CommitId, EditorId, Endpoint, Opening, PublishOutcome,
@@ -428,7 +428,12 @@ impl Inner {
                         operations
                             .iter()
                             .filter(|operation| !operation.mine)
-                            .filter_map(|operation| operation.operation.clone()),
+                            .filter_map(|operation| match &operation.landed {
+                                Landed::On { operation, .. }
+                                | Landed::Beneath { operation, .. }
+                                | Landed::Under { operation, .. } => Some(operation.clone()),
+                                Landed::Relaid { .. } => None,
+                            }),
                     );
                 }
                 if let Some(held) = self.blocks.get_mut(&block) {
