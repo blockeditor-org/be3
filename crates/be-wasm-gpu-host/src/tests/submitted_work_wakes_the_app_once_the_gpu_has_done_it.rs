@@ -12,5 +12,8 @@ fn submitted_work_wakes_the_app_once_the_gpu_has_done_it() {
         .recv_timeout(std::time::Duration::from_secs(30))
         .expect("the done work woke the app");
     let () = web::settled_now(&mut gpu, 6);
-    assert!(gpu.settle(false, &[]).is_empty(), "each ticket is answered once");
+    assert!(
+        gpu.settle(false, &[]).is_empty(),
+        "each ticket is answered once"
+    );
 }

@@ -1271,7 +1271,8 @@ fn clock_time(transport: &Transport, id: u64, at: u32) -> i32 {
     let Some(memory) = transport.memory.borrow().clone() else {
         return be_wasm_pure_wasi::EBADF;
     };
-    match be_wasm_pure_wasi::Memory::write(&mut PageMemory(memory), at, &nanoseconds.to_le_bytes()) {
+    match be_wasm_pure_wasi::Memory::write(&mut PageMemory(memory), at, &nanoseconds.to_le_bytes())
+    {
         Ok(()) => be_wasm_pure_wasi::SUCCESS,
         Err(_) => be_wasm_pure_wasi::EBADF,
     }

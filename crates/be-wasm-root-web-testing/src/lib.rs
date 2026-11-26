@@ -217,7 +217,10 @@ async fn a_linked_root_draws_its_own_surface_on_the_page() -> Result<String, JsV
         .find(|layer| layer.id == EMBEDDING_LAYER)
         .ok_or("the frame shows no layer of the root's own")?;
     check(own.surface == Surface::Root(ROOT_SURFACE), || {
-        format!("the root's layer shows {:?}, not its own surface", own.surface)
+        format!(
+            "the root's layer shows {:?}, not its own surface",
+            own.surface
+        )
     })?;
     root.paint()?;
     let shown = middle(&canvas)?;
@@ -233,11 +236,16 @@ async fn a_linked_root_draws_its_own_surface_on_the_page() -> Result<String, JsV
     drop(root);
     let again = Root::load(EMBEDDING_ROOT, Box::new(triangle)).await;
     check(again.is_ok(), || {
-        format!("a linked root could not start once the first was dropped: {:?}", again.err())
+        format!(
+            "a linked root could not start once the first was dropped: {:?}",
+            again.err()
+        )
     })?;
-    Ok("a linked root drew its own surface on the page's device, which a canvas showed; a \
+    Ok(
+        "a linked root drew its own surface on the page's device, which a canvas showed; a \
         second waited for it to go"
-        .to_owned())
+            .to_owned(),
+    )
 }
 
 async fn an_app_a_linked_root_spawns_draws_into_a_canvas_its_worker_is_handed()
@@ -290,9 +298,14 @@ async fn an_app_a_linked_root_spawns_draws_into_a_canvas_its_worker_is_handed()
     element.remove();
     let shown = shown?;
     check(shown[3] != 0, || {
-        format!("the canvas the triangle's worker was handed shows nothing at its middle: {shown:?}")
+        format!(
+            "the canvas the triangle's worker was handed shows nothing at its middle: {shown:?}"
+        )
     })?;
-    Ok("an app a linked root spawned drew its screen into a canvas its worker was handed".to_owned())
+    Ok(
+        "an app a linked root spawned drew its screen into a canvas its worker was handed"
+            .to_owned(),
+    )
 }
 
 /// The colour at the middle of what the canvas element shows, whose drawing a worker took over.
@@ -341,8 +354,7 @@ async fn a_frame_past_its_deadline_draws_without_the_child_it_waits_for() -> Res
     Ok("a frame past its deadline drew the root alone".to_owned())
 }
 
-async fn a_root_with_something_to_step_between_frames_wakes_its_page() -> Result<String, JsValue>
-{
+async fn a_root_with_something_to_step_between_frames_wakes_its_page() -> Result<String, JsValue> {
     let root = Rc::new(root().await?.with_patience(PATIENT));
     // The frame ends at its deadline, which has passed: the child it spawned answers after it,
     // between frames, which the page hears of.
@@ -360,9 +372,11 @@ async fn a_root_with_something_to_step_between_frames_wakes_its_page() -> Result
     let woken = next_wake(&root);
     frame(&root, WAKES_ONCE, PATIENT).await??;
     woken.await;
-    Ok("a root with something to step between frames, or once its frame ended, woke its page, \
+    Ok(
+        "a root with something to step between frames, or once its frame ended, woke its page, \
         which drew it a frame"
-        .to_owned())
+            .to_owned(),
+    )
 }
 
 /// Answers the first time the root's `on_wake` is called from now on.

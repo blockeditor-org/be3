@@ -37,13 +37,21 @@ fn a_dropped_ticket_settles_nothing_and_only_a_dropped_map_is_still_waited_for()
     );
     // A waiting poll that is told both were dropped answers without them: it waits for the map
     // to finish, as a map dropped in WebGPU still maps its buffer, but not for the pipeline.
-    let settled: Vec<be_wasm_ops::local::Settled> = be_wasm_gpu_abi::embed::webgpu::Host::settle(&mut gpu, true, &[4, 5]);
+    let settled: Vec<be_wasm_ops::local::Settled> =
+        be_wasm_gpu_abi::embed::webgpu::Host::settle(&mut gpu, true, &[4, 5]);
     assert!(
-        settled.iter().all(|settled| ![4, 5].contains(&settled.ticket)),
+        settled
+            .iter()
+            .all(|settled| ![4, 5].contains(&settled.ticket)),
         "a dropped ticket settled: {settled:?}"
     );
-    let later: Vec<be_wasm_ops::local::Settled> = be_wasm_gpu_abi::embed::webgpu::Host::settle(&mut gpu, true, &[]);
-    assert_eq!(later, Vec::new(), "nothing is left to settle, nor to wait for");
+    let later: Vec<be_wasm_ops::local::Settled> =
+        be_wasm_gpu_abi::embed::webgpu::Host::settle(&mut gpu, true, &[]);
+    assert_eq!(
+        later,
+        Vec::new(),
+        "nothing is left to settle, nor to wait for"
+    );
     assert_eq!(
         gpu.gpu_buffer_get_mapped_range_get_with_copy(GpuBuffer(buffer.0), None, None)
             .map_err(|error| error.kind),

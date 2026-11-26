@@ -324,7 +324,11 @@ impl Gpu {
     /// (`more` negative lets them go), as one on a browser's device waits on its calls' errors.
     #[cfg(test)]
     pub(crate) fn hold_scope(&mut self, device: u32, more: isize) {
-        let state = self.web.devices.get_mut(device, "device").expect("the device");
+        let state = self
+            .web
+            .devices
+            .get_mut(device, "device")
+            .expect("the device");
         let scope = match state.popped.last_mut() {
             Some(scope) => scope,
             None => state.scopes.last_mut().expect("a scope is open"),
@@ -670,7 +674,8 @@ impl Gpu {
         }
         let dropped: HashSet<u32> = dropped.iter().copied().collect();
         let web = &mut self.web;
-        web.settled.retain(|settled| !dropped.contains(&settled.ticket));
+        web.settled
+            .retain(|settled| !dropped.contains(&settled.ticket));
         web.compiling
             .retain(|(_, promise)| !dropped.contains(&promise.ticket()));
         web.pipelines

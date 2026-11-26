@@ -251,7 +251,10 @@ impl Drop for Entry {
         // Nothing holds the table borrowed while a future or stream can be dropped: `settle`
         // takes a ticket's callback out before calling it, and the callbacks only fill slots.
         let borrowed = self.table.try_borrow_mut();
-        debug_assert!(borrowed.is_ok(), "a ticket was dropped while its table was borrowed");
+        debug_assert!(
+            borrowed.is_ok(),
+            "a ticket was dropped while its table was borrowed"
+        );
         if let Ok(mut table) = borrowed
             && table.waiting.remove(&self.ticket).is_some()
         {

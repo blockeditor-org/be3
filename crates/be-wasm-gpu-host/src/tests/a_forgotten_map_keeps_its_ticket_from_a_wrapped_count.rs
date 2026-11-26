@@ -16,7 +16,13 @@ fn a_forgotten_map_keeps_its_ticket_from_a_wrapped_count() {
             label: None,
         },
     );
-    gpu.gpu_buffer_map_async(GpuBuffer(buffer.0), GpuMapMode::READ, None, None, Promise::new(2));
+    gpu.gpu_buffer_map_async(
+        GpuBuffer(buffer.0),
+        GpuMapMode::READ,
+        None,
+        None,
+        Promise::new(2),
+    );
     // Dropped before it settled: the map goes on, unheard, and its ticket is still the host's.
     gpu.let_go(&[2]);
     gpu.wind_tickets(u32::MAX - 1);

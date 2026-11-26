@@ -4,11 +4,11 @@ use super::*;
 
 mod a_call_too_wide_to_pass_flat_is_encoded;
 mod a_dropped_ticket_no_longer_waits;
-mod a_ticket_dropped_before_it_settles_is_named_to_the_host_once;
 mod a_fallible_call_answers_its_error_only_when_it_fails;
 mod a_refused_ticket_stops_the_guest;
 mod a_resource_of_another_package_is_one_handle;
 mod a_settled_value_that_does_not_decode_stops_the_guest;
+mod a_ticket_dropped_before_it_settles_is_named_to_the_host_once;
 mod async_funcs_futures_and_streams_settle_through_the_poll;
 mod options_of_lists_and_strings_pass_flat;
 
@@ -49,7 +49,8 @@ impl Caller {
         let length = match dropped {
             [] => 0,
             dropped => {
-                let bytes = be_wasm_ops::wire::encode::<be_wasm_ops::wire::Plain, _>(&dropped.to_vec());
+                let bytes =
+                    be_wasm_ops::wire::encode::<be_wasm_ops::wire::Plain, _>(&dropped.to_vec());
                 self.put(3072, &bytes) - 3072
             }
         };

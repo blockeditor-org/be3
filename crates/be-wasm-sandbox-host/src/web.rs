@@ -265,7 +265,12 @@ pub fn spawn(source: Source, config: Config, wake: Wake) -> Result<Instance, Str
 impl Instance {
     /// Shows on `canvas` what the instance presents to its surface `surface`, under the canvas's
     /// `id` in its worker, which the canvas moves to (app.js's `show`).
-    pub fn show(&self, id: u32, canvas: &web_sys::OffscreenCanvas, surface: u32) -> Result<(), String> {
+    pub fn show(
+        &self,
+        id: u32,
+        canvas: &web_sys::OffscreenCanvas,
+        surface: u32,
+    ) -> Result<(), String> {
         let message = be_wasm_guest_host::web::message("show");
         be_wasm_guest_host::web::set(&message, "id", &id.into());
         be_wasm_guest_host::web::set(&message, "surface", &surface.into());
