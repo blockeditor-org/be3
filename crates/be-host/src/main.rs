@@ -24,7 +24,7 @@ mod memory;
 #[cfg(any(target_arch = "wasm32", target_os = "android"))]
 mod pressed_notifications;
 mod reveals;
-#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+#[cfg(not(target_os = "android"))]
 mod root;
 mod root_settings;
 mod share_link;
@@ -331,6 +331,11 @@ async fn run_web() -> Result<(), Box<dyn Error>> {
         page.set_hash("");
         location.replace(&page.href()).map_err(thrown)?;
     }
+    // `?root=APP`: the staged root `APP` in place of the host's own UI, as `--root` natively.
+    if let Some(app) = page.search_params().get("root") {
+        core.under_root = true;
+        return root::run(app, core, options).await;
+    }
     beui_host_window::run_program(options, Shell::new(core)).await
 }
 
@@ -610,15 +615,15 @@ struct HostCore {
     /// opens no editor of the session's own, which the root embeds (root.rs).
     under_root: bool,
     /// The block of the session a root shows (`ensure_session`), once there is one.
-    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+    #[cfg(not(target_os = "android"))]
     root_session: Option<Uuid>,
     /// Whether the organization's blocks are open under a root but the stack does not list the
     /// session's block yet: the host is busy until it does, so the root shows it.
-    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+    #[cfg(not(target_os = "android"))]
     root_session_pending: bool,
     /// The blocks the root's editors asked to open (`open-block`), by the app and instance that
     /// asked, until the root's host routes them (root.rs, `open_blocks`).
-    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+    #[cfg(not(target_os = "android"))]
     root_opens: Vec<(String, be_sdk_api::EditorInstanceId, BlockOpen)>,
     account_error: Option<String>,
     /// A local account was just made: its stack's start says so if the browser will not keep
@@ -1030,11 +1035,11 @@ impl HostCore {
             login_session_mode: false,
             desktop: false,
             under_root: false,
-            #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+            #[cfg(not(target_os = "android"))]
             root_session: None,
-            #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+            #[cfg(not(target_os = "android"))]
             root_session_pending: false,
-            #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+            #[cfg(not(target_os = "android"))]
             root_opens: Vec::new(),
             account_error: None,
             tell_unkept_storage: false,
@@ -2968,7 +2973,7 @@ impl HostCore {
         self.root_settings.ensure_session(self.client_id, class)
     }
 
-    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+    #[cfg(not(target_os = "android"))]
     /// The app and editor that show `shown`'s block in a root, and the block as it is opened:
     /// the editor and view block its placement names, else the session's own editor for the
     /// session's block, which it views (`view_block`), else its type's default editor. Why
@@ -3887,7 +3892,7 @@ impl HostCore {
         };
         // Under a root the compositor that takes editors' actions does not run: the root's
         // host routes the blocks its editors open itself.
-        #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+        #[cfg(not(target_os = "android"))]
         if self.under_root
             && let be_host_runtime::InstanceEvent::Action(EditorAction::OpenBlock(open)) =
                 &heard.event
@@ -3898,7 +3903,7 @@ impl HostCore {
         }
         // Leaving a block the root asks about in its own dialog (`core-view`'s `leaving`), as
         // be-host's asks in its own.
-        #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+        #[cfg(not(target_os = "android"))]
         if self.under_root
             && let be_host_runtime::InstanceEvent::Action(EditorAction::Command {
                 id,
@@ -3921,7 +3926,7 @@ impl HostCore {
         // A root shows the session's block only while the organization's blocks are open: a
         // frame that returns before they are (signed out, no organization, locked, choosing a
         // session) leaves it none.
-        #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+        #[cfg(not(target_os = "android"))]
         {
             self.root_session = None;
             self.root_session_pending = false;
@@ -4026,7 +4031,7 @@ impl HostCore {
         self.process_pending_reorders();
         self.process_pending_copies();
         match self.under_root {
-            #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+            #[cfg(not(target_os = "android"))]
             // Once the stack lists it: before, the root could not open it.
             true => {
                 self.hear_artifact_watches();

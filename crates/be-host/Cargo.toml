@@ -80,16 +80,20 @@ be-sdk-window-stack = { path = "../be-sdk-window-stack" }
 beui-host = { path = "../beui-host" }
 directories-next = "2"
 tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "sync", "time"] }
-# Desktop only: Android has no embedded browser, and the browser sandbox has
-# none either.
-[target.'cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
-# `--root=APP` (src/root.rs): a root guest in place of the host's own UI.
+# A root guest in place of the host's own UI (src/root.rs): `--root=APP` natively, `?root=APP`
+# on the web.
+[target.'cfg(not(target_os = "android"))'.dependencies]
 be-lib-layers = { path = "../be-lib-layers" }
 be-lib-ui-types = { path = "../be-lib-ui-types" }
 be-sdk-app-host = { path = "../be-sdk-app-host" }
-be-wasm-host = { path = "../be-wasm-host" }
 be-wasm-root-api = { path = "../be-wasm-root-api" }
 be-wasm-root-host = { path = "../be-wasm-root-host" }
+
+# Desktop only: Android has no embedded browser, and the browser sandbox has
+# none either.
+[target.'cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
+# `--root=APP` (src/root.rs), the root linked and drawn on the window's device.
+be-wasm-host = { path = "../be-wasm-host" }
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 wgpu = { version = "30", default-features = false }
 

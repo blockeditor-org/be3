@@ -219,9 +219,10 @@ fn anchored_piece(
 /// its pixels as the layer's transform does, with the layer's clip in its own pixels. So the
 /// browser never scales a canvas into a box of another size, even when the worker shows a
 /// texture of a new size before the host hears of it: until then that texture still shows at its
-/// own size, from the same corner.
+/// own size, from the same corner. A root's canvases on the web are placed by it too (be-host's
+/// `root::page`).
 #[cfg(any(target_arch = "wasm32", test))]
-pub(crate) fn canvas_style(layer: &Layer, scale: f32, order: usize) -> Option<String> {
+pub fn canvas_style(layer: &Layer, scale: f32, order: usize) -> Option<String> {
     let transform = layer.transform;
     let (per_x, per_y) = (transform.across() * scale, transform.down() * scale);
     let origin = transform.origin();

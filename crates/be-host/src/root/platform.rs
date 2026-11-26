@@ -21,6 +21,7 @@ pub(super) struct Platform {
     /// Whether the root was shown the session locked before its last frame, which therefore
     /// drew its lock screen: the login session holds back a suspend until it has been drawn
     /// (`ScreenLock::note_drawn`).
+    #[cfg(target_os = "linux")]
     locked_shown: bool,
     /// When the host next needs a frame for the lock or the displays, from the last frame: the
     /// core's own repaint requests are not the root's (`RootShell::update`), so these are asked

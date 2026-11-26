@@ -104,6 +104,18 @@ An app's workers (guides/adding_an_app.md, Workers) are Web Workers too, one eac
 page for the app (be-wasm-sandbox-host's `web`) from `workers/<app id>/` and linked by
 `web/worker.js` with no GPU device; their consoles go to `browser.log` with the page's.
 
+## A root on the page
+
+`?root=APP` (with `be3.root` staged in `:web`, as in `:native`) runs the staged root `APP` in
+place of be-host's own UI, as `--root` does natively (be-host's `src/root.rs`): it runs on the
+page, linked through app.js on a WASI of its own, and draws its own surfaces on the page's gpu
+shim, one linked root a page (be-wasm-root-host's web `Root`). Each layer of its frame shows in
+a canvas of its own in `#layers` above the host's canvas (`data-kind="root"` for its own,
+`"screen"` for an app's, which that app's worker draws), placed by the layer's CSS as an app's
+screen is (`root/page.rs`); the host's canvas shows only the background. Open it on a page with
+no other tab of the host open, since one tab holds the files. `//crates/be-host:root-web-host-test`
+runs it.
+
 ## Files and offline
 
 The web build keeps the same files as native be-host, under `/be-host` in the origin private file

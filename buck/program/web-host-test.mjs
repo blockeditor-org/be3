@@ -20,8 +20,9 @@
 //   page, context              its Playwright page and browser context
 //   await drive(...words)      a drive command the host answers in the page, as web-drive.mjs
 //                               sends it; it throws what the host says when it fails
-//   await openPage()           opens the host on a new page of the context (after the test
-//                               closed `page`, say) and waits for its workspace
+//   await openPage(query)      opens the host on a new page of the context (after the test
+//                               closed `page`, say), with `query` before `automation` in its
+//                               address if given (`root=be3.root`), and waits for its workspace
 //   await deliverPush(data)    has the context's service worker take a push whose payload is
 //                               data (bytes or text), as a push service would deliver it, and
 //                               resolves once the worker has handled it, with a tab or without
@@ -352,10 +353,10 @@ try {
             await opened.drive("wait", 'TreeItem "My files"');
             await opened.drive("settle");
         };
-        opened.openPage = async () => {
+        opened.openPage = async (query) => {
             opened.page = await context.newPage();
             watch(opened.page);
-            await opened.page.goto(`${origin}/?automation`);
+            await opened.page.goto(`${origin}/?${query ? `${query}&` : ""}automation`);
             await ready();
         };
         opened.deliverPush = async (data) => {
