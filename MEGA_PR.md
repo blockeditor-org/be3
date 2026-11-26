@@ -148,6 +148,8 @@ Landed on 2026-11-24:
 - `backlog-13-3`: organization policies select their own values; Android push notifications carry their own icon; a new phrase keeps a contact's row and reseals in one transaction; a local account offers no Share, Shared with me, contacts or share links, and the web asks to keep its storage; drive's present-late steps a frame between layout and present.
 - `gpu-wasi-webgpu-6`: async pipelines are made natively off the app's thread, on at most two contained worker threads per gpu, with error, out-of-memory and internal scopes; a waiting poll blocks on whichever pipeline is made next.
 - `backlog-12-store-s10-3`: a commit refused as stamped too far ahead is stamped again by the server's clock and sent; the refs keep what replaced what, a seal on a replaced commit is made again holding the replacement's objects, and an exhausted rewrite is retried on the next drain.
+- `gpu-wasi-webgpu-7`: the guest names dropped tickets to the host in `[poll]`, which lets them go; maps and work-done still run, their answers forgotten.
+- `host-adapter-4g7g2c`: a linked root runs on the web page with its own gpu device, its apps draw into canvases their workers are handed, the root wakes its page between frames, and be-host's root serving moves into root::serving.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
