@@ -915,6 +915,9 @@ interface types {
         account-id: account-id,
         organization-id: organization-id,
         client-id: installation-id,
+        /// The account is a local one, with no server (guides/hosting.md, Local
+        /// accounts): nothing it holds is shared, so an editor offers no Share.
+        local-account: bool,
         kind: opening-kind,
     }
 

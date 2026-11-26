@@ -95,6 +95,7 @@ fn DetailsBody(workspace: Workspace, sheet: Signal<PhoneSheet>, tab: TabId) -> N
                     allowed.is_reference,
                     allowed.share,
                     allowed.offers_delete,
+                    allowed.offers_share,
                 ))
             })
         })
@@ -162,13 +163,15 @@ fn DetailsBody(workspace: Workspace, sheet: Signal<PhoneSheet>, tab: TabId) -> N
                     disabled={move || !rights.get().is_some_and(|r| r.0)}
                     on_click={move || act(BlockAction::Rename)}
                 />
-                <ActionRow
-                    @test_id={"workspace.details.share"}
-                    label="Share"
-                    glyph=ICON_SHARE_2
-                    disabled={move || !rights.get().is_some_and(|r| r.4)}
-                    on_click={move || act(BlockAction::Share)}
-                />
+                <Show value={move || rights.get().is_none_or(|r| r.6)}>
+                    <ActionRow
+                        @test_id={"workspace.details.share"}
+                        label="Share"
+                        glyph=ICON_SHARE_2
+                        disabled={move || !rights.get().is_some_and(|r| r.4)}
+                        on_click={move || act(BlockAction::Share)}
+                    />
+                </Show>
                 <Show value={unlinkable}>
                     <ActionRow
                         @test_id={"workspace.details.unlink"}
