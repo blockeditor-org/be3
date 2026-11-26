@@ -56,6 +56,7 @@ pub async fn run() -> Result<String, JsValue> {
     let mut passed = Vec::new();
     passed.push(a_frame_waits_for_its_child_and_shows_it().await?);
     passed.push(a_linked_root_draws_its_own_surface_on_the_page().await?);
+    passed.push(an_app_a_linked_root_spawns_draws_into_a_canvas_its_worker_is_handed().await?);
     passed.push(a_frame_past_its_deadline_draws_without_the_child_it_waits_for().await?);
     passed.push(a_root_that_keeps_waking_itself_stops_at_its_patience().await?);
     passed.push(a_root_that_keeps_waking_itself_lets_the_page_run_its_tasks().await?);
@@ -74,6 +75,18 @@ fn staged(app: &str, module: &str) -> Result<Staged, String> {
         return Err(format!("{app} stages no module named {module:?}"));
     }
     Ok(Staged::new(CHILD_ENTRY.to_owned()))
+}
+
+/// be-sdk-root-testing's app, the triangle, staged in the bundle with the base library it links.
+const TRIANGLE: &str = "be3.triangle";
+const TRIANGLE_ENTRY: &str = "triangle.wasm";
+
+/// Finds the triangle, the one app the linked root spawns.
+fn triangle(app: &str, module: &str) -> Result<Staged, String> {
+    if app != TRIANGLE || module != TRIANGLE_ENTRY {
+        return Err(format!("{app} stages no module named {module:?}"));
+    }
+    Ok(Staged::new(TRIANGLE_ENTRY.to_owned()))
 }
 
 async fn root() -> Result<Root, String> {
@@ -211,6 +224,69 @@ async fn a_linked_root_draws_its_own_surface_on_the_page() -> Result<String, JsV
         format!("the canvas showing the root's surface shows {shown:?}, not {wanted:?}")
     })?;
     Ok("a linked root drew its own surface on the page's device, which a canvas showed".to_owned())
+}
+
+async fn an_app_a_linked_root_spawns_draws_into_a_canvas_its_worker_is_handed()
+-> Result<String, JsValue> {
+    let root = Rc::new(
+        Root::load(EMBEDDING_ROOT, Box::new(triangle))
+            .await?
+            .with_fonts(fonts())
+            .with_patience(PATIENT),
+    );
+    // The first frame waits for the triangle to start and show its screen.
+    let done = frame(&root, 1, PATIENT).await??;
+    let list = LayerList::decode(&done.layers)
+        .map_err(|error| format!("the frame is no layer list: {error}"))?;
+    let screen = list
+        .windows
+        .iter()
+        .flat_map(|window| window.layers.iter())
+        .find(|layer| matches!(layer.surface, Surface::Screen { .. }))
+        .ok_or("the frame shows no screen of the triangle's")?;
+    let Surface::Screen { instance, surface } = screen.surface else {
+        return Err("the triangle's layer shows no screen".into());
+    };
+    // A canvas on the page whose drawing its worker takes over, as be-host's web host places an
+    // app's screens.
+    let document = web_sys::window()
+        .and_then(|window| window.document())
+        .ok_or("no document")?;
+    let element: web_sys::HtmlCanvasElement = document.create_element("canvas")?.unchecked_into();
+    element.set_width(screen.size.0);
+    element.set_height(screen.size.1);
+    document.body().ok_or("no body")?.append_child(&element)?;
+    let canvas = element.transfer_control_to_offscreen()?;
+    root.show_app_surface(2, &canvas, instance, surface)?;
+    // The worker draws into it what the triangle presents, from its next step on.
+    let mut shown = [0; 4];
+    for time in 2..40 {
+        frame(&root, time, Duration::from_millis(500)).await??;
+        shown = middle_of(&element)?;
+        if shown[3] != 0 {
+            break;
+        }
+    }
+    element.remove();
+    check(shown[3] != 0, || {
+        format!("the canvas the triangle's worker was handed shows nothing at its middle: {shown:?}")
+    })?;
+    Ok("an app a linked root spawned drew its screen into a canvas its worker was handed".to_owned())
+}
+
+/// The colour at the middle of what the canvas element shows, whose drawing a worker took over.
+fn middle_of(element: &web_sys::HtmlCanvasElement) -> Result<[u8; 4], JsValue> {
+    let (width, height) = (element.width(), element.height());
+    let reader = web_sys::OffscreenCanvas::new(width, height)?;
+    let context: web_sys::OffscreenCanvasRenderingContext2d = reader
+        .get_context("2d")?
+        .ok_or("no 2d context")?
+        .unchecked_into();
+    context.draw_image_with_html_canvas_element(element, 0.0, 0.0)?;
+    let pixel = context
+        .get_image_data(f64::from(width / 2), f64::from(height / 2), 1.0, 1.0)?
+        .data();
+    Ok([pixel[0], pixel[1], pixel[2], pixel[3]])
 }
 
 async fn a_frame_waits_for_its_child_and_shows_it() -> Result<String, JsValue> {

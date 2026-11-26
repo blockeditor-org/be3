@@ -192,6 +192,9 @@ pub struct Config {
     /// further; the browser cannot hold a staged app's worker to it, whose memory is the most its
     /// own declares.
     pub memory_limit: usize,
+    /// Whether a staged app draws, on a device of its worker's own into the canvases the page
+    /// hands it (`Instance::show`). A module from bytes never draws.
+    pub display: bool,
 }
 
 /// What an instance runs: a module compiled from bytes, its randomness drawn from `seed`, which
@@ -214,8 +217,10 @@ impl Staged {
     }
 }
 
-/// The script that links a staged app's module in its web worker, beside the page.
+/// The script that links a staged app's module in its web worker, beside the page: with no
+/// display, or, for one that draws, with a device of the worker's own.
 const EXTENSION: &str = "./worker.js";
+const DISPLAY_EXTENSION: &str = "./app.js";
 
 /// An instance in a web worker of its own. Dropping it terminates the worker.
 pub struct Instance {
@@ -242,7 +247,13 @@ pub fn spawn(source: Source, config: Config, wake: Wake) -> Result<Instance, Str
                     Arc::clone(&waiting),
                 )
             }),
-        Source::App(staged) => WebGuest::start(&staged.url, EXTENSION, wake, Arc::clone(&waiting)),
+        Source::App(staged) => {
+            let extension = match config.display {
+                true => DISPLAY_EXTENSION,
+                false => EXTENSION,
+            };
+            WebGuest::start(&staged.url, extension, wake, Arc::clone(&waiting))
+        }
     }
     .map_err(|error| format!("{} could not start: {error}", config.name))?;
     Ok(Instance {
@@ -252,6 +263,27 @@ pub fn spawn(source: Source, config: Config, wake: Wake) -> Result<Instance, Str
 }
 
 impl Instance {
+    /// Shows on `canvas` what the instance presents to its surface `surface`, under the canvas's
+    /// `id` in its worker, which the canvas moves to (app.js's `show`).
+    pub fn show(&self, id: u32, canvas: &web_sys::OffscreenCanvas, surface: u32) -> Result<(), String> {
+        let message = be_wasm_guest_host::web::message("show");
+        be_wasm_guest_host::web::set(&message, "id", &id.into());
+        be_wasm_guest_host::web::set(&message, "surface", &surface.into());
+        be_wasm_guest_host::web::set(&message, "canvas", canvas);
+        self.worker
+            .channel()
+            .post(&message, Some(canvas.as_ref()))
+            .then_some(())
+            .ok_or_else(|| "a canvas could not be handed to the instance's worker".to_owned())
+    }
+
+    /// Stops showing anything on the canvas `id` (`show`).
+    pub fn forget(&self, id: u32) {
+        let message = be_wasm_guest_host::web::message("forget");
+        be_wasm_guest_host::web::set(&message, "id", &id.into());
+        self.worker.channel().post(&message, None);
+    }
+
     /// Why it is not settled, if it is not: settled means it has nothing left to do with what it
     /// was sent and nothing it sent waits to be taken (`receive`): no frames wait for it to start
     /// or for a step, and no step on them is in flight. One that stopped has only what it sent

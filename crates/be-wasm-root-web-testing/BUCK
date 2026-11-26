@@ -35,6 +35,7 @@ program(
         "//crates/be-host:worker.js",
     ],
     linked = [
+        "//crates/be-app-example-triangle:module",
         "//crates/be-sdk-root-testing:module",
         "//crates/be-wasm-guest-echo:app",
     ],

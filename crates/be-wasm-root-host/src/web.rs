@@ -181,26 +181,38 @@ impl Root {
             let app_js = web_sys::Url::new_with_base("app.js", &absolute(url)?)
                 .map_err(|error| format!("{url} names no app.js: {}", describe(&error)))?
                 .href();
-            return Self::begin(apps, |wake| PageGuest::link(&module, &bytes, &app_js, wake))
-                .await;
+            // Its staged apps draw, as the real root's children do.
+            let display = true;
+            return Self::begin(apps, display, |wake| {
+                PageGuest::link(&module, &bytes, &app_js, wake)
+            })
+            .await;
         }
         Self::start(&module, apps).await
     }
 
     /// Starts an instance of `module`, the root guest, a pure guest, on the page.
     pub async fn start(module: &WebAssembly::Module, apps: Loader) -> Result<Self, String> {
-        Self::begin(apps, |wake| PageGuest::start(module, wake)).await
+        Self::begin(apps, false, |wake| PageGuest::start(module, wake)).await
     }
 
     /// Starts the root `guest` starts, waking it with the wake it is handed.
+    /// Starts the root `guest` starts, waking it with the wake it is handed; the staged apps it
+    /// spawns draw if `display` (`Server::with_display`).
     async fn begin<Started: std::future::Future<Output = Result<PageGuest, String>>>(
         apps: Loader,
+        display: bool,
         guest: impl FnOnce(Wake) -> Started,
     ) -> Result<Self, String> {
         let id = NEXT.with(|next| next.replace(next.get() + 1));
         let wake: Wake = Arc::new(move || ring(id));
         let guest = guest(Arc::clone(&wake)).await?;
-        let core = Core::new(guest, Server::new(wake, apps))?;
+        let sandbox = Server::new(wake, apps);
+        let sandbox = match display {
+            true => sandbox.with_display(),
+            false => sandbox,
+        };
+        let core = Core::new(guest, sandbox)?;
         let after = web_sys::MessageChannel::new().map_err(|error| {
             format!(
                 "the root's page has no MessageChannel: {}",
@@ -236,6 +248,30 @@ impl Root {
         if let Some(shim) = self.shim() {
             call_shim(&shim, "show", &[id.into(), canvas.into(), surface.into()]);
         }
+    }
+
+    /// Shows on `canvas` what the app the root spawned as the instance `instance` presents to its
+    /// surface `surface`, as the layer list names it (`Surface::Screen` and
+    /// `Surface::Anchored`), under the canvas's `id`: the canvas moves to the app's worker, which
+    /// draws into it as it presents. Says why it cannot: an instance that stopped, or one of a
+    /// pure root, whose apps draw nothing.
+    pub fn show_app_surface(
+        &self,
+        id: u32,
+        canvas: &web_sys::OffscreenCanvas,
+        instance: u64,
+        surface: u32,
+    ) -> Result<(), String> {
+        self.shared
+            .core
+            .borrow()
+            .sandbox
+            .show(instance, id, canvas, surface)
+    }
+
+    /// Stops showing anything on the canvas `id` of the app the root spawned as `instance`.
+    pub fn forget_app_surface(&self, id: u32, instance: u64) {
+        self.shared.core.borrow().sandbox.forget(instance, id);
     }
 
     /// Stops showing anything on the canvas `id` (`show_surface`).

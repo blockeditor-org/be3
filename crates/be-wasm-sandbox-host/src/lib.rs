@@ -63,6 +63,10 @@ pub struct Server {
     /// The device the staged apps it spawns draw on: the host's, given only to the root guest.
     #[cfg(not(target_arch = "wasm32"))]
     display: Option<(wgpu::Device, wgpu::Queue)>,
+    /// Whether the staged apps it spawns draw, each on a device of its worker's own into the
+    /// canvases the page hands it (`show`): the root guest's alone.
+    #[cfg(target_arch = "wasm32")]
+    display: bool,
 }
 
 struct Served {
@@ -87,6 +91,8 @@ impl Server {
             instances: BTreeMap::new(),
             #[cfg(not(target_arch = "wasm32"))]
             display: None,
+            #[cfg(target_arch = "wasm32")]
+            display: false,
         }
     }
 
@@ -97,6 +103,42 @@ impl Server {
     pub fn with_display(mut self, device: wgpu::Device, queue: wgpu::Queue) -> Self {
         self.display = Some((device, queue));
         self
+    }
+
+    /// Lets the staged apps the guest spawns draw, each in its worker on a device of its own,
+    /// into the canvases the page hands it (`show`), as the root guest's children: the guest
+    /// names what they present only by the instance and the surface. Workers an app spawns never
+    /// draw.
+    #[cfg(target_arch = "wasm32")]
+    pub fn with_display(mut self) -> Self {
+        self.display = true;
+        self
+    }
+
+    /// Shows on `canvas` what the instance the guest spawned with the op `instance` presents to
+    /// its surface `surface`, under the canvas's `id` in its worker, as it draws: the canvas
+    /// moves to the worker. An instance that is not a staged app with a display shows nothing.
+    #[cfg(target_arch = "wasm32")]
+    pub fn show(
+        &self,
+        instance: OpId,
+        id: u32,
+        canvas: &web_sys::OffscreenCanvas,
+        surface: u32,
+    ) -> Result<(), String> {
+        match self.instances.get(&instance).map(|served| &served.instance) {
+            Some(Ok(instance)) => instance.show(id, canvas, surface),
+            Some(Err(failure)) => Err(failure.clone()),
+            None => Err("no instance has that op".to_owned()),
+        }
+    }
+
+    /// Stops showing anything on the canvas `id` of the instance with the op `instance`.
+    #[cfg(target_arch = "wasm32")]
+    pub fn forget(&self, instance: OpId, id: u32) {
+        if let Some(Ok(instance)) = self.instances.get(&instance).map(|served| &served.instance) {
+            instance.forget(id);
+        }
     }
 
     /// What the surface `surface` of the instance the guest spawned with the op `instance` (its
@@ -197,6 +239,8 @@ impl Server {
                             memory_limit: usize::try_from(memory_limit).unwrap_or(usize::MAX),
                             #[cfg(not(target_arch = "wasm32"))]
                             display: self.display.clone(),
+                            #[cfg(target_arch = "wasm32")]
+                            display: self.display,
                         },
                         Arc::clone(&self.wake),
                     )
