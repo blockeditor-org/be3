@@ -99,11 +99,14 @@ impl Surfaces {
         loaded
     }
 
-    /// What the root owes the host now beside what its frames say: its load, or the frame it
-    /// is drawing.
+    /// What the root owes the host now beside what its frames say: its load, the frame it is
+    /// drawing, or one it answered that the host has yet to show.
     pub(super) fn busy(&self, root: Option<&Root>) -> Option<&'static str> {
         if self.loading.get() {
             return Some("is loading");
+        }
+        if self.answered.borrow().is_some() {
+            return Some("answered a frame the host has not shown yet");
         }
         root.is_some_and(Root::drawing)
             .then_some("draws a frame its children have not answered yet")

@@ -106,6 +106,7 @@ def _web_host_test_impl(ctx: AnalysisContext) -> list[Provider]:
         cmd_args(ctx.attrs.server[RunInfo], format = "--server={}"),
         cmd_args(ctx.attrs._caddy[DefaultInfo].default_outputs[0], format = "--caddy={}"),
         cmd_args(ctx.attrs.caddyfile, format = "--caddyfile={}"),
+        [cmd_args(ctx.attrs.root, format = "--root={}")] if ctx.attrs.root else [],
         ctx.attrs.test,
     )
     return [DefaultInfo(), RunInfo(args = command)]
@@ -114,6 +115,7 @@ _web_host_test = rule(
     attrs = {
         "bundle": attrs.dep(),
         "caddyfile": attrs.source(),
+        "root": attrs.option(attrs.string(), default = None),
         "server": attrs.dep(providers = [RunInfo]),
         "test": attrs.source(),
         "_caddy": attrs.default_only(attrs.dep(default = "root//buck/tools:caddy")),
@@ -126,9 +128,11 @@ _web_host_test = rule(
 #
 # Each is a thorough test (THOROUGH in buck/dev/test.bzl): one run is the whole web host with
 # every app, drawn on SwiftShader, about 80 to 180 CPU seconds, rerun by any change to be-host or
-# an app, so ./scripts/verify leaves it to ./scripts/verify --thorough.
-def web_host_test(name, bundle, server, caddyfile, test):
-    _web_host_test(name = name + "-harness", bundle = bundle, caddyfile = caddyfile, server = server, test = test)
+# an app, so ./scripts/verify leaves it to ./scripts/verify --thorough. With `root`, the staged
+# root of that id shows each account's page in place of be-host's own UI (`?root=`), once it
+# signed in, so the same script is the root's counterpart of the host's test.
+def web_host_test(name, bundle, server, caddyfile, test, root = None):
+    _web_host_test(name = name + "-harness", bundle = bundle, caddyfile = caddyfile, root = root, server = server, test = test)
     be_test(name = name, env = _BROWSER_ENV, harness = ":" + name + "-harness", labels = [THOROUGH])
 
 # A program that drives Chromium itself, here rather than on a worker, through a Node script:

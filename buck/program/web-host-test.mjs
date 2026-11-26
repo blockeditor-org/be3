@@ -1,11 +1,12 @@
 // Runs a test of the whole web host (web_host_test in drive.bzl) in Chromium through
 // Playwright:
 //
-//   node web-host-test.mjs --bundle=DIR --server=BIN --caddy=DIR --caddyfile=FILE TEST.mjs
+//   node web-host-test.mjs --bundle=DIR --server=BIN --caddy=DIR --caddyfile=FILE [--root=APP] TEST.mjs
 //
 // It starts be-server and Caddy in front of the bundle in a directory of its own, as web-dev.sh
 // does, opens the page in Chromium with `?dev-workspace&automation`, signs in as dev@localhost
-// through the portal (web-sign-in.mjs), waits for the workspace, and calls TEST.mjs's default
+// through the portal (web-sign-in.mjs), waits for the workspace (with --root, opened again on
+// `?root=APP`, the staged root in place of the host's own UI), and calls TEST.mjs's default
 // export with a `test` object, which is Dev's account (below) with:
 //
 //   await test.account(name)   another account, `name` (its address is name@localhost), signed
@@ -22,7 +23,8 @@
 //                               sends it; it throws what the host says when it fails
 //   await openPage(query)      opens the host on a new page of the context (after the test
 //                               closed `page`, say), with `query` before `automation` in its
-//                               address if given (`root=be3.root`), and waits for its workspace
+//                               address (by default `root=APP` with --root, else none), and
+//                               waits for its workspace
 //   await deliverPush(data)    has the context's service worker take a push whose payload is
 //                               data (bytes or text), as a push service would deliver it, and
 //                               resolves once the worker has handled it, with a tab or without
@@ -63,9 +65,11 @@ const bundle = resolve(option("bundle"));
 const server = resolve(option("server"));
 let caddy = resolve(option("caddy"));
 const caddyfile = resolve(option("caddyfile"));
+// The staged root that shows each account's page in place of the host's own UI, once signed in.
+const root = option("root");
 const script = process.argv.slice(2).find((argument) => !argument.startsWith("--"));
 if (!bundle || !server || !caddy || !caddyfile || !script) {
-    console.error("usage: web-host-test.mjs --bundle=DIR --server=BIN --caddy=DIR --caddyfile=FILE TEST.mjs");
+    console.error("usage: web-host-test.mjs --bundle=DIR --server=BIN --caddy=DIR --caddyfile=FILE [--root=APP] TEST.mjs");
     process.exit(2);
 }
 caddy = join(caddy, "caddy");
@@ -353,7 +357,7 @@ try {
             await opened.drive("wait", 'TreeItem "My files"');
             await opened.drive("settle");
         };
-        opened.openPage = async (query) => {
+        opened.openPage = async (query = root === undefined ? undefined : `root=${root}`) => {
             opened.page = await context.newPage();
             watch(opened.page);
             await opened.page.goto(`${origin}/?${query ? `${query}&` : ""}automation`);
@@ -377,6 +381,11 @@ try {
         await opened.page.goto(`${origin}/?dev-workspace&automation`);
         await signIn(opened.page, serverLog, invite, TIMEOUT, { name, email });
         await ready();
+        if (root !== undefined) {
+            // One tab at a time holds the host's files (the `block-files` Web Lock).
+            await opened.page.close();
+            await opened.openPage();
+        }
         return opened;
     };
 
