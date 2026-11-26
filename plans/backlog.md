@@ -113,20 +113,6 @@ Fixed items are removed as they land.
   no presence" cannot be told from one whose presence is late until the replica says when a
   peer's presence (empty included) has arrived.
 
-## 9. Version control's caches
-
-- **Walks that read thinning as a root.** Depends on #686, which rewrites
-  be-block-session's Resume (or its builder confirming `resume.rs` is untouched).
-  Needs a third, unreached outcome carried through Resume. `CommitStore::common_ancestor` and
-  `is_ancestor` treat a commit the store lacks as having no parents, so where
-  the server thinned history away (one commit a minute in a block's first
-  hour) they can answer "no shared history" or "not an ancestor" for heads
-  that share one; their callers are in `be-block-client/src/peer/offline.rs`
-  and `be-block-session/src/resume.rs` (after #686). `MergeBaseWalk` already
-  tells a gap from a root (`Unreached`). Done: both tell a gap apart and their
-  callers fall back as the merge base walk does, shown by a be-block-commit
-  test with a middle commit missing.
-
 ## 10. Commit times
 
 Depends on #686 (session catch-ups replaced by server ordering).
@@ -149,29 +135,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   graph mirror. Done: a client test whose first commits are made offline with
   a clock two hours fast sends them once it connects, and a host test with the
   block open shows its text once.
-
-## 11. Search
-
-- **Idle compaction on the device's idle and power.** The search index's idle
-  compaction (guides/blocks/host.md, Search) waits only for the stack's own
-  idleness, as nothing tells be-host-stack the user is away
-  (`Windows::idle` stays in be-host) or that the device is on power. Done: the
-  host passes both to the stack, and the pass waits for them, shown by a stack
-  test where an index over the cap is left alone on battery. Until then the pass
-  is capped at `IDLE_MERGE_BYTES` (128 MiB); with both signals it could merge
-  larger tiers, once a merge no longer reads its segments whole into memory.
-- **A block indexed before its ancestor is listed.** Search's indexer meets a
-  block whose ancestor the mirror has not listed: push-web-host-test's Ada logs
-  "be-host: <block> is not indexed: the mirror cannot place it, as <parent> on
-  its way up is not listed" four times (on 1c0ba8a5e, before the worker had a
-  memory of its own, so not from it). Done: the cause found and fixed, with the
-  line gone from that test's log.
-- **An answer withdraws its hits while it runs again.** When an index's head
-  moves, a standing search runs again (`forget_answers`), and until snippets are
-  cut again the answer shows no hits, so a page reading in that gap briefly shows
-  no results. a_local_account_finds_the_text_it_wrote hit it (fixed in the test by
-  reading hit and snippet in one wait). Done: the previous answer stays until the
-  new one has its snippets, shown by a test that reads across a head change.
 
 ## 12. Large folders
 

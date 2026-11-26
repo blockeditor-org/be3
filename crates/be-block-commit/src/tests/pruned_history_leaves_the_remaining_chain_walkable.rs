@@ -15,5 +15,5 @@ fn pruned_history_leaves_the_remaining_chain_walkable() {
     assert_eq!(store.try_get(middle).unwrap(), None);
     assert_eq!(store.first_parent_chain(head).unwrap(), vec![head, middle]);
     assert_eq!(store.read(head).unwrap(), b"one\ntwo\nthree\n");
-    assert!(!store.is_ancestor(root, head).unwrap());
+    assert_eq!(store.is_ancestor(root, head).unwrap(), Descent::Unreached);
 }

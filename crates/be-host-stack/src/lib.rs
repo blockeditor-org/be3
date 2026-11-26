@@ -2249,7 +2249,7 @@ pub fn want_searches(owner: Owner, searches: Vec<SearchAsk>) {
 pub fn searched(search: &SearchAsk) -> Option<Searched> {
     with_seen(|seen| {
         let mut shown = seen.searched.get(search)?.clone();
-        shown.complete = seen.search_indexed;
+        shown.complete &= seen.search_indexed;
         Some(shown)
     })
     .flatten()
@@ -2325,6 +2325,44 @@ pub fn name_when_created(block: Uuid, name: String) {
         return;
     }
     PENDING_NAMES.with(|pending| pending.borrow_mut().insert(block, name));
+}
+
+/// What the host can tell of the device, for work that waits until it would bother no one (the
+/// search index's idle compaction): whether the person is away, and whether it runs on mains
+/// power. A host that cannot tell one leaves it true, and that work waits on the stack's own
+/// idleness alone.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Rest {
+    pub away: bool,
+    pub on_power: bool,
+}
+
+impl Default for Rest {
+    fn default() -> Self {
+        Self {
+            away: true,
+            on_power: true,
+        }
+    }
+}
+
+static REST: Mutex<Rest> = Mutex::new(Rest {
+    away: true,
+    on_power: true,
+});
+
+/// Says what the host can tell of the device now (`Rest`); a device coming to rest wakes the
+/// worker for the work that waited for it.
+pub fn set_rest(rest: Rest) {
+    let was = std::mem::replace(&mut *REST.lock().unwrap_or_else(PoisonError::into_inner), rest);
+    if was != rest && rest.away && rest.on_power {
+        send(Command::Sync);
+    }
+}
+
+/// What the host last told of the device (`set_rest`).
+pub(crate) fn rest() -> Rest {
+    *REST.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// Makes a block; with `owner_only`, one only this account reads (`KindVisibility::Owner`).

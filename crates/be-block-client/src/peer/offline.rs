@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use be_block_commit::{CommitId, now_milliseconds};
+use be_block_commit::{CommitId, Descent, MergeBase, now_milliseconds};
 use be_block_graph::{Access, BlockParent};
 use be_block_protocol::{BlockSummary, ErrorCode, Listing, PublishOutcome};
 use be_block_store::{Hash, ObjectStore};
@@ -477,7 +477,7 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(PublishOutcome::Published(pending.commit));
         }
         match head {
-            Some(head) if self.commits.is_ancestor(pending.commit, head)? => {
+            Some(head) if self.commits.is_ancestor(pending.commit, head)? == Descent::Yes => {
                 Ok(PublishOutcome::Published(head))
             }
             head => Ok(PublishOutcome::Rejected(head)),
@@ -725,14 +725,16 @@ impl<S: ObjectStore> Peer<S> {
                 _ => newest.commit,
             };
             if let Some(theirs) = remote
-                && !self.commits.is_ancestor(theirs, ours)?
+                && self.commits.is_ancestor(theirs, ours)? != Descent::Yes
             {
                 // A common ancestor named by both sides' parents may not load: the server
                 // prunes the head a publish replaces, with the parts no other commit holds, and
                 // this device may have built on it as a head it heard of and could not fetch (a
-                // holder's seal, followed while offline).
+                // holder's seal, followed while offline). Nor can one be walked to past what the
+                // server thinned away of the new head's history: then too the merge is based on
+                // the head the waiting commits left, as a merge base walk falls back.
                 let base = match self.commits.common_ancestor(ours, theirs)? {
-                    Some(base) if self.try_hold(base).await? => Some(base),
+                    MergeBase::Base(base) if self.try_hold(base).await? => Some(base),
                     _ => self.left_from(&waiting).await?,
                 };
                 return Ok(Reconciled::Merge { base, ours, theirs });

@@ -1,5 +1,6 @@
 #![cfg(target_os = "linux")]
 
+pub mod battery;
 pub mod dbus;
 pub mod media;
 pub mod notifications;

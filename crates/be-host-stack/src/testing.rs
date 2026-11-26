@@ -73,6 +73,7 @@ impl Harness {
         // previous test's would otherwise show in this one.
         be_host_base::notices::clear();
         crate::unread::forget();
+        crate::set_rest(crate::Rest::default());
         let directory = std::env::temp_dir().join(format!("be3-test-stack-{}", Uuid::new_v4()));
         let SignIn {
             url,

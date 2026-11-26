@@ -102,40 +102,59 @@ impl<S: ObjectStore> CommitStore<S> {
         Ok(seen)
     }
 
-    /// Walks `descendant`'s history only until it reaches `ancestor`.
+    /// Walks `descendant`'s history only until it reaches `ancestor`. A commit the store lacks
+    /// (retention thinned it away) ends its chain, but not as a root does: a walk that does not
+    /// reach `ancestor` and passed such a gap answers `Unreached`, not `No`.
     pub fn is_ancestor(
         &self,
         ancestor: CommitId,
         descendant: CommitId,
-    ) -> Result<bool, StoreError> {
+    ) -> Result<Descent, StoreError> {
         let mut seen = HashSet::new();
         let mut queue = VecDeque::from([descendant]);
+        let mut cut = false;
         while let Some(id) = queue.pop_front() {
             if id == ancestor {
-                return Ok(true);
+                return Ok(Descent::Yes);
             }
             if !seen.insert(id) {
                 continue;
             }
-            queue.extend(self.parents_of(id)?);
+            match self.try_get(id)? {
+                Some(commit) => queue.extend(commit.parents),
+                None => cut = true,
+            }
         }
-        Ok(false)
+        Ok(match cut {
+            true => Descent::Unreached,
+            false => Descent::No,
+        })
     }
 
+    /// The common ancestor of `ours` and `theirs` nearest `ours`, walking both histories whole:
+    /// `Behind` when `theirs` is in `ours`'s history, and `Unreached` rather than `Unrelated`
+    /// when they did not meet and a side passed a commit the store lacks.
     pub fn common_ancestor(
         &self,
         ours: CommitId,
         theirs: CommitId,
-    ) -> Result<Option<CommitId>, StoreError> {
+    ) -> Result<MergeBase, StoreError> {
+        let mut cut = false;
         let mut depths = HashMap::new();
         let mut queue = VecDeque::from([(ours, 0usize)]);
         while let Some((id, depth)) = queue.pop_front() {
             if depths.insert(id, depth).is_some() {
                 continue;
             }
-            for parent in self.parents_of(id)? {
-                queue.push_back((parent, depth + 1));
+            match self.try_get(id)? {
+                Some(commit) => {
+                    queue.extend(commit.parents.into_iter().map(|parent| (parent, depth + 1)))
+                }
+                None => cut = true,
             }
+        }
+        if depths.contains_key(&theirs) {
+            return Ok(MergeBase::Behind);
         }
         let mut best: Option<(CommitId, usize)> = None;
         let mut seen = HashSet::new();
@@ -150,10 +169,28 @@ impl<S: ObjectStore> CommitStore<S> {
                 }
                 continue;
             }
-            queue.extend(self.parents_of(id)?);
+            match self.try_get(id)? {
+                Some(commit) => queue.extend(commit.parents),
+                None => cut = true,
+            }
         }
-        Ok(best.map(|(id, _)| id))
+        Ok(match (best, cut) {
+            (Some((base, _)), _) => MergeBase::Base(base),
+            (None, true) => MergeBase::Unreached,
+            (None, false) => MergeBase::Unrelated,
+        })
     }
+}
+
+/// Whether a commit is in another's history, as far as the store holds it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Descent {
+    Yes,
+    /// The history was walked to its roots without meeting it.
+    No,
+    /// The walk did not meet it, and passed a commit the store lacks, which says nothing of what
+    /// lies past it.
+    Unreached,
 }
 
 /// Where two heads' histories meet, as far as a `MergeBaseWalk` looked.
@@ -166,7 +203,8 @@ pub enum MergeBase {
     /// The two histories share no commit: each was walked to its root.
     Unrelated,
     /// They did not meet within the walk's depth, or before a side reached a commit the store
-    /// lacks (retention thinned it away), which says nothing of what lies past it.
+    /// lacks (retention thinned it away), which says nothing of what lies past it. A caller falls
+    /// back to the head its own side was made from: what reached past the gap was made on it.
     Unreached,
 }
 

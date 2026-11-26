@@ -20,6 +20,7 @@ mod retention_keeps_what_it_kept_as_time_passes;
 mod retention_prefers_states_that_were_left_alone;
 mod three_way_merge_combines_edits_to_separate_regions;
 mod three_way_merge_conflicts_when_both_sides_rewrite_a_region;
+mod walks_tell_a_thinned_gap_from_a_root;
 
 const CONTENT: Uuid = Uuid::from_u128(0x7465_7874_2d63_6f6e_7465_6e74_2d30_3031);
 const AUTHOR: Uuid = Uuid::from_u128(0xa170);

@@ -4,7 +4,9 @@ use std::{
 };
 
 use be_block::OrganizationPolicies;
-use be_block_commit::{Commit, CommitId, CommitStore, MergeBase, MergeBaseWalk, now_milliseconds};
+use be_block_commit::{
+    Commit, CommitId, CommitStore, Descent, MergeBase, MergeBaseWalk, now_milliseconds,
+};
 use be_block_content::{BlockContent, BlockMetadata, Entries, Root, derived_metadata};
 use be_block_graph::{Access, BlockParent};
 use be_block_keys::{RecoveryPublic, RecoverySecret};
@@ -1383,7 +1385,7 @@ impl<S: ObjectStore> Peer<S> {
         |head, known| match self.commits.try_get(head) {
             // The common case, a publish or a merge on the known head: the newer, at once.
             Ok(Some(commit)) if commit.parents.contains(&known) => false,
-            Ok(Some(_)) => self.commits.is_ancestor(head, known).unwrap_or(false),
+            Ok(Some(_)) => matches!(self.commits.is_ancestor(head, known), Ok(Descent::Yes)),
             // A head this device does not hold is no ancestor of one it does.
             Ok(None) | Err(_) => false,
         }
@@ -2112,14 +2114,15 @@ impl<S: ObjectStore> Peer<S> {
         Ok((client, state, journal))
     }
 
-    /// Whether `descendant` has `ancestor` in its history (a commit is its own ancestor).
+    /// Whether `descendant` has `ancestor` in its history (a commit is its own ancestor). A walk
+    /// stopped by history the server thinned away answers no: it cannot say yes.
     pub async fn descends(
         &self,
         descendant: CommitId,
         ancestor: CommitId,
     ) -> Result<bool, ClientError> {
         self.fetch_history(descendant).await?;
-        Ok(self.commits.is_ancestor(ancestor, descendant)?)
+        Ok(self.commits.is_ancestor(ancestor, descendant)? == Descent::Yes)
     }
 
     /// Takes `walk` (`MergeBaseWalk`) to where its two heads meet, fetching only the commits it
