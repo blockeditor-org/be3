@@ -499,10 +499,7 @@ fn TreeRow(
             </Show>
             <Show value={move || unread.get() > 0}>
                 <Tooltip
-                    label={move || match unread.get() {
-                        1 => "1 unread".to_owned(),
-                        count => format!("{count} unread"),
-                    }}
+                    label={move || format!("{} unread", unread.get())}
                     @test_id={unread_test_id.clone()}
                 >
                     <CountBadge count={unread} />

@@ -35,7 +35,7 @@ fn a_groups_title_travels_to_the_host_and_back() {
             picture: None,
             closable: false,
             back_closes: true,
-            count: 0,
+            unread: 0,
             group: None,
         }],
         dialogs: Vec::new(),

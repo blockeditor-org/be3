@@ -778,9 +778,9 @@ fn LinkBody(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> NodeId {
                     on_expand={move |(key, open): (TreeKey, bool)| act.call(PickAction::Unfold(key, open))}
                 >|face: TreeRowFace<TreeKey>| {
                     let key = face.key.clone();
-                    let row = create_memo(move || rows.with(|rows| rows.iter().find(|row| row.key == key).cloned()));
+                    let row = create_memo({ let key = key.clone(); move || rows.with(|rows| rows.iter().find(|row| row.key == key).cloned()) });
                     view! {
-                        <LinkRowFace row />
+                        <LinkRowFace tree_key={key} row />
                     }
                 }</Tree>
             </ListItem>
@@ -801,22 +801,13 @@ fn LinkBody(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> NodeId {
     }
 }
 
-/// A badge's tooltip: how many things in a block the account has not read.
-fn unread_label(count: u32) -> String {
-    match count {
-        1 => "1 unread".to_owned(),
-        count => format!("{count} unread"),
-    }
-}
-
 #[component]
-fn LinkRowFace(row: Memo<Option<TreeRow>>) -> NodeId {
+fn LinkRowFace(tree_key: TreeKey, row: Memo<Option<TreeRow>>) -> NodeId {
     let label = create_memo(move || row.get().map(|row| row.name).unwrap_or_default());
     let detail = create_memo(move || row.get().map(|row| row.detail).unwrap_or_default());
     let unread = create_memo(move || row.with(|row| row.as_ref().map_or(0, |row| row.unread)));
-    let unread_test_id = row
-        .get_untracked()
-        .and_then(|row| row.key.id())
+    let unread_test_id = tree_key
+        .id()
         .map_or_else(String::new, |id| format!("picker.{id}.unread"));
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
@@ -840,7 +831,7 @@ fn LinkRowFace(row: Memo<Option<TreeRow>>) -> NodeId {
             </ListItem>
             <Text size=TextSize::Sm color=TextColor::Muted>{detail}</Text>
             <Show value={move || unread.get() > 0}>
-                <Tooltip label={move || unread_label(unread.get())} @test_id={unread_test_id.clone()}>
+                <Tooltip label={move || format!("{} unread", unread.get())} @test_id={unread_test_id.clone()}>
                     <CountBadge count={unread} />
                 </Tooltip>
             </Show>
