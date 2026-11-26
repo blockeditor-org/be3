@@ -4684,6 +4684,7 @@ impl HostCore {
                 company: self.organization.as_ref().is_some_and(|organization| {
                     organization.kind == be_block_protocol::OrganizationKind::Company
                 }),
+                local: self.account.server == ServerLocation::Local,
                 administrator: self.organization.as_ref().is_some_and(|organization| {
                     organization.kind == be_block_protocol::OrganizationKind::Company
                         && organization.role == OrganizationRole::Administrator

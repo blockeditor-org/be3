@@ -143,6 +143,14 @@ pub(super) fn HostMenu(
         })
     });
     let company = create_memo(move || core.with(|view| view.company));
+    let served = create_memo(move || {
+        core.with(|view| {
+            !view
+                .accounts
+                .iter()
+                .any(|account| account.current && account.server.is_none())
+        })
+    });
     let administrator = create_memo(move || core.with(|view| view.administrator));
     let can_close = create_memo(move || core.with(|view| view.can_close));
     let escrow_warning =
@@ -190,19 +198,22 @@ pub(super) fn HostMenu(
                 on_click={move || command(CoreCommand::StopHosting(kept.with_untracked(|kept| kept.block)))}
             />
         </ForEach>
-        <MenuItem
-            label="Contacts"
-            glyph=ICON_CONTACT
-            @test_id={"host.menu.contacts"}
-            separated=true
-            on_click={move || want.call(Asking::Contacts)}
-        />
-        <MenuItem
-            label="Open a share link"
-            glyph=ICON_LINK
-            @test_id={"host.menu.share-link"}
-            on_click={move || want.call(Asking::ShareLinks)}
-        />
+        // A local account has no server: no contacts, and no share links to open.
+        <Show value={served}>
+            <MenuItem
+                label="Contacts"
+                glyph=ICON_CONTACT
+                @test_id={"host.menu.contacts"}
+                separated=true
+                on_click={move || want.call(Asking::Contacts)}
+            />
+            <MenuItem
+                label="Open a share link"
+                glyph=ICON_LINK
+                @test_id={"host.menu.share-link"}
+                on_click={move || want.call(Asking::ShareLinks)}
+            />
+        </Show>
         <Show value={company}>
             <MenuItem
                 label="Invite member"
