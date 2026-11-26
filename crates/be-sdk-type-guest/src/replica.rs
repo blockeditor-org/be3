@@ -117,6 +117,8 @@ pub(crate) struct Opened {
     pub(crate) refused_commits: Vec<CommitId>,
     pub(crate) server_head: Option<CommitId>,
     pub(crate) epoch: u64,
+    /// What the device shows in the session as it opens (`opening.shown`).
+    pub(crate) shown: BTreeMap<Uuid, Vec<u8>>,
     pub(crate) account: Uuid,
     pub(crate) from_file: Option<FromFileFn>,
     /// The type's merge by parts (`MergeParts`), as a `PartsMerge<C>` for its content, if it
@@ -1235,7 +1237,7 @@ where
             own_numbered: VecDeque::new(),
             presence: BTreeMap::new(),
             heard: BTreeSet::new(),
-            shown: BTreeMap::new(),
+            shown: opened.shown,
             presence_changed: false,
             channel: Vec::new(),
             incompatible: false,

@@ -119,10 +119,14 @@ pub struct Session<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> {
 }
 
 impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
+    /// Opens `block`'s session showing `shown` (kind and value), so the first the others hear
+    /// of this session's presence (`SessionMessage::Shown`) already holds it. `show` changes it
+    /// later.
     pub async fn open(
         peer: Arc<Peer<S>>,
         block: Uuid,
         sources: Vec<Source>,
+        shown: Vec<(Uuid, Vec<u8>)>,
     ) -> Result<Self, String> {
         let content_type = C::CONTENT_TYPE;
         let replicas = Replicas::new(
@@ -145,6 +149,9 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
         if !be_block_type_host::is_known(content_type) {
             return Err(format!("no type module has the block type {content_type}"));
         }
+        session
+            .replicas
+            .show_on_opening(block, shown.into_iter().collect());
         session
             .replicas
             .open((&session.peer, &session.shared), block, content_type, true)
@@ -202,18 +209,10 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
         self.replicas.session(self.block).map(|(client, _)| client)
     }
 
-    /// The clients in the block's session, this one's among them.
-    pub fn members(&self) -> Vec<ClientId> {
-        self.replicas
-            .session(self.block)
-            .map(|(_, state)| {
-                state
-                    .participants
-                    .iter()
-                    .map(|participant| participant.client)
-                    .collect()
-            })
-            .unwrap_or_default()
+    /// The members that may hold the lease: those with edit access that run the build the
+    /// session speaks.
+    pub fn editors(&self) -> Vec<ClientId> {
+        self.replicas.editors(self.block)
     }
 
     /// Who holds the lease of the block's session, by its membership.

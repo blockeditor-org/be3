@@ -32,8 +32,9 @@ const LONGEST_RETRY: Duration = Duration::from_secs(30);
 pub(crate) const CLAIM_INTERVAL: Duration = Duration::from_secs(3);
 /// How long a host waits on a new holder whose presence has not arrived before claiming
 /// anyway: every replica sends its presence to each client it sees join, so this is only for
-/// one that never does.
-const UNHEARD_HOLDER: Duration = Duration::from_secs(30);
+/// one that never does. It is also how long it leaves the lease to another host before it by
+/// client that does not take it, one connected but stuck.
+pub(crate) const UNHEARD_HOLDER: Duration = Duration::from_secs(30);
 
 type Hosted<S> = Session<S, TerminalContent>;
 
@@ -240,32 +241,34 @@ impl Host {
         sources: Vec<be_block_type_host::Source>,
         mut shutdown: std::pin::Pin<&mut impl Future<Output = ()>>,
     ) -> Ended {
-        let mut session = match Hosted::open(peer, block, sources).await {
-            Ok(session) => session,
-            Err(error) => return Ended::Refused(error),
-        };
         let shown = TerminalHost {
             machine: self.options.machine.clone(),
             user: self.options.user.clone(),
         };
         let presence = serde_json::to_vec(&shown).unwrap_or_default();
-        session.show(TerminalHost::ID, Some(presence));
-        session.settle().await;
+        // Shown from the opening on, so whoever hears this session's presence in full
+        // (`Session::heard`) knows at once whether it is a host.
+        let opened = Hosted::open(peer, block, sources, vec![(TerminalHost::ID, presence)]).await;
+        let mut session = match opened {
+            Ok(session) => session,
+            Err(error) => return Ended::Refused(error),
+        };
         eprintln!("be: hosting a terminal for block {block}");
         self.writing = false;
+        let now = self.clock.now();
         let mut claim = Claim {
             holder: None,
+            since: now,
             unheard: None,
-            deferred: None,
-            first: true,
-            blocked: false,
-            at: self.clock.now(),
+            waits: 0,
+            blocked: None,
+            at: now,
         };
         let outcome = loop {
             if let Err(error) = self.step(&mut session, &mut claim).await {
                 break Err(error);
             }
-            let claiming = !session.is_holder() && !standing_by(&session) && !claim.blocked;
+            let claiming = !session.is_holder() && !standing_by(&session);
             let next = claim.due().max(self.clock.now());
             let due = self.clock.sleep_until(next);
             tokio::select! {
@@ -315,43 +318,46 @@ impl Host {
             let holder = session.holder();
             if holder != claim.holder {
                 claim.holder = holder;
+                claim.since = now;
                 claim.unheard = holder.map(|_| now + UNHEARD_HOLDER);
-                claim.deferred = None;
+                claim.blocked = None;
             }
             // Hosts that all hear a holder that is none of them would claim at once together and
-            // take the lease from each other. They go in turn by client: a host does not claim
-            // while another host before it is there, which claims instead, and waits
-            // `CLAIM_INTERVAL` for each other member before it, which may be a host yet to show
-            // it is: one opens its session, which tells the others it shows nothing, before it
-            // shows itself. Nor does it claim at once before it has heard every member: one it
-            // has not may hold the lease already by a claim it has yet to hear.
+            // take the lease from each other. They go in turn by client, among the members that
+            // may hold the lease (`Session::editors`): one a host's claims never move, with view
+            // access only, holds no other off. A host leaves the lease to another host before it
+            // that is there, which claims instead, for `UNHEARD_HOLDER` at most, and waits
+            // `CLAIM_INTERVAL` for each member before it not heard from yet, which may be a host:
+            // a session shows its presence from its opening, so one heard in full that shows no
+            // `TerminalHost` is none. Nor does it claim at once before it has heard every member:
+            // one it has not may hold the lease already by a claim it has yet to hear.
             let client = session.client();
+            let editors = session.editors();
             let before = |member: ClientId| {
-                Some(member) != holder && client.is_some_and(|client| member < client)
+                Some(member) != holder
+                    && client.is_some_and(|client| member < client)
+                    && editors.contains(&member)
             };
-            claim.blocked = session
+            let host_before = session
                 .presence()
                 .iter()
                 .any(|peer| peer.kind == TerminalHost::ID && before(peer.client));
-            let others = session
-                .members()
-                .into_iter()
-                .filter(|member| before(*member))
+            claim.blocked = match host_before {
+                true => claim.blocked.or(Some(now)),
+                false => None,
+            };
+            let unheard = |member: &ClientId| Some(*member) != client && !session.heard(*member);
+            let others = editors
+                .iter()
+                .filter(|member| before(**member) && unheard(member))
                 .count();
-            let all_heard = session
-                .members()
-                .into_iter()
-                .all(|member| Some(member) == client || session.heard(member));
-            let waits = others.max(usize::from(!all_heard));
-            claim.first = waits == 0;
-            if !claim.first && claim.deferred.is_none() {
-                claim.deferred = Some(now + CLAIM_INTERVAL * waits as u32);
-            }
+            let all_heard = !editors.iter().any(unheard);
+            claim.waits = others.max(usize::from(!all_heard)) as u32;
             // Once the new holder's presence arrives it says at once whether to stand by.
             if holder.is_some_and(|holder| session.heard(holder)) {
                 claim.unheard = None;
             }
-            if !standing_by(session) && !claim.blocked && now >= claim.due() {
+            if !standing_by(session) && now >= claim.due() {
                 claim.at = now + CLAIM_INTERVAL;
                 self.claims.send_modify(|claims| *claims += 1);
                 session.claim();
@@ -576,26 +582,34 @@ impl Host {
 /// last saw: a new holder's presence may not have reached it yet.
 struct Claim {
     holder: Option<ClientId>,
+    /// When it first saw this holder.
+    since: Duration,
     /// Until when the host waits on the holder's presence, while it has not arrived: once it
     /// does it says at once whether the holder is another host.
     unheard: Option<Duration>,
-    /// Until when it puts off claiming from this holder while a member before it by client may
-    /// be another host yet to show it is.
-    deferred: Option<Duration>,
-    first: bool,
-    /// Another host before it by client is there, and claims instead.
-    blocked: bool,
+    /// How many `CLAIM_INTERVAL`s from `since` it puts off claiming from this holder: one for
+    /// each member before it by client not heard from yet, which may be another host, and at
+    /// least one while any member is unheard.
+    waits: u32,
+    /// Since when another host before it by client has been there under this holder, which
+    /// claims instead: it waits on that one `UNHEARD_HOLDER` at most.
+    blocked: Option<Duration>,
     /// When the host may claim again after its last claim.
     at: Duration,
 }
 
 impl Claim {
     fn due(&self) -> Duration {
-        let due = self.unheard.map_or(self.at, |unheard| unheard.max(self.at));
-        match (self.first, self.deferred) {
-            (false, Some(deferred)) => due.max(deferred),
-            _ => due,
-        }
+        [
+            Some(self.at),
+            self.unheard,
+            Some(self.since + CLAIM_INTERVAL * self.waits),
+            self.blocked.map(|blocked| blocked + UNHEARD_HOLDER),
+        ]
+        .into_iter()
+        .flatten()
+        .max()
+        .unwrap_or(self.at)
     }
 }
 

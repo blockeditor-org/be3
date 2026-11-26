@@ -15,7 +15,7 @@ use be_block_protocol::{ClientId, ErrorCode, Participant, SessionState};
 use be_block_session::Membership;
 use be_sdk_type_api::ops::wire::{self, Decode};
 use be_sdk_type_api::{
-    Change, Description, EditorId, Endpoint, Opening, PlainFile, PublishOutcome, Recipients,
+    Change, Description, EditorId, Endpoint, Entries, Opening, PlainFile, PublishOutcome, Recipients,
     ReplicaId, Resume, Status,
     embed::{
         exports::replicas::{self, Replica},
@@ -827,6 +827,9 @@ struct Open {
     closing: bool,
     reopen: bool,
     epoch: u64,
+    /// What this device shows in the session, as its editors last showed it: each opening of
+    /// the replica starts showing it (`opening.shown`), so its first `Shown` holds it.
+    shown: Entries,
     joining: bool,
     rejoining: Option<u64>,
     /// Whether its made-up session held nothing past its head as its join began: what it took
@@ -1204,6 +1207,9 @@ pub struct Replicas<H: Host> {
     /// Keys a search answered for since a search last opened any or this device last
     /// reconnected or keys arrived (`unlock`): a message still sealed with one is let go.
     searched: HashSet<Uuid>,
+    /// Per block not open yet, what this device shows in its session as its replica opens
+    /// (`show_on_opening`).
+    showing: HashMap<Uuid, Entries>,
     /// Blocks a read or a submission here found locked (`H::set_locked`), until keys arrive
     /// (`unlock`).
     locked: HashSet<Uuid>,
@@ -1305,6 +1311,7 @@ impl<H: Host> Replicas<H> {
             unsealing: HashMap::new(),
             searching: HashSet::new(),
             searched: HashSet::new(),
+            showing: HashMap::new(),
             locked: HashSet::new(),
             not_yet: HashMap::new(),
             retried: HashMap::new(),
@@ -2182,6 +2189,7 @@ impl<H: Host> Replicas<H> {
             server_head: peer.known_remote_head(block),
             sealed_head,
             epoch: 0,
+            shown: self.showing.get(&block).cloned().unwrap_or_default(),
         };
         let mut replay = replay;
         let sent = replay.len() as u64;
@@ -2207,6 +2215,7 @@ impl<H: Host> Replicas<H> {
         })?;
         self.blocks.insert(block, replica);
         self.handles.insert((module, handle.op()), replica);
+        let shown = self.showing.remove(&block).unwrap_or_default();
         self.open.insert(
             replica,
             Open {
@@ -2238,6 +2247,7 @@ impl<H: Host> Replicas<H> {
                 closing: false,
                 reopen: false,
                 epoch: 0,
+                shown,
                 joining,
                 rejoining: None,
                 joined_settled: false,
@@ -2496,6 +2506,7 @@ impl<H: Host> Replicas<H> {
             server_head,
             sealed_head,
             epoch: open.epoch,
+            shown: open.shown.clone(),
         };
         let editors: Vec<(EditorId, bool, u64)> = open
             .editors
@@ -2825,9 +2836,14 @@ impl<H: Host> Replicas<H> {
         let Some(open) = self.open.get_mut(&replica) else {
             return;
         };
-        let took = open
-            .holds
-            .message(editor, FromEditor::decode(&bytes).as_ref());
+        let message = FromEditor::decode(&bytes);
+        if let Some(FromEditor::ShowPresence { kind, value }) = &message {
+            match value {
+                Some(value) => open.shown.insert(*kind, value.clone()),
+                None => open.shown.remove(kind),
+            };
+        }
+        let took = open.holds.message(editor, message.as_ref());
         // Its module took the held operations that count now when it was sent them.
         open.sent += open.took(&took);
         let replayed = Replayed::Message {
@@ -2843,6 +2859,15 @@ impl<H: Host> Replicas<H> {
         match took.this {
             This::Ended => self.send_only(replica, &replayed),
             This::Counted | This::Held(_) => self.replay(replica, replayed),
+        }
+    }
+
+    /// What this device shows in `block`'s session once its replica opens, for a block not
+    /// open yet: the replica opens showing it (`opening.shown`), so what it first tells the
+    /// clients in the session already holds it. Once open, `FromEditor::ShowPresence` changes it.
+    pub fn show_on_opening(&mut self, block: Uuid, shown: Entries) {
+        if !self.blocks.contains_key(&block) {
+            self.showing.insert(block, shown);
         }
     }
 
@@ -4052,6 +4077,21 @@ impl<H: Host> Replicas<H> {
             .map(|(_, open)| (open.client, &open.session))
     }
 
+    /// The participants of `block`'s session that may hold its lease: those with edit access
+    /// that run the build the session speaks (`Membership::holder`), in the order they joined.
+    pub fn editors(&self, block: Uuid) -> Vec<ClientId> {
+        let Some((_, open)) = self.replica_of(block) else {
+            return Vec::new();
+        };
+        let session = &open.session;
+        session
+            .participants
+            .iter()
+            .filter(|participant| participant.may_edit && session.speaks(participant.client))
+            .map(|participant| participant.client)
+            .collect()
+    }
+
     /// Who holds the lease of `block`'s session, by its membership.
     pub fn holder(&self, block: Uuid) -> Option<ClientId> {
         self.replica_of(block)
@@ -5216,6 +5256,7 @@ impl<H: Host> Replicas<H> {
                 server_head: peer.known_remote_head(open.block),
                 sealed_head,
                 epoch: open.epoch,
+                shown: open.shown.clone(),
             };
             let editors: Vec<(EditorId, bool, u64)> = open
                 .editors

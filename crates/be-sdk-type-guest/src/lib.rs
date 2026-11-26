@@ -592,6 +592,7 @@ impl Module {
                 refused_commits: opening.refused_commits.clone(),
                 server_head: opening.server_head,
                 epoch: opening.epoch,
+                shown: opening.shown.clone(),
                 from_file: kind.from_file,
                 parts_merge: kind.replica_merge.clone(),
                 fold: kind.fold.clone(),

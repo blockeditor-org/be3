@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use be_block_client::Peer;
 use be_block_content::ObjectId;
+use be_block_graph::Access;
 use be_block_content::presence::{ChannelKind, PresenceKind};
 use be_block_store::FileStore;
 use be_type_terminal::{
@@ -50,10 +51,23 @@ impl Setup {
     /// A terminal host's peer, signed in as an agent bound to the block, as on a machine the
     /// owner trusts less than their own devices.
     pub async fn agent(&self) -> Arc<Peer<FileStore>> {
-        let (settings, account, public) = agent(&self.harness, &self.owner, Some(self.block)).await;
+        let (settings, account, identity) =
+            agent(&self.harness, &self.owner, Some(self.block)).await;
         self.owner
             .peer()
-            .seal_share(self.block, account, &public)
+            .seal_share(self.block, account, &identity.public)
+            .await
+            .unwrap();
+        Arc::new(connect_live(&settings).await.unwrap())
+    }
+
+    /// A terminal host's peer signed in as an agent not bound to the block, which is shared
+    /// with it at `access`.
+    pub async fn agent_with(&self, access: Access) -> Arc<Peer<FileStore>> {
+        let (settings, account, identity) = agent(&self.harness, &self.owner, None).await;
+        self.owner
+            .peer()
+            .share(self.block, account, access, &identity)
             .await
             .unwrap();
         Arc::new(connect_live(&settings).await.unwrap())
@@ -61,7 +75,12 @@ impl Setup {
 
     pub async fn viewer(&self) -> Viewer {
         Viewer {
-            session: Session::open(self.owner.shared_peer(), self.block, sources()())
+            session: Session::open(
+                self.owner.shared_peer(),
+                self.block,
+                sources()(),
+                Vec::new(),
+            )
                 .await
                 .unwrap(),
         }

@@ -844,6 +844,7 @@ impl Inner {
                 server_head: head,
                 sealed_head: None,
                 epoch: 0,
+                shown: Default::default(),
             },
         );
         if let Some(held) = self.blocks.get_mut(&block) {
