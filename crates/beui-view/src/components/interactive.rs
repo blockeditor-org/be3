@@ -94,7 +94,7 @@ pub fn Interactive(
     /// in the palette), and a live region says what the carry does. Off for a control whose
     /// own keys move what it carries and whose value says where it is: a slider's thumb, a
     /// scrollbar's. Such a source is not measured, so its carry is drawn by its site or a
-    /// preview, never as the source displaced.
+    /// preview, never as the source's own face.
     #[prop(default = true)]
     lifts_by_keys: bool,
     on_pointer: Callback<PointerInput, bool>,
@@ -128,16 +128,25 @@ pub fn Interactive(
                     (lifts_on_long_press, lifts_on_press, lifts_by_keys),
                 );
                 let Face {
-                    raised,
-                    offset,
                     said,
                     anchor,
                     open,
                     floats,
                     preview,
+                    replicated,
+                    size,
                 } = carry.face.clone();
                 let face = view! {
-                    <CarriedFace raised offset said anchor open floats preview children />
+                    <CarriedFace
+                        said
+                        anchor
+                        open
+                        floats
+                        preview
+                        replicated
+                        size
+                        children
+                    />
                 };
                 let on_key = (carry.finish)(face, on_key);
                 (
@@ -224,13 +233,15 @@ type Preview = std::rc::Rc<dyn Fn() -> NodeId>;
 /// What `CarriedFace` draws from.
 #[derive(Clone)]
 struct Face {
-    raised: crate::reactive::Memo<bool>,
-    offset: crate::reactive::Memo<Vec2>,
     said: Option<crate::reactive::Memo<Option<String>>>,
     anchor: crate::reactive::Memo<crate::reactive::OverlayAnchor>,
     open: crate::reactive::Memo<bool>,
     floats: crate::reactive::ReadSignal<bool>,
     preview: std::rc::Rc<std::cell::RefCell<Option<Preview>>>,
+    /// Whether the source's own face is carried, drawn by a `Replica` in a top layer.
+    replicated: crate::reactive::Memo<bool>,
+    /// The size the source is laid out at, which its carried face takes.
+    size: crate::reactive::Memo<Vec2>,
 }
 
 /// A source's carrying, before its face is built: the press callbacks, what the face draws
@@ -249,11 +260,12 @@ struct Carrying {
 
 /// Wraps a press's callbacks so the first drag of each press (past the core's threshold) asks `drag`
 /// for a carry and lifts it onto the tree's drag driver; once lifted, the driver follows the pointer and the
-/// press hears no more drags. While the carry is held, the children are drawn where its frame
-/// puts the item, raised above their siblings (a scroll around them still clips them), unless
-/// its `face` is a `preview`, which floats in a layer of its own, pinned by its top left corner
-/// and in this node's window (a carry crossing windows waits for the frame to name one,
-/// plans/declarative_dragging.md), or `Site` (`Carry::drawn_by_site`), when nothing is
+/// press hears no more drags. While the carry is held, the children's own face is drawn where its
+/// frame puts the item, in a top layer of its own (a `Replica`, so no scroll around them clips
+/// it), pinned by its top left corner and in this node's window, and they draw nothing where
+/// they are laid out, keeping their place. A `face` that is a `preview` floats in the same
+/// way instead while the carry floats (a carry crossing windows waits for the frame to name
+/// one, plans/declarative_dragging.md), or `Site` (`Carry::drawn_by_site`), when nothing is
 /// drawn here for it. The source hears the carry keys while the focus is on it or within it
 /// (`carry_keys`, `step_keys`, `held_keys`). If this node goes while its carry is held, the carry is put down,
 /// dropping nothing.
@@ -282,12 +294,12 @@ fn carrying(
     // Whether the keyboard lifted this node's carry: only then are its keys the carry's.
     let by_keys = create_signal(false);
     let preview = Rc::new(RefCell::new(None::<Preview>));
-    // Whether the carry's face is not the source's: then the children are not displaced.
+    // Whether the carry's face is not the source's: then the children are not replicated.
     let previewed = create_signal(false);
     // Whether this node floats the carry's own preview.
     let floats_here = create_signal(false);
     // Takes up what a lifted carry draws: its preview floats here, and the children are not
-    // displaced unless the source is its face.
+    // replicated unless the source is its face.
     let show_face = {
         let preview = Rc::clone(&preview);
         Rc::new(move |face: crate::drag::CarryFace| {
@@ -425,22 +437,18 @@ fn carrying(
         crate::drag::driver()?.frame(id)
     });
     let floating = create_memo(move || frame.get().is_some_and(|frame| frame.floating));
-    // The item is drawn where the frame says while it is carried: floating under the
-    // pointer, or on the place chosen (where a site that already draws it there, a list
-    // shown in its new order, leaves no offset).
-    let raised = create_memo(move || frame.get().is_some() && !previewed.get());
+    // The source's own face is drawn where the frame says while it is carried, floating under
+    // the pointer or on the place chosen (where a site that shows it there, a list in its new
+    // order, lays it out), in a top layer where nothing clips it.
+    let replicated = create_memo(move || frame.get().is_some() && !previewed.get());
     // Where the children are laid out, measured once the wrapper below is built.
     let measured =
         create_signal(None::<crate::reactive::ReadSignal<Option<crate::measure::Measured>>>);
-    let placed = create_memo(move || {
+    let size = create_memo(move || {
         measured
             .get()
             .and_then(|measured| measured.get())
-            .map(|measured| measured.rect.min)
-    });
-    let offset = create_memo(move || match (raised.get(), frame.get(), placed.get()) {
-        (true, Some(frame), Some(placed)) => frame.item.min - placed,
-        _ => Vec2::ZERO,
+            .map_or(Vec2::ZERO, |measured| measured.rect.size())
     });
     let anchor = create_memo(move || {
         crate::reactive::OverlayAnchor::Point(
@@ -467,13 +475,13 @@ fn carrying(
         ) as Rc<dyn Fn(crate::drag::CarryId, crate::drag::CarryFace)>
     };
     let face = Face {
-        raised,
-        offset,
         said,
         anchor,
         open,
         floats: floats_here.read_only(),
         preview: Rc::clone(&preview),
+        replicated,
+        size,
     };
     let finish = Box::new(move |wrapped: NodeId, on_key: Callback<KeyPress, bool>| {
         use crate::reactive::{KeyAt, KeyReveal};
@@ -735,23 +743,23 @@ fn lift_by_keys(
     }
 }
 
-/// What an `Interactive` given `drag` wraps its children in: drawn raised and offset by
-/// `offset` while carried, a live region saying what the carry does (unless it says
-/// nothing: `lifts_by_keys` off), and, built only once a carry `floats` a preview here, the
-/// overlay it floats in.
+/// What an `Interactive` given `drag` wraps its children in: a live region saying what the
+/// carry does (unless it says nothing: `lifts_by_keys` off), and, built only while a carry
+/// shows here, the overlay it floats in: its `preview`, or, while `replicated`, a `Replica`
+/// of the children at `size`.
 #[component]
 fn CarriedFace(
-    raised: crate::reactive::Memo<bool>,
-    offset: crate::reactive::Memo<Vec2>,
     said: Option<crate::reactive::Memo<Option<String>>>,
     anchor: crate::reactive::Memo<crate::reactive::OverlayAnchor>,
     open: crate::reactive::Memo<bool>,
     floats: crate::reactive::ReadSignal<bool>,
     preview: std::rc::Rc<std::cell::RefCell<Option<Preview>>>,
+    replicated: crate::reactive::Memo<bool>,
+    size: crate::reactive::Memo<Vec2>,
     children: Option<Child>,
 ) -> NodeId {
     use crate::components::overlay::Overlay;
-    use crate::primitives::{Frame, Layers};
+    use crate::primitives::{Frame, Layers, Replica};
     use crate::types::{LayerLevel, LayerPolicy, Placement};
     // Stacked over one box, the face lays its child out as a plain `Interactive` does: a
     // child that fills what it is given (a canvas) fills it here too. The status and the
@@ -784,14 +792,39 @@ fn CarriedFace(
             }</Overlay>
         }
     };
+    let shown = view! {
+        <Frame children={children} />
+    };
+    // Built only while the children's own face is carried.
+    let replica = move || {
+        use crate::reactive::Get;
+        view! {
+            <Overlay
+                anchor={anchor}
+                placement=Placement::At
+                policy=LayerPolicy::Inert
+                level=LayerLevel::Top
+                traps_focus=false
+                open={replicated}
+            >|| {
+                view! {
+                    <Frame
+                        width={move || crate::types::Extent::px(size.get().x)}
+                        height={move || crate::types::Extent::px(size.get().y)}
+                    >
+                        <Replica of={Some(shown)} />
+                    </Frame>
+                }
+            }</Overlay>
+        }
+    };
     view! {
-        <Frame raised={raised}>
-            <Layers>
-                {status}
-                <Show value={floats}>{overlay()}</Show>
-                <Frame translate={offset} children={children} />
-            </Layers>
-        </Frame>
+        <Layers>
+            {status}
+            <Show value={floats}>{overlay()}</Show>
+            <Show value={replicated}>{replica()}</Show>
+            {shown}
+        </Layers>
     }
 }
 

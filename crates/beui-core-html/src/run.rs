@@ -40,6 +40,8 @@ const BASE_STYLES: &str = "\
 @keyframes beui-caret-blink { 50% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .beui-caret-blink { animation: none; } }
 .beui-layers > * + * { pointer-events: none; }
+[data-beui-lent] { opacity: 0 !important; }
+.beui-replica { display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); pointer-events: none; }
 .beui-stand-in { outline: 2px dashed #ff69b4; outline-offset: -2px; }
 .beui-overlay { position: fixed; inset: auto; margin: 0; padding: 0; border: 0; background: transparent; color: inherit; pointer-events: auto; max-width: none; max-height: none; overflow: visible; }
 .beui-overlay:is([open], :popover-open) { display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); }

@@ -506,7 +506,8 @@ pub struct Carry {
 /// What is drawn for a carried item.
 #[derive(Clone, Default)]
 pub enum CarryFace {
-    /// The source itself, displaced to where the item is and raised above its siblings.
+    /// The source's own face, drawn where the item is in a layer above the window (a
+    /// `Replica`, so no scroll around the source clips it) while the source keeps its place.
     #[default]
     Source,
     /// What the function builds, floating under the pointer in a layer above the window.

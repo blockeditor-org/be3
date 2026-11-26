@@ -21,6 +21,7 @@ pub mod nodes;
 pub mod overlay;
 pub mod page;
 pub mod portal;
+pub mod replica;
 pub mod rows;
 pub mod run;
 pub mod scroll;
