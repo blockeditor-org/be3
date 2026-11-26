@@ -2125,19 +2125,24 @@ fn manages(
     )
 }
 
-/// The block `account` is bound to, when it is a block's agent.
-pub(crate) fn bound_block(
+/// The block each of `organization`'s block agents is bound to, by its account.
+pub(crate) fn bound_agents(
     connection: &Connection,
-    account: Uuid,
-) -> Result<Option<Uuid>, ServerError> {
-    let bound: Option<String> = connection
-        .query_row(
-            "SELECT bound_to FROM agents WHERE account_id = ?1 AND bound_to IS NOT NULL",
-            [account.to_string()],
-            |row| row.get(0),
-        )
-        .optional()?;
-    bound.as_deref().map(parse_uuid).transpose()
+    organization: Uuid,
+) -> Result<HashMap<Uuid, Uuid>, ServerError> {
+    let mut statement = connection.prepare_cached(
+        "SELECT account_id, bound_to FROM agents
+         WHERE organization_id = ?1 AND bound_to IS NOT NULL",
+    )?;
+    let rows = statement.query_map([organization.to_string()], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    })?;
+    let mut bound = HashMap::new();
+    for row in rows {
+        let (agent, block) = row?;
+        bound.insert(parse_uuid(&agent)?, parse_uuid(&block)?);
+    }
+    Ok(bound)
 }
 
 pub(crate) fn is_agent(connection: &Connection, account: Uuid) -> Result<bool, ServerError> {

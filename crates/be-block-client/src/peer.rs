@@ -4729,11 +4729,12 @@ impl<S: ObjectStore> Peer<S> {
                         be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(
                             sealed.clone(),
                         )),
-                        grant,
+                        grant.clone(),
                     ],
                 )
                 .await??;
                 self.recorded(&sealed);
+                self.appended(&grant);
                 Ok(())
             }
             false => {
@@ -4978,9 +4979,49 @@ impl<S: ObjectStore> Peer<S> {
         identity: Option<be_block_keys::PublicIdentity>,
     ) -> Result<(), ClientError> {
         let grant = self.grant_op(block, account, access, identity).await?;
-        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), grant)
-            .await??;
+        be_block_protocol::write::<(), _>(
+            &self.connection(),
+            Some(self.organization),
+            grant.clone(),
+        )
+        .await??;
+        self.appended(&grant);
         Ok(())
+    }
+
+    /// Notes each access log record `op`, which the server just took, carries
+    /// (`KeyBook::appended`): one that lowered anyone has the epochs before it outdated here at
+    /// once, and its log read again before the next seal, rather than this device sealing on
+    /// by the log it read before signing it.
+    pub(crate) fn appended(&self, op: &be_block_protocol::Op) {
+        use be_block_protocol::{LogRecord, Op};
+        let records: Vec<&Vec<u8>> = match op {
+            Op::AppendLog(LogRecord::Grant { signed, .. })
+            | Op::AppendLog(LogRecord::Role { signed, .. })
+            | Op::DeleteLink { signed, .. } => signed.iter().collect(),
+            Op::AppendLog(LogRecord::Ban { signed, .. })
+            | Op::AppendLog(LogRecord::Owner { signed, .. })
+            | Op::RevokeShareLink { signed, .. } => vec![signed],
+            Op::AppendLog(LogRecord::Member {
+                signed,
+                revocations,
+            }) => std::iter::once(signed).chain(revocations).collect(),
+            Op::DeleteAgent {
+                signed,
+                revocations,
+                ..
+            } => signed.iter().chain(revocations).collect(),
+            Op::RemoveContact { revocations, .. } => revocations.iter().collect(),
+            _ => Vec::new(),
+        };
+        for record in records {
+            if let Some(log) = self.keys.appended(record) {
+                self.log_reads
+                    .lock()
+                    .unwrap()
+                    .retain(|(_, read)| *read != log);
+            }
+        }
     }
 
     /// The op granting `access` to `account`, by the record `signed_grant` signs.
@@ -5126,15 +5167,13 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     async fn append_owner(&self, block: Uuid, signed: Vec<u8>) -> Result<(), ClientError> {
-        be_block_protocol::write::<(), _>(
-            &self.connection(),
-            Some(self.organization),
-            be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Owner {
-                block: block,
-                signed: signed,
-            }),
-        )
-        .await??;
+        let op = be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Owner {
+            block: block,
+            signed: signed,
+        });
+        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), op.clone())
+            .await??;
+        self.appended(&op);
         Ok(())
     }
 
