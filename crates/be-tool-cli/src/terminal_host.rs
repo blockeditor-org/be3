@@ -112,6 +112,8 @@ pub struct Host {
     clock: Clock,
     /// Where it stands, sent again on each step it takes.
     standing: watch::Sender<Standing>,
+    /// How many times it claimed the lease.
+    claims: watch::Sender<u64>,
 }
 
 enum Ended {
@@ -135,6 +137,7 @@ impl Host {
             events,
             clock: Clock::real(),
             standing: watch::Sender::new(Standing::Starting),
+            claims: watch::Sender::new(0),
         })
     }
 
@@ -147,6 +150,11 @@ impl Host {
     /// Where the host stands with the session's lease, sent again each time it steps.
     pub fn standing(&self) -> watch::Receiver<Standing> {
         self.standing.subscribe()
+    }
+
+    /// How many times the host claimed the session's lease.
+    pub fn claims(&self) -> watch::Receiver<u64> {
+        self.claims.subscribe()
     }
 
     pub async fn run<S: ObjectStore + 'static>(
@@ -250,13 +258,14 @@ impl Host {
             unheard: None,
             deferred: None,
             first: true,
+            blocked: false,
             at: self.clock.now(),
         };
         let outcome = loop {
             if let Err(error) = self.step(&mut session, &mut claim).await {
                 break Err(error);
             }
-            let claiming = !session.is_holder() && !standing_by(&session);
+            let claiming = !session.is_holder() && !standing_by(&session) && !claim.blocked;
             let next = claim.due().max(self.clock.now());
             let due = self.clock.sleep_until(next);
             tokio::select! {
@@ -310,29 +319,41 @@ impl Host {
                 claim.deferred = None;
             }
             // Hosts that all hear a holder that is none of them would claim at once together and
-            // take the lease from each other. A host claims at once only once it has heard every
-            // member of the session, and no other host comes before it by client; otherwise it
-            // waits `CLAIM_INTERVAL`, by when the first holds the lease, unless it is gone.
+            // take the lease from each other. They go in turn by client: a host does not claim
+            // while another host before it is there, which claims instead, and waits
+            // `CLAIM_INTERVAL` for each other member before it, which may be a host yet to show
+            // it is: one opens its session, which tells the others it shows nothing, before it
+            // shows itself. Nor does it claim at once before it has heard every member: one it
+            // has not may hold the lease already by a claim it has yet to hear.
             let client = session.client();
+            let before = |member: ClientId| {
+                Some(member) != holder && client.is_some_and(|client| member < client)
+            };
+            claim.blocked = session
+                .presence()
+                .iter()
+                .any(|peer| peer.kind == TerminalHost::ID && before(peer.client));
+            let others = session
+                .members()
+                .into_iter()
+                .filter(|member| before(*member))
+                .count();
             let all_heard = session
                 .members()
                 .into_iter()
                 .all(|member| Some(member) == client || session.heard(member));
-            let after_another = session.presence().iter().any(|peer| {
-                peer.kind == TerminalHost::ID
-                    && Some(peer.client) != holder
-                    && client.is_some_and(|client| peer.client < client)
-            });
-            claim.first = all_heard && !after_another;
+            let waits = others.max(usize::from(!all_heard));
+            claim.first = waits == 0;
             if !claim.first && claim.deferred.is_none() {
-                claim.deferred = Some(now + CLAIM_INTERVAL);
+                claim.deferred = Some(now + CLAIM_INTERVAL * waits as u32);
             }
             // Once the new holder's presence arrives it says at once whether to stand by.
             if holder.is_some_and(|holder| session.heard(holder)) {
                 claim.unheard = None;
             }
-            if !standing_by(session) && now >= claim.due() {
+            if !standing_by(session) && !claim.blocked && now >= claim.due() {
                 claim.at = now + CLAIM_INTERVAL;
+                self.claims.send_modify(|claims| *claims += 1);
                 session.claim();
                 session.settle().await;
             }
@@ -558,10 +579,12 @@ struct Claim {
     /// Until when the host waits on the holder's presence, while it has not arrived: once it
     /// does it says at once whether the holder is another host.
     unheard: Option<Duration>,
-    /// Until when it puts off claiming from this holder while it is not the first to: it has
-    /// not heard every member yet, or another host comes before it by client.
+    /// Until when it puts off claiming from this holder while a member before it by client may
+    /// be another host yet to show it is.
     deferred: Option<Duration>,
     first: bool,
+    /// Another host before it by client is there, and claims instead.
+    blocked: bool,
     /// When the host may claim again after its last claim.
     at: Duration,
 }

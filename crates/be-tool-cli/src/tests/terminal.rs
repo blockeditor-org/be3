@@ -122,6 +122,19 @@ impl Viewer {
             .map(|peer| peer.value.as_slice())
     }
 
+    /// The client of the host on `machine`, by what it shows.
+    pub fn client_of(&self, machine: &str) -> Option<u64> {
+        self.session
+            .presence()
+            .iter()
+            .filter(|peer| peer.kind == TerminalHost::ID)
+            .find(|peer| {
+                serde_json::from_slice::<TerminalHost>(&peer.value)
+                    .is_ok_and(|shown| shown.machine == machine)
+            })
+            .map(|peer| peer.client)
+    }
+
     pub fn host(&self) -> Option<u64> {
         let host = self
             .session

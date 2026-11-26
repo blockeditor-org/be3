@@ -25,6 +25,11 @@ const CLOSING: std::time::Duration = std::time::Duration::from_secs(5);
 #[cfg(test)]
 pub const PRESENCE_PAUSE: &str = "be-tool-cli presence";
 
+/// Where a test holds a session still, keyed by its account: what wakes it (`Session::next`)
+/// waits until released, so a test sees what the others do while it does nothing.
+#[cfg(test)]
+pub const SESSION_PAUSE: &str = "be-tool-cli session";
+
 pub struct Held<S> {
     frames: Vec<ToEditor>,
     errors: Vec<String>,
@@ -323,6 +328,8 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
     }
 
     pub async fn next(&mut self) -> Woken {
+        #[cfg(test)]
+        be_lib_test_pause::point(SESSION_PAUSE, self.peer.account().as_u128()).await;
         if *self.closed.borrow() {
             return Woken::Closed;
         }
