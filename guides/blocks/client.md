@@ -144,7 +144,8 @@ let go of, a module's writer dropped before `finish`, a part no operation came
 to name. The vault keeps track of these and a collection removes them.
 
 - **Pins.** Each object a part writer seals is pinned (`Pins`) under the vault's
-  lock before the writer looks for it in the store, by the writer while it is
+  lock before the writer looks for it in the store (the lock is not held across
+  the store), by the writer while it is
   open and then by the `Written` its `finish` answers, until that is dropped. A
   `Written` borrows nothing, so a holder keeps it until the part is named:
   be-host-stack's `Saving` until the compaction's commit is in the outbox (in
@@ -161,17 +162,24 @@ to name. The vault keeps track of these and a collection removes them.
   value, a fetch) or looked for by its presence walks (`holds_all`,
   `missing_objects`) is claimed: no longer noted, since whoever put or looked for
   it may name it now. While it is pinned, its owner's lookup leaves it noted (its
-  own writer reads it back as it works, a merge reading what it merged), and a
-  put marks it to be forgotten once its pins go. A claim forgets for good, which
-  is a deliberate leak: an object forgotten after a lookup saw it, or claimed by
-  a put whose commit was later withdrawn, is never collected.
+  own writer reads it back as it works, a merge reading what it merged); every
+  other claim forgets at once, in the ledger too, so a crash before the pins go
+  cannot leave noted an object another scope's kept commit names. A ledger that
+  fails to forget fails the access that claimed. A writer looks for an object
+  without the lock and looks again once it noted it, forgetting it if another
+  owner put it in between. A claim forgets for good, which is a deliberate leak:
+  an object forgotten after a lookup saw it, or claimed by a put whose commit was
+  later withdrawn, is never collected.
 - **Scopes.** Every scope's peer on a device has its own refs but shares the one
   object store (`be-objects`), so what one scope's writer let go of another's
   commits may name: sealing is convergent under a block's key, and two accounts
-  that both edit a block seal its chunks alike. The vaults over the store share
-  one `Unnamed` (`RefsDb::unnamed`, a device-wide `Ledger` in the refs under
-  `RefsDb::DEVICE`), each as its scope's owner (`Scope::owner`), so pins and
-  claims hold across them all. A collection looks only at its own owner's
+  that both edit a block seal its chunks alike. The vaults over one store share
+  one `Unnamed` (`RefsDb::unnamed`, by the store's `ObjectStore::identity`, a
+  `Ledger` in the refs under `RefsDb::DEVICE` whose rows are keyed by object and
+  store), each as its scope's owner (`Scope::owner`), so pins and claims hold
+  across them all. A peer over a store of its own (a push's `MemoryStore`)
+  shares nothing with the device's. The `Unnamed` is cached only while a vault
+  or pin holds it, and read from the ledger again after. A collection looks only at its own owner's
   notes. Every access through another vault's store (`VaultStore`: a put, a
   presence check, a read, its part writer sealing the same object) claims what
   it reaches of another owner's, as a put does; and each access counts as under
@@ -184,7 +192,7 @@ to name. The vault keeps track of these and a collection removes them.
   the part, which the server, never having journaled the edit, may no longer
   hold.
 - **Collecting.** `Peer::collect_unnamed` runs `Vault::collect` without
-  awaiting, under the lock writers pin under. Its candidates are its owner's
+  awaiting. Its candidates are its owner's
   noted objects no pin holds, by block, less the blocks that keep edits and those
   the caller names as possibly sealing. Sealing is convergent only under one
   key, and a key is one block's, so only that block's objects can share a
@@ -193,15 +201,20 @@ to name. The vault keeps track of these and a collection removes them.
   base names it, or it is under a commit of its block this device holds, walked
   from the block's heads (its own, the server's, its summary's, the one read
   whole) and pending commits through their parents as far as they are held
-  (`Vault::mark`), stopping once every candidate is found. The rest are removed;
-  those found are forgotten, held from then on as any commit's objects are.
+  (`Vault::mark`), stopping once every candidate is found. The walk runs without
+  the lock, so other scopes' reads go on; its own reads claim nothing. Then,
+  under the lock, a candidate claimed or pinned meanwhile is passed over, and the
+  rest are removed unless an access is under way; those found are forgotten,
+  held from then on as any commit's objects are.
   Naming can cross blocks (a repository's snapshot trees name its members'
   manifests), and the walk follows only the candidate's block. That is safe only
   because a commit of the block itself names the object first, and the first
   collection after that commit forgets it, so no later one looks at it again.
 - **Racing.** A writer pins before it checks the store, so a collection never
   removes what an open writer or a held `Written` names, and none removes
-  anything while another scope's access is under way. What it cannot see is its
+  anything while any vault's store access is under way (`VaultStore` counts
+  them all, its own scope's too), since another scope's may have found an
+  object it has not yet claimed. What it cannot see is its
   own scope's operation that has put or found an object and not yet recorded
   what names it (a seal awaiting its key, a fetch before `read_whole`): a host
   runs it only while quiet (be-host-stack's search loop, guides/blocks/host.md,

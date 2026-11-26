@@ -10,7 +10,8 @@ use super::*;
 /// `write_part` hands it (`Reach::hand_written`), until a commit that reuses it is sealed. An
 /// edit sets a section to the part, the replica publishes content reusing it once the edit
 /// goes quiet, and the publish lets the pin go (`Reach::named`). A collection then keeps the
-/// part, which the commit names, and no longer notes it.
+/// part, which the commit names, and no longer notes it. Nothing else names the part
+/// meanwhile: no hold of it waits in the outbox.
 #[test]
 fn a_part_a_module_publishes_is_let_go_of_by_its_reach_and_kept_by_the_commit() {
     let clock = be_block_client::Clock::manual();
@@ -33,7 +34,6 @@ fn a_part_a_module_publishes_is_let_go_of_by_its_reach_and_kept_by_the_commit() 
         writer.write(&bytes).expect("written");
         let written = writer.finish().expect("sealed");
         let part = written.part().expect("a byte was written");
-        peer.hold_part(block, part).await.expect("the part is held");
         let objects = peer.part_objects(&[part]).expect("the part is here");
         let vault = peer.commits().vault();
         assert_eq!(vault.unnamed_count(), objects.len());
