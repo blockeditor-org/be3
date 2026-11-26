@@ -85,7 +85,9 @@ differs (an editor's stage and side panel are about ten lines, guides/apps/edito
 it starts declaring is placed (beside the tab declared before it, else the nearest open declared
 tab, else a declared window, else a window of its own). Closing is a request: `on_close` gives the
 tab a close button (the tab's only pointing-hand cursor), a pane or window whose every tab has one
-gets a close button on its bar too, even with a single tab, and the tab goes only when the caller stops declaring it. Two traps follow:
+gets a close button on its bar too, even with a single tab, and the tab goes only when the caller stops declaring it. A tab's
+`count` shows beside its title as a `CountBadge` when it is not zero (a block tab's unread count), and
+travels across apps with the title (`dock-tab.count`). Two traps follow:
 
 - A tab whose declaration disappears for a moment (a `Show` that flips, a `ForEach` rebuilt from new
   keys) is closed and loses its place, history and panel. Keep each tab's declaration in one stable

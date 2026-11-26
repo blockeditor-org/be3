@@ -462,7 +462,7 @@ fn TreeRow(
                             true => TextColor::Muted,
                             false => TextColor::Default,
                         }}
-                        weight={move || match row.with(|row| row.as_ref().is_some_and(|row| row.section)) {
+                        weight={move || match row.with(|row| row.as_ref().is_some_and(|row| row.section || row.unread > 0)) {
                             true => Weight::Bold,
                             false => Weight::Normal,
                         }}

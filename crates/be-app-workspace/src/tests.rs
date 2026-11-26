@@ -25,6 +25,7 @@ mod a_block_opened_while_another_is_shown_gets_its_own_tab;
 mod a_block_opens_in_the_editor_it_keeps_for_itself;
 mod a_block_tab_asks_its_editor_for_the_top_bar;
 mod a_block_tab_dragged_onto_the_sidebar_stays_with_the_blocks;
+mod a_block_tab_shows_what_is_unread_in_its_block;
 mod a_block_tab_unlocked_from_its_grip_moves_into_the_sidebar;
 mod a_block_tabs_menu_mutes_its_notifications;
 mod a_block_tabs_menu_previews_its_access_and_comes_back;
@@ -106,6 +107,7 @@ mod the_link_card_shows_where_the_chosen_block_lives_and_links_it;
 mod the_location_page_shows_the_folders_as_a_tree_with_the_chosen_one_checked;
 mod the_owner_offers_a_block_from_the_share_dialog_once_confirmed;
 mod the_picker_never_offers_a_deleted_block_to_link;
+mod the_pickers_rows_show_what_is_unread_in_each_block;
 mod the_rename_card_sets_a_blocks_name_icon_and_color;
 mod the_rename_form_opens_with_its_name_selected;
 mod the_rename_form_saves_a_typed_name_and_closes_on_enter;
@@ -468,6 +470,38 @@ fn filter() -> be_sdk_beui::BlockFilter {
         templates: false,
         place: None,
     }
+}
+
+/// A chat named `name` in `parent` with `messages` from someone else that this account has
+/// not read, so its `BlockInfo::unread` counts them, as be-host counts a chat's.
+fn unread_chat(fixture: &mut Fixture, parent: BlockParent, name: &str, messages: i64) -> Uuid {
+    use be_sdk_beui::be_block_content::BlockContent;
+    use be_type_chat::{ChatContent, ChatEntry, ChatReadsContent};
+    let store = fixture.test.store();
+    store.register(be_type_chat::registrations());
+    let chat = Uuid::new_v4();
+    let mut info = be_sdk_beui::BlockInfo::new(chat, ChatContent::CONTENT_TYPE, parent);
+    info.set_name(name);
+    store.add_block(info);
+    fixture.test.hold(Some(chat), ChatContent::default());
+    let rosa = Uuid::from_u128(0x7e1a_0000_0000_4000_8000_0000_0000_0002);
+    for at in 1..=messages {
+        let message = ChatEntry::Message {
+            time: at,
+            body: format!("Message {at}"),
+            reply_to: None,
+            attachments: Vec::new(),
+        };
+        fixture
+            .test
+            .store()
+            .log_entry(Some(chat), rosa, message.encode(), Some(at));
+    }
+    // Where this account read its chats up to: nothing yet.
+    fixture
+        .test
+        .hold(Some(Uuid::new_v4()), ChatReadsContent::default());
+    chat
 }
 
 fn picking(

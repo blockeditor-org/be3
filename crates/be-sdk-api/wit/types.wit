@@ -1047,6 +1047,9 @@ interface types {
         /// returns to. False for a tab whose closing can lose work, such as
         /// a program's window: Back then returns from it and leaves it open.
         back-closes: bool,
+        /// A count the tab shows beside its title, as a badge (what is
+        /// unread in its block); zero shows none.
+        count: u32,
         /// The menu of the tab's view (`shell-message.menu` of that view), which the
         /// root shows on the tab's bar. The host fills it in as it splices a
         /// declaration; a declaring instance leaves it empty. A pick reaches

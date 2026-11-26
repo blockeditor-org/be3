@@ -705,6 +705,13 @@ entries, with its place picked out of every block of the reads kind it holds),
 which be-app-file-tree's
 `a_chat_row_counts_its_unread_messages_until_they_are_read` uses.
 
+Where a block is shown, its count shows the same way: a `CountBadge` with the
+name bold on a file-tree row and a block picker row (`TreeRow::unread`), and a
+`CountBadge` beside an editor tab's title (`Workspace::tab_unread`, `DockTab`
+`count`); be-app-workspace's
+`a_block_tab_shows_what_is_unread_in_its_block` and
+`the_pickers_rows_show_what_is_unread_in_each_block` paint them.
+
 ## Search
 
 Full-text search over names and content (`be-host-stack/src/search.rs`; what is

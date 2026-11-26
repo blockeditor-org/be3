@@ -1214,6 +1214,7 @@ pub(crate) fn declaration_to_api(
                         .unwrap_or_default(),
                     closable: tab.closable,
                     back_closes: tab.back_closes,
+                    count: tab.count,
                     menu: Vec::new(),
                 })
             })
@@ -1349,6 +1350,7 @@ fn declaration_from_api(
             picture: None,
             closable: tab.closable,
             back_closes: tab.back_closes,
+            count: tab.count,
             group: None,
         })
         .collect();

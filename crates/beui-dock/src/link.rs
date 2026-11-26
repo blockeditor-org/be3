@@ -70,6 +70,8 @@ pub struct DockDeclaredTab {
     pub picture: Option<Image>,
     pub closable: bool,
     pub back_closes: bool,
+    /// A count shown beside the title as a badge; zero shows none.
+    pub count: u32,
     pub group: Option<String>,
 }
 

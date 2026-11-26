@@ -312,6 +312,17 @@ impl Workspace {
         })
     }
 
+    /// What is unread in a tab's block (`BlockInfo::unread`), which its tab shows as a badge.
+    pub fn tab_unread(&self, tab: TabId) -> Memo<u32> {
+        let workspace = *self;
+        create_memo(move || {
+            workspace
+                .tab(tab)
+                .and_then(|item| workspace.info(item.id))
+                .map_or(0, |info| info.unread)
+        })
+    }
+
     pub fn tab_glyph(&self, tab: TabId) -> Memo<Option<Glyph>> {
         let workspace = *self;
         create_memo(move || {
@@ -1471,6 +1482,7 @@ pub fn BlockTab(
 ) -> DockEntry {
     let title = workspace.tab_title(tab);
     let icon = workspace.tab_glyph(tab);
+    let count = workspace.tab_unread(tab);
     let bar = RenderFn::new(move |()| match bar {
         Some(bar) => bar.call(),
         None => view! {
@@ -1483,7 +1495,7 @@ pub fn BlockTab(
             .map(|item| format!("block:{}", item.block_type))
     });
     view! {
-        <DockTab id=tab title icon group on_close={move || workspace.close(tab)}>
+        <DockTab id=tab title icon count group on_close={move || workspace.close(tab)}>
             <BlockPanel workspace={workspace} tab bar={move || bar.call(())} preview on_details />
         </DockTab>
     }
