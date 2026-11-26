@@ -2734,7 +2734,8 @@ impl Host for Gpu {
         web::GpuTexture(self.current_texture(this.0))
     }
 
-    fn settle(&mut self, wait: bool) -> Vec<Settled> {
+    fn settle(&mut self, wait: bool, dropped: &[u32]) -> Vec<Settled> {
+        self.forget(dropped);
         self.settle_web(wait)
     }
 

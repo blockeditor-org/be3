@@ -81,6 +81,7 @@ mod a_buffer_range_past_the_end_of_its_buffer_is_reported;
 mod a_canvas_answers_its_configuration_with_the_defaults_filled_in;
 mod a_draw_after_its_device_is_destroyed_raises_nothing;
 mod a_draw_on_an_ended_render_pass_is_raised_in_its_scope;
+mod a_dropped_ticket_settles_nothing_and_is_not_waited_for;
 mod a_pass_that_cannot_begin_raises_once_at_its_encoders_finish;
 mod a_canvas_configured_or_resized_again_is_shown_as_it_is_now;
 mod a_canvas_is_shown_as_its_configuration_asks;
@@ -155,7 +156,7 @@ mod web {
     }
 
     fn answered<T: be_wasm_ops::DeserializeOwned>(gpu: &mut Gpu, ticket: u32, wait: bool) -> T {
-        let settled: Vec<Settled> = Host::settle(gpu, wait);
+        let settled: Vec<Settled> = Host::settle(gpu, wait, &[]);
         let value = settled
             .into_iter()
             .find(|settled| settled.ticket == ticket)
