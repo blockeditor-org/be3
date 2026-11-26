@@ -873,7 +873,9 @@ fn FruitBin(bin: usize, bins: Signal<Vec<usize>>) -> NodeId {
         Func::new(move |_: BinFruit| {
             unstyled::place_on(area, ()).map_or(drag::floating(), drag::fixed)
         }),
-        Callback::new(move |(BinFruit(fruit), ()): (BinFruit, ())| bins.update(|bins| bins[fruit] = bin)),
+        Callback::new(move |(BinFruit(fruit), ()): (BinFruit, ())| {
+            bins.update(|bins| bins[fruit] = bin)
+        }),
     );
     let edge = create_memo(move || match site.over.get() {
         Some(()) => ColorRole::Accent,
@@ -938,7 +940,9 @@ fn PlacesList() -> NodeId {
     let order = create_memo(move || {
         let mut order = fruits.get();
         if let (Some(fruit), Some(drag::After(after))) = (
-            unstyled::carrying::<PlaceFruit>().first().map(|PlaceFruit(fruit)| *fruit),
+            unstyled::carrying::<PlaceFruit>()
+                .first()
+                .map(|PlaceFruit(fruit)| *fruit),
             site.over.get(),
         ) {
             drag::move_after(&mut order, fruit, after);
