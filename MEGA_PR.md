@@ -177,6 +177,7 @@ Landed on 2026-11-24:
 - `backlog-24-cdp-2`: the browser rasterizer's review suggestions: F_DUPFD_CLOEXEC, Chromium makes its own profile dir, load waits on an evaluate, unanswered requests and a closed pipe's exit status are reported.
 - `canvas-bars-race-3`: a joined dock saves nothing until the root has taken its restores; restores withdrawn, released or reaching no root are answered at once; a descendant's waiting restore holds back only its own owner's requests.
 - `effect-wake-order`: a docked child's declaration and requests go in one effect, since effects woken by one change run in no set order (now said in reactive.md); an unchanged declaration is not declared again.
+- `demo-carry-keys`: the demo's bin and list drag samples carry their own key types, so carrying one no longer lifts the other's row.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
