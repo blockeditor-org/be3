@@ -97,8 +97,8 @@ fn pane(key: &str) -> DockItem {
 
 /// The root's dock with the stage and its bar at `placement`, and with a side pane before it
 /// when `side`: a pane the editor declared before, as the canvas declares its inspector until
-/// its content says its profile has none.
-fn hosted(stage: u64, bar: u64, placement: DockBarPlacement, side: bool) -> DockUpdate {
+/// its content says its profile has none. `restored` counts the restores the root has taken.
+fn hosted(stage: u64, bar: u64, placement: DockBarPlacement, side: bool, restored: u64) -> DockUpdate {
     let mut items = Vec::new();
     if side {
         items.push(pane("side"));
@@ -133,6 +133,7 @@ fn hosted(stage: u64, bar: u64, placement: DockBarPlacement, side: bool) -> Dock
             fullscreen: None,
             mode: be_sdk_api::DockMode::Tiled,
             covers: Vec::new(),
+            restored,
         }),
     })
 }
@@ -160,7 +161,7 @@ fn a_restored_bar_withdrawn_before_it_lands_does_not_stop_saving() {
         edge: DockEdge::Left,
         align: DockAlign::Center,
     });
-    test.receive_dock_updates(vec![hosted(stage, bar, moved, false)]);
+    test.receive_dock_updates(vec![hosted(stage, bar, moved, false, 0)]);
     kept(&test, display);
 
     host.set_presenting(true);
@@ -185,8 +186,8 @@ fn a_restored_bar_withdrawn_before_it_lands_does_not_stop_saving() {
     test.run();
     test.take_dock_messages();
     // The root reports the stage alone, then the person adds a side pane: a change of their own.
-    let mut only_stage = hosted(stage, bar, moved, false);
-    let mut with_side = hosted(stage, bar, moved, true);
+    let mut only_stage = hosted(stage, bar, moved, false, 1);
+    let mut with_side = hosted(stage, bar, moved, true, 1);
     for update in [&mut only_stage, &mut with_side] {
         if let DockUpdate::Hosted(view) = update {
             view.hosted.as_mut().unwrap().layout.bars.clear();

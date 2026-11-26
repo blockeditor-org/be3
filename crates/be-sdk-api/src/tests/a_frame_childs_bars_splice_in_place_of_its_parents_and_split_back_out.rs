@@ -97,6 +97,7 @@ fn a_frame_childs_bars_splice_in_place_of_its_parents_and_split_back_out() {
                 rect: Rect::from_min_max(Pos2::new(5.0, 5.0), Pos2::new(8.0, 8.0)),
             },
         ],
+        restored: 0,
     };
     let part = hosted.frame_child(child, Some(2), &|bar| {
         inner.bar(bar).map(|bar| bar.owner.clone())

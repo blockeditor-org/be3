@@ -110,6 +110,7 @@ fn hosted(stage: u64, bar: u64, placement: DockBarPlacement) -> DockUpdate {
             fullscreen: None,
             mode: be_sdk_api::DockMode::Tiled,
             covers: Vec::new(),
+            restored: 0,
         }),
     })
 }

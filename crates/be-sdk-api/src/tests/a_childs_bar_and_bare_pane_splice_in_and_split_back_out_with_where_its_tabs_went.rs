@@ -85,6 +85,7 @@ fn a_childs_bar_and_bare_pane_splice_in_and_split_back_out_with_where_its_tabs_w
         fullscreen: None,
         mode: crate::DockMode::Tiled,
         covers: Vec::new(),
+        restored: 0,
     };
     round_trips(&hosted);
     assert_eq!(hosted.validate(), Ok(()));

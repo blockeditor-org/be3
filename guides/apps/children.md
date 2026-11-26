@@ -363,8 +363,14 @@ nothing but its `Docking`.
   and dock, and restored whenever the setting changes, so every open
   instance follows the last one moved. A joined dock's root takes a restore
   frames after it is asked, reporting meanwhile the layout of each
-  declaration it heard: nothing is saved until the root reports every bar
-  the restore placed where it placed it (`landed`). A dock that does not join is wrapped
+  declaration it heard, so the keeper saves nothing until the root says it
+  has taken every restore the dock asked for (`DockHosted::restored`,
+  `EditorHost::dock_restored`). It stops waiting as soon as the root says
+  so, whatever the root then hosts, and the host never leaves it waiting:
+  it counts a restore that reaches no root, or whose root lets the child go,
+  as taken. The root counts a descendant's restore when it grafts it, which
+  waits until it hosts the descendant's group, and drops one for a group
+  the child no longer declares. A dock that does not join is wrapped
   in a `DockHost` and kept under the same key (`DockKeeper`), so a bar moved
   in one place shows there everywhere. An editor that saves its own dock
   (be-sdk-shell's `Workspace`) provides `DockKeeper::none()`.

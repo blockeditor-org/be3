@@ -26,6 +26,7 @@ mod a_root_gives_a_tab_two_levels_down_its_owners_menu_block_and_dialog;
 mod a_root_hosts_a_childs_dock_again_after_the_child_withdraws_and_redeclares_it;
 mod a_root_places_bars_of_one_kind_together_and_others_apart;
 mod a_root_shows_the_joined_tab_whose_body_the_host_focuses;
+mod a_root_takes_a_descendants_restore_once_it_hosts_its_group_and_counts_it;
 mod a_visible_editor_shows_its_user_as_active;
 mod a_window_opened_in_a_docked_tab_body_opens_over_that_tab;
 mod an_alert_in_a_view_that_opens_windows_dims_the_whole_view;
@@ -196,6 +197,7 @@ fn hosted_tabs(tabs: &[u64], visible: &[u64], focused: Option<u64>) -> be_sdk_ap
             fullscreen: None,
             mode: be_sdk_api::DockMode::Tiled,
             covers: Vec::new(),
+            restored: 0,
         }),
     })
 }

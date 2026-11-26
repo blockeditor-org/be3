@@ -741,6 +741,7 @@ pub(crate) fn bridge_child_dock(
     }
     let paths = Rc::new(RefCell::new(Paths::default()));
     let declared = Rc::new(Cell::new(false));
+    let hosted = link.hosted();
     {
         let link = Rc::clone(&link);
         let host = host.clone();
@@ -763,21 +764,41 @@ pub(crate) fn bridge_child_dock(
                     None if declared.replace(false) => link.withdraw(),
                     None => {}
                 }
-                for (owner, request) in host.take_child_dock_requests(child) {
-                    let request = match owner.is_empty() {
-                        true => request_from_api(&request, &mut paths.borrow_mut()),
-                        false => declaration.as_ref().and_then(|declaration| {
-                            nested_restore(&*link, declaration, &owner, &request, &paths)
-                        }),
-                    };
-                    if let Some(request) = request {
-                        link.request(request);
-                    }
-                }
             });
         });
     }
-    let hosted = link.hosted();
+    {
+        let link = Rc::clone(&link);
+        let host = host.clone();
+        let paths = Rc::clone(&paths);
+        // A descendant's restore waits until the root hosts the group it replaces, so this
+        // runs again as what the root hosts changes.
+        create_effect(move || {
+            pushed.track();
+            hosted.track();
+            let Some(child) = child.get() else {
+                return;
+            };
+            untrack(|| {
+                let declaration = host.child_dock(child);
+                host.take_child_dock_requests(child, |owner, request| {
+                    let request = match (owner.is_empty(), &declaration) {
+                        (true, _) => Ok(request_from_api(request, &mut paths.borrow_mut())),
+                        (false, Some(declaration)) => {
+                            nested_restore(hosted, declaration, owner, request, &paths)
+                        }
+                        (false, None) => Ok(None),
+                    };
+                    match request {
+                        Ok(Some(request)) => link.request(request),
+                        Ok(None) => {}
+                        Err(Waiting) => return false,
+                    }
+                    true
+                });
+            });
+        });
+    }
     {
         let host = host.clone();
         let paths = Rc::clone(&paths);
@@ -984,25 +1005,34 @@ fn tab_menu(
     create_memo(move || nodes.get())
 }
 
+/// A descendant's restore of a group the root has yet to host.
+struct Waiting;
+
+/// The root's request for what a descendant of the child asked: `None` when it asks for
+/// nothing the root can do, as a restore of a group the child no longer declares.
 fn nested_restore(
-    link: &dyn DockHostLink,
+    hosted: Memo<Option<DockHosted>>,
     declaration: &api::DockDeclaration,
     owner: &[ChildId],
     request: &api::DockRequest,
     paths: &Rc<RefCell<Paths>>,
-) -> Option<DockRequest> {
+) -> Result<Option<DockRequest>, Waiting> {
     let api::DockRequest::Restore(layout) = request else {
-        return request_from_api(request, &mut paths.borrow_mut());
+        return Ok(request_from_api(request, &mut paths.borrow_mut()));
     };
-    let nodes = declaration.nest().ok()?;
-    let group = group_key(&nodes, owner)?;
+    let Some(group) = declaration
+        .nest()
+        .ok()
+        .and_then(|nodes| group_key(&nodes, owner))
+    else {
+        return Ok(None);
+    };
+    let mut state = hosted.get_untracked().ok_or(Waiting)?.state;
+    let found = state.find_group(&group).ok_or(Waiting)?;
     let from = {
         let mut paths = paths.borrow_mut();
         DockState::from_spec(&layout_to_spec(layout, &mut |path| Some(paths.tab(path))))
     };
-    let hosted = untrack(|| link.hosted().get_untracked())?;
-    let mut state = hosted.state;
-    let found = state.find_group(&group)?;
     state.graft(
         found,
         &from,
@@ -1012,7 +1042,7 @@ fn nested_restore(
             group: &|_| None,
         },
     );
-    Some(DockRequest::Restore(state))
+    Ok(Some(DockRequest::Restore(state)))
 }
 
 type PathOf<'a> = &'a dyn Fn(TabId) -> Option<DockTabPath>;
@@ -1668,6 +1698,8 @@ fn hosted_to_api(hosted: &DockHosted, path: PathOf<'_>) -> api::DockHosted {
                 })
             })
             .collect(),
+        // The host counts restores (`EditorHost::take_child_dock_requests`).
+        restored: 0,
     }
 }
 

@@ -501,6 +501,8 @@ impl DockHosted {
                 .filter(|cover| cover.tab.is_own())
                 .cloned()
                 .collect(),
+            // The host gives each instance its own count.
+            restored: 0,
         })
     }
 
@@ -560,6 +562,7 @@ impl DockHosted {
             fullscreen: None,
             mode: self.mode,
             covers,
+            restored: 0,
         }
     }
 
@@ -615,6 +618,7 @@ impl DockHosted {
                     })
                 })
                 .collect(),
+            restored: 0,
         }))
     }
 }

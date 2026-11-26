@@ -41,6 +41,7 @@ fn root_hosts(docks: &mut Docks, bars: Vec<DockPlacedBar>, covers: Vec<DockCover
             fullscreen: None,
             mode: be_sdk_api::DockMode::Tiled,
             covers,
+            restored: 0,
         }),
     );
 }

@@ -582,7 +582,12 @@ shows the popped-out ones in one window. A `bare` pane shows its one tab with no
 layout also names where each tab moved out of the declaration's group went
 (`dock-layout.outside`: a pane of the root's by key and index, or a window of
 its own), so a `restore` puts them back; each docked instance saves its own
-layout, since the root saves only the tab it hosts in place of the group. The host keeps a docked
+layout, since the root saves only the tab it hosts in place of the group. The
+root takes a restore some frames after it is asked, so each `dock-hosted`
+counts the restores taken (`restored`): the root's hold of a child counts
+those it took of the child's `child-request`s, and the host turns that into
+each instance's own count, counting as taken a restore that reaches no root
+or whose root lets the child go. The host keeps a docked
 child open while its placer places it or, once the child declares a dock, still
 declares the tab it was placed in (for the root, from the declaration it hears
 while it hosts it, `dock-hold.hosted`, and after it stops, `placing`, until it

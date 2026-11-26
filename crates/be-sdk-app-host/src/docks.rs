@@ -47,6 +47,14 @@ struct Parked {
     pane: Option<DockTabPath>,
 }
 
+/// A restore an instance asked for, forwarded to the root as the `seq`th of `child`'s.
+struct Restoring {
+    asker: EditorInstanceId,
+    root: EditorInstanceId,
+    child: ChildId,
+    seq: u64,
+}
+
 #[derive(Default)]
 pub struct Docks {
     apps: HashMap<EditorInstanceId, String>,
@@ -60,6 +68,12 @@ pub struct Docks {
     epochs: HashMap<(EditorInstanceId, ChildId), u64>,
     epoch: u64,
     hosted: HashMap<EditorInstanceId, DockHosted>,
+    /// How many of each instance's restores the root has taken, or the host dropped: each
+    /// `DockHosted` it sends the instance carries the count.
+    restored: HashMap<EditorInstanceId, u64>,
+    /// How many restores the host has forwarded to each root for each child.
+    forwarded: HashMap<(EditorInstanceId, ChildId), u64>,
+    restoring: Vec<Restoring>,
     docked: HashSet<EditorInstanceId>,
     offscreen: HashSet<EditorInstanceId>,
     framed: HashSet<EditorInstanceId>,
@@ -99,6 +113,7 @@ impl Docks {
         self.hosting.retain(|(root, _), _| *root != instance);
         self.delivered.retain(|(root, _), _| *root != instance);
         self.epochs.retain(|(root, _), _| *root != instance);
+        self.forget_restores(instance);
         self.outbox.retain(|(to, _)| *to != instance);
         self.parked.retain(|(held, _), _| *held != instance);
         self.shown_bars.retain(|(held, _)| *held != instance);
@@ -121,6 +136,7 @@ impl Docks {
             self.hosting.retain(|(root, _), _| *root != instance);
             self.delivered.retain(|(root, _), _| *root != instance);
             self.epochs.retain(|(root, _), _| *root != instance);
+            self.forget_restores(instance);
             self.outbox.retain(|(to, _)| *to != instance);
         }
         self.refresh();
@@ -205,7 +221,23 @@ impl Docks {
                 DockMessage::Request(request) => {
                     let instance = request.view.instance;
                     if request.view.view == ViewId::MAIN && self.owns(app, instance) {
-                        self.request(instance, request.request);
+                        let restore = matches!(request.request, DockRequest::Restore(_));
+                        let to = self.request(instance, request.request);
+                        match to {
+                            Some((root, child)) if restore => {
+                                let forwarded = self.forwarded.entry((root, child)).or_default();
+                                *forwarded += 1;
+                                let seq = *forwarded;
+                                self.restoring.push(Restoring {
+                                    asker: instance,
+                                    root,
+                                    child,
+                                    seq,
+                                });
+                            }
+                            _ if restore => self.dropped_restore(instance),
+                            _ => {}
+                        }
                     }
                 }
                 DockMessage::Host(host) => {
@@ -487,6 +519,7 @@ impl Docks {
                 }
                 self.hosting.remove(&(placer, child));
                 self.epochs.remove(&(placer, child));
+                self.answer_restores(placer, child, None);
             }
             docked = self.docked_set();
         }
@@ -660,20 +693,23 @@ impl Docks {
         self.parked.get(&(instance, bar.tab)).cloned()
     }
 
-    fn request(&mut self, asker: EditorInstanceId, request: DockRequest) {
+    /// Passes `asker`'s request up to the root, and says which root and child it went to.
+    fn request(
+        &mut self,
+        asker: EditorInstanceId,
+        request: DockRequest,
+    ) -> Option<(EditorInstanceId, ChildId)> {
         let mut request = request;
         let mut instance = asker;
         let mut owner = Vec::new();
         for _ in 0..=MAX_DOCK_NESTING {
-            let Some((placer, child, record)) = self.placer_of(instance) else {
-                return;
-            };
+            let (placer, child, record) = self.placer_of(instance)?;
             let bar = matches!(
                 request,
                 DockRequest::PlaceBar(_) | DockRequest::MoveBar(_) | DockRequest::HideBar(_)
             );
             if record.frame && !bar {
-                return;
+                return None;
             }
             if !self.joins(placer) {
                 owner.reverse();
@@ -685,17 +721,64 @@ impl Docks {
                         request,
                     }),
                 );
-                return;
+                return Some((placer, child));
             }
-            let Some(prefix) = self.prefix(placer, &record) else {
-                return;
-            };
-            let Ok(through) = request.through(child, &prefix) else {
-                return;
-            };
-            request = through;
+            let prefix = self.prefix(placer, &record)?;
+            request = request.through(child, &prefix).ok()?;
             owner.push(child);
             instance = placer;
+        }
+        None
+    }
+
+    /// Counts a restore of `asker`'s that goes nowhere as done, and tells it so if the root
+    /// hosts its dock.
+    fn dropped_restore(&mut self, asker: EditorInstanceId) {
+        *self.restored.entry(asker).or_default() += 1;
+        if let Some(hosted) = self.hosted.get_mut(&asker) {
+            hosted.restored = self.restored[&asker];
+            let hosted = hosted.clone();
+            self.send(
+                asker,
+                DockUpdate::Hosted(DockHostedView {
+                    view: ViewId::MAIN,
+                    hosted: Some(hosted),
+                }),
+            );
+        }
+    }
+
+    /// Counts the restores forwarded to `root` for `child` that the root has taken as done, or
+    /// every one when `taken` is `None`, as when the root lets the child go, so none waits for
+    /// good. Each asker hears its count with what the root hosts next (`split`).
+    fn answer_restores(&mut self, root: EditorInstanceId, child: ChildId, taken: Option<u64>) {
+        let mut answered = Vec::new();
+        self.restoring.retain(|restoring| {
+            let done = restoring.root == root
+                && restoring.child == child
+                && taken.is_none_or(|taken| restoring.seq <= taken);
+            if done {
+                answered.push(restoring.asker);
+            }
+            !done
+        });
+        for asker in answered {
+            *self.restored.entry(asker).or_default() += 1;
+        }
+    }
+
+    fn forget_restores(&mut self, instance: EditorInstanceId) {
+        self.restored.remove(&instance);
+        self.forwarded.retain(|(root, _), _| *root != instance);
+        self.restoring.retain(|restoring| restoring.asker != instance);
+        let children: Vec<ChildId> = self
+            .restoring
+            .iter()
+            .filter(|restoring| restoring.root == instance)
+            .map(|restoring| restoring.child)
+            .collect();
+        for child in children {
+            self.answer_restores(instance, child, None);
         }
     }
 
@@ -727,6 +810,7 @@ impl Docks {
         let hosted = match hold {
             DockHold::Hosted(hosted) => {
                 self.hosting.insert((root, child), Hosting::Hosted);
+                self.answer_restores(root, child, Some(hosted.restored));
                 Some(hosted)
             }
             DockHold::Placing if record.placed => {
@@ -739,6 +823,7 @@ impl Docks {
             }
             DockHold::Released => {
                 self.hosting.remove(&(root, child));
+                self.answer_restores(root, child, None);
                 None
             }
         };
@@ -770,6 +855,7 @@ impl Docks {
         let mut own = hosted.as_ref().and_then(|hosted| hosted.own(&hosts).ok());
         if let Some(own) = &mut own {
             self.park(instance, own);
+            own.restored = self.restored.get(&instance).copied().unwrap_or(0);
         }
         if self.hosted.get(&instance) != own.as_ref() {
             match &own {

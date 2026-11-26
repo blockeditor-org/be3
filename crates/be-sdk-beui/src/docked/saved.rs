@@ -21,16 +21,15 @@ struct SavedDock {
     keys: Vec<(u64, String)>,
 }
 
-/// What a dock's layout keeper last saw kept, and the bars its last restore placed, while the
-/// dock has yet to report them there.
+/// What a dock's layout keeper last saw kept.
 #[derive(Default)]
 pub(super) struct Saving {
     seen: RefCell<Option<String>>,
-    landing: RefCell<Option<Vec<api::DockPlacedBar>>>,
 }
 
 trait Kept {
     fn saving(&self) -> &Saving;
+    /// The layout to keep: `None` while the dock has yet to take the restore it asked for last.
     fn layout(&self) -> Option<api::DockLayout>;
     fn keys(&self) -> Vec<(u64, String)>;
     fn restore(&self, spec: DockSpec);
@@ -103,7 +102,6 @@ fn keep_layout<T: Kept + 'static>(
         };
         if !declared.get() {
             kept.saving().seen.replace(None);
-            kept.saving().landing.replace(None);
             return;
         }
         let saved = saved.get();
@@ -155,34 +153,12 @@ fn follow_saved(kept: &impl Kept, saved: Option<String>) {
         let key = old.get(&path.tab).filter(|_| path.is_own())?;
         current.get(key).copied()
     });
-    saving
-        .landing
-        .replace(Some(spec_to_layout(&spec, &own_path).bars));
     kept.restore(spec);
-}
-
-/// Whether `layout` has every bar the restore placed where it placed it. A joined dock's host
-/// takes a restore some frames after it is asked, and what it reports meanwhile (as many
-/// layouts as the declaration changed in that time, each with the bars where the declaration
-/// puts them) is not the person's to keep.
-fn landed(layout: &api::DockLayout, restored: &[api::DockPlacedBar]) -> bool {
-    restored.iter().all(|bar| {
-        layout.bars.iter().any(|hosted| {
-            hosted.bar == bar.bar && hosted.placement == bar.placement && hosted.hidden == bar.hidden
-        })
-    })
 }
 
 fn changed_layout(kept: &impl Kept) -> Option<String> {
     let saving = kept.saving();
     let encoded = encoded(kept)?;
-    let landing = saving.landing.borrow().clone();
-    if let Some(restored) = landing {
-        if !kept.layout().is_some_and(|layout| landed(&layout, &restored)) {
-            return None;
-        }
-        saving.landing.replace(None);
-    }
     if saving.seen.borrow().as_ref() == Some(&encoded) {
         return None;
     }
@@ -195,7 +171,14 @@ impl Kept for ProtocolLink {
         &self.saving
     }
 
+    /// A joined dock's root takes a restore some frames after it is asked, and what it hosts
+    /// meanwhile (as many layouts as the declaration changed in that time) is not the person's
+    /// to keep. The root counts the restores it took (`DockHosted::restored`), so nothing is
+    /// kept until it has taken the last.
     fn layout(&self) -> Option<api::DockLayout> {
+        if !self.host.dock_restored(self.view) {
+            return None;
+        }
         Some(self.host.dock_hosted(self.view)?.layout)
     }
 
