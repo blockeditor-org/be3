@@ -167,7 +167,10 @@ to name. The vault keeps track of these and a collection removes them.
   cannot leave noted an object another scope's kept commit names. A ledger that
   fails to forget fails the access that claimed. A writer looks for an object
   without the lock and looks again once it noted it, forgetting it if another
-  owner put it in between. A claim forgets for good, which is a deliberate leak:
+  owner put it in between. The ledger keeps an object's first note and never
+  replaces it, so a crash leaves it noted as the owner whose commits a collection
+  after the restart walks; a writer that finds another owner's note there claims
+  it. A claim forgets for good, which is a deliberate leak:
   an object forgotten after a lookup saw it, or claimed by a put whose commit was
   later withdrawn, is never collected.
 - **Scopes.** Every scope's peer on a device has its own refs but shares the one
@@ -178,7 +181,10 @@ to name. The vault keeps track of these and a collection removes them.
   `Ledger` in the refs under `RefsDb::DEVICE` whose rows are keyed by object and
   store), each as its scope's owner (`Scope::owner`), so pins and claims hold
   across them all. A peer over a store of its own (a push's `MemoryStore`)
-  shares nothing with the device's. The `Unnamed` is cached only while a vault
+  shares nothing with the device's. Peers over one store share an `Unnamed`
+  only through one `RefsDb`: two databases over the same store would each let
+  their own collections remove what the other's scopes reached. A store with no
+  identity is never collected. The `Unnamed` is cached only while a vault
   or pin holds it, and read from the ledger again after. A collection looks only at its own owner's
   notes. Every access through another vault's store (`VaultStore`: a put, a
   presence check, a read, its part writer sealing the same object) claims what

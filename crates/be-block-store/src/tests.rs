@@ -25,7 +25,9 @@ mod a_truncated_object_reads_as_missing_and_a_put_repairs_it;
 mod chunking_is_content_defined;
 mod identical_content_deduplicates_across_writes;
 mod tampered_bytes_fail_to_open;
+mod a_vault_over_a_store_with_no_identity_never_collects;
 mod values_round_trip_as_objects;
+mod a_writer_that_finds_another_owners_note_in_the_ledger_leaves_it_to_that_owner;
 
 const CONTENT: Uuid = Uuid::from_u128(0x7465_7374_2d63_6f6e_7465_6e74_2d30_3031);
 

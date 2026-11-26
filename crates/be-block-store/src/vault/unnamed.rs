@@ -17,8 +17,10 @@ pub trait Ledger: Send + Sync {
     /// Every object noted and not yet forgotten.
     fn noted(&self) -> Result<Vec<(Hash, Noted)>, StoreError>;
 
-    /// Notes `object` before it is put.
-    fn note(&self, object: Hash, noted: Noted) -> Result<(), StoreError>;
+    /// Notes `object` before it is put, unless it is noted already: then the note stays as it
+    /// was, and this answers it. A note is never replaced, so a crash cannot leave an object
+    /// noted as one owner's that another owner's commit names.
+    fn note(&self, object: Hash, noted: Noted) -> Result<Option<Noted>, StoreError>;
 
     fn forget(&self, objects: &[Hash]) -> Result<(), StoreError>;
 }
@@ -60,6 +62,12 @@ impl Unnamed {
 
     pub(super) fn lock(&self) -> MutexGuard<'_, Notes> {
         self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Counts an access as under way until the answer drops (`Notes::accessing`).
+    pub(super) fn begin_access(&self) -> Accessing<'_> {
+        self.lock().accessing += 1;
+        Accessing(self)
     }
 }
 
@@ -167,8 +175,7 @@ impl<S: ObjectStore> VaultStore<S> {
         access: impl FnOnce(&S) -> Result<T, StoreError>,
         object: impl FnOnce(&T) -> Hash,
     ) -> Result<T, StoreError> {
-        self.unnamed.lock().accessing += 1;
-        let accessing = Accessing(&self.unnamed);
+        let accessing = self.unnamed.begin_access();
         let answer = access(&self.inner)?;
         let object = object(&answer);
         let mut notes = self.unnamed.lock();
@@ -179,8 +186,8 @@ impl<S: ObjectStore> VaultStore<S> {
     }
 }
 
-/// An access under way, counted off if it fails.
-struct Accessing<'a>(&'a Unnamed);
+/// An access under way, counted off once it drops.
+pub(super) struct Accessing<'a>(&'a Unnamed);
 
 impl Drop for Accessing<'_> {
     fn drop(&mut self) {

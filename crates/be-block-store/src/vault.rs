@@ -501,18 +501,31 @@ impl<S: ObjectStore> Vault<S> {
     }
 
     /// Notes `object`, which the store lacked when looked at, as this owner's: in the ledger
-    /// first, so a claim that finds it noted here forgets it there too.
+    /// first, so a claim that finds it noted here forgets it there too. The ledger keeps the
+    /// first owner's note, so a crash leaves it noted as that owner's, whose commits a
+    /// collection after the restart walks; another owner's found there or here is claimed,
+    /// since this owner's writer may name it too.
     fn note(&self, object: Hash, noted: Noted) -> Result<(), StoreError> {
         let ledger = self.store.unnamed.lock().ledger.clone();
-        if let Some(ledger) = &ledger {
-            ledger.note(object, noted)?;
-        }
+        let first = match &ledger {
+            Some(ledger) => ledger.note(object, noted)?,
+            None => None,
+        };
         {
             let mut notes = self.store.unnamed.lock();
             match notes.noted.get(&object) {
                 // Another owner's writer noted it meanwhile: this owner's may name it too.
                 Some(other) if other.owner != noted.owner => {
                     return notes.claim(&[object], noted.owner, Claim::Put);
+                }
+                // Another owner's writer noted it in the ledger and has yet to here: its row
+                // goes, and once that writer finds this owner's note here it claims it, as this
+                // one would have claimed its.
+                _ if first.is_some_and(|first| first.owner != noted.owner) => {
+                    if let Some(ledger) = &ledger {
+                        ledger.forget(&[object])?;
+                    }
+                    notes.noted.insert(object, noted);
                 }
                 _ => {
                     notes.noted.insert(object, noted);
@@ -566,11 +579,17 @@ impl<S: ObjectStore> Vault<S> {
     /// reads through this vault, whose own reads claim nothing, and must not seal or put. Then,
     /// under the lock, a candidate claimed or pinned meanwhile is passed over, and nothing is
     /// removed while an access through any vault is under way (`VaultStore`), since it may have
-    /// found an object it has not yet claimed. Answers how many objects it removed.
+    /// found an object it has not yet claimed: it then answers 0 and leaves the rest for a
+    /// later collection, without retrying. A store with no identity (`ObjectStore::identity`)
+    /// may be shared by vaults this one cannot tell of, so over one nothing is ever removed.
+    /// Answers how many objects it removed.
     pub fn collect(
         &self,
         named: impl FnOnce(&mut HashMap<Uuid, HashSet<Hash>>) -> Result<HashSet<Hash>, StoreError>,
     ) -> Result<usize, StoreError> {
+        if self.store.inner.identity().is_none() {
+            return Ok(0);
+        }
         let owner = self.store.owner;
         let mut candidates: HashMap<Uuid, HashSet<Hash>> = HashMap::new();
         {
@@ -919,12 +938,14 @@ impl<S: ObjectStore> Vault<S> {
 
     /// The objects under `offset..offset + length` that this store lacks and can name: a
     /// missing node hides what is under it, so fetch these and ask again until none are left.
+    /// The walk is one access (`VaultStore`) until it claims what it looked for.
     pub fn missing_objects(
         &self,
         manifest: &Manifest,
         offset: u64,
         length: u64,
     ) -> Result<Vec<Hash>, StoreError> {
+        let _accessing = self.store.unnamed.begin_access();
         let mut missing = Vec::new();
         let mut seen = HashSet::new();
         let end = offset.saturating_add(length);
@@ -944,7 +965,9 @@ impl<S: ObjectStore> Vault<S> {
     }
 
     /// Whether this store holds every object of the manifest, stopping at the first it lacks.
+    /// The walk is one access (`VaultStore`) until it claims what it looked for.
     pub fn holds_all(&self, manifest: &Manifest) -> Result<bool, StoreError> {
+        let _accessing = self.store.unnamed.begin_access();
         let mut whole = true;
         let mut seen = HashSet::new();
         self.walk_manifest(manifest, 0..u64::MAX, |part, _| {

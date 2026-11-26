@@ -440,3 +440,17 @@ Peers' derived views of a held edit: plans/peers_preview_held_edits.md.
   part whose `Written` is then dropped, collects, and reads the stash back
   whole, with stashed commits walked as roots (or their objects held some other
   way).
+- **A crash between a writer's two looks (low priority).** A part writer looks
+  for an object without the lock, notes it in the ledger, and looks again
+  (`Vault::note`). If another scope's vault puts the same object between the
+  first look and the note (claiming nothing, since nothing is noted yet), seals
+  a commit naming it, and the process crashes before the second look, the
+  ledger keeps the object noted as the first owner's, and its first collection
+  after the restart removes what the other scope's commit names. Likewise if
+  the other owner's writer, finding the first's ledger row, forgets it and the
+  first is preempted between its ledger note and its look under the lock until
+  a commit of the other's is sealed. The robust fix: one `RefsDb` serves every
+  scope, so the first collection after a restart judges what is named across
+  all scopes' refs, not only its own owner's. Done: a be-block-client test that
+  restarts with a ledger row whose object another scope's commit names, and
+  collects without removing it.
