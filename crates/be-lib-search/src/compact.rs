@@ -4,10 +4,10 @@
 //! logarithmic number of times. A segment more than half masked is rewritten
 //! alone, and one wholly masked is dropped.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::{
-    Error, Id, Index, Parts, Place, Retired, Written,
+    Error, Id, Index, Parts, PartsOut, Place, Retired, Written,
     segment::{self, Meta, Posting},
     table,
 };
@@ -35,13 +35,17 @@ pub(crate) fn derive(origin: Id, n: u32) -> Id {
 }
 
 impl Written {
-    /// Leaves out parts both added and dropped by the same change.
+    /// Leaves out parts both added (or saved) and dropped by the same change.
     pub(crate) fn tidy(&mut self) {
-        let dropped: std::collections::HashSet<_> =
-            std::mem::take(&mut self.dropped).into_iter().collect();
-        let added: std::collections::HashSet<_> =
-            self.added.iter().map(|(name, _)| *name).collect();
+        let dropped: HashSet<_> = std::mem::take(&mut self.dropped).into_iter().collect();
+        let added: HashSet<_> = self
+            .added
+            .iter()
+            .map(|(name, _)| *name)
+            .chain(self.saved.iter().copied())
+            .collect();
         self.added.retain(|(name, _)| !dropped.contains(name));
+        self.saved.retain(|name| !dropped.contains(name));
         self.dropped = dropped
             .into_iter()
             .filter(|name| !added.contains(name))
@@ -55,11 +59,14 @@ impl Index {
     /// Merges segments until no tier holds `FACTOR` of them, or `most` merges are done: a
     /// writer compacts a few at a time with each batch, so no one write rewrites the index.
     /// A merge whose inputs' parts come to more than `bytes` (as `length` gives a part's) is
-    /// not made: those segments are left as they are. What it retires is recorded at `now` (milliseconds), for
-    /// `Index::forget_before`.
+    /// not made: those segments are left as they are. Each merged segment's parts are written
+    /// through `out` (`Written::saved`); the table and deletion bitmaps come back as bytes.
+    /// What it retires is recorded at `now` (milliseconds), for `Index::forget_before`.
+    #[allow(clippy::too_many_arguments)]
     pub async fn compact(
         &mut self,
         parts: &impl Parts,
+        out: &impl PartsOut,
         origin: Id,
         now: i64,
         most: usize,
@@ -68,7 +75,6 @@ impl Index {
     ) -> Result<Written, Error> {
         let mut written = Written::default();
         let mut table = table::Edit::new(&self.table);
-        let mut built: HashMap<Id, segment::Named> = HashMap::new();
         let mut n = 0;
         loop {
             let mut index = 0;
@@ -100,11 +106,8 @@ impl Index {
                 .iter()
                 .map(|&index| self.segments[index].clone())
                 .collect();
-            let source = Overlay {
-                parts,
-                built: &built,
-            };
-            let (meta, segment_parts) = merge_segments(&source, &inputs, id, &mut table).await?;
+            let source = Overlay { parts, out };
+            let meta = merge_segments(&source, out, &inputs, id, &mut table).await?;
             let mut group = group;
             group.sort_unstable_by(|a, b| b.cmp(a));
             for index in group {
@@ -115,8 +118,7 @@ impl Index {
                     at: now,
                 });
             }
-            built.insert(id, segment_parts.clone());
-            written.added.extend(segment_parts);
+            written.saved.extend(meta.parts());
             self.segments.push(meta);
         }
         self.table = table.finish(origin, &mut written);
@@ -171,38 +173,34 @@ impl Index {
     }
 }
 
-/// The caller's parts and the segments this compaction built so far.
-struct Overlay<'a, P> {
+/// The caller's parts and the segments this compaction wrote so far.
+struct Overlay<'a, P, O> {
     parts: &'a P,
-    built: &'a HashMap<Id, segment::Named>,
+    out: &'a O,
 }
 
-impl<P: Parts> Parts for Overlay<'_, P> {
+impl<P: Parts, O: PartsOut> Parts for Overlay<'_, P, O> {
     fn read<'a>(
         &'a self,
         part: &'a crate::PartName,
         range: std::ops::Range<u64>,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, Error>> + 'a>> {
-        Box::pin(async move {
-            if let Some(segment) = self.built.get(&part.origin)
-                && let Some((_, bytes)) = segment.iter().find(|(name, _)| name == part)
-            {
-                let end = range.end.min(bytes.len() as u64) as usize;
-                return Ok(bytes[(range.start as usize).min(end)..end].to_vec());
-            }
-            self.parts.read(part, range).await
-        })
+        match self.out.holds(part) {
+            true => self.out.read(part, range),
+            false => self.parts.read(part, range),
+        }
     }
 }
 
 /// One segment of the live documents of `inputs` (those the table points
-/// to), moving their table entries to it.
+/// to), written through `out`, moving their table entries to it.
 async fn merge_segments(
     parts: &impl Parts,
+    out: &impl PartsOut,
     inputs: &[Meta],
     id: Id,
     table: &mut table::Edit,
-) -> Result<(Meta, segment::Named), Error> {
+) -> Result<Meta, Error> {
     let mut documents = Vec::new();
     let mut from: Vec<(usize, u32)> = Vec::new();
     for (input, meta) in inputs.iter().enumerate() {
@@ -255,5 +253,10 @@ async fn merge_segments(
         }
     }
     let documents = segment::sorted(documents, &locals);
-    Ok(segment::build(id, &documents, &terms))
+    let (meta, built) = segment::build(id, &documents, &terms);
+    for (name, bytes) in built {
+        out.write(&name, &bytes)?;
+        out.finish(&name)?;
+    }
+    Ok(meta)
 }

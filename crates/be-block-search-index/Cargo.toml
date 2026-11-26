@@ -9,7 +9,7 @@ license.workspace = true
 be-block-commit = { path = "../be-block-commit", default-features = false }
 be-block-content = { path = "../be-block-content" }
 be-block-graph = { path = "../be-block-graph" }
-be-block-store = { path = "../be-block-store", default-features = false }
+be-block-store = { path = "../be-block-store" }
 be-lib-search = { path = "../be-lib-search" }
 postcard = { version = "1", features = ["use-std"] }
 serde = { version = "1", features = ["derive"] }

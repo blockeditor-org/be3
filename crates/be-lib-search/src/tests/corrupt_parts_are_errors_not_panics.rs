@@ -44,7 +44,7 @@ fn exercise(index: &Index, other: &Index, store: &Store) {
         i64::MAX,
     ));
     let mut compacted = index.clone();
-    let _ = run(compacted.compact(store, id(91), 0, usize::MAX, u64::MAX, |_| 0));
+    let _ = run(compacted.compact(store, store, id(91), 0, usize::MAX, u64::MAX, |_| 0));
     let _ = run(index.merge(other, store, id(92)));
     let _ = run(other.merge(index, store, id(93)));
 }
@@ -72,12 +72,12 @@ fn corrupt_parts_are_errors_not_panics() {
     }
     let other = index.clone();
     for name in index.parts() {
-        let original = store.parts.parts[&name].clone();
+        let original = store.parts.parts.borrow()[&name].clone();
         for changed in mutations(&original) {
-            store.parts.parts.insert(name, changed);
+            store.parts.parts.get_mut().insert(name, changed);
             exercise(&index, &other, &store);
         }
-        store.parts.parts.insert(name, original);
+        store.parts.parts.get_mut().insert(name, original);
     }
     for changed in mutations(&index.encode()) {
         if let Ok(decoded) = Index::decode(&changed) {
