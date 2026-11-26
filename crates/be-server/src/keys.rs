@@ -1099,7 +1099,9 @@ impl ServerStore {
             // (`blocks::Visibility`), so it hears of no other's.
             let reaches = |account: Uuid, block: Uuid| -> Result<bool, ServerError> {
                 Ok(match crate::store::bound_block(database, account)? {
-                    Some(root) => block == root || graph.ancestors(block).any(|above| above == root),
+                    Some(root) => {
+                        block == root || graph.ancestors(block).any(|above| above == root)
+                    }
                     None => true,
                 })
             };

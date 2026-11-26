@@ -24,21 +24,26 @@ async fn bound_agent(
         "Owner",
         "owner@example.com",
     );
-    let created = crate::ask(be_block_protocol::write::<be_block_protocol::CreatedAgent, _>(
-        &owner.connection(),
-        Some(organization),
-        be_block_protocol::Op::CreateAgent {
-            account,
-            name: "Helper".into(),
-            recovery: secret.public().0,
-            signing: secret.signing().0,
-            contact: crate::contacts::OwnContact::new(card, 0).seal(&secret),
-            record: Vec::new(),
-            escrow: crate::contacts::seal_pin(&secret, organization, &owner.keys().pins()),
-            bound_to: Some(bound),
-            member: owner.agent_record(account, secret.identity()).await.unwrap(),
-        },
-    ))
+    let created = crate::ask(
+        be_block_protocol::write::<be_block_protocol::CreatedAgent, _>(
+            &owner.connection(),
+            Some(organization),
+            be_block_protocol::Op::CreateAgent {
+                account,
+                name: "Helper".into(),
+                recovery: secret.public().0,
+                signing: secret.signing().0,
+                contact: crate::contacts::OwnContact::new(card, 0).seal(&secret),
+                record: Vec::new(),
+                escrow: crate::contacts::seal_pin(&secret, organization, &owner.keys().pins()),
+                bound_to: Some(bound),
+                member: owner
+                    .agent_record(account, secret.identity())
+                    .await
+                    .unwrap(),
+            },
+        ),
+    )
     .await
     .unwrap();
     (account, secret, created.token)
