@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use super::*;
 
+mod a_collection_removes_nothing_while_another_owners_access_is_under_way;
 mod a_different_key_produces_different_objects;
 mod a_file_store_persists_objects_across_reopening;
 mod a_first_part_loads_without_the_rest;

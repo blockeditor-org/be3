@@ -15,7 +15,8 @@ use super::*;
 async fn a_part_only_kept_edits_name_survives_collections_until_they_seal() {
     let harness = Harness::start().await;
     let owner = harness.owner("writer@example.com").await;
-    let refs = refs::RefsDb::memory();
+    let file = RefsFile::new();
+    let refs = file.open();
     let store = MemoryStore::new();
     let laptop = harness.device(&owner, &refs, &store).await;
     let folder = workspace(&laptop, "Parts").await;
@@ -46,6 +47,9 @@ async fn a_part_only_kept_edits_name_survives_collections_until_they_seal() {
         .unwrap();
     drop(written);
     drop(laptop);
+    // The host stops: the database is opened again, its unnamed parts' notes read from it.
+    drop(refs);
+    let refs = file.open();
 
     let offline = harness.offline(&owner, &refs, &store);
     let vault = offline.commits().vault();

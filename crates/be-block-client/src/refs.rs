@@ -207,9 +207,10 @@ pub(crate) struct Row {
 #[derive(Clone)]
 pub struct RefsDb {
     backend: Arc<Backend>,
-    /// What this device's part writers sealed unnamed, for every scope's vault over the
-    /// device's one store (`unnamed`), made once read.
-    unnamed: Arc<Mutex<Option<be_block_store::Unnamed>>>,
+    /// What this device's part writers sealed unnamed, for every scope's vault over each store
+    /// (`unnamed`) by its identity, while any vault or pin holds it: read from the ledger again
+    /// after, which then notes all it did.
+    unnamed: Arc<Mutex<HashMap<Vec<u8>, be_block_store::WeakUnnamed>>>,
 }
 
 impl Default for RefsDb {
@@ -240,18 +241,29 @@ impl RefsDb {
         organization: Uuid::nil(),
     };
 
-    /// What the part writers of every scope's vault sealed that nothing named yet: the vaults
-    /// share the device's one object store, so they share this too, each as its scope
-    /// (`Scope::owner`), and a collection of one scope's never removes an object another's
-    /// reached (guides/blocks/client.md, "Unnamed parts").
-    pub(crate) fn unnamed(&self) -> Result<be_block_store::Unnamed, StoreError> {
+    /// What the part writers of every scope's vault over `store` (its
+    /// `ObjectStore::identity`) sealed that nothing named yet: the vaults share the store, so
+    /// they share this too, each as its scope (`Scope::owner`), and a collection of one scope's
+    /// never removes an object another's reached (guides/blocks/client.md, "Unnamed parts").
+    /// A store with no identity shares nothing and keeps nothing across restarts.
+    pub(crate) fn unnamed(
+        &self,
+        store: Option<Vec<u8>>,
+    ) -> Result<be_block_store::Unnamed, StoreError> {
+        let Some(store) = store else {
+            return Ok(be_block_store::Unnamed::default());
+        };
         let mut unnamed = self.unnamed.lock().unwrap();
-        if let Some(unnamed) = &*unnamed {
-            return Ok(unnamed.clone());
+        if let Some(held) = unnamed.get(&store).and_then(be_block_store::WeakUnnamed::upgrade) {
+            return Ok(held);
         }
-        let ledger = Arc::new(DeviceLedger(Arc::clone(&self.backend)));
+        unnamed.retain(|_, held| held.upgrade().is_some());
+        let ledger = Arc::new(DeviceLedger {
+            backend: Arc::clone(&self.backend),
+            store: store.clone(),
+        });
         let made = be_block_store::Unnamed::with_ledger(ledger)?;
-        *unnamed = Some(made.clone());
+        unnamed.insert(store, made.downgrade());
         Ok(made)
     }
 
@@ -323,21 +335,27 @@ impl RefsDb {
     }
 }
 
-/// The device's ledger of unnamed objects (`RefsDb::unnamed`).
-struct DeviceLedger(Arc<Backend>);
+/// The device's ledger of one store's unnamed objects (`RefsDb::unnamed`): each row's key is
+/// the object and then the store's identity.
+struct DeviceLedger {
+    backend: Arc<Backend>,
+    store: Vec<u8>,
+}
+
+impl DeviceLedger {
+    fn key(&self, object: &Hash) -> Vec<u8> {
+        [object.as_bytes().as_slice(), &self.store].concat()
+    }
+}
 
 impl be_block_store::Ledger for DeviceLedger {
     fn noted(&self) -> Result<Vec<(Hash, be_block_store::Noted)>, StoreError> {
-        self.0
+        self.backend
             .load(&RefsDb::DEVICE)?
             .into_iter()
-            .filter(|row| row.table == Table::Unnamed)
+            .filter(|row| row.table == Table::Unnamed && row.key.get(32..) == Some(&self.store))
             .map(|row| {
-                let object: [u8; 32] = row
-                    .key
-                    .as_slice()
-                    .try_into()
-                    .map_err(|_| StoreError::Corrupt)?;
+                let object: [u8; 32] = row.key[..32].try_into().map_err(|_| StoreError::Corrupt)?;
                 let noted = decode(row.value.as_deref().unwrap_or_default())?;
                 Ok((Hash::from_bytes(object), noted))
             })
@@ -345,9 +363,9 @@ impl be_block_store::Ledger for DeviceLedger {
     }
 
     fn note(&self, object: Hash, noted: be_block_store::Noted) -> Result<(), StoreError> {
-        self.0.write(
+        self.backend.write(
             &RefsDb::DEVICE,
-            &[row(Table::Unnamed, object.as_bytes().to_vec(), &noted)],
+            &[row(Table::Unnamed, self.key(&object), &noted)],
         )
     }
 
@@ -356,11 +374,11 @@ impl be_block_store::Ledger for DeviceLedger {
             .iter()
             .map(|object| Row {
                 table: Table::Unnamed,
-                key: object.as_bytes().to_vec(),
+                key: self.key(object),
                 value: None,
             })
             .collect();
-        self.0.write(&RefsDb::DEVICE, &rows)
+        self.backend.write(&RefsDb::DEVICE, &rows)
     }
 }
 

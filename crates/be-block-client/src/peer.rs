@@ -684,12 +684,13 @@ impl<S: ObjectStore> Peer<S> {
             }
         }
         keys.absorb(refs.keys());
+        let unnamed = config.refs.unnamed(store.identity())?;
         let peer = Self {
             connection: Arc::new(Mutex::new(connection)),
             commits: CommitStore::new(
                 Vault::new(store, ring)
                     .with_chunker(config.chunker)
-                    .with_unnamed(config.refs.unnamed()?, owner),
+                    .with_unnamed(unnamed, owner),
             ),
             token: Mutex::new(String::new()),
             account,
@@ -4534,15 +4535,11 @@ impl<S: ObjectStore> Peer<S> {
     /// keeps edits here (`Refs::keeps_edits`: kept, set aside, or journaled) is passed over,
     /// as an edit may name a part no commit does yet, and so is each of `sealing`, the blocks a
     /// seal may be under way in. Answers how many objects it removed. It runs without
-    /// awaiting, under the lock writers pin under, so it races no writer; a host runs it while
-    /// idle, so no read or other seal is under way that has put or found an object and not yet
-    /// recorded what names it.
+    /// awaiting, and passes over what a writer pinned or another scope claimed while it walked
+    /// (`Vault::collect`); a host runs it while idle, so no read or other seal is under way that
+    /// has put or found an object and not yet recorded what names it.
     pub fn collect_unnamed(&self, sealing: &HashSet<Uuid>) -> Result<usize, ClientError> {
-        let vault = self.commits.vault();
-        if vault.unnamed_count() == 0 {
-            return Ok(0);
-        }
-        Ok(vault.collect(|candidates| {
+        Ok(self.commits.vault().collect(|candidates| {
             candidates
                 .retain(|block, _| !sealing.contains(block) && !self.refs.keeps_edits(*block));
             self.named_among(candidates)

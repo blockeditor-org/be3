@@ -208,6 +208,7 @@ mod a_new_phrase_too_large_for_one_write_goes_in_parts;
 mod a_notification_opens_only_for_the_blocks_members;
 mod a_notification_sealed_under_another_blocks_key_is_refused;
 mod a_page_checked_against_a_head_that_moved_meanwhile_is_read_again;
+mod a_part_one_scopes_kept_edits_name_survives_another_scopes_collection;
 mod a_part_only_an_older_commit_names_survives_a_collection;
 mod a_part_only_kept_edits_name_survives_collections_until_they_seal;
 mod a_part_put_for_an_operation_is_saved_by_another_member_without_uploading_it;
@@ -801,6 +802,26 @@ fn placed(id: u128, parent: BlockParent, changed: u64) -> be_block_protocol::Blo
 fn offline_ids(refs: &refs::Refs, listing: be_block_protocol::Listing) -> Option<Vec<Uuid>> {
     refs.cached_listing(listing)
         .map(|blocks| blocks.iter().map(|summary| summary.id).collect())
+}
+
+/// A device's refs database in a file of its own, opened again (`open`) for a restart: what was
+/// held in memory, the unnamed parts' notes above all, is then read back from the file.
+struct RefsFile(std::path::PathBuf);
+
+impl RefsFile {
+    fn new() -> Self {
+        Self(std::env::temp_dir().join(format!("be-client-refs-{}.sqlite3", Uuid::new_v4())))
+    }
+
+    fn open(&self) -> refs::RefsDb {
+        refs::RefsDb::open(&self.0).unwrap()
+    }
+}
+
+impl Drop for RefsFile {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
 }
 
 /// The build of a block's type the test peers run.

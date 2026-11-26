@@ -3,9 +3,8 @@
 
 use serde::{Deserialize, Serialize};
 use std::{
-    cell::Cell,
-    collections::{HashMap, HashSet, hash_map::Entry},
-    sync::{Arc, Mutex, MutexGuard, PoisonError},
+    collections::{HashMap, hash_map::Entry},
+    sync::{Arc, Mutex, MutexGuard, PoisonError, Weak},
 };
 use uuid::Uuid;
 
@@ -53,8 +52,24 @@ impl Unnamed {
         Ok(Self(Arc::new(Mutex::new(notes))))
     }
 
+    /// A handle that keeps nothing alive: once every vault and pin over it goes, what it noted
+    /// is only in its ledger.
+    pub fn downgrade(&self) -> WeakUnnamed {
+        WeakUnnamed(Arc::downgrade(&self.0))
+    }
+
     pub(super) fn lock(&self) -> MutexGuard<'_, Notes> {
         self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+/// An `Unnamed` while anything else holds it (`Unnamed::downgrade`).
+#[derive(Clone)]
+pub struct WeakUnnamed(Weak<Mutex<Notes>>);
+
+impl WeakUnnamed {
+    pub fn upgrade(&self) -> Option<Unnamed> {
+        self.0.upgrade().map(Unnamed)
     }
 }
 
@@ -65,8 +80,6 @@ pub(super) struct Notes {
     /// How many open part writers, or parts they finished that are still held (`Written`), name
     /// each object: never collected while named so.
     pub pinned: HashMap<Hash, usize>,
-    /// Pinned objects claimed meanwhile (`Claim`): no longer noted once their pins go.
-    pub claimed: HashSet<Hash>,
     /// How many store accesses (`VaultStore`) are under way: a collection removes nothing
     /// while any is, since one may have found an object it has not yet claimed.
     pub accessing: usize,
@@ -81,26 +94,32 @@ pub(super) enum Claim {
     /// Looked for by its presence (`holds_all`, `missing_objects`), by what may name it now.
     Looked,
     /// Found or read through the store. Only another owner's claims: the owner's own merge
-    /// reads back what it merged, and its host collects only while no read is under way.
+    /// reads back what it merged, its host collects only while no read is under way, and its
+    /// collections read what they walk.
     Read,
 }
 
 impl Notes {
-    /// Notes no more `objects`, here and in the ledger.
+    /// Notes no more `objects`, in the ledger and then here: a ledger that fails to forget
+    /// leaves them noted in both.
     pub fn forget(&mut self, objects: &[Hash]) -> Result<(), StoreError> {
+        if objects.is_empty() {
+            return Ok(());
+        }
+        if let Some(ledger) = &self.ledger {
+            ledger.forget(objects)?;
+        }
         for object in objects {
             self.noted.remove(object);
         }
-        match (&self.ledger, objects.is_empty()) {
-            (Some(ledger), false) => ledger.forget(objects),
-            _ => Ok(()),
-        }
+        Ok(())
     }
 
     /// `objects`, reached by `owner` as `how` says, may be named by what reached them: no
-    /// longer noted, or, while one is pinned, once its pins go (`Pins`). One the owner itself
-    /// looked for stays noted while pinned: its writer, or whoever holds its part, reads it
-    /// back as it works, and the pin keeps it meanwhile.
+    /// longer noted, here and in the ledger at once, so a crash before the pins go does not
+    /// leave them noted for a collection after the restart. One the owner itself looked for
+    /// stays noted while pinned: its writer, or whoever holds its part, reads it back as it
+    /// works, and the pin keeps it meanwhile.
     pub fn claim(&mut self, objects: &[Hash], owner: Hash, how: Claim) -> Result<(), StoreError> {
         if self.noted.is_empty() {
             return Ok(());
@@ -114,22 +133,12 @@ impl Notes {
             if own && how == Claim::Read {
                 continue;
             }
-            match self.pinned.contains_key(object) {
-                false => forgotten.push(*object),
-                true if own && how == Claim::Looked => {}
-                true => {
-                    self.claimed.insert(*object);
-                }
+            if !(own && how == Claim::Looked && self.pinned.contains_key(object)) {
+                forgotten.push(*object);
             }
         }
         self.forget(&forgotten)
     }
-}
-
-thread_local! {
-    /// Whether this thread is in a collection's `named` (`Vault::collect`), which holds the
-    /// lock and reads through the store: those reads neither lock nor claim.
-    pub(super) static COLLECTING: Cell<bool> = const { Cell::new(false) };
 }
 
 /// The store a vault reads and writes through (`Vault::store`), as one owner of the objects
@@ -152,16 +161,12 @@ impl<S> std::ops::Deref for VaultStore<S> {
 }
 
 impl<S: ObjectStore> VaultStore<S> {
-
     fn access<T>(
         &self,
         how: Claim,
         access: impl FnOnce(&S) -> Result<T, StoreError>,
         object: impl FnOnce(&T) -> Hash,
     ) -> Result<T, StoreError> {
-        if COLLECTING.get() {
-            return access(&self.inner);
-        }
         self.unnamed.lock().accessing += 1;
         let accessing = Accessing(&self.unnamed);
         let answer = access(&self.inner)?;
@@ -207,6 +212,9 @@ impl<S: ObjectStore> ObjectStore for VaultStore<S> {
     fn len(&self, hash: Hash) -> Result<Option<usize>, StoreError> {
         self.access(Claim::Read, |store| store.len(hash), |_| hash)
     }
+    fn identity(&self) -> Option<Vec<u8>> {
+        self.inner.identity()
+    }
 }
 
 /// The objects a part writer sealed, kept from collection while this lives: the writer's, then
@@ -220,21 +228,14 @@ pub struct Pins {
 impl Drop for Pins {
     fn drop(&mut self) {
         let mut notes = self.unnamed.lock();
-        let mut claimed = Vec::new();
         for object in self.objects.drain(..) {
             if let Entry::Occupied(mut entry) = notes.pinned.entry(object) {
                 *entry.get_mut() -= 1;
                 if *entry.get() == 0 {
                     entry.remove();
-                    if notes.claimed.remove(&object) {
-                        claimed.push(object);
-                    }
                 }
             }
         }
-        // One the ledger still notes is only looked at again by a collection, which keeps
-        // what names it.
-        let _ = notes.forget(&claimed);
     }
 }
 
