@@ -418,7 +418,7 @@ impl Gpu {
         }
         #[cfg(target_arch = "wasm32")]
         {
-            let _ = answered.send((id, job.made_in_scopes(&self.device)));
+            let _ = answered.send((id, job.made(&self.device)));
             self.settling.wake();
         }
         self.web.pipelines.making.push(Making {
