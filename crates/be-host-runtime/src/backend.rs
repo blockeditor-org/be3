@@ -203,13 +203,12 @@ impl Backend {
         self.wire.holds_input()
     }
 
-    /// Whether the app has no step in flight on what the host sent it, nor frames waiting for
-    /// one or for it to start, having taken in what its steps produced.
+    /// Whether the app has no step in flight, not even one it woke itself for after answering
+    /// the host (asking for another frame), nor frames waiting for one or for it to start,
+    /// having taken in what its steps produced.
     pub(super) fn steps_finished(&mut self) -> bool {
         self.poll();
-        self.worker
-            .as_ref()
-            .is_none_or(|worker| worker.settled() && !worker.starting_with_frames())
+        self.worker.as_ref().is_none_or(Worker::idle)
     }
 
     pub(super) fn settled(&self) -> bool {
