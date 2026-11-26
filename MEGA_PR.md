@@ -154,6 +154,7 @@ Landed on 2026-11-24:
 - `backlog-12-listing`: a cached listing keeps a row per block, so a change writes only what joined or left, and the server pages a folder's children by range; `download-urls` takes a holder, and a replay fetches only its own block's parts.
 - `backlog-25`: edits under a held tentative layer land beneath it; one projection per block per instance, and a block asked for as another type reads as failed; a detaching editor commits its undo groups; a voided drag holds nothing.
 - `backlog-26`: a kept access log writes only the places an append adds, in order and failing closed; authority rests only on paths that hide no lowering and, for a block's log, no retirement (an organization path's is an accepted limit).
+- `host-adapter-4g7g2c4a`: be-host's page runs a root in place of its own UI, its apps saying when they started and starting their hello's while from the frame after, with a bound on loads; web host tests can run their scripts under the root.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
