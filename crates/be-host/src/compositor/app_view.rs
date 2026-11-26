@@ -1662,22 +1662,49 @@ enum AskAtCommit {
     Waits,
 }
 
-/// For a child be-host draws itself in its own document rather than in an app's view (a host
-/// panel), which takes the keyboard from no ask: it counts as up for its placer's asks
-/// (`asks::viewed`), so an ask for it leaves the keyboard where it is rather than taking it
-/// out of the placer for a view that never comes, and the ask ends at once.
-pub(crate) fn asks_end_at_drawn_child() {
+/// A child be-host draws itself in its own document rather than in an app's view (a host
+/// panel) takes the keyboard in `catcher` when its placer asks it to, as the root moves it into
+/// the surface it draws such a child in: it counts as up for its placer's asks (`asks::viewed`,
+/// under `asks::DRAWN_BY_HOST`), so an ask for it waits for it rather than taking the keyboard
+/// out of the placer, and takes it while nothing outside the placer and its children has it and
+/// no view that takes the keyboard is open.
+pub(crate) fn drawn_child_takes_asked_keyboard(catcher: NodeRef) {
     let Some(ChildFocus(Some(asked))) = use_context::<ChildFocus>() else {
         return;
     };
     let AskedFocus { placer, child } = asked;
-    let own = (placer.instance, ViewId(u64::MAX));
+    let own = (placer.instance, asks::DRAWN_BY_HOST);
     asks::viewed(placer.app, placer.instance, child, own, true);
     on_cleanup(move || asks::viewed(placer.app, placer.instance, child, own, false));
     create_effect(move || {
-        if asks::asks(placer.app, placer.instance, child) {
-            untrack(|| asks::taken(placer.app, placer.instance));
+        if !asks::asks(placer.app, placer.instance, child) {
+            return;
         }
+        untrack(|| {
+            asks::taken(placer.app, placer.instance);
+            let Some(node) = catcher.try_get() else {
+                return;
+            };
+            if WANTING_KEYBOARD.with_borrow(|views| !views.is_empty()) {
+                return;
+            }
+            try_with_document(|document| {
+                if document.focus_is_within(node) {
+                    return;
+                }
+                let placer_holds = document.focused_node().is_none_or(|held| {
+                    super::desktop::catchers_of(placer.app, placer.instance)
+                        .into_iter()
+                        .any(|view| document.focus_is_within(view))
+                        || super::desktop::shown_within(held, |_, catcher| {
+                            catcher.instance == placer.instance && catcher.app == placer.app
+                        })
+                });
+                if placer_holds {
+                    document.focus_focusable(node);
+                }
+            });
+        });
     });
 }
 

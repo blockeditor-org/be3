@@ -2067,6 +2067,9 @@ impl Children {
                 continue;
             }
             // A host panel the root draws takes it in the layer of its own surface, once drawn.
+            // Until then the ask waits, and the keyboard stays where it is rather than leaving
+            // the placer's screen (`KeyboardMove::Out`): the panel is the root's own and shows at
+            // the next frame, where a child's app may take long to start.
             if let Some(panel) = self.panel_layer(ask.editor, ask.child) {
                 match panel.filter(|layer| drawn(*layer)) {
                     Some(layer) => moved = moved.or(Some(KeyboardMove::Into(layer))),

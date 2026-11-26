@@ -1911,12 +1911,9 @@ fn HostedChild(
                                     <Frame />
                                 },
                             },
-                            Kind::Panel(panel) => {
-                                super::app_view::asks_end_at_drawn_child();
-                                view! {
-                                    <HostPanelSurface panel={panel} />
-                                }
-                            }
+                            Kind::Panel(panel) => view! {
+                                <PlacedPanel panel={panel} reporter />
+                            },
                             Kind::Window(window) => view! {
                                 <PlacedWindow window={window} focus={window_focus} />
                             },
@@ -2296,6 +2293,29 @@ pub(crate) fn with_window(status: &mut HostChildStatus, shown: WindowStatus) {
     status.notice = shown.notice;
     status.menu_asked = shown.menu;
     status.intrinsic = intrinsic;
+}
+
+/// A host panel an editor placed, which be-host draws in its own document: it takes the keyboard
+/// as the root's does, when its placer asks (a dock giving its tab the keyboard) or on a press,
+/// and its placer hears its child has it.
+#[component]
+fn PlacedPanel(panel: HostPanel, reporter: ChildReporter) -> NodeId {
+    let catcher = NodeRef::new();
+    super::app_view::drawn_child_takes_asked_keyboard(catcher);
+    let focused = reporter.focus;
+    view! {
+        <Interactive
+            @node_ref={&catcher}
+            focusable=true
+            on_focus_change={move |now: bool| {
+                if now {
+                    focused.call(());
+                }
+            }}
+        >
+            <HostPanelSurface panel={panel} />
+        </Interactive>
+    }
 }
 
 fn reporter_for(parent: Uuid, key: ChildId, within: Callback<()>) -> ChildReporter {
