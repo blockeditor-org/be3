@@ -549,13 +549,6 @@ Peers' derived views of a held edit: plans/peers_preview_held_edits.md.
   signed logs' Merkle tree is). Done: a decision on that, and the kept state
   bounded, with a test that counts what it keeps for a long log.
 
-- **A kept log is written whole on each change.** A device keeps the whole log it
-  checked with its refs (`KeptLog::steps`, `checked`), and `KeyBook::note_log`
-  hands `Refs::keep_log` a new `KeptLog` whenever the log moves, which writes
-  the whole row again: O(N²) over a log's life. Done: only what was appended
-  is written (its own rows, or a tail the kept state is extended by), with a
-  test that counts the bytes a long log's appends write.
-
 ## 27. Unread counts
 
 - **An open block counted live, for a type that counts from its content.** A
