@@ -49,7 +49,13 @@ impl Gpu {
         pass: u32,
         act: impl FnOnce(&Self, &mut wgpu::RenderPass<'static>) -> Result<(), Failure>,
     ) {
-        self.recorded(|gpu| &gpu.passes, Kind::RenderPass, pass, "render pass", act);
+        self.recorded(
+            |gpu| &gpu.passes,
+            Kind::RenderPass,
+            pass,
+            "render pass",
+            act,
+        );
     }
 
     /// A call made per dispatch on a compute pass, as `render`.
@@ -58,7 +64,13 @@ impl Gpu {
         pass: u32,
         act: impl FnOnce(&Self, &mut wgpu::ComputePass<'static>) -> Result<(), Failure>,
     ) {
-        self.recorded(|gpu| &gpu.compute_passes, Kind::ComputePass, pass, "compute pass", act);
+        self.recorded(
+            |gpu| &gpu.compute_passes,
+            Kind::ComputePass,
+            pass,
+            "compute pass",
+            act,
+        );
     }
 
     fn recorded<P>(

@@ -108,7 +108,9 @@ impl Settling {
                 (_, true) => "the host's gpu device was lost".to_owned(),
             };
             shared.held().lost.get_or_insert(message);
-            shared.lost.store(true, std::sync::atomic::Ordering::Release);
+            shared
+                .lost
+                .store(true, std::sync::atomic::Ordering::Release);
             if let Some(wake) = &wake {
                 wake();
             }
