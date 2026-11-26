@@ -18,6 +18,5 @@ fn a_peers_cancelled_drag_leaves_its_mirror_in_one_landing() {
     let (snapshots, landed) = super::tentative::landings(&mut sim, 1, 1);
     assert_eq!(snapshots, 0);
     assert_eq!(landed.len(), 1);
-    assert_eq!(landed[0].operation, None);
-    assert_eq!(landed[0].beneath, Some(Vec::new()));
+    assert!(matches!(&landed[0].landed, Landed::Relaid { local, .. } if local.is_empty()));
 }

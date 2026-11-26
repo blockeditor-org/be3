@@ -20,7 +20,7 @@ fn two_peers_dragging_at_once_each_see_their_own_drag_on_top() {
         assert_eq!(texts(sim.mirror(1, 2)), ["theirs", "moved"]);
         let (snapshots, landed) = super::tentative::landings(&mut sim, 1, 2);
         assert_eq!((snapshots, landed.len()), (0, 1));
-        assert_eq!(landed[0].above, 2);
+        assert!(matches!(landed[0].landed, Landed::Under { above: 2, .. }));
     }
 
     sim.gesture(1, 1, Gesture::Cancel);

@@ -35,13 +35,13 @@ the instance and the replica.
   how an app tells its own unacknowledged edits from others': `EditorMirror`
   drops that many from the front of what it sent, counting from what it was
   told landed, and rebuilds its view on the snapshot with the rest on top;
-  `Operations` (each marked `mine`, with `unsettled` and, for a peer's
-  operation that goes beneath them, the rebased `beneath`; for a local edit
-  made while a tentative layer is held, here or a peer's, `above`, how many of
-  the last unsettled edits it goes beneath, which stay on top; with no
-  `operation`, `beneath` alone, what is unsettled laid again as a peer's held
-  layer leaves or is told whole, guides/type_modules.md, Peers preview held
-  layers); `Lacking` (below,
+  `Operations` (each a `be_block_content::Landed` marked `mine`, each with
+  `unsettled`: `On` top; `Beneath`, a peer's operation beneath this device's
+  unsettled ones, which become `local`; `Under`, a local edit made while a
+  tentative layer is held, here or a peer's, beneath the last `above` unsettled
+  edits, which stay on top; `Relaid`, no edit, what is unsettled laid again as a
+  peer's held layer leaves or is told whole, guides/type_modules.md, Peers
+  preview held layers); `Lacking` (below,
   "Sending"); `Presence`;
   `PeerMessages`; `Range`; `GestureEnded { id, cancelled }`, the replica ending
   one of the instance's gestures, which `EditorMirror` answers with a cancel.

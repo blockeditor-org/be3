@@ -10,11 +10,11 @@ use crate::{EditorHost, HostContent};
 
 fn arrived(operation: Vec<u8>, mine: bool) -> crate::EditorOperation {
     crate::EditorOperation {
-        operation: Some(operation),
+        landed: be_block_content::Landed::On {
+            operation,
+            unsettled: 0,
+        },
         mine,
-        unsettled: 0,
-        beneath: None,
-        above: 0,
     }
 }
 
