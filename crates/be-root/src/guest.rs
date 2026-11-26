@@ -1548,7 +1548,12 @@ impl frames::Guest for Root {
                 Duration::from_nanos(request.wall_clock),
                 request.utc_offset,
             );
-            let preferences = be_wasm_ops::decode(&request.preferences).unwrap_or_default();
+            // Empty for the defaults; anything else is the host's encoding of its preferences.
+            let preferences = match request.preferences.is_empty() {
+                true => be_lib_ui_types::Preferences::default(),
+                false => be_wasm_ops::decode(&request.preferences)
+                    .expect("the host hands the root be-sdk-api's preferences, encoded"),
+            };
             be_sdk_root::set_preferences(preferences);
             root.own(time, Duration::from_nanos(request.wall_clock))
                 .await
