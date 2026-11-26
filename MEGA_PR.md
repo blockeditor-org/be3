@@ -157,6 +157,7 @@ Landed on 2026-11-24:
 - `host-adapter-4g7g2c4a`: be-host's page runs a root in place of its own UI, its apps saying when they started and starting their hello's while from the frame after, with a bound on loads; web host tests can run their scripts under the root.
 - `backlog-22-24`: apps' audio players move into be-host-audio, so `be` links no ALSA and answers a play with an error; buck2's lost-blob exit is recorded as 3, which retrying never retries.
 - `host-adapter-4g7g2c4b`: on the page, a host frame where the root is still drawing keeps the root's last accessibility tree; an app's module load is bounded at five minutes, for loads that never finish; the failing root counterparts (a picker's Canvas under the root makes no block, contacts on an unfocused page, grown) are recorded in the plan.
+- `root-picker-creation`: under the root, be-host does every block command the root's editors send (placing a picker's block, moving, deleting, undoing), not only leaving, so a canvas made from "New in My files…" lands there.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
