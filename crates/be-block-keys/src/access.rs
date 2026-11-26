@@ -1844,7 +1844,9 @@ impl Checked {
 
     /// `resume`, where the first `trusted` entries of `served` are a prefix this device kept as
     /// served before and checked (`Peer::served_access`): when they hold this whole log, only
-    /// the last of it is hashed, to tie the two, rather than every entry of it.
+    /// the last of it is hashed, to tie the two, rather than every entry of it. The caller vouches
+    /// that `served[..trusted]` are the very entries a check took before, not only entries ending
+    /// in the same hash: what lies before the last is not looked at, and is taken as checked.
     pub fn resume_trusting(
         self,
         kind: LogKind,
@@ -1976,9 +1978,10 @@ type AsOf = (Checking, [u8; 16], Option<EntryHash>);
 /// Logs checked as of a head, kept by whoever checks logs again and again (a device, the
 /// server) across the `Logs` of each check (`Logs::keeping`), so authority from another log is
 /// checked once as of each head a record names, not on every check of a log that rests on it.
-/// Only what checked is kept: a head's hash names every entry up to it, so the log as of it
-/// checks the same whoever serves it later, while one that did not check may yet, once more of
-/// what it rests on is held. Bounded by the entries of the logs it holds.
+/// Only a whole log that checked is kept: a head's hash names every entry up to it, so the log
+/// as of it checks the same whoever serves it whole later, while one that did not check may yet,
+/// once more of what it rests on is held, and a proof path proves less than the whole log does.
+/// Bounded by the entries of the logs it holds.
 pub struct CheckedAsOf(Mutex<crate::lru::Lru<AsOf, Arc<Checked>>>);
 
 impl CheckedAsOf {
@@ -2060,7 +2063,12 @@ impl<'a> Logs<'a> {
         let found = entries
             .and_then(|entries| check_log_as_of(kind, log, root, &entries, head, &outside).ok())
             .map(Arc::new);
-        if let (Some(held), Some(found)) = (self.kept, &found) {
+        // A proof path proves less than the whole log at the same head (grants it reduces), and
+        // a reader raised since is served the whole: only a whole log's answer stands for
+        // whoever reads it later.
+        if let (Some(held), Some(found)) = (self.kept, &found)
+            && !found.partial
+        {
             held.insert(kept, found.clone());
         }
         self.checked.borrow_mut().insert(key, found.clone());

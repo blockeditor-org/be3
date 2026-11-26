@@ -16,7 +16,7 @@ async fn joins(device: Peer<MemoryStore>, world: Uuid, host: Uuid) -> u64 {
 /// through the root it then pins. Served a proof path, which is checked whole each time, it
 /// checks no more on its first join than on a later one.
 #[tokio::test]
-async fn a_join_member_checks_a_hosts_log_once_across_a_restart() {
+async fn a_join_member_checks_a_hosts_log_once_per_join() {
     const GRANTS: usize = 40;
     let harness = Harness::start().await;
     let owner = harness.owner("owner@example.com").await;

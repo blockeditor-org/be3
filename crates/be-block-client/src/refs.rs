@@ -560,7 +560,6 @@ pub struct KeptLog {
     /// The whole log's entries as served to `head`, with `checked`, so a read after a restart
     /// names its last and is sent only those after it (`Peer::served_access`). Empty for a
     /// proof path.
-    #[serde(default)]
     pub steps: Vec<be_block_keys::Step>,
 }
 
