@@ -185,6 +185,7 @@ Landed on 2026-11-24:
 - `lowered-agent-key`: a bound agent lowered to View keeps reading its block: a rotation seals new epochs to whom key work lists right away, an editor re-asks keys before rotating, and a bound agent follows topic.keys only for its block and those below
 - `backlog-17-face`: a carried item floats as itself through a replica that draws its node at the node's scale (one replica per node; SSR and wasm copies alike), drawn whole where it floats and put down only at home
 - `unnamed-parts`: a part's chunks are kept by name across collections (open writers, outbox entries, older commits, unsealed edits), and a part written in pieces seals as a whole write does.
+- `restart-limit-tests`: host tests can lower a block's replica restart limit at open (tests only), so the slowest restart test drops from 28 s to 0.3 s of CPU.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
