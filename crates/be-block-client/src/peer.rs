@@ -2863,14 +2863,7 @@ impl<S: ObjectStore> Peer<S> {
             && checked <= held.steps.len()
         {
             let weight = held.steps.len().max(1);
-            served.insert(
-                log,
-                HeldLog {
-                    checked,
-                    ..held
-                },
-                weight,
-            );
+            served.insert(log, HeldLog { checked, ..held }, weight);
         }
     }
 

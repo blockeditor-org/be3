@@ -91,7 +91,10 @@ fn a_stored_log_is_checked_from_its_stored_head_without_loading_it() {
     let (checked, verified, hashed) = check(None);
     assert_eq!(checked.unwrap().head, entries.last().unwrap().hash());
     assert_eq!(verified, 0, "a read verifies nothing");
-    assert!(hashed <= 2, "and hashes only the first and last rows: {hashed}");
+    assert!(
+        hashed <= 2,
+        "and hashes only the first and last rows: {hashed}"
+    );
 
     let appended = grants(&creator, block, entries.last().unwrap().hash(), LENGTH, 1).remove(0);
     let (checked, verified, hashed) = check(Some(&appended));
@@ -110,7 +113,14 @@ fn a_stored_log_is_checked_from_its_stored_head_without_loading_it() {
 
     // The head row replaced behind what the server kept: the stored head is not the kept one,
     // so the log is checked from its root, and refused.
-    let mut forged = grants(&creator, block, entries.last().unwrap().hash(), LENGTH * 2, 1).remove(0);
+    let mut forged = grants(
+        &creator,
+        block,
+        entries.last().unwrap().hash(),
+        LENGTH * 2,
+        1,
+    )
+    .remove(0);
     forged.signature[0] ^= 1;
     connection
         .execute(
@@ -119,6 +129,9 @@ fn a_stored_log_is_checked_from_its_stored_head_without_loading_it() {
         )
         .unwrap();
     let (checked, verified, _) = check(None);
-    assert!(checked.is_none(), "a head stored behind the kept one is refused");
+    assert!(
+        checked.is_none(),
+        "a head stored behind the kept one is refused"
+    );
     assert!(verified >= LENGTH, "checked from the root: {verified}");
 }

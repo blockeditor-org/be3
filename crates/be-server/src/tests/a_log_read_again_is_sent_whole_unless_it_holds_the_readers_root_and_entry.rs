@@ -15,7 +15,12 @@ fn a_log_read_again_is_sent_whole_unless_it_holds_the_readers_root_and_entry() {
         .unwrap();
     let creator = RecoveryPhrase::generate().secret();
     let (organization, block) = (Uuid::new_v4(), Uuid::new_v4());
-    let mut entries = vec![Entry::root(&creator, [1; 16], LogKind::Block, block.into_bytes())];
+    let mut entries = vec![Entry::root(
+        &creator,
+        [1; 16],
+        LogKind::Block,
+        block.into_bytes(),
+    )];
     for index in 0..4u8 {
         let previous = entries.last().unwrap().hash();
         entries.push(Entry::sign(
@@ -74,12 +79,18 @@ fn a_log_read_again_is_sent_whole_unless_it_holds_the_readers_root_and_entry() {
         root: other_root,
         ..held.clone()
     });
-    assert_eq!(page.from, 0, "a reader holding another root is sent the log from its root");
+    assert_eq!(
+        page.from, 0,
+        "a reader holding another root is sent the log from its root"
+    );
     assert_eq!(page.entries.len(), entries.len());
 
     let page = read(HeldEntry {
         hash: entries[1].hash(),
         ..held
     });
-    assert_eq!(page.from, 0, "an entry the log does not store there is sent from the root");
+    assert_eq!(
+        page.from, 0,
+        "an entry the log does not store there is sent from the root"
+    );
 }

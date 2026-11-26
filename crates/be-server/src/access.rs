@@ -837,7 +837,8 @@ pub(crate) fn checked_block_log(
         organization,
     )?
     .map(|stored| stored.root);
-    let logs = Logs::new(organization.into_bytes(), organization_root, &log).keeping(&CHECKED_AS_OF);
+    let logs =
+        Logs::new(organization.into_bytes(), organization_root, &log).keeping(&CHECKED_AS_OF);
     let outside = |asked: &Asked| be_block_keys::answer(&logs, block.into_bytes(), asked);
     checked_stored(
         connection,
