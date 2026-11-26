@@ -25,8 +25,9 @@ async fn put_part<S: be_block_store::ObjectStore>(
 ) -> Result<be_block_store::PartRef, ClientError> {
     let mut writer = peer.part_writer(block).await?;
     writer.write(bytes)?;
-    let part = writer
-        .finish()?
+    let written = writer.finish()?;
+    let part = written
+        .part()
         .ok_or_else(|| ClientError::Encoding("a part needs at least one byte".to_owned()))?;
     peer.hold_part(block, part).await?;
     Ok(part)
@@ -206,6 +207,9 @@ mod a_notification_sealed_under_another_blocks_key_is_refused;
 mod a_page_checked_against_a_head_that_moved_meanwhile_is_read_again;
 mod a_part_put_for_an_operation_is_saved_by_another_member_without_uploading_it;
 mod a_part_written_in_pieces_is_saved_and_read_by_another_device;
+mod an_open_part_writers_chunks_survive_a_collection;
+mod a_chunk_a_named_part_shares_survives_a_collection;
+mod an_outbox_entrys_parts_survive_a_collection_until_and_after_it_publishes;
 mod a_policy_outside_the_organizations_settings_is_not_enforced;
 mod a_prefix_root_whose_proof_does_not_check_is_the_server_misbehaving;
 mod a_publish_the_server_refuses_as_invalid_is_set_aside_not_sent_again;

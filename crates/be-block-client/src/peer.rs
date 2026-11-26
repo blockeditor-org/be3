@@ -637,11 +637,11 @@ impl<S: ObjectStore> Peer<S> {
         config: PeerConfig,
         store: S,
     ) -> Result<Self, ClientError> {
-        let refs = config.refs.scope(Scope {
+        let refs = Arc::new(config.refs.scope(Scope {
             server: config.url.clone(),
             account,
             organization,
-        })?;
+        })?);
         let session = refs.session();
         let ring = Keyring::new();
         let _ = refs.add_signer(account, config.identity.signing().0, true, None);
@@ -670,7 +670,11 @@ impl<S: ObjectStore> Peer<S> {
         keys.absorb(refs.keys());
         let peer = Self {
             connection: Arc::new(Mutex::new(connection)),
-            commits: CommitStore::new(Vault::new(store, ring).with_chunker(config.chunker)),
+            commits: CommitStore::new(
+                Vault::new(store, ring)
+                    .with_chunker(config.chunker)
+                    .with_ledger(Arc::clone(&refs) as Arc<dyn be_block_store::Ledger>)?,
+            ),
             token: Mutex::new(String::new()),
             account,
             organization,
@@ -678,7 +682,7 @@ impl<S: ObjectStore> Peer<S> {
                 (OrganizationRole::Editor, OrganizationKind::default()),
                 |session| (session.role, session.kind),
             )),
-            refs: Arc::new(refs),
+            refs,
             resolver: Mutex::new(None),
             keys,
             current: Mutex::new(HashMap::new()),
@@ -4417,6 +4421,81 @@ impl<S: ObjectStore> Peer<S> {
         let objects = self.part_objects(&[part])?;
         self.hold(block, &objects, be_block_protocol::Hold::UntilCommitted)
             .await
+    }
+
+    /// Removes from the vault what this device's part writers sealed that nothing here names
+    /// (guides/blocks/client.md, "Unnamed parts"): a merge let go of, a writer dropped before
+    /// it finished, a part no operation came to name. Kept are the objects of every commit of
+    /// each such block this device holds, from its heads (its own, the server's, its summary's,
+    /// the one read whole) through their parents, and of every outbox or unsent entry and
+    /// journal base, and those an open writer or a part it finished still pins. Answers how many
+    /// objects it removed. It runs without awaiting, under the lock writers pin under, so it
+    /// races no writer; a host runs it while idle, so no seal or read is under way that has put
+    /// or found an object and not yet recorded what names it.
+    pub fn collect_unnamed(&self) -> Result<usize, ClientError> {
+        let vault = self.commits.vault();
+        if vault.unnamed_count() == 0 {
+            return Ok(0);
+        }
+        Ok(vault.collect(|candidates| self.named_among(candidates))?)
+    }
+
+    /// What names `candidates` (by block) on this device, as `collect_unnamed` keeps it.
+    fn named_among(
+        &self,
+        candidates: &HashMap<Uuid, HashSet<Hash>>,
+    ) -> Result<HashSet<Hash>, be_block_store::StoreError> {
+        let vault = self.commits.vault();
+        let mut marked = HashSet::new();
+        let mut commits = Vec::new();
+        let unsent = self.refs.unsent().into_iter().flat_map(|(_, unsent)| unsent.ops);
+        for op in self.refs.outbox().into_iter().map(|(_, op)| op).chain(unsent) {
+            match op {
+                crate::refs::Op::Publish(pending) => {
+                    marked.extend(pending.chunks);
+                    if let Some(journal) = pending.journal {
+                        marked.extend(journal.base.parts);
+                    }
+                    if candidates.contains_key(&pending.block) {
+                        commits.push(pending.commit);
+                    }
+                }
+                crate::refs::Op::Hold(holding) => marked.extend(holding.objects),
+                _ => {}
+            }
+        }
+        for block in candidates.keys() {
+            commits.extend(
+                [
+                    self.refs.head(*block),
+                    self.refs.remote(*block),
+                    self.refs.summary(*block).and_then(|summary| summary.head),
+                    self.refs.held(*block),
+                ]
+                .into_iter()
+                .flatten(),
+            );
+            if let Some(journal) = self.refs.journal(*block) {
+                marked.extend(journal.base.parts);
+            }
+        }
+        let all_named =
+            |marked: &HashSet<Hash>| candidates.values().flatten().all(|c| marked.contains(c));
+        let mut seen = HashSet::new();
+        while let Some(commit) = commits.pop() {
+            if all_named(&marked) {
+                break;
+            }
+            if !seen.insert(commit) {
+                continue;
+            }
+            let Some(held) = self.commits.try_get(commit)? else {
+                continue;
+            };
+            vault.mark(&held.manifest, &mut marked)?;
+            commits.extend(held.parents);
+        }
+        Ok(marked)
     }
 
     /// Every object of `parts`, which this device wrote (`part_writer`) or holds: what a journal's

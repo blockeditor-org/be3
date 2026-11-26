@@ -27,7 +27,7 @@ impl PartsOut for Saving<'_> {
         writer.write(&bytes).unwrap();
         self.saved
             .borrow_mut()
-            .insert(*part, writer.finish().unwrap());
+            .insert(*part, writer.finish().unwrap().part());
         Ok(())
     }
 }

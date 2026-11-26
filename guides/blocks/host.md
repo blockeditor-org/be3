@@ -825,7 +825,13 @@ index and search it locally.
   (`Written::saved` names them); be-block-search-index's `SavedParts` answers
   the saved part each became, and be-host-stack's `Saving` seals them a chunk
   at a time with `Vault::part_writer` under the index's key. The parts it saves
-  are `Held::Saved`, reused by the commit and uploaded by its drain. A
+  are `Held::Saved`, reused by the commit and uploaded by its drain. `Saving`
+  keeps each finished part pinned (`Written`) until the commit is sealed into the
+  outbox; a compaction let go of (the head moved, a read or a seal failed, the
+  host stopped mid-merge) leaves its parts noted as unnamed, and the host removes
+  them while it is quiet (`collect_unnamed` in the search loop: the idle pass's
+  conditions short of rest and search being on; guides/blocks/client.md,
+  "Unnamed parts"). A
   compaction never merges a segment it wrote itself, which would drop parts it
   sealed already; the next compaction does. What the cap leaves
   (`SearchIndexContent::merges_over`) is merged while the host is idle
