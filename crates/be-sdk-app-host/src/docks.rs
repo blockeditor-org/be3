@@ -572,6 +572,7 @@ impl Docks {
             .collect();
         for (root, child) in withdrawn {
             self.delivered.remove(&(root, child));
+            self.answer_restores(root, child, None);
             if self.hosting.get(&(root, child)) == Some(&Hosting::Awaited) {
                 self.hosting.remove(&(root, child));
             }
