@@ -1206,6 +1206,10 @@ interface host {
         /// The frames that open it, which the root sends the app before
         /// anything that names it.
         frames: list<list<u8>>,
+        /// The name of the app it opened in, as its manifest says: the
+        /// label of the pane each screen of the app shows in, as be-host
+        /// labels its own.
+        name: string,
     }
 
     /// Opens `shown`'s editor in the app the root spawned as `instance` (the

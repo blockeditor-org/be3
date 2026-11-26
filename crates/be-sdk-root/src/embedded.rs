@@ -131,6 +131,9 @@ struct State {
     instance: Rc<Instance>,
     /// The staged app it runs, by its id.
     app: String,
+    /// The app's name, once its host opened an editor in it (`open_editor`): the label of the
+    /// pane each of its screens' trees hangs under, as be-host labels its own.
+    name: Option<String>,
     wire: Wire,
     /// The app's run: its session, pacing, holds and layout. The root holds no answers for a
     /// later poll, so its holds keep only layouts.
@@ -343,6 +346,7 @@ impl Embedded {
         if let Some(failure) = &state.failure {
             return Err(failure.clone());
         }
+        state.name = Some(opened.name);
         // Before the hello the frames wait with the rest that open its editors.
         match state.started {
             true => state.relay(opened.frames),
@@ -533,6 +537,7 @@ impl Embedded {
         let state = Rc::new(RefCell::new(State {
             instance: Rc::clone(&instance),
             app,
+            name: None,
             wire: Wire::default(),
             run,
             fonts,
@@ -1090,7 +1095,8 @@ impl Embedded {
     /// the keyboard. None
     /// while it described nothing, or the surface shows no screen. `placing.scale` is how many
     /// window points a pixel of the surface is drawn at, which the screen's raster turns into
-    /// its points'.
+    /// its points'. Its pane is labelled with the app's name
+    /// (`placing.title` is not read), but that of a view it anchored or of a dock bar.
     pub(crate) fn grafted(
         &self,
         surface: u32,
@@ -1100,10 +1106,18 @@ impl Embedded {
         let placement = state.surfaces.get(&surface)?;
         let (screen, raster) = (placement.screen, raster(placement));
         let focused = state.keyboard.contains(&screen);
-        let graft = state.described.get_mut(&screen)?;
+        // A pane named for the app, as be-host names each of its views but a view it anchored
+        // and a dock bar, which holds no content.
+        let titled = !state.anchored.contains_key(&screen)
+            && !matches!(state.contents.get(&screen), Some(None));
+        let State {
+            described, name, ..
+        } = &mut *state;
+        let graft = described.get_mut(&screen)?;
         let full = !graft.grafted_yet();
         Some(graft.grafted(
             Placing {
+                title: name.as_deref().filter(|_| titled),
                 scale: placing.scale * raster,
                 ..placing
             },
