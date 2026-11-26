@@ -74,7 +74,7 @@ fn a_log_checked_on_from_any_entry_is_the_log_checked_whole() {
     let head = entries.last().unwrap().hash();
     push(
         &mut entries,
-        Entry::retirement(&creator, &renewed, creator_id, block, head),
+        Entry::retirement(&creator, &renewed, creator_id, block, head, false),
     );
     let code = InviteCode::generate();
     append(
@@ -91,7 +91,7 @@ fn a_log_checked_on_from_any_entry_is_the_log_checked_whole() {
     let head = entries.last().unwrap().hash();
     push(
         &mut entries,
-        Entry::retirement(&opener, &opener_renewed, opener_id, block, head),
+        Entry::retirement(&opener, &opener_renewed, opener_id, block, head, false),
     );
     append(
         &mut entries,

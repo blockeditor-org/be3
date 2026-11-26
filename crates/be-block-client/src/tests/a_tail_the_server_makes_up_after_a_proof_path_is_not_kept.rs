@@ -68,6 +68,7 @@ fn a_tail_the_server_makes_up_after_a_proof_path_is_not_kept() {
             places: false,
             owns: false,
             retires: false,
+            retires_administrator: false,
             digest: [9; 32],
         })],
     ]

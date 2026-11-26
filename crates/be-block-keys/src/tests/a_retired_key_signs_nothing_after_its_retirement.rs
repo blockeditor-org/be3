@@ -9,13 +9,13 @@ fn a_retired_key_signs_nothing_after_its_retirement() {
     let block = [7; 16];
     let root = Entry::root(&old, account, LogKind::Block, block);
     let pinned = root.hash();
-    let retired = Entry::retirement(&old, &new, account, block, pinned);
+    let retired = Entry::retirement(&old, &new, account, block, pinned, false);
     let log = vec![root.clone(), retired.clone()];
     let checked = check_log(LogKind::Block, block, pinned, &log, &|_| None).unwrap();
     assert_eq!(checked.head, retired.hash());
     assert_eq!(checked.signers.get(&account), Some(&new.signing()));
 
-    let again = Entry::retirement(&old, &thief, account, block, retired.hash());
+    let again = Entry::retirement(&old, &thief, account, block, retired.hash(), false);
     assert!(
         check_log(
             LogKind::Block,
@@ -27,7 +27,7 @@ fn a_retired_key_signs_nothing_after_its_retirement() {
         .is_err(),
         "the old key retired the account again after its retirement"
     );
-    let unendorsed = Entry::retirement(&thief, &thief, account, block, pinned);
+    let unendorsed = Entry::retirement(&thief, &thief, account, block, pinned, false);
     assert!(
         check_log(
             LogKind::Block,
@@ -39,7 +39,7 @@ fn a_retired_key_signs_nothing_after_its_retirement() {
         .is_err(),
         "someone retired the account without its key"
     );
-    let onward = Entry::retirement(&new, &thief, account, block, retired.hash());
+    let onward = Entry::retirement(&new, &thief, account, block, retired.hash(), false);
     assert!(
         check_log(
             LogKind::Block,
@@ -51,7 +51,7 @@ fn a_retired_key_signs_nothing_after_its_retirement() {
         .is_ok(),
         "the new key retires in turn"
     );
-    let misplaced = Entry::retirement(&old, &new, account, block, [0; 32]);
+    let misplaced = Entry::retirement(&old, &new, account, block, [0; 32], false);
     assert!(
         check_log(
             LogKind::Block,

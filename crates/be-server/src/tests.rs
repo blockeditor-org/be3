@@ -835,6 +835,55 @@ impl TestClient {
         }
     }
 
+    /// The entry retiring `account`'s `old` keys for `new`'s in `log`, at its head, saying
+    /// whether the account administers the organization there, as the organization's log as
+    /// served shows (`be_block_keys::Retirement::administrator`).
+    async fn retirement(
+        &mut self,
+        old: &be_block_keys::RecoverySecret,
+        new: &be_block_keys::RecoverySecret,
+        account: Uuid,
+        log: be_block_protocol::SignedLog,
+    ) -> be_block_protocol::Retirement {
+        let head: be_block_keys::EntryHash = log.head.as_slice().try_into().unwrap();
+        let administrator = match log.kind {
+            be_block_protocol::LogKind::Block => false,
+            be_block_protocol::LogKind::Organization => {
+                let steps: Vec<be_block_keys::Step> = self
+                    .access_log(None)
+                    .await
+                    .unwrap()
+                    .iter()
+                    .map(|step| be_block_keys::Step::decode(step).unwrap())
+                    .collect();
+                let checked = be_block_keys::check_log(
+                    be_block_keys::LogKind::Organization,
+                    log.log.into_bytes(),
+                    steps[0].hash(),
+                    &steps,
+                    &|_| None,
+                )
+                .unwrap();
+                checked.level_as_of(account.into_bytes(), &head)
+                    == Some(be_block_keys::Level::Manage)
+            }
+        };
+        be_block_protocol::Retirement {
+            organization: log.organization,
+            kind: log.kind,
+            log: log.log,
+            entry: be_block_keys::Entry::retirement(
+                old,
+                new,
+                account.into_bytes(),
+                log.log.into_bytes(),
+                head,
+                administrator,
+            )
+            .encode(),
+        }
+    }
+
     /// The access log of `log` (the organization's with none), as served from its root.
     async fn access_log(&mut self, log: Option<Uuid>) -> Result<Vec<Vec<u8>>, Error> {
         self.call(|peer| {
@@ -1294,23 +1343,10 @@ impl TestClient {
             })
             .await
             .expect("reading the recovery key failed");
-        let retirements = found
-            .logs
-            .into_iter()
-            .map(|log| be_block_protocol::Retirement {
-                organization: log.organization,
-                kind: log.kind,
-                log: log.log,
-                entry: be_block_keys::Entry::retirement(
-                    &old,
-                    &new,
-                    account.into_bytes(),
-                    log.log.into_bytes(),
-                    log.head.try_into().unwrap(),
-                )
-                .encode(),
-            })
-            .collect();
+        let mut retirements = Vec::new();
+        for log in found.logs {
+            retirements.push(self.retirement(&old, &new, account, log).await);
+        }
         let identity = new.identity();
         let response = self
             .call(|peer| {

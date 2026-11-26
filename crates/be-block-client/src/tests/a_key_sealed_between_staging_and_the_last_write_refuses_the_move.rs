@@ -28,6 +28,9 @@ async fn a_key_sealed_between_staging_and_the_last_write_refuses_the_move() {
         before.sealed.clone(),
         &std::collections::HashMap::new(),
         before.logs.clone(),
+        &crate::contacts::administered(&rosa.connection(), rosa.account(), &before.logs)
+            .await
+            .unwrap(),
     )
     .expect("the old phrase opens everything it sealed");
     crate::ask(be_block_protocol::write::<(), _>(
