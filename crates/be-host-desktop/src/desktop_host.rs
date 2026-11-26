@@ -76,6 +76,36 @@ pub fn configure(change: impl FnOnce(&mut DesktopSettings)) {
     }
 }
 
+/// Publishes the platform's program windows and their programs to the apps
+/// (be3:desktop's `windows` and `open-programs`), less the windows bound to a block's editor,
+/// from an effect in the current scope that runs again whenever either changes.
+pub fn publish_windows() {
+    let bound = crate::programs::bound_windows();
+    create_effect(move || {
+        let listed = bound.with(|bound| Host::listed(bound));
+        be_host_base::watches::publish::<be_sdk_api::OpenProgramsWatch>(&open_programs(&listed));
+        be_host_base::watches::publish::<be_sdk_api::WindowsWatch>(&listed);
+    });
+}
+
+/// The programs of the listed windows, each once, for apps other than the shell.
+fn open_programs(listed: &[HostWindow]) -> Vec<be_sdk_api::OpenProgram> {
+    let mut programs: Vec<be_sdk_api::OpenProgram> = Vec::new();
+    for window in listed {
+        if window.kind != be_sdk_api::WindowKind::Window {
+            continue;
+        }
+        let program = be_sdk_api::OpenProgram {
+            program_id: window.program_id.clone(),
+            command: window.origin.command.clone(),
+        };
+        if !programs.contains(&program) {
+            programs.push(program);
+        }
+    }
+    programs
+}
+
 #[cfg(not(any(target_os = "linux", windows)))]
 impl DesktopHost for Host {
     type Source = ();
@@ -115,10 +145,8 @@ pub trait DesktopHost {
 
     fn set_locked(_locked: bool) {}
 
-    fn revision() -> u64 {
-        0
-    }
-
+    /// The program windows listed, less `hidden`, tracking what they are read from, so an
+    /// effect over them (`publish_windows`) runs again when they change.
     fn listed(_hidden: &[HostWindowId]) -> Vec<HostWindow> {
         Vec::new()
     }

@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 
 use be_host_base::host::{Desk, Mailbox, Post};
 use be_sdk_api::{EditorDescriptor, Edits, HostWindowId, ProgramAction};
+use beui::reactive::{ReadSignal, Signal, create_signal, on_cleanup};
 use uuid::Uuid;
 
 use crate::desktop_host::{DesktopHost, Host};
@@ -102,10 +103,26 @@ struct Sessions {
 
 thread_local! {
     static SESSIONS: RefCell<Sessions> = RefCell::new(Sessions::default());
+    /// Each `bound_windows` asked for that lives, which `with` keeps up.
+    static BOUND: RefCell<Vec<Signal<Vec<HostWindowId>>>> = const { RefCell::new(Vec::new()) };
 }
 
 fn with<R>(act: impl FnOnce(&mut Sessions) -> R) -> R {
-    SESSIONS.with(|sessions| act(&mut sessions.borrow_mut()))
+    let (acted, bound) = SESSIONS.with(|sessions| {
+        let mut sessions = sessions.borrow_mut();
+        let acted = act(&mut sessions);
+        (acted, bound_in(&sessions))
+    });
+    let signals = BOUND.with_borrow_mut(|signals| {
+        signals.retain(Signal::is_alive);
+        signals.clone()
+    });
+    for signal in signals {
+        if signal.with_untracked(|held| *held != bound) {
+            signal.set(bound.clone());
+        }
+    }
+    acted
 }
 
 pub fn opens(editor: Uuid) -> bool {
@@ -201,16 +218,24 @@ pub fn close(closed: Uuid) {
     }
 }
 
-pub fn bound_windows() -> Vec<HostWindowId> {
-    with(|sessions| {
-        let mut bound: Vec<HostWindowId> = sessions
-            .open
-            .values()
-            .filter_map(|session| window_of(&session.stage))
-            .collect();
-        bound.sort();
-        bound
-    })
+/// The program windows bound to a block's editor, which its view shows rather than the
+/// desktop, as they change: made in the current scope, and kept up by every change to the
+/// sessions while it lives.
+pub fn bound_windows() -> ReadSignal<Vec<HostWindowId>> {
+    let signal = create_signal(SESSIONS.with(|sessions| bound_in(&sessions.borrow())));
+    BOUND.with_borrow_mut(|signals| signals.push(signal));
+    on_cleanup(move || BOUND.with_borrow_mut(|signals| signals.retain(|held| *held != signal)));
+    signal.read_only()
+}
+
+fn bound_in(sessions: &Sessions) -> Vec<HostWindowId> {
+    let mut bound: Vec<HostWindowId> = sessions
+        .open
+        .values()
+        .filter_map(|session| window_of(&session.stage))
+        .collect();
+    bound.sort();
+    bound
 }
 
 fn window_of(stage: &Stage) -> Option<HostWindowId> {

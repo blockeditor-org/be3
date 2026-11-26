@@ -223,32 +223,15 @@ pub fn keep_in_work_areas<W: Stacked>(
 
 /// Where `rect` goes so that its grip (`KEPT` of its top-left corner) lies on one of the work
 /// areas of `areas` (each display with its work area): where it is when it already does, else
-/// the nearest such place on the work area of the display holding most of it.
+/// the nearest such place on the work area of the display holding most of it. The rest of the
+/// window may hang off any edge, or over any band.
 pub fn reachable(rect: Rect, areas: &[(Rect, Rect)]) -> Pos2 {
     let displays: Vec<Rect> = areas.iter().map(|(display, _)| *display).collect();
     let Some((_, work)) = home(&displays, rect).map(|home| areas[home]) else {
         return rect.min;
     };
     let works: Vec<Rect> = areas.iter().map(|(_, work)| *work).collect();
-    grabbable(rect, &works, work)
-}
-
-/// Where `rect` goes so that its grip (`KEPT` of its top-left corner) lies on one of `works`:
-/// where it is when it already does, else the nearest such place on `home`. The rest of the
-/// window may hang off any edge, or over any band.
-pub fn grabbable(rect: Rect, works: &[Rect], home: Rect) -> Pos2 {
-    let kept = KEPT.min(rect.size());
-    let grip = Rect::from_min_size(rect.min, kept);
-    let reached = works.iter().any(|work| {
-        let shared = work.intersect(grip);
-        shared.width() >= kept.x - WALL && shared.height() >= kept.y - WALL
-    });
-    if reached {
-        return rect.min;
-    }
-    let x = rect.min.x.min(home.max.x - kept.x).max(home.min.x);
-    let y = rect.min.y.min(home.max.y - kept.y).max(home.min.y);
-    pos2(x, y)
+    rect.grabbable(KEPT.min(rect.size()), &works, work)
 }
 
 /// `rect` shrunk to `work` on each axis a band insets, or brought wholly into `work` when it is on

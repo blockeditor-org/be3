@@ -285,15 +285,13 @@ impl DesktopHost for Linux {
         WINDOWS.set(None);
     }
 
-    fn revision() -> u64 {
-        windows().map_or(0, |windows| windows.revision())
-    }
-
     fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
         let Some(windows) = windows() else {
             return Vec::new();
         };
-        let listed = windows.list().get_untracked();
+        // What a window was asked (raised, rung, minimized) counts in `changes`, beside the list.
+        windows.changes().track();
+        let listed = windows.list().get();
         let opening: Vec<WindowId> = hidden.iter().map(|window| WindowId(window.0)).collect();
         listed
             .into_iter()

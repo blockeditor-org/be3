@@ -61,6 +61,9 @@ struct Signals {
     snapshot: Signal<Arc<Snapshot>>,
     /// `NOTES` as of the last `before`, for the window bodies.
     notes: Signal<Notes>,
+    /// The watcher's snapshot revision with `CHANGES`, as of the last `before`: what the
+    /// windows listed (`listed`) are read from changed when it does.
+    changes: Signal<u64>,
 }
 
 struct Host {
@@ -123,6 +126,7 @@ impl DesktopHost for Win32 {
         SIGNALS.set(Some(Signals {
             snapshot: create_signal(Arc::new(Snapshot::default())),
             notes: create_signal(Notes::default()),
+            changes: create_signal(0),
         }));
     }
 
@@ -300,11 +304,15 @@ impl DesktopHost for Win32 {
             notes.refused.retain(|id, _| live(id));
             notes.hovered = notes.hovered.filter(live);
         });
+        let changes = snapshot.revision + CHANGES.get();
         beui::native::enter(document, || {
             if signals.snapshot.get_untracked().revision != snapshot.revision {
                 signals.snapshot.set(snapshot);
             }
             signals.notes.set(NOTES.with_borrow(Notes::clone));
+            if signals.changes.get_untracked() != changes {
+                signals.changes.set(changes);
+            }
             for (signal, drawing) in frames {
                 signal.set(drawing);
             }
@@ -335,11 +343,10 @@ impl DesktopHost for Win32 {
         }
     }
 
-    fn revision() -> u64 {
-        watcher().map_or(0, |watcher| watcher.snapshot().revision) + CHANGES.get()
-    }
-
     fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
+        if let Some(signals) = signals() {
+            signals.changes.track();
+        }
         watcher().map_or_else(Vec::new, |watcher| {
             let snapshot = watcher.snapshot();
             SHAPING.with_borrow_mut(|shaping| {

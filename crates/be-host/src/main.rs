@@ -390,6 +390,7 @@ impl Shell {
             if desktop {
                 Host::create();
             }
+            be_host_desktop::desktop_host::publish_windows();
             surfaces::create_handles();
             display::create_handle();
             let store = HostUiStore::new(HostUi::default());
@@ -662,7 +663,6 @@ struct HostCore {
     choosing_session: bool,
     every_session_type: bool,
     shell: Option<Uuid>,
-    windows_sent: Option<(u64, Vec<be_sdk_api::HostWindowId>)>,
     focus_reports: HashMap<Uuid, editors::FocusReport>,
     /// The artifacts each editor watches (`InstanceEvent::ArtifactWatch`), by its app and
     /// instance: be-host's own, or one a root's app runs, which the root's host hands the states
@@ -1061,7 +1061,6 @@ impl HostCore {
             choosing_session: false,
             every_session_type: false,
             shell: None,
-            windows_sent: None,
             focus_reports: HashMap::new(),
             artifact_watches: HashMap::new(),
             artifact_states: Vec::new(),
@@ -3236,20 +3235,6 @@ impl HostCore {
         self.editors.with(|open| open.get_mut(&id).map(act))
     }
 
-    /// Tells the apps the desktop host's program windows and open programs as they change
-    /// (be3:desktop's `windows`), less those bound to a block's editor.
-    fn publish_windows(&mut self) {
-        let hidden = be_host_desktop::programs::bound_windows();
-        if Some((Host::revision(), hidden.clone())) != self.windows_sent {
-            let listed = Host::listed(&hidden);
-            be_host_base::watches::publish::<be_sdk_api::OpenProgramsWatch>(&open_programs(
-                &listed,
-            ));
-            be_host_base::watches::publish::<be_sdk_api::WindowsWatch>(&listed);
-            self.windows_sent = Some((Host::revision(), hidden));
-        }
-    }
-
     fn show_shell(&mut self) {
         let Some(shell) = self.ensure_shell() else {
             return;
@@ -3274,7 +3259,6 @@ impl HostCore {
                 },
             );
         }
-        self.publish_windows();
         let heard = self.hear_artifact_watches();
         let keys: HashMap<(String, be_sdk_api::EditorInstanceId), Uuid> = match heard.is_empty() {
             true => HashMap::new(),
@@ -3995,10 +3979,8 @@ impl HostCore {
                     .ensure_session()
                     .filter(|session| be_host_stack::node(*session).is_some());
                 self.root_session_pending = self.root_session.is_none();
-                // The desktop host runs under the root too (`RootShell`), and its windows reach
-                // the desktop app the root shows.
+                // The desktop host runs under the root too (`RootShell`).
                 if self.desktop {
-                    self.publish_windows();
                     Host::frame();
                 }
             }
@@ -5021,21 +5003,3 @@ fn may_close(from: Option<Uuid>, shell: Option<Uuid>, parent: Option<Uuid>) -> b
 
 #[cfg(test)]
 mod tests;
-
-/// The programs of the listed windows, each once, for apps other than the shell.
-fn open_programs(listed: &[be_sdk_api::HostWindow]) -> Vec<be_sdk_api::OpenProgram> {
-    let mut programs: Vec<be_sdk_api::OpenProgram> = Vec::new();
-    for window in listed {
-        if window.kind != be_sdk_api::WindowKind::Window {
-            continue;
-        }
-        let program = be_sdk_api::OpenProgram {
-            program_id: window.program_id.clone(),
-            command: window.origin.command.clone(),
-        };
-        if !programs.contains(&program) {
-            programs.push(program);
-        }
-    }
-    programs
-}

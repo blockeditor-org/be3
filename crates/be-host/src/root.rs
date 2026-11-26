@@ -148,7 +148,7 @@ struct RootShell {
     /// The generation of the host's notices the root was last handed.
     notices: Option<u64>,
     /// The catalog the root was last handed (`show_block_types`).
-    block_types: Option<HandedTypes>,
+    block_types: HandedTypes,
     /// What the window's clipboard answered the root's pastes with, by their ids, until the
     /// root is handed them.
     pasted: Rc<RefCell<Vec<(u64, Option<ClipItem>)>>>,
@@ -238,6 +238,8 @@ impl RootShell {
             // desktop app (plans/host_as_platform_adapter.md, 4g7e3a).
             if desktop {
                 Host::create();
+                // Its windows reach the desktop app the root shows.
+                be_host_desktop::desktop_host::publish_windows();
             }
             let drawing = create_signal(None::<GpuDrawing>);
             shown = Some(drawing);
@@ -267,7 +269,7 @@ impl RootShell {
             painting: false,
             waker: None,
             notices: None,
-            block_types: None,
+            block_types: HandedTypes::default(),
             pasted: Rc::default(),
             memory: None,
             editors: Editors::default(),
@@ -826,35 +828,33 @@ fn start(app: &str, setup: &beui::native::Setup) -> Result<Root, String> {
     Ok(root)
 }
 
-/// The catalog a root was handed: the registry's block types and the programs' editors listed.
+/// The catalog a root was handed: the registry's block types, and the programs' editors as
+/// they are pushed to it.
+#[derive(Default)]
 struct HandedTypes {
-    types: std::sync::Arc<be_host_runtime::AppCatalog>,
-    programs: u64,
+    types: Option<std::sync::Arc<be_host_runtime::AppCatalog>>,
+    programs: be_host_base::program_editors::Hearing,
 }
 
 /// Hands the root the host's catalog once it changed since it was `handed` (`host.block-types`):
 /// the registry's block types, templates and editors with the editors of the programs listed,
 /// as be-host-runtime tells its own apps, which name and draw block types from it.
-fn show_block_types(core: &crate::HostCore, root: &mut Root, handed: &mut Option<HandedTypes>) {
+fn show_block_types(core: &crate::HostCore, root: &mut Root, handed: &mut HandedTypes) {
     let types = core.registry.app_block_types();
-    let seen = handed
-        .as_ref()
-        .filter(|handed| std::sync::Arc::ptr_eq(&handed.types, types))
-        .map(|handed| handed.programs);
-    let Some((programs, program_editors)) = be_host_base::program_editors::listed_since(seen)
-    else {
+    let programs = handed.programs.take();
+    let same = (handed.types.as_ref()).is_some_and(|handed| std::sync::Arc::ptr_eq(handed, types));
+    if same && programs.is_none() {
         return;
-    };
+    }
     let mut catalog = types.catalog.clone();
-    catalog.editors.extend(program_editors);
+    catalog
+        .editors
+        .extend(programs.unwrap_or_else(be_host_base::program_editors::listed));
     root.show_block_types(
         be_sdk_api::ops::encode(&catalog),
         be_sdk_api::ops::encode(&types.debug_templates),
     );
-    *handed = Some(HandedTypes {
-        types: std::sync::Arc::clone(types),
-        programs,
-    });
+    handed.types = Some(std::sync::Arc::clone(types));
 }
 
 /// Hands `root` the host's notices if they changed since the generation it was handed, `seen`.

@@ -104,7 +104,8 @@ pub(super) struct Instances {
     next_screen: u64,
     announced: HashSet<ScreenId>,
     block_types: Option<Arc<crate::AppCatalog>>,
-    sent_block_types: Option<u64>,
+    /// The programs' editors, due to the app with its block types when they change.
+    program_editors: be_host_base::program_editors::Hearing,
     network: Vec<String>,
     /// Whether the app's manifest sets `block_agents`.
     block_agents: bool,
@@ -2325,7 +2326,7 @@ impl Instances {
 
     pub(super) fn reopen(&mut self) {
         self.heard.forget();
-        self.sent_block_types = None;
+        self.program_editors.again();
         self.announced.clear();
         for (instance, entry) in &mut self.entries {
             forget_opened(&self.app_id, &self.heard, *instance, entry);
@@ -2367,10 +2368,8 @@ impl Instances {
         let forwarded = self.forwarded;
         self.relaying.clear();
         if let Some(block_types) = &self.block_types
-            && let Some((programs, program_editors)) =
-                be_host_base::program_editors::listed_since(self.sent_block_types)
+            && let Some(program_editors) = self.program_editors.take()
         {
-            self.sent_block_types = Some(programs);
             let debug_templates = block_types.debug_templates.clone();
             let mut block_types = block_types.catalog.clone();
             block_types.editors.extend(program_editors);
