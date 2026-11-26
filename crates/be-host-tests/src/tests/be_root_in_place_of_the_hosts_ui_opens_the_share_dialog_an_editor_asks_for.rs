@@ -20,10 +20,19 @@ fn be_root_in_place_of_the_hosts_ui_opens_the_share_dialog_an_editor_asks_for() 
     host.key("Enter");
     host.wait("TreeItem \"Chat\"");
     host.click("#dock.editors.pin.editor.share");
-    host.wait("#share.query");
+    // The dialog grows and centres itself anew as who has access arrives from the server,
+    // which settling does not wait for: its field is pressed once it has come to rest.
+    host.wait("Label value=\"Can manage, from My files\"");
+    host.run(&["settle"]);
     host.click("#share.query");
-    // The field the press focused, in the dialog the workspace anchored, takes what is typed
-    // and holds the window's focus, as under be-host.
+    // The field the press focused, in the dialog the workspace anchored, holds the window's
+    // focus, as under be-host, in the tree the root publishes once the press settled: the
+    // press changed no pixel the root draws but the tree, which it owes a frame.
+    let tree = host.tree();
+    assert!(
+        tree.contains("TextInput \"Add contacts\" focused"),
+        "the pressed field is focused once the press settled:\n{tree}"
+    );
     host.type_text("Ada");
     host.wait("TextInput \"Add contacts\" value=\"Ada\" focused");
     host.run(&["settle"]);
