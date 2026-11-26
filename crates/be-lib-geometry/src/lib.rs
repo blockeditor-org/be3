@@ -8,6 +8,10 @@ pub mod touching;
 
 pub use region::Region;
 
+/// How far apart two edges may be and still count as one: half a point, under what rounding
+/// to pixels moves an edge.
+pub const SLACK: f32 = 0.5;
+
 #[derive(Clone, Copy, PartialEq, Default, Debug, Serialize, Deserialize)]
 pub struct Vec2 {
     pub x: f32,
@@ -359,7 +363,6 @@ impl Rect {
     /// place on `home`. The rest of the rect may hang off any edge. A grip larger than `home`
     /// keeps its top-left corner on `home`'s.
     pub fn grabbable(&self, grip: Vec2, areas: &[Rect], home: Rect) -> Pos2 {
-        const SLACK: f32 = 0.5;
         let held = Rect::from_min_size(self.min, grip);
         let reached = areas.iter().any(|area| {
             let shared = area.intersect(held);
@@ -582,3 +585,6 @@ impl Direction {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
