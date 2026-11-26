@@ -375,18 +375,9 @@ Fixed items are removed as they land.
 
 - **CI still installs Python Playwright for old pull requests.** ci.yml's
   "Install the browser preview runtime" step serves only checkouts from before
-  the browser rasterizer ran `render.mjs` (those with
+  the browser rasterizer brought its own Chromium (those with
   crates/be-tool-browser-rasterizer/requirements.txt); a newer checkout skips
-  it. Done: no open pull request lacks `render.mjs`, and the step is deleted.
-- **The browser rasterizer still carries Node.** CI downloads the
-  `browser_program` directory (about 410 MB) to draw the previews: Chromium
-  (about 225 MB), Node (about 125 MB), Playwright (about 20 MB) and the
-  `buck/sysroot:amd64-browser` libraries (about 35 MB). render.mjs uses only
-  Playwright's launch, request routing, a few evaluations and a screenshot,
-  which the rasterizer could do itself over the DevTools protocol on
-  `--remote-debugging-pipe`, leaving Node and Playwright out. Done: the
-  rasterizer starts Chromium itself, the directory is under 300 MB, and the
-  previews still draw every `.browser.paint` the same.
+  it. Done: no open pull request has that file, and the step is deleted.
 
 ## 25. Tentative gestures
 

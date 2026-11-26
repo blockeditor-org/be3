@@ -2731,9 +2731,12 @@ dependencies = [
 name = "be-tool-browser-rasterizer"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "beui-fonts",
  "beui-paint-snapshot",
+ "libc",
  "serde_json",
+ "url",
 ]
 
 [[package]]
