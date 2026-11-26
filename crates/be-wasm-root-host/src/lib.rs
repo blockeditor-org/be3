@@ -187,6 +187,8 @@ struct Core<G> {
     /// answered by, until the host takes them, and the replies waiting on each.
     block_finds: Vec<(u64, String)>,
     block_found: Vec<(u64, Reply<Vec<be_wasm_root_api::OpenableBlock>>)>,
+    /// The finds the root cancelled that the host took already, until it takes them too.
+    block_finds_cancelled: Vec<u64>,
     /// The blocks the root asked to open (`host.open-block`), until the host takes them.
     block_opens: Vec<(Option<be_wasm_root_api::OpenedIn>, be_wasm_root_api::OpenableBlock)>,
     /// The id the next of those is handed to the host with.
@@ -365,6 +367,7 @@ impl<G: Inline> Core<G> {
             editor_replies: Vec::new(),
             block_finds: Vec::new(),
             block_found: Vec::new(),
+            block_finds_cancelled: Vec::new(),
             block_opens: Vec::new(),
             next_editor: 1,
             forwarded: Vec::new(),
@@ -704,6 +707,12 @@ impl<G: Inline> Core<G> {
     /// `answer_block_find` answers it by.
     fn take_block_finds(&mut self) -> Vec<(u64, String)> {
         std::mem::take(&mut self.block_finds)
+    }
+
+    /// The finds the host took that the root cancelled since the last call (it stopped waiting
+    /// for them), which the host need answer no more.
+    fn take_cancelled_finds(&mut self) -> Vec<u64> {
+        std::mem::take(&mut self.block_finds_cancelled)
     }
 
     /// Answers the root's `host.find-blocks` of `id`. Answers whether the root waited for it.
@@ -1055,7 +1064,12 @@ impl<G: Inline> Core<G> {
                         .position(|(_, reply)| reply.op() == op)
                     {
                         let (id, reply) = self.block_found.remove(at);
+                        let before = self.block_finds.len();
                         self.block_finds.retain(|(asked, _)| *asked != id);
+                        // Taken already, the host is told it was cancelled.
+                        if self.block_finds.len() == before {
+                            self.block_finds_cancelled.push(id);
+                        }
                         reply.fail(&mut self.connection, OpError::Canceled);
                     } else if let Some(at) = self
                         .editor_replies
