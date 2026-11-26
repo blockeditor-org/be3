@@ -830,9 +830,9 @@ index and search it locally.
   outbox; a compaction let go of (the head moved, a read or a seal failed, the
   host stopped mid-merge) leaves its parts noted as unnamed, and the host removes
   them while it is quiet (`collect_unnamed` in the search loop: the idle pass's
-  conditions short of rest and search being on; guides/blocks/client.md,
-  "Unnamed parts"). A
-  compaction never merges a segment it wrote itself, which would drop parts it
+  conditions short of rest and search being on, and no import under way, passing
+  over the open blocks that owe a seal; guides/blocks/client.md, "Unnamed
+  parts"). A compaction never merges a segment it wrote itself, which would drop parts it
   sealed already; the next compaction does. What the cap leaves
   (`SearchIndexContent::merges_over`) is merged while the host is idle
   (`compact_idle_indexes`): nothing queued, written or caught up for search, no

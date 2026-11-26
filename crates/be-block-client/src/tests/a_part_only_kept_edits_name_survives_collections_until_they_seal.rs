@@ -6,10 +6,11 @@ use crate::{KeptEdit, OpenEdits};
 
 use super::*;
 
-/// A module's part, held by the server and named only by an edit kept on the device (no commit
-/// names it yet), survives collections across a restart, offline, while the edit is kept and
-/// once it is set aside; the edit then seals a commit that reuses the part, which reads back
-/// whole. Collected, the part would be lost: offline, no server holds it to fetch again.
+/// A module's part, held by the server until a commit uses it and named here only by an edit
+/// kept on the device (no commit names it yet), survives collections across a restart,
+/// offline, while the edit is kept and once it is set aside; the edit then seals a commit that
+/// reuses the part, which reads back whole. Collected, the commit sealed offline would name a
+/// part this device no longer holds, unreadable until the server is reached again.
 #[tokio::test]
 async fn a_part_only_kept_edits_name_survives_collections_until_they_seal() {
     let harness = Harness::start().await;
@@ -48,22 +49,14 @@ async fn a_part_only_kept_edits_name_survives_collections_until_they_seal() {
 
     let offline = harness.offline(&owner, &refs, &store);
     let vault = offline.commits().vault();
+    assert_eq!(vault.unnamed_count(), objects.len(), "still noted after the restart");
     assert_eq!(
-        vault.unnamed_count(),
-        objects.len(),
-        "still noted after the restart"
-    );
-    assert_eq!(
-        offline.collect_unnamed().unwrap(),
+        offline.collect_unnamed(&Default::default()).unwrap(),
         0,
         "kept edits may name them"
     );
     offline.set_aside_open_edits(block).unwrap();
-    assert_eq!(
-        offline.collect_unnamed().unwrap(),
-        0,
-        "set aside, they may yet"
-    );
+    assert_eq!(offline.collect_unnamed(&Default::default()).unwrap(), 0, "set aside, they may yet");
     for object in &objects {
         assert!(store.has(*object).unwrap(), "{object} stays");
     }
@@ -80,7 +73,7 @@ async fn a_part_only_kept_edits_name_survives_collections_until_they_seal() {
         .await
         .unwrap();
     assert!(matches!(saved, Saved::Kept(_)), "{saved:?}");
-    assert_eq!(offline.collect_unnamed().unwrap(), 0);
+    assert_eq!(offline.collect_unnamed(&Default::default()).unwrap(), 0);
     assert_eq!(vault.read_part(part, 0, part.length()).unwrap(), bytes);
 
     harness.stop().await;

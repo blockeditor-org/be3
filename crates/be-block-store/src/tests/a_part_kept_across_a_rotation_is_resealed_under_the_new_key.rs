@@ -48,6 +48,6 @@ fn a_part_kept_across_a_rotation_is_resealed_under_the_new_key() {
 
     let without_old = Keyring::new();
     without_old.insert(id(2), ContentKey::from_bytes([2; 32]), uuid::Uuid::nil());
-    let reader = Vault::new(vault.store().clone(), without_old);
+    let reader = Vault::new((*vault.store()).clone(), without_old);
     assert_eq!(reader.read(&rekeyed).unwrap(), [header, payload].concat());
 }

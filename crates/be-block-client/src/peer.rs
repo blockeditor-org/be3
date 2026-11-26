@@ -649,11 +649,13 @@ impl<S: ObjectStore> Peer<S> {
         config: PeerConfig,
         store: S,
     ) -> Result<Self, ClientError> {
-        let refs = Arc::new(config.refs.scope(Scope {
+        let scope = Scope {
             server: config.url.clone(),
             account,
             organization,
-        })?);
+        };
+        let owner = scope.owner();
+        let refs = Arc::new(config.refs.scope(scope)?);
         let session = refs.session();
         let ring = Keyring::new();
         let _ = refs.add_signer(account, config.identity.signing().0, true, None);
@@ -687,7 +689,7 @@ impl<S: ObjectStore> Peer<S> {
             commits: CommitStore::new(
                 Vault::new(store, ring)
                     .with_chunker(config.chunker)
-                    .with_ledger(Arc::clone(&refs) as Arc<dyn be_block_store::Ledger>)?,
+                    .with_unnamed(config.refs.unnamed()?, owner),
             ),
             token: Mutex::new(String::new()),
             account,
@@ -4530,17 +4532,19 @@ impl<S: ObjectStore> Peer<S> {
     /// the one read whole) through their parents, and of every outbox or unsent entry and
     /// journal base, and those an open writer or a part it finished still pins. A block that
     /// keeps edits here (`Refs::keeps_edits`: kept, set aside, or journaled) is passed over,
-    /// as an edit may name a part no commit does yet. Answers how many objects it removed. It
-    /// runs without awaiting, under the lock writers pin under, so it races no writer; a host
-    /// runs it while idle, so no seal or read is under way that has put or found an object and
-    /// not yet recorded what names it.
-    pub fn collect_unnamed(&self) -> Result<usize, ClientError> {
+    /// as an edit may name a part no commit does yet, and so is each of `sealing`, the blocks a
+    /// seal may be under way in. Answers how many objects it removed. It runs without
+    /// awaiting, under the lock writers pin under, so it races no writer; a host runs it while
+    /// idle, so no read or other seal is under way that has put or found an object and not yet
+    /// recorded what names it.
+    pub fn collect_unnamed(&self, sealing: &HashSet<Uuid>) -> Result<usize, ClientError> {
         let vault = self.commits.vault();
         if vault.unnamed_count() == 0 {
             return Ok(0);
         }
         Ok(vault.collect(|candidates| {
-            candidates.retain(|block, _| !self.refs.keeps_edits(*block));
+            candidates
+                .retain(|block, _| !sealing.contains(block) && !self.refs.keeps_edits(*block));
             self.named_among(candidates)
         })?)
     }
@@ -4569,6 +4573,9 @@ impl<S: ObjectStore> Peer<S> {
             .chain(unsent)
         {
             match op {
+                // A pending commit of a candidate's block is walked below, which finds what its
+                // `chunks` list of that block: marking them is defence in depth. Its journal
+                // seal's parts and a hold's objects are named by no commit.
                 crate::refs::Op::Publish(pending) => {
                     marked.extend(pending.chunks);
                     if let Some(journal) = pending.journal {
