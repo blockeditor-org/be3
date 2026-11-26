@@ -144,8 +144,13 @@ pub struct Lacked {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct EditorOperation {
-    #[serde(with = "serde_bytes")]
-    pub operation: Vec<u8>,
+    /// None for a landing that only lays what is unsettled again (`beneath`): a peer's held
+    /// layer that left or was laid again (`Landed::Relaid`).
+    #[serde(
+        serialize_with = "be_wasm_ops::wire::serialize::<be_wasm_ops::wire::Optional<be_wasm_ops::wire::Bytes>, _, _>",
+        deserialize_with = "be_wasm_ops::wire::deserialize::<be_wasm_ops::wire::Optional<be_wasm_ops::wire::Bytes>, _, _>"
+    )]
+    pub operation: Option<Vec<u8>>,
     pub mine: bool,
     pub unsettled: u64,
     #[serde(
@@ -1055,12 +1060,28 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
     }
 
     fn take(&mut self, landed: EditorOperation) -> bool {
-        let Ok(operation) = C::decode_operation(&landed.operation) else {
-            return false;
-        };
         let Some(confirmed) = self.confirmed.as_mut() else {
             return false;
         };
+        let Some(bytes) = &landed.operation else {
+            let Some(Ok(local)) = landed.beneath.map(|local| {
+                local
+                    .iter()
+                    .map(|operation| C::decode_operation(operation))
+                    .collect::<Result<Vec<_>, _>>()
+            }) else {
+                return false;
+            };
+            if !confirmed.relay(landed.unsettled, local) {
+                return false;
+            }
+            self.rebuild();
+            return true;
+        };
+        let Ok(operation) = C::decode_operation(bytes) else {
+            return false;
+        };
+        let bytes = bytes.clone();
         if let Some(local) = landed.beneath {
             let Ok(local) = local
                 .iter()
@@ -1088,7 +1109,7 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         if landed.above > 0 {
             // Made beneath a held tentative layer, which stays on top.
             if landed.mine {
-                self.answered(&landed.operation);
+                self.answered(&bytes);
             }
             let Some(confirmed) = self.confirmed.as_mut() else {
                 return false;
@@ -1112,7 +1133,7 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         if landed.mine {
             // The replica may have taken it otherwise than it went (carried over a reload this
             // editor had not been shown, `FromEditor::Shown`): what it shows is then rebuilt.
-            let taken_as_sent = self.answered(&landed.operation);
+            let taken_as_sent = self.answered(&bytes);
             let Some(confirmed) = self.confirmed.as_mut() else {
                 return false;
             };

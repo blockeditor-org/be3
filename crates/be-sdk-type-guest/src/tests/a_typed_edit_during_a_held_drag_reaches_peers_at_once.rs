@@ -2,7 +2,7 @@ use super::tentative::{dragging, journaled};
 use super::*;
 
 /// While one editor holds a drag, another types: the typed edit goes out at once, beneath the
-/// held one, and the drag follows on its commit.
+/// held one, which the peer previews on top, and the drag follows on its commit.
 #[test]
 fn a_typed_edit_during_a_held_drag_reaches_peers_at_once() {
     let (mut sim, a, b) = dragging(2);
@@ -15,7 +15,7 @@ fn a_typed_edit_during_a_held_drag_reaches_peers_at_once() {
     sim.operate(0, 2, added);
     sim.settle();
     assert_eq!(texts(&sim.content(1)), ["a", "typed", "added"]);
-    assert_eq!(texts(sim.mirror(1, 1)), ["a", "typed", "added"]);
+    assert_eq!(texts(sim.mirror(1, 1)), ["dragged", "typed", "added"]);
     assert_eq!(texts(sim.mirror(0, 2)), ["dragged", "typed", "added"]);
     assert!(!journaled(&sim, &dragged));
 

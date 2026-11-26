@@ -58,7 +58,7 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
     assert_eq!(
         operations(&sent),
         [EditorOperation {
-            operation: own,
+            operation: Some(own),
             mine: true,
             // Its own edit stays unsettled until the server's order holds it.
             unsettled: 1,
@@ -79,7 +79,7 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
     assert_eq!(
         operations(&sent),
         [EditorOperation {
-            operation: elsewhere,
+            operation: Some(elsewhere),
             mine: false,
             // The host's edit is this device's too: unsettled until the server orders it.
             unsettled: 1,

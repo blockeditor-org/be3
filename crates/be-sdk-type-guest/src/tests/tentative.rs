@@ -86,3 +86,25 @@ pub(super) fn journaled_through(sim: &Sim<ChecklistContent>, device: usize) -> u
         })
         .unwrap_or(0)
 }
+
+/// What `editor` on `device` was told since the last call: how many snapshots, and each
+/// landing.
+pub(super) fn landings(
+    sim: &mut Sim<ChecklistContent>,
+    device: usize,
+    editor: EditorId,
+) -> (usize, Vec<crate::editor::EditorOperation>) {
+    let received = sim.take_received(device, editor);
+    let snapshots = received
+        .iter()
+        .filter(|message| matches!(message, ToEditor::Snapshot(_)))
+        .count();
+    let landed = received
+        .into_iter()
+        .flat_map(|message| match message {
+            ToEditor::Operations(operations) => operations,
+            _ => Vec::new(),
+        })
+        .collect();
+    (snapshots, landed)
+}

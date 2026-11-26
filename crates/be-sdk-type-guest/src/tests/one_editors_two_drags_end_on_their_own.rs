@@ -2,7 +2,8 @@ use super::tentative::journaled;
 use super::*;
 
 /// One editor holds two drags at once (two fingers), each under its own id: cancelling one
-/// puts back only its item, and the other commits as one undo step when it ends.
+/// puts back only its item, here and in what peers preview, and the other commits as one undo
+/// step when it ends.
 #[test]
 fn one_editors_two_drags_end_on_their_own() {
     let (mut sim, a, b) = super::tentative::dragging(2);
@@ -14,11 +15,13 @@ fn one_editors_two_drags_end_on_their_own() {
     assert!(sim.operate_in(0, 1, Some(8), second.clone()));
     sim.settle();
     assert_eq!(texts(sim.mirror(0, 2)), ["first", "second"]);
-    assert_eq!(texts(sim.mirror(1, 1)), ["a", "b"], "held from peers");
+    assert_eq!(texts(sim.mirror(1, 1)), ["first", "second"], "previewed by peers");
+    assert_eq!(texts(&sim.content(1)), ["a", "b"], "held from peers' content");
 
     sim.gesture_in(0, 1, 8, Gesture::Cancel);
     sim.settle();
     assert_eq!(texts(sim.mirror(0, 2)), ["first", "b"]);
+    assert_eq!(texts(sim.mirror(1, 1)), ["first", "b"]);
     assert!(!journaled(&sim, &first), "the other drag is still held");
 
     sim.gesture_in(0, 1, 7, Gesture::Commit);

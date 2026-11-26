@@ -286,6 +286,12 @@ enum Journaled<Op> {
         unsettled: u64,
         above: u64,
     },
+    /// What shows unsettled is `local` now, with no edit beneath: a peer's layer left or was
+    /// laid again.
+    Relaid {
+        unsettled: u64,
+        local: Vec<Op>,
+    },
     Replaced,
 }
 
@@ -711,6 +717,11 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     holds: Holds,
     /// How this replica's tentative layer reaches its peers (`SessionMessage::Held`).
     told: held::Told,
+    /// Each peer's tentative layer previewed here, by client: shown in this order above this
+    /// replica's own unconfirmed edits and beneath its own tentative layer, never written.
+    peer_layers: BTreeMap<ClientId, held::PeerLayer<C::Op>>,
+    /// The peers asked for their layer whole (`SessionMessage::HeldAgain`), and which layer.
+    asked_layers: BTreeMap<ClientId, u64>,
     /// The open tentative gestures this replica ended itself (an edit of theirs did not carry
     /// over a restart, a replacement took what they moved): their edits are dropped until their
     /// editors end them.
@@ -1210,6 +1221,8 @@ where
             beneath: None,
             holds: Holds::default(),
             told: held::Told::default(),
+            peer_layers: BTreeMap::new(),
+            asked_layers: BTreeMap::new(),
             voided: BTreeSet::new(),
             held_now: None,
             undo_spent: false,
@@ -1978,10 +1991,16 @@ where
             return false;
         }
         if record {
-            self.history
-                .record(&self.visible, &operation, origin, Some(gesture.id), at);
+            let own = (!self.peer_layers.is_empty()).then(|| self.own_visible());
+            self.history.record(
+                own.as_ref().unwrap_or(&self.visible),
+                &operation,
+                origin,
+                Some(gesture.id),
+                at,
+            );
         }
-        if self.tentative.is_empty() {
+        if !self.layered() {
             self.beneath = Some(self.visible.clone());
         }
         self.visible.apply(&operation);
@@ -2081,7 +2100,7 @@ where
     /// The content without the tentative layer: what is stashed, read or described, and what
     /// an ordinary edit made beneath the layer is recorded against.
     fn unheld(&mut self) -> &C {
-        if self.tentative.is_empty() {
+        if !self.layered() {
             return &self.visible;
         }
         if self.beneath.is_none() {
@@ -2373,7 +2392,14 @@ where
                     });
                 }
             }
-            SessionMessage::Held { .. } => {}
+            SessionMessage::Held {
+                layer,
+                origin,
+                from: start,
+                to,
+                operations,
+                commits_through,
+            } => self.heard_held(from, layer, origin, start, to, operations, commits_through),
             SessionMessage::HeldAgain => {
                 if from != self.client {
                     self.tell_layer_to(from);
@@ -3692,34 +3718,36 @@ where
             };
             self.lacking.journaled(&bytes, Some(sequence));
         }
-        if self.pending.is_empty() && self.unsent.is_empty() && self.tentative.is_empty() {
+        if self.pending.is_empty() && self.unsent.is_empty() && !self.layered() {
             self.confirmed.apply(&operation);
             self.visible.apply(&operation);
             self.journal(Journaled::Applied(operation), None);
             return self.take_heard_seal();
         }
-        // Another's edit, numbered before this replica's own: it goes beneath them.
+        // Another's edit, numbered before this replica's own: it goes beneath them. A peer's
+        // layer that it commits leaves in the same landing.
         let unsettled = self.unsettled();
+        let leaving = self.reached_layers();
         if !self.covered {
             self.confirmed.apply(&operation);
+            self.peer_layers.retain(|client, _| !leaving.contains(client));
             self.rebuild_visible();
             return self.take_heard_seal();
         }
-        let mut local: Vec<C::Op> = self
-            .pending
-            .iter()
-            .filter_map(|sent| sent.operation.clone())
-            .collect();
-        self.in_flight = local.len() as u64;
-        for (pending, _, weight, ..) in &mut self.unsent {
-            local.push(pending.clone());
-            *weight = 1;
-        }
-        // The tentative layer stays on top.
-        local.extend(self.tentative.iter().map(|held| held.operation.clone()));
+        self.peer_layers.retain(|client, _| !leaving.contains(client));
+        // The layers stay on top.
+        let local = self.unsettled_edits();
         self.beneath = None;
-        self.visible
-            .apply_beneath(&mut self.confirmed, &operation, &local, &mut Vec::new());
+        match leaving.is_empty() {
+            true => {
+                self.visible
+                    .apply_beneath(&mut self.confirmed, &operation, &local, &mut Vec::new());
+            }
+            false => {
+                self.confirmed.apply(&operation);
+                self.visible = self.composed();
+            }
+        }
         self.journal(
             Journaled::Beneath {
                 operation,
@@ -3968,6 +3996,7 @@ where
     fn unsettled(&self) -> u64 {
         self.in_flight
             + self.tentative.len() as u64
+            + self.peer_edits() as u64
             + self
                 .unsent
                 .iter()
@@ -4027,6 +4056,7 @@ where
                 unsettled,
                 above,
             },
+            Journaled::Relaid { unsettled, local } => Landed::Relaid { unsettled, local },
             Journaled::Replaced => return,
         };
         let kept = (!self.resnapshot).then(|| landed.clone());
@@ -4058,8 +4088,9 @@ where
             self.error(DIVERGED);
             return false;
         }
-        // Made while a tentative layer is held: it goes beneath the layer, which stays on top.
-        if !self.tentative.is_empty() {
+        // Made while a tentative layer is held, here or by a peer: it goes beneath the
+        // layers, which stay on top.
+        if self.layered() {
             if self.doubtful_now {
                 self.first_doubtful.get_or_insert(self.edit_number());
                 self.doubtful.push(operation);
@@ -4076,11 +4107,7 @@ where
                 self.flush();
                 return true;
             }
-            let above: Vec<C::Op> = self
-                .tentative
-                .iter()
-                .map(|held| held.operation.clone())
-                .collect();
+            let above: Vec<C::Op> = self.layer_edits();
             let mut beneath = match self.beneath.take() {
                 Some(beneath) => beneath,
                 None => self.layer_free(),
@@ -4599,7 +4626,7 @@ where
     ) -> bool {
         self.unheld();
         let content = match &self.beneath {
-            Some(beneath) if !self.tentative.is_empty() => beneath,
+            Some(beneath) if self.layered() => beneath,
             _ => &self.visible,
         };
         self.history
@@ -4678,7 +4705,7 @@ where
                     Gesture::Cancel => {
                         self.unheld();
                         let content = match &self.beneath {
-                            Some(beneath) if !self.tentative.is_empty() => beneath,
+                            Some(beneath) if self.layered() => beneath,
                             _ => &self.visible,
                         };
                         self.history.cancel(content, gesture)
@@ -5047,11 +5074,13 @@ where
             // The undo cancelled the tentative layer as it was taken (`follow`).
             Change::Undo if self.undo_spent => self.reply(id, Answer::Changed(true)),
             Change::Undo => {
-                let stepped = self.history.undo(&self.visible);
+                let own = (!self.peer_layers.is_empty()).then(|| self.own_visible());
+                let stepped = self.history.undo(own.as_ref().unwrap_or(&self.visible));
                 self.step_history(id, stepped);
             }
             Change::Redo => {
-                let stepped = self.history.redo(&self.visible);
+                let own = (!self.peer_layers.is_empty()).then(|| self.own_visible());
+                let stepped = self.history.redo(own.as_ref().unwrap_or(&self.visible));
                 self.step_history(id, stepped);
             }
         }
@@ -5283,7 +5312,7 @@ where
                             operation,
                             unsettled,
                         } => EditorOperation {
-                            operation: operation.clone(),
+                            operation: Some(operation.clone()),
                             mine,
                             unsettled: *unsettled,
                             beneath: None,
@@ -5294,7 +5323,14 @@ where
                             unsettled,
                             local,
                         } => EditorOperation {
-                            operation: operation.clone(),
+                            operation: Some(operation.clone()),
+                            mine,
+                            unsettled: *unsettled,
+                            beneath: Some(local.clone()),
+                            above: 0,
+                        },
+                        Landed::Relaid { unsettled, local } => EditorOperation {
+                            operation: None,
                             mine,
                             unsettled: *unsettled,
                             beneath: Some(local.clone()),
@@ -5305,7 +5341,7 @@ where
                             unsettled,
                             above,
                         } => EditorOperation {
-                            operation: operation.clone(),
+                            operation: Some(operation.clone()),
                             mine,
                             unsettled: *unsettled,
                             beneath: None,
@@ -5512,11 +5548,9 @@ where
             visible.apply(operation);
         }
         self.beneath = None;
-        if !self.tentative.is_empty() {
+        if self.layered() {
             self.beneath = Some(visible.clone());
-            for held in &self.tentative {
-                visible.apply(&held.operation);
-            }
+            self.apply_layers(&mut visible);
         }
         self.replace_visible(visible);
     }

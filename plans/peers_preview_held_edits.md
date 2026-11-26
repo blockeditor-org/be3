@@ -71,21 +71,11 @@ commit is numbered, when the holder cancels, or when the holder leaves.
 
 ## Steps
 
-### 2. The peer's layer
-
-`SessionMessage::Held` and the holder's side are built (`replica/held.rs`; the message is
-`{ layer, origin, from, to, operations, commits_through }`, and `HeldAgain` asks for a layer
-whole). Keep each peer's layer on the replica, apply it on top of `visible`, count it in
-`unsettled()`, and land its operations on editors. Add the `Landed` variant that only replaces
-`local`, for a layer that leaves without an entry. Drop a reader's `Held`. Done: a Sim test
-shows a reader's `Held` dropped, and a peer's mirror following a held
-drag frame by frame with no snapshot, typing on the peer during it landing beneath, and the
-layer leaving at the commit's entry (one landing, never showing both) and at a cancel. The
-peer's `content`, seal and undo never hold it.
-
 ### 3. Leaving with the holder
 
-Drop a layer when its client leaves the session, at a reload or replacement, and when a `Held`
+The message, the holder's side and the peer's layer are built (`replica/held.rs`, with
+`Landed::Relaid` for a layer that leaves or is laid again without an entry). Peer layers show
+beneath the replica's own tentative layer, so each device sees its own drag on top. Drop a layer when its client leaves the session, at a reload or replacement, and when a `Held`
 arrives about a newer layer. Send late joiners the layers held. Done: Sim tests for a holder
 that crashes mid-drag, which leaves no layer on its peer, and for a peer that joins mid-drag,
 which previews the drag from its next frame.

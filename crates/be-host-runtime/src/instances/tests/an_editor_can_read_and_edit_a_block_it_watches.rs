@@ -51,7 +51,7 @@ fn an_editor_can_read_and_edit_a_block_it_watches() {
     assert_eq!(
         sent,
         [ToEditor::Operations(vec![EditorOperation {
-            operation: add,
+            operation: Some(add),
             mine: true,
             // Its own edit stays unsettled until the server's order holds it.
             unsettled: 1,

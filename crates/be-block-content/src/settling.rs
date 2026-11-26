@@ -20,6 +20,12 @@ pub enum Landed<Op> {
         unsettled: u64,
         above: u64,
     },
+    /// What is unsettled becomes `local`, with no edit beneath it: a peer's held layer left
+    /// or was laid again (guides/type_modules.md, Peers). `unsettled` as for `Beneath`.
+    Relaid {
+        unsettled: u64,
+        local: Vec<Op>,
+    },
 }
 
 impl<Op> Landed<Op> {
@@ -49,6 +55,10 @@ impl<Op> Landed<Op> {
                 operation: map(operation),
                 unsettled: *unsettled,
                 above: *above,
+            },
+            Self::Relaid { unsettled, local } => Landed::Relaid {
+                unsettled: *unsettled,
+                local: local.iter().map(map).collect(),
             },
         }
     }
@@ -154,6 +164,17 @@ impl<C: LiveEdit> Settling<C> {
         true
     }
 
+    /// Settles to `unsettled`, then holds `local` unsettled instead: false when fewer than
+    /// `unsettled` were.
+    pub fn relay(&mut self, unsettled: u64, local: Vec<C::Op>) -> bool {
+        self.settle_to(unsettled);
+        if (self.unsettled.len() as u64) < unsettled {
+            return false;
+        }
+        self.unsettled = local.into();
+        true
+    }
+
     pub fn land(&mut self, landed: Landed<C::Op>) -> bool {
         match landed {
             Landed::On {
@@ -181,6 +202,7 @@ impl<C: LiveEdit> Settling<C> {
                 unsettled,
                 above,
             } => self.under(operation, unsettled, above),
+            Landed::Relaid { unsettled, local } => self.relay(unsettled, local),
         }
     }
 

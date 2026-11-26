@@ -30,6 +30,10 @@ use std::pin::Pin;
 use std::rc::Rc;
 
 mod a_break_ends_a_burst_but_not_an_open_gesture;
+mod a_readers_held_layer_is_dropped_by_its_peers;
+mod a_peers_held_drag_is_never_sealed_or_undone_by_the_peer;
+mod a_peers_cancelled_drag_leaves_its_mirror_in_one_landing;
+mod a_peers_held_drag_shows_on_each_frame_and_leaves_at_its_commit;
 mod a_cancelled_drag_tells_peers_to_drop_it;
 mod a_held_drag_tells_peers_each_edit_and_the_edit_it_commits_through;
 mod a_burst_of_view_state_writes_is_journaled_as_one_put_each;
@@ -160,6 +164,7 @@ mod presence_reaches_late_joiners_and_leaves_with_its_client;
 mod replay_outside_a_session_refuses_a_journal_holding_a_restart;
 mod status_cuts_count_a_held_drag_once_it_commits;
 mod tentative;
+mod two_peers_dragging_at_once_each_see_their_own_drag_on_top;
 mod the_next_editor_holds_the_lease_once_its_holder_leaves;
 mod two_drags_in_one_block_commit_as_one_step_when_the_second_ends;
 mod two_editors_of_one_block_on_one_device_each_land_what_they_type_unheard;
