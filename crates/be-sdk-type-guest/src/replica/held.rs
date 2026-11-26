@@ -487,7 +487,7 @@ where
 
 /// Whether `client` may send a `Held`: only a participant that may edit, as the server takes
 /// submissions only from them.
-fn may_hold(state: &be_block_protocol::SessionState, client: ClientId) -> bool {
+pub(super) fn may_hold(state: &be_block_protocol::SessionState, client: ClientId) -> bool {
     state
         .participants
         .iter()

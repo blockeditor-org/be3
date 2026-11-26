@@ -3775,6 +3775,13 @@ where
     ) {
         let mut content = content;
         let mine = op.id.origin == self.origin;
+        // Peers' layers were made on what the reload replaces: each shows again once its
+        // holder, reloaded too, tells it whole.
+        self.peer_layers.clear();
+        self.asked_layers.clear();
+        if !self.tentative.is_empty() {
+            self.layer_changed();
+        }
         // What the editors showed, which their edits sent before they were shown the reload
         // were made on (`carried_over_a_reload`).
         let shown = (!replace && !self.editors.is_empty()).then(|| self.visible.clone());
@@ -5562,6 +5569,18 @@ where
             .into_iter()
             .filter(|client| *client != self.client && !known.contains(client))
             .collect();
+        // A layer whose holder left, or may no longer edit, leaves with it.
+        let gone: Vec<ClientId> = self
+            .peer_layers
+            .keys()
+            .copied()
+            .filter(|client| !held::may_hold(&state, *client))
+            .collect();
+        for client in gone {
+            self.drop_peer_layer(client);
+        }
+        self.asked_layers
+            .retain(|client, _| held::may_hold(&state, *client));
         let before = self.presence.len();
         self.presence.retain(|(client, _), _| state.has(*client));
         self.presence_changed |= self.presence.len() != before;
