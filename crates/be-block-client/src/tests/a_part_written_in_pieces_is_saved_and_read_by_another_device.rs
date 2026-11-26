@@ -20,11 +20,7 @@ async fn a_part_written_in_pieces_is_saved_and_read_by_another_device() {
     for piece in segment.chunks(1000) {
         writer.write(piece).unwrap();
     }
-    let part = writer
-        .finish()
-        .unwrap()
-        .part()
-        .expect("bytes were written");
+    let part = writer.finish().unwrap().part().expect("bytes were written");
     assert_eq!(part.length(), segment.len() as u64);
 
     let saved = owner

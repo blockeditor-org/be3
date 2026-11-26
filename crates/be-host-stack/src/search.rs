@@ -2597,14 +2597,20 @@ pub(crate) async fn compact_and_let_go<S: ObjectStore>(
         )
         .await
         .expect("the merge reads and writes its parts");
-    assert_ne!(content.index().parts(), before, "the compaction merged segments");
+    assert_ne!(
+        content.index().parts(),
+        before,
+        "the compaction merged segments"
+    );
     let saved: Vec<PartRef> = out
         .saved
         .borrow()
         .values()
         .filter_map(Written::part)
         .collect();
-    let mut objects = peer.part_objects(&saved).expect("the merged parts are held");
+    let mut objects = peer
+        .part_objects(&saved)
+        .expect("the merged parts are held");
     // Two parts can share a chunk.
     objects.sort();
     objects.dedup();

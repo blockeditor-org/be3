@@ -48,7 +48,10 @@ async fn an_outbox_entrys_parts_survive_a_collection_until_and_after_it_publishe
 
     assert_eq!(offline.collect_unnamed().unwrap(), 0);
     for object in &objects {
-        assert!(store.has(*object).unwrap(), "the outbox entry's {object} stays");
+        assert!(
+            store.has(*object).unwrap(),
+            "the outbox entry's {object} stays"
+        );
     }
 
     harness.reconnect(&offline, owner.token()).await;

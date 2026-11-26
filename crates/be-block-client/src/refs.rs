@@ -908,8 +908,13 @@ impl State {
                 self.let_go.insert(uuid_key(&row.key)?, decode(value)?);
             }
             Table::Unnamed => {
-                let object: [u8; 32] = row.key.as_slice().try_into().map_err(|_| StoreError::Corrupt)?;
-                self.unnamed.insert(Hash::from_bytes(object), decode(value)?);
+                let object: [u8; 32] = row
+                    .key
+                    .as_slice()
+                    .try_into()
+                    .map_err(|_| StoreError::Corrupt)?;
+                self.unnamed
+                    .insert(Hash::from_bytes(object), decode(value)?);
             }
             Table::LogRedactions => {
                 self.log_redactions
@@ -2360,7 +2365,11 @@ impl Refs {
         if self.state.lock().unwrap().unnamed.insert(object, block) == Some(block) {
             return Ok(());
         }
-        self.write(vec![row(Table::Unnamed, object.as_bytes().to_vec(), &block)])
+        self.write(vec![row(
+            Table::Unnamed,
+            object.as_bytes().to_vec(),
+            &block,
+        )])
     }
 
     pub fn forget_unnamed(&self, objects: &[Hash]) -> Result<(), StoreError> {

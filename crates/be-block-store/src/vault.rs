@@ -506,7 +506,9 @@ impl<S: ObjectStore> Vault<S> {
                     parts,
                     references: references.clone(),
                 };
-                Ok(Some(PartRef::Node(self.put_node(key, sealing, node, None)?)))
+                Ok(Some(PartRef::Node(
+                    self.put_node(key, sealing, node, None)?,
+                )))
             }
         }
     }

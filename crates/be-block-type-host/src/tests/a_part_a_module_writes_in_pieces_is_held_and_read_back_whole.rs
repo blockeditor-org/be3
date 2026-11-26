@@ -103,7 +103,10 @@ fn a_part_a_module_writes_in_pieces_is_held_and_read_back_whole() {
         assert_eq!(reach.lock().unwrap().pinned(), 1);
         assert_eq!(peer.collect_unnamed().expect("collects"), 0, "pinned");
         for object in &objects {
-            assert!(be_block_store::ObjectStore::has(store, *object).unwrap(), "{object} stays while pinned");
+            assert!(
+                be_block_store::ObjectStore::has(store, *object).unwrap(),
+                "{object} stays while pinned"
+            );
         }
         reach.lock().unwrap().named([part]);
         assert_eq!(reach.lock().unwrap().pinned(), 0);

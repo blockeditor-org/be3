@@ -41,7 +41,10 @@ fn a_part_written_in_pieces_seals_as_a_whole_write_does() {
         .unwrap();
     assert_eq!(cut, split(&data, ChunkerConfig::SMALL));
 
-    assert_eq!(vault.part_writer(id(1)).unwrap().finish().unwrap().part(), None);
+    assert_eq!(
+        vault.part_writer(id(1)).unwrap().finish().unwrap().part(),
+        None
+    );
     assert!(matches!(
         vault.part_writer(id(9)),
         Err(StoreError::MissingKey(_))

@@ -28,7 +28,10 @@ async fn a_chunk_a_named_part_shares_survives_a_collection() {
             block,
             Write::encoded(
                 TextContent::CONTENT_TYPE,
-                Part::node(vec![Part::from(b"a header".as_slice()), Part::Reused(named)]),
+                Part::node(vec![
+                    Part::from(b"a header".as_slice()),
+                    Part::Reused(named),
+                ]),
                 None,
             ),
         )
@@ -59,10 +62,16 @@ async fn a_chunk_a_named_part_shares_survives_a_collection() {
     assert_eq!(owner.collect_unnamed().unwrap(), unnamed.len());
     let store = owner.commits().vault().store();
     for object in &unnamed {
-        assert!(!store.has(*object).unwrap(), "{object}, named by nothing, is removed");
+        assert!(
+            !store.has(*object).unwrap(),
+            "{object}, named by nothing, is removed"
+        );
     }
     for object in &kept {
-        assert!(store.has(*object).unwrap(), "the named part's {object} stays");
+        assert!(
+            store.has(*object).unwrap(),
+            "the named part's {object} stays"
+        );
     }
     assert_eq!(
         owner

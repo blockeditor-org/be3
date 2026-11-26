@@ -63,7 +63,14 @@ fn a_compaction_let_go_leaves_nothing_once_the_idle_host_collects() {
         is_known(WorkspaceContent::CONTENT_TYPE)
     });
     let words = [
-        "apples", "bananas", "cherries", "damsons", "elderberries", "figs", "grapes", "hazelnuts",
+        "apples",
+        "bananas",
+        "cherries",
+        "damsons",
+        "elderberries",
+        "figs",
+        "grapes",
+        "hazelnuts",
     ];
     for word in words {
         note(workspace, &format!("{word} and kiwis"));
@@ -93,8 +100,7 @@ fn a_compaction_let_go_leaves_nothing_once_the_idle_host_collects() {
     // A compaction seals its merged parts into the vault, and is let go of before any commit
     // names them, as one whose head moved is.
     let vault = peer.commits().vault();
-    let held: std::collections::HashSet<_> =
-        vault.store().hashes().unwrap().into_iter().collect();
+    let held: std::collections::HashSet<_> = vault.store().hashes().unwrap().into_iter().collect();
     let sealed = runtime.block_on(crate::search::compact_and_let_go(&peer, index));
     let head = peer.local_head(index).expect("the index has a head here");
     let manifest = peer.commits().get(head).expect("the head is held").manifest;
@@ -108,9 +114,15 @@ fn a_compaction_let_go_leaves_nothing_once_the_idle_host_collects() {
         .filter(|object| !named.contains(object) && !held.contains(object))
         .copied()
         .collect();
-    assert!(!unnamed.is_empty(), "the merge sealed parts nothing held names");
+    assert!(
+        !unnamed.is_empty(),
+        "the merge sealed parts nothing held names"
+    );
     // What the store held already is named by a commit of the index's history, so it stays.
-    let shared: Vec<_> = sealed.iter().filter(|object| held.contains(object)).collect();
+    let shared: Vec<_> = sealed
+        .iter()
+        .filter(|object| held.contains(object))
+        .collect();
 
     // The host, idle, collects them; the head keeps every part.
     send(Command::Sync);
@@ -125,11 +137,16 @@ fn a_compaction_let_go_leaves_nothing_once_the_idle_host_collects() {
         );
     }
     for object in shared {
-        assert!(vault.store().has(*object).unwrap(), "{object}, held before, stays");
+        assert!(
+            vault.store().has(*object).unwrap(),
+            "{object}, held before, stays"
+        );
     }
     assert_eq!(vault.unnamed_count(), 0, "nothing is left noted");
     assert!(vault.holds_all(&manifest).unwrap(), "the head is whole");
-    let read = vault.read(&manifest).expect("every part of the head reads back");
+    let read = vault
+        .read(&manifest)
+        .expect("every part of the head reads back");
     assert_eq!(read.len() as u64, manifest.length());
     for word in words {
         assert_eq!(found(&format!("{word} ")), 1, "{word} is found as before");

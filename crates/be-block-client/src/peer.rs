@@ -4456,8 +4456,18 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(marked);
         }
         let mut commits = Vec::new();
-        let unsent = self.refs.unsent().into_iter().flat_map(|(_, unsent)| unsent.ops);
-        for op in self.refs.outbox().into_iter().map(|(_, op)| op).chain(unsent) {
+        let unsent = self
+            .refs
+            .unsent()
+            .into_iter()
+            .flat_map(|(_, unsent)| unsent.ops);
+        for op in self
+            .refs
+            .outbox()
+            .into_iter()
+            .map(|(_, op)| op)
+            .chain(unsent)
+        {
             match op {
                 crate::refs::Op::Publish(pending) => {
                     marked.extend(pending.chunks);
@@ -4489,7 +4499,10 @@ impl<S: ObjectStore> Peer<S> {
         }
         // How many candidates nothing marked yet: the walk ends once none is left.
         let wanted: HashSet<Hash> = candidates.values().flatten().copied().collect();
-        let mut unmarked = wanted.iter().filter(|object| !marked.contains(object)).count();
+        let mut unmarked = wanted
+            .iter()
+            .filter(|object| !marked.contains(object))
+            .count();
         let mut seen = HashSet::new();
         while let Some(commit) = commits.pop() {
             if unmarked == 0 {
@@ -4502,7 +4515,10 @@ impl<S: ObjectStore> Peer<S> {
                 continue;
             };
             let added = vault.mark(&held.manifest, &mut marked)?;
-            unmarked -= added.iter().filter(|object| wanted.contains(object)).count();
+            unmarked -= added
+                .iter()
+                .filter(|object| wanted.contains(object))
+                .count();
             commits.extend(held.parents);
         }
         Ok(marked)

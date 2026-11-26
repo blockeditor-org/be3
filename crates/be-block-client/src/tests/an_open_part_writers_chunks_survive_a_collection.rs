@@ -35,7 +35,10 @@ async fn an_open_part_writers_chunks_survive_a_collection() {
     assert!(!so_far.is_empty(), "the writer sealed chunks as it went");
     assert_eq!(owner.collect_unnamed().unwrap(), 0);
     for object in &so_far {
-        assert!(store.has(*object).unwrap(), "the open writer's {object} stays");
+        assert!(
+            store.has(*object).unwrap(),
+            "the open writer's {object} stays"
+        );
     }
 
     writer.write(rest).unwrap();
@@ -56,7 +59,10 @@ async fn an_open_part_writers_chunks_survive_a_collection() {
     let objects = sealed(&store);
     assert_eq!(owner.collect_unnamed().unwrap(), objects.len());
     for object in &objects {
-        assert!(!store.has(*object).unwrap(), "{object}, named by nothing, is removed");
+        assert!(
+            !store.has(*object).unwrap(),
+            "{object}, named by nothing, is removed"
+        );
     }
     assert_eq!(owner.commits().vault().unnamed_count(), 0);
 
