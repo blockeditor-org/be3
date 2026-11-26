@@ -4,12 +4,13 @@ use be_sdk_beui::be_block::{
 };
 use be_sdk_beui::be_block_content::be_block_model::Document;
 use be_sdk_beui::be_block_content::{
-    BlockContent, BlockMetadata, Edit, Layered, LiveEdit, Root, Setting,
+    BlockContent, BlockMetadata, Edit, LiveEdit, Root, Setting,
 };
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{BlockParent, Editor, LayeredSettings};
+use std::rc::Rc;
 use uuid::Uuid;
 
 use super::block::name_of;
@@ -20,158 +21,117 @@ const ABOUT: &str = "Applies to every member. Only its administrators change it,
 const OFFLINE_ABOUT: &str = "Whether this device keeps a workspace's blocks so they open without a connection. When off, this device forgets them when the app closes, except edits that have not reached the server yet.";
 const FIXED: &str = "Set by your organization";
 
-const HISTORY_DAYS: [Option<u32>; 5] = [None, Some(7), Some(30), Some(90), Some(365)];
 const GIGABYTE: u64 = 1_000_000_000;
-const QUOTAS: [Option<u64>; 4] = [
-    None,
-    Some(10 * GIGABYTE),
-    Some(100 * GIGABYTE),
-    Some(1_000 * GIGABYTE),
-];
-const GRACE_DAYS: [Option<u32>; 3] = [Some(1), None, Some(30)];
 
-struct Policy<R> {
+/// One row of a policy page: a select over the policy's own values, each named beside its
+/// label, read from and written to the policy block of kind `R`.
+struct Policy<R, V: 'static> {
     key: &'static str,
     label: &'static str,
     description: &'static str,
-    options: &'static [&'static str],
-    /// The option the stored value is, or `None` for a value none of them is.
-    get: fn(&R) -> Option<usize>,
-    set: fn(usize) -> Edit,
+    options: &'static [(V, &'static str)],
+    get: fn(&R) -> V,
+    set: fn(V) -> Edit,
 }
 
-fn index_of<T: PartialEq>(all: &[T], value: &T) -> Option<usize> {
-    all.iter().position(|held| held == value)
+/// The stored form of a choice whose default is held as no value.
+fn unless_default<T: Default + PartialEq>(value: T) -> Option<T> {
+    (value != T::default()).then_some(value)
 }
 
-const POLICIES: [Policy<OrganizationPolicies>; 5] = [
-    Policy {
-        key: "sharing",
-        label: "Sharing outside the organization",
-        description: "Blocks are shared only with members. Blocked also refuses links that carry access, since a link reaches whoever holds it.",
-        options: &["Allowed", "Blocked"],
-        get: |policies| {
-            index_of(
-                &[Allowance::Allowed, Allowance::Blocked],
-                &policies.outside_sharing.unwrap_or_default(),
-            )
-        },
-        set: |index| {
-            OrganizationPolicies::set_outside_sharing(
-                [None, Some(Allowance::Blocked)][index.min(1)],
-            )
-        },
-    },
-    Policy {
-        key: "share-links",
-        label: "Who share links admit",
-        description: "Anyone with a block's link may open it as its maker chose, within this. Anyone with an account joins as a guest, who sees only what links share; it needs sharing outside allowed. Narrowing this leaves grants already made.",
-        options: &["Members", "Anyone with an account", "No share links"],
-        get: |policies| {
-            index_of(
-                &[LinkSharing::Members, LinkSharing::Anyone, LinkSharing::Off],
-                &policies.link_sharing.unwrap_or_default(),
-            )
-        },
-        set: |index| {
-            OrganizationPolicies::set_link_sharing(
-                [None, Some(LinkSharing::Anyone), Some(LinkSharing::Off)][index.min(2)],
-            )
-        },
-    },
-    Policy {
-        key: "workspaces",
-        label: "Who makes workspaces",
-        description: "Each member still makes one workspace of their own: My files, where the app keeps what they make outside any workspace.",
-        options: &["Every member", "Administrators"],
-        get: |policies| {
-            index_of(
-                &[WhoMay::Everyone, WhoMay::Administrators],
-                &policies.workspace_creation(),
-            )
-        },
-        set: |index| {
-            OrganizationPolicies::set_workspace_creation(
-                [None, Some(WhoMay::Administrators)][index.min(1)],
-            )
-        },
-    },
-    Policy {
-        key: "history",
-        label: "Keep every version for",
-        description: "Nobody's pruning removes a version younger than this.",
-        options: &[
-            "As each block's history thins",
-            "7 days",
-            "30 days",
-            "90 days",
-            "A year",
-        ],
-        get: |policies| index_of(&HISTORY_DAYS, &policies.history_days),
-        set: |index| {
-            OrganizationPolicies::set_history_days(HISTORY_DAYS[index.min(HISTORY_DAYS.len() - 1)])
-        },
-    },
-    Policy {
-        key: "quota",
-        label: "Storage quota",
-        description: "The bytes of encrypted objects the server keeps for this organization. Uploads past it are refused.",
-        options: &["No limit", "10 GB", "100 GB", "1 TB"],
-        get: |policies| index_of(&QUOTAS, &policies.storage_quota),
-        set: |index| OrganizationPolicies::set_storage_quota(QUOTAS[index.min(QUOTAS.len() - 1)]),
-    },
-];
+const SHARING: Policy<OrganizationPolicies, Allowance> = Policy {
+    key: "sharing",
+    label: "Sharing outside the organization",
+    description: "Blocks are shared only with members. Blocked also refuses links that carry access, since a link reaches whoever holds it.",
+    options: &[(Allowance::Allowed, "Allowed"), (Allowance::Blocked, "Blocked")],
+    get: |policies| policies.outside_sharing.unwrap_or_default(),
+    set: |value| OrganizationPolicies::set_outside_sharing(unless_default(value)),
+};
 
-const OFFLINE_POLICIES: [Policy<OfflineSettings>; 3] = [
-    Policy {
-        key: "offline",
-        label: "Keeping workspaces offline",
-        description: "Whether members' devices keep workspaces so they open without a connection.",
-        options: &["Each member chooses", "Required", "Blocked"],
-        get: |offline| {
-            index_of(
-                &[
-                    OfflinePolicy::Allowed,
-                    OfflinePolicy::Required,
-                    OfflinePolicy::Blocked,
-                ],
-                &offline.policy.unwrap_or_default(),
-            )
-        },
-        set: |index| {
-            OfflineSettings::set_policy(
-                [
-                    None,
-                    Some(OfflinePolicy::Required),
-                    Some(OfflinePolicy::Blocked),
-                ][index.min(2)],
-            )
-        },
-    },
-    Policy {
-        key: "lost-access",
-        label: "When a member loses access",
-        description: "What their devices do with what they kept. Personal accounts never delete anything by themselves.",
-        options: &["Keep it", "Delete it"],
-        get: |offline| {
-            index_of(
-                &[LostAccess::Keep, LostAccess::Delete],
-                &offline.on_lost_access.unwrap_or_default(),
-            )
-        },
-        set: |index| {
-            OfflineSettings::set_on_lost_access([None, Some(LostAccess::Delete)][index.min(1)])
-        },
-    },
-    Policy {
-        key: "grace",
-        label: "Unsent edits wait for",
-        description: "How long edits that could not reach the server wait before they are deleted.",
-        options: &["1 day", "7 days", "30 days"],
-        get: |offline| index_of(&GRACE_DAYS, &offline.grace_days),
-        set: |index| OfflineSettings::set_grace_days(GRACE_DAYS[index.min(GRACE_DAYS.len() - 1)]),
-    },
-];
+const SHARE_LINKS: Policy<OrganizationPolicies, LinkSharing> = Policy {
+    key: "share-links",
+    label: "Who share links admit",
+    description: "Anyone with a block's link may open it as its maker chose, within this. Anyone with an account joins as a guest, who sees only what links share; it needs sharing outside allowed. Narrowing this leaves grants already made.",
+    options: &[
+        (LinkSharing::Members, "Members"),
+        (LinkSharing::Anyone, "Anyone with an account"),
+        (LinkSharing::Off, "No share links"),
+    ],
+    get: |policies| policies.link_sharing.unwrap_or_default(),
+    set: |value| OrganizationPolicies::set_link_sharing(unless_default(value)),
+};
+
+const WORKSPACES: Policy<OrganizationPolicies, WhoMay> = Policy {
+    key: "workspaces",
+    label: "Who makes workspaces",
+    description: "Each member still makes one workspace of their own: My files, where the app keeps what they make outside any workspace.",
+    options: &[
+        (WhoMay::Everyone, "Every member"),
+        (WhoMay::Administrators, "Administrators"),
+    ],
+    get: |policies| policies.workspace_creation(),
+    set: |value| OrganizationPolicies::set_workspace_creation(unless_default(value)),
+};
+
+const HISTORY: Policy<OrganizationPolicies, Option<u32>> = Policy {
+    key: "history",
+    label: "Keep every version for",
+    description: "Nobody's pruning removes a version younger than this.",
+    options: &[
+        (None, "As each block's history thins"),
+        (Some(7), "7 days"),
+        (Some(30), "30 days"),
+        (Some(90), "90 days"),
+        (Some(365), "A year"),
+    ],
+    get: |policies| policies.history_days,
+    set: OrganizationPolicies::set_history_days,
+};
+
+const QUOTA: Policy<OrganizationPolicies, Option<u64>> = Policy {
+    key: "quota",
+    label: "Storage quota",
+    description: "The bytes of encrypted objects the server keeps for this organization. Uploads past it are refused.",
+    options: &[
+        (None, "No limit"),
+        (Some(10 * GIGABYTE), "10 GB"),
+        (Some(100 * GIGABYTE), "100 GB"),
+        (Some(1_000 * GIGABYTE), "1 TB"),
+    ],
+    get: |policies| policies.storage_quota,
+    set: OrganizationPolicies::set_storage_quota,
+};
+
+const OFFLINE: Policy<OfflineSettings, OfflinePolicy> = Policy {
+    key: "offline",
+    label: "Keeping workspaces offline",
+    description: "Whether members' devices keep workspaces so they open without a connection.",
+    options: &[
+        (OfflinePolicy::Allowed, "Each member chooses"),
+        (OfflinePolicy::Required, "Required"),
+        (OfflinePolicy::Blocked, "Blocked"),
+    ],
+    get: |offline| offline.policy.unwrap_or_default(),
+    set: |value| OfflineSettings::set_policy(unless_default(value)),
+};
+
+const LOST_ACCESS: Policy<OfflineSettings, LostAccess> = Policy {
+    key: "lost-access",
+    label: "When a member loses access",
+    description: "What their devices do with what they kept. Personal accounts never delete anything by themselves.",
+    options: &[(LostAccess::Keep, "Keep it"), (LostAccess::Delete, "Delete it")],
+    get: |offline| offline.on_lost_access.unwrap_or_default(),
+    set: |value| OfflineSettings::set_on_lost_access(unless_default(value)),
+};
+
+const GRACE: Policy<OfflineSettings, Option<u32>> = Policy {
+    key: "grace",
+    label: "Unsent edits wait for",
+    description: "How long edits that could not reach the server wait before they are deleted.",
+    options: &[(Some(1), "1 day"), (None, "7 days"), (Some(30), "30 days")],
+    get: |offline| offline.grace_days,
+    set: OfflineSettings::set_grace_days,
+};
 
 fn policy_block(editor: Editor, settings: Uuid, kind: Uuid) -> Option<Uuid> {
     editor
@@ -211,17 +171,20 @@ pub(super) fn OrganizationPage(editor: Editor) -> NodeId {
     let block = editor.block_id();
     let settings = create_memo(move || Some(block));
     let locked = create_memo(move || !editor.blocks().access(block).can_manage());
-    let organization = |indices: &[usize]| -> Vec<Row> {
-        indices
-            .iter()
-            .map(|index| policy_row::<OrganizationPolicies>(editor, settings, *index))
-            .collect()
-    };
-    let sharing = organization(&[0, 1, 2]);
-    let storage = organization(&[3, 4]);
-    let devices: Vec<Row> = (0..OFFLINE_POLICIES.len())
-        .map(|index| policy_row::<OfflineSettings>(editor, settings, index))
-        .collect();
+    let sharing = vec![
+        policy_row(editor, settings, &SHARING),
+        policy_row(editor, settings, &SHARE_LINKS),
+        policy_row(editor, settings, &WORKSPACES),
+    ];
+    let storage = vec![
+        policy_row(editor, settings, &HISTORY),
+        policy_row(editor, settings, &QUOTA),
+    ];
+    let devices = vec![
+        policy_row(editor, settings, &OFFLINE),
+        policy_row(editor, settings, &LOST_ACCESS),
+        policy_row(editor, settings, &GRACE),
+    ];
     view! {
         <SettingsPage>
             <SettingsSection title="Sharing and workspaces" description={ABOUT}>
@@ -237,125 +200,80 @@ pub(super) fn OrganizationPage(editor: Editor) -> NodeId {
     }
 }
 
+/// Draws one policy's row, given whether the page is locked and whether a row is above it.
+type Row = Rc<dyn Fn(Memo<bool>, bool) -> NodeId>;
+
 #[component]
 fn PolicyRows(rows: Vec<Row>, locked: Memo<bool>) -> NodeId {
-    let rows = std::rc::Rc::new(rows);
+    let rows = Rc::new(rows);
     let keys: Vec<usize> = (0..rows.len()).collect();
     view! {
         <List spacing=Space::None>
-            <ForEach value={keys}>|index: usize| {
-                let row = rows[index].clone();
-                view! {
-                    <PolicyRow
-                        key={row.key}
-                        label={row.label}
-                        description={row.description}
-                        options={row.options}
-                        selected={row.selected}
-                        choose={row.choose}
-                        locked={locked}
-                        separated={index > 0}
-                    />
-                }
-            }</ForEach>
+            <ForEach value={keys}>|index: usize| { rows[index](locked, index > 0) }</ForEach>
         </List>
     }
 }
 
-trait Policies: Layered + PartialEq + 'static {
-    fn policies() -> &'static [Policy<Self>];
-}
-
-impl Policies for OrganizationPolicies {
-    fn policies() -> &'static [Policy<Self>] {
-        &POLICIES
-    }
-}
-
-impl Policies for OfflineSettings {
-    fn policies() -> &'static [Policy<Self>] {
-        &OFFLINE_POLICIES
-    }
-}
-
-#[derive(Clone)]
-struct Row {
-    key: &'static str,
-    label: &'static str,
-    description: &'static str,
-    options: &'static [&'static str],
-    selected: Memo<Option<usize>>,
-    choose: Callback<Option<usize>>,
-}
-
-fn policy_row<R: Policies>(editor: Editor, settings: Memo<Option<Uuid>>, index: usize) -> Row
+fn policy_row<R, V>(
+    editor: Editor,
+    settings: Memo<Option<Uuid>>,
+    policy: &'static Policy<R, V>,
+) -> Row
 where
+    R: Root + Default + Clone + 'static,
     Document<R>: BlockContent + LiveEdit<Op = Edit> + Clone + Default,
+    V: Copy + PartialEq + 'static,
 {
-    let policy = &R::policies()[index];
-    let (get, set) = (policy.get, policy.set);
-    let selected = create_memo(move || {
-        let settings = settings.get()?;
-        let held = policy_block(editor, settings, R::CONTENT_TYPE)
-            .and_then(|block| {
-                editor
-                    .content_of::<Document<R>>(block)
-                    .read(|content| content.root())
-                    .ok()
-            })
-            .unwrap_or_default();
-        get(&held)
-    });
-    let choose = Callback::new(move |chosen: Option<usize>| {
-        if let (Some(chosen), Some(settings)) = (chosen, settings.get_untracked()) {
-            write_policy::<R>(editor, settings, set(chosen));
+    Rc::new(move |locked, separated| {
+        let selected = create_memo(move || {
+            let settings = settings.get()?;
+            let held = policy_block(editor, settings, R::CONTENT_TYPE)
+                .and_then(|block| {
+                    editor
+                        .content_of::<Document<R>>(block)
+                        .read(|content| content.root())
+                        .ok()
+                })
+                .unwrap_or_default();
+            let value = (policy.get)(&held);
+            // A value none of the options is shows as no choice.
+            policy
+                .options
+                .iter()
+                .any(|(option, _)| *option == value)
+                .then_some(value)
+        });
+        let choose = move |chosen: Option<V>| {
+            if let (Some(chosen), Some(settings)) = (chosen, settings.get_untracked()) {
+                write_policy::<R>(editor, settings, (policy.set)(chosen));
+            }
+        };
+        let options: Vec<usize> = (0..policy.options.len()).collect();
+        view! {
+            <SettingsRow
+                label={policy.label.to_owned()}
+                description={policy.description.to_owned()}
+                separated={separated}
+                locked={locked}
+            >
+                <ListItem grow=1.0>
+                    <Select
+                        width={Extent::fraction(1.0)}
+                        options={view! {
+                            <ForEach value={options}>|option: usize| {
+                                let (value, label) = policy.options[option];
+                                view! { <ChoiceOption value=value label={label.to_owned()} /> }
+                            }</ForEach>
+                        }}
+                        selected={Binding::new(selected, choose)}
+                        label={policy.label.to_owned()}
+                        disabled={locked}
+                        @test_id={format!("settings.organization.{}", policy.key)}
+                    />
+                </ListItem>
+            </SettingsRow>
         }
-    });
-    Row {
-        key: policy.key,
-        label: policy.label,
-        description: policy.description,
-        options: policy.options,
-        selected,
-        choose,
-    }
-}
-
-#[component]
-fn PolicyRow(
-    key: &'static str,
-    label: &'static str,
-    description: &'static str,
-    options: &'static [&'static str],
-    selected: Memo<Option<usize>>,
-    choose: Callback<Option<usize>>,
-    locked: Memo<bool>,
-    separated: bool,
-) -> NodeId {
-    let numbers: Vec<usize> = (0..options.len()).collect();
-    view! {
-        <SettingsRow
-            label={label.to_owned()}
-            description={description.to_owned()}
-            separated={separated}
-            locked={locked}
-        >
-            <ListItem grow=1.0>
-                <Select
-                    width={Extent::fraction(1.0)}
-                    options={view! {
-                        <ForEach value={numbers}>|option: usize|
-                            <ChoiceOption value=option label={options[option].to_owned()} />
-                        </ForEach>
-                    }}
-                    selected={Binding::new(selected, move |chosen: Option<usize>| choose.call(chosen))}
-                    label={label.to_owned()}
-                    disabled={locked}
-                    @test_id={format!("settings.organization.{key}")}
-                />
-            </ListItem>
-        </SettingsRow>
-    }
+    })
 }
 
 fn keep_setting(workspace: Uuid) -> Setting<OfflineSettings, bool> {
