@@ -528,21 +528,7 @@ Fixed items are removed as they land.
 What the tentative layer (guides/blocks/host.md, Undo;
 decisions/tentative_edits_wait_for_release.md) left as it was.
 
-- **Peers' derived views of a held edit.** Peers see a tentative edit only
-  through presence, so their derived views (bound lines, z-order) do not follow
-  it. The canvas covers its carried move already (`carry_for_peers`, with bound
-  lines following), so what is left is its other held gestures (resizing,
-  rotating, a line's end or bend, the sidebar's scrubbed values) and every other
-  app's. Presence carrying the held edits and a peer's replica previewing them
-  as a layer of its own is a protocol of its own, worth a plan before it is
-  built: a session message carrying a client's layer as it grows; where the
-  layer sits for the peer's editors (above its own tentative layer, counted as
-  unsettled so its frames land on top); dropping it when the commit's entry is
-  numbered (the relay and the order race, so the layer names the local edit it
-  commits as), at a cancel, and when its client leaves; and keeping it out of
-  seals, stashes and what the peer's own edits are recorded against. Done: presence
-  carries the held edits and a peer's replica previews them as a layer of its
-  own, shown by a canvas test with a bound line following a peer's resize.
+Peers' derived views of a held edit: plans/peers_preview_held_edits.md.
 
 ## 26. Server protocol
 
