@@ -240,10 +240,11 @@ an app's layout and its present, as one is when a present misses its frame's dea
 stopped clock never lets happen (guides/apps/runtime.md, Layout and present commits). Busy names
 the app whose present is held. `drive present now` takes them in as they come again.
 
-`drive hold APP` has be-host hear nothing the app `APP` (its id, such as `be3.text`) sends,
+`drive hold APP` has be-host hold back what the app `APP` (its id, such as `be3.text`) sends,
 as though it were slow to answer: its layouts, presents and calls wait, its last frame stays
-shown, and it counts as settled. The host goes on without it, sending it input and views.
-`drive hold off` hands over what it sent, in order (guides/apps/runtime.md).
+shown, and it counts as settled. Its hello, its stopping and a crash are still heard at once,
+and a name that is not a running app's id holds nothing. The host goes on without it, sending
+it input and views. `drive hold off` hands over what it held, in order (guides/apps/runtime.md).
 
 A driven program takes shortcuts a person never sees so that it settles sooner: be-host seals
 edits at once instead of after the usual pause (`Context::hurried`). `drive hurry off` turns
