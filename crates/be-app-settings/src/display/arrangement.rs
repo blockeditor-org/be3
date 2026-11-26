@@ -7,7 +7,7 @@ use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{CanvasView, NodeId, PointerPress, Pos2, Rect, Vec2, pos2, vec2};
 use beui::geometry::Side;
 use beui::geometry::touching;
-use beui::{Align, Align2, TextAlign};
+use beui::{Align, Align2, Overflow, TextAlign};
 
 use super::ui::Settings;
 
@@ -165,6 +165,10 @@ struct Carried(String);
 /// points on screen (not desktop pixels); beyond it, it moves freely and settles against
 /// the nearest edge when let go.
 const SNAP: f32 = 12.0;
+
+/// How tall a tile must be drawn to say "Main" under its name: two lines of its text, at
+/// half again their size for the line's leading, inside its padding.
+const ROOM_FOR_MAIN: f32 = TextSize::Xs.px() * 3.0 + Space::Xs.px() * 2.0;
 
 /// The places a carried display can be let go: every place it lines up touching another
 /// display (`touching::places`), and within `SNAP` of none, anywhere in the area. What a
@@ -338,6 +342,9 @@ fn ArrangedTile(
             .unwrap_or_default()
     });
     let is_main = create_memo(move || main.get().as_deref() == Some(id.as_str()));
+    // "Main" takes a second line only where the tile has room for it (its fill says which
+    // is main either way); the name keeps to one line, cut short where the tile is narrow.
+    let says_main = create_memo(move || is_main.get() && shown_size.get().y >= ROOM_FOR_MAIN);
     view! {
         <CanvasItem
             x={move || rect.get().min.x}
@@ -359,9 +366,11 @@ fn ArrangedTile(
                     align=Align2::CENTER
                     padding={Padding::all(Space::Xs)}
                 >
-                    <List spacing=Space::None align=Align::Center>
-                        <Text size=TextSize::Xs align=TextAlign::Center>{name}</Text>
-                        <Show value={is_main}>
+                    <List spacing=Space::None align=Align::Stretch>
+                        <Text size=TextSize::Xs align=TextAlign::Center overflow=Overflow::Ellipsis>
+                            {name}
+                        </Text>
+                        <Show value={says_main}>
                             <Text size=TextSize::Xs color=TextColor::Accent>"Main"</Text>
                         </Show>
                     </List>

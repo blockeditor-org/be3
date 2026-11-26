@@ -62,8 +62,10 @@ device and reach the platform as `DisplayConfig`'s `uses`, `main` and `places`. 
 display or use must be kept like a new mode (`display/guard.rs`), or it reverts. The area draws
 the arrangement through a canvas camera fitted to the displays; from a display's lift until the
 carry ends it fits the displays and every place that display can be let go (`carry_places`), so
-a display carried past the first fit (below another) is drawn whole and nothing under the pointer
-moves while it is carried. That refit comes after the layout the places are read from, so their
+a display carried past the first fit (below another) is drawn whole and, from the lift on, nothing
+under the pointer moves while it is carried. The carried tile, drawn smaller at that fit, keeps the
+fraction of it that was grabbed under the pointer (the board measures a carry's source at each
+point, `Carry::of_source`), and snaps and settles by the rect it is drawn at. That refit comes after the layout the places are read from, so their
 rests are in desktop pixels, relative to a zoomed canvas item, and the board reads them through
 the camera as it is at each point.
 

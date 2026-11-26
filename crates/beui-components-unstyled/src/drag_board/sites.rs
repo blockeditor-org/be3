@@ -67,6 +67,20 @@ fn closest_of(specs: &[(u64, DragSpec<Placed>)]) -> DragSpec<Placed> {
 }
 
 impl Board {
+    /// `placing`'s item relative to the pointer: as lifted, but for a source measured now
+    /// (`Carry::of_source`), at the size it is drawn now, held at the fraction of it grabbed.
+    fn item_of(&self, carry: &Carry) -> Option<Rect> {
+        let item = carry.item?;
+        let now = carry
+            .source
+            .and_then(|source| self.space.placed(source))
+            .map(|(rect, _)| rect.size());
+        Some(match now {
+            Some(size) if size != item.size() => Carry::held_at(item, size),
+            _ => item,
+        })
+    }
+
     /// Registers a site; places are asked of it at each lift it accepts.
     pub(crate) fn add_site(&self, mut site: Site) -> u64 {
         let id = self.next.get();
@@ -196,7 +210,7 @@ impl Board {
         self.lifting.get().or_else(|| {
             let placing = self.placing.borrow();
             let placing = placing.last()?;
-            Some(placing.carry.item.unwrap_or(placing.last?.item))
+            Some(self.item_of(&placing.carry).unwrap_or(placing.last?.item))
         })
     }
 
@@ -274,7 +288,7 @@ impl Board {
             .find(|placing| placing.pointer == PointerId::Keyboard)
             .map(|placing| {
                 (
-                    placing.carry.item,
+                    self.item_of(&placing.carry),
                     placing.frame.chosen,
                     placing.frame.item.center(),
                     placing.last,
@@ -414,7 +428,7 @@ impl Board {
                     placing.pointer,
                     placing.last?,
                     placing.aimed.clone(),
-                    placing.carry.item,
+                    self.item_of(&placing.carry),
                 ))
             })
             .collect();
@@ -590,7 +604,7 @@ impl Board {
                 return;
             };
             let point = DragPoint {
-                item: placing.carry.item.unwrap_or(point.item),
+                item: self.item_of(&placing.carry).unwrap_or(point.item),
                 ..point
             };
             // A keyboard carry jumps from place to place: it is never thrown.

@@ -325,6 +325,10 @@ impl Driver for Board {
         Board::step(self, toward)
     }
 
+    fn retrack(&self) {
+        Board::retrack(self);
+    }
+
     fn said(&self) -> Option<(CarryId, String)> {
         self.said.get()
     }
