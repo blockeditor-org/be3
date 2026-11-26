@@ -556,3 +556,21 @@ Peers' derived views of a held edit: plans/peers_preview_held_edits.md.
   leaves open, so closing the canvas while the box is still empty keeps an
   invisible empty Text entity, as an undo step. Done: plans/deferred/canvas.md,
   step 4 (a draft written on its first keystroke), with its test.
+
+## 34. Drag threshold
+
+What the drag threshold in both cores (guides/beui/components.md, Touch and pen) left.
+
+- No test runs the HTML core's threshold. A beui-tests screen and script would pin it: a
+  press moved under 4px and released only clicks, and one moved past it drags first at the
+  crossing.
+- A pen stroke's first frame: the canvas sets `every_sample` from `Gesture::Pen`, which
+  `on_press` sets, and the node's flag follows through an effect that may run after the
+  press's own input. Samples under 4px coalesced into that frame would then be dropped. A
+  host test with a reactive `every_sample`, or keeping it on while the pen tool is
+  selected, would settle it.
+- beui-view's html/drag.rs `Measured::window` answers `Some(MAIN)` for any node, while the
+  trait says `None` for nodes the core doesn't hold.
+- `Placed::window` reaches the document through `ACTIVE_DOCUMENT` during a lift. Only the
+  fake Space tests it; a host test that lifts with a dock window open would cover the real
+  path.
