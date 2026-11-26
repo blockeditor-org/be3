@@ -3,29 +3,28 @@
 //! opacity and stacked by its place in the list (be-host-runtime's `canvas_style`, as an app's
 //! screens are placed under be-host's own UI). The root's own surfaces draw into theirs on the
 //! page's gpu shim (`Root::show_surface`, `paint`), and each screen of an app it spawned is drawn
-//! by that app's worker, which its canvas is handed to (`Root::show_app_surface`). The root loads
-//! asynchronously (`load`), and its frames answer once its children did (`frame`).
+//! by that app's worker, which its canvas is handed to (`Root::show_app_surface`). They are
+//! be-host-runtime's `Canvases`, as an app's screens are under be-host's own UI: a canvas whose
+//! layer leaves the list stays hidden while its app holds its surface
+//! (`Root::holds_app_surface`). The root loads asynchronously (`load`), and its frames answer
+//! once its children did (`frame`).
 
 use std::{
     cell::{Cell, RefCell},
-    collections::HashMap,
+    collections::HashSet,
     rc::Rc,
     time::Instant,
 };
 
+use be_host_runtime::{CanvasPlacement, Canvases, DrawsCanvases};
 use be_lib_layers::{LayerList, Surface};
 use be_wasm_root_api::{FrameDone, FrameRequest};
 use be_wasm_root_host::Root;
 use beui::reactive::*;
 use beui::styled::*;
-use wasm_bindgen::JsCast;
 
 use super::SHOWN;
 use super::serving::fonts;
-
-/// Where the root's canvases go: above the host's canvas, which shows only the background, and
-/// passing every input through to it, which the root routes.
-const LAYER: &str = "layers";
 
 /// What a canvas shows: a surface of the root's own, or a screen or anchored view of an app it
 /// spawned.
@@ -39,11 +38,58 @@ enum Key {
     },
 }
 
-struct Canvas {
-    /// The id the root shows it by.
-    id: u32,
-    element: web_sys::HtmlCanvasElement,
-    style: String,
+/// The root, drawing into the canvases of its frame: its own surfaces on the page's gpu shim, and
+/// its apps' screens and anchored views in their workers.
+struct Drawer<'a>(&'a Root);
+
+impl DrawsCanvases for Drawer<'_> {
+    type Surface = Key;
+
+    fn show(&self, id: u32, canvas: &web_sys::OffscreenCanvas, key: Key) -> Result<(), String> {
+        match key {
+            Key::Root(surface) => {
+                self.0.show_surface(id, canvas, surface);
+                Ok(())
+            }
+            Key::App {
+                instance, surface, ..
+            } => self.0.show_app_surface(id, canvas, instance, surface),
+        }
+    }
+
+    /// A canvas of an app's stays its worker's: it shows another surface of the same app's.
+    fn retarget(&self, id: u32, from: Key, to: Key) -> Option<Result<(), String>> {
+        match (from, to) {
+            (
+                Key::App { instance, .. },
+                Key::App {
+                    instance: to,
+                    surface,
+                    ..
+                },
+            ) if instance == to => Some(self.0.retarget_app_surface(id, instance, surface)),
+            _ => None,
+        }
+    }
+
+    fn forget(&self, id: u32, key: Key) {
+        match key {
+            Key::Root(_) => self.0.forget_surface(id),
+            Key::App { instance, .. } => self.0.forget_app_surface(id, instance),
+        }
+    }
+
+    /// An app's anchored view is an overlay, as be-host's own page names the canvas it draws them
+    /// in.
+    fn kind(&self, key: Key) -> &'static str {
+        match key {
+            Key::Root(_) => "root",
+            Key::App {
+                anchored: false, ..
+            } => "screen",
+            Key::App { anchored: true, .. } => "overlay",
+        }
+    }
 }
 
 /// The page's canvases for the root's frames, and the root as it loads and answers.
@@ -55,11 +101,12 @@ pub(super) struct Surfaces {
     loading: Cell<bool>,
     /// What the root answered a frame with after the host frame that asked for it.
     answered: Rc<RefCell<Option<Result<FrameDone, String>>>>,
-    shown: HashMap<Key, Canvas>,
+    /// Above the host's canvas, which shows only the background, and passing every input through
+    /// to it, which the root routes.
+    canvases: Canvases<Key>,
     /// The screens of apps that could not be handed a canvas (an app that stopped), until their
     /// layers leave the list: none is made for them again each frame.
-    refused: std::collections::HashSet<Key>,
-    next: u32,
+    refused: HashSet<Key>,
 }
 
 impl Surfaces {
@@ -147,7 +194,8 @@ impl Surfaces {
 
     /// Shows each layer of `list` in the host's one window, which the list names as none, in a
     /// canvas of its own, placed and stacked by the list; a canvas whose layer left the list
-    /// leaves the page. Then draws the root's own surfaces into theirs.
+    /// stays hidden while its app holds its surface, and otherwise leaves the page. Then draws
+    /// the root's own surfaces into theirs.
     pub(super) fn show(
         &mut self,
         root: &Root,
@@ -156,14 +204,14 @@ impl Surfaces {
     ) -> Result<(), String> {
         // CSS pixels a point, as be-host places its apps' screens.
         let scale = context.pixels_per_point() / context.native_pixels_per_point();
-        let mut left = std::mem::take(&mut self.shown);
-        let mut refused = std::collections::HashSet::new();
+        let mut refused = HashSet::new();
         let layers = list
             .windows
             .into_iter()
             .filter(|window| window.window.is_none())
             .flat_map(|window| window.layers)
             .filter(|layer| layer.shown);
+        let mut placements = Vec::new();
         for (order, layer) in layers.enumerate() {
             let key = match layer.surface {
                 Surface::Root(surface) => Key::Root(surface),
@@ -187,99 +235,39 @@ impl Surfaces {
                 refused.insert(key);
                 continue;
             }
-            let mut canvas = match left.remove(&key) {
-                Some(canvas) => canvas,
-                None => match self.create(root, key) {
-                    Ok(canvas) => canvas,
-                    // An app that stopped, which the list names until the root hears so, shows
-                    // nothing; the root's own surfaces must show.
-                    Err(_) if matches!(key, Key::App { .. }) => {
-                        refused.insert(key);
-                        continue;
-                    }
-                    Err(why) => return Err(why),
-                },
-            };
-            if canvas.style != style {
-                let _ = canvas.element.set_attribute("style", &style);
-                canvas.style = style;
-            }
-            self.shown.insert(key, canvas);
+            placements.push(CanvasPlacement {
+                layer: layer.id,
+                surface: key,
+                style,
+                above: true,
+            });
         }
-        for (key, canvas) in left {
-            forget(root, key, &canvas);
+        let retained = |key| match key {
+            Key::App {
+                instance, surface, ..
+            } => root.holds_app_surface(instance, surface),
+            // The root's own surfaces draw on the page's gpu shim, which paints a canvas made anew
+            // with what its surface last showed before the page shows again (`paint`, below),
+            // where an app's worker paints its canvas only once it is handed it.
+            Key::Root(_) => false,
+        };
+        for (key, why) in self.canvases.place(&Drawer(root), placements, retained) {
+            match key {
+                // An app that stopped, which the list names until the root hears so, shows
+                // nothing; the root's own surfaces must show.
+                Key::App { .. } => {
+                    refused.insert(key);
+                }
+                Key::Root(_) => return Err(why),
+            }
         }
         self.refused = refused;
         root.paint().map(|_| ())
     }
 
-    /// A canvas in `#layers` for `key`, handed to whoever draws it.
-    fn create(&mut self, root: &Root, key: Key) -> Result<Canvas, String> {
-        let failed = |_| "a canvas for the root's frame could not be made".to_owned();
-        let layer = web_sys::window()
-            .and_then(|window| window.document())
-            .and_then(|document| document.get_element_by_id(LAYER))
-            .ok_or_else(|| format!("the page has no #{LAYER} element for the root to show in"))?;
-        let element: web_sys::HtmlCanvasElement = layer
-            .owner_document()
-            .ok_or("the page has no document")?
-            .create_element("canvas")
-            .map_err(failed)?
-            .dyn_into()
-            .map_err(|_| "a canvas for the root's frame could not be made".to_owned())?;
-        // Which kind of canvas this is, for whatever inspects the page (crates/be-host/web-test):
-        // an app's anchored view is an overlay, as be-host's own page names the canvas it draws
-        // them in.
-        let kind = match key {
-            Key::Root(_) => "root",
-            Key::App {
-                anchored: false, ..
-            } => "screen",
-            Key::App { anchored: true, .. } => "overlay",
-        };
-        let _ = element.set_attribute("data-kind", kind);
-        layer.append_child(&element).map_err(failed)?;
-        let id = self.next;
-        self.next = self.next.wrapping_add(1);
-        let handed = element
-            .transfer_control_to_offscreen()
-            .map_err(|_| "a canvas for the root's frame could not be handed over".to_owned())
-            .and_then(|offscreen| match key {
-                Key::Root(surface) => {
-                    root.show_surface(id, &offscreen, surface);
-                    Ok(())
-                }
-                Key::App {
-                    instance, surface, ..
-                } => root.show_app_surface(id, &offscreen, instance, surface),
-            });
-        if let Err(why) = handed {
-            element.remove();
-            return Err(why);
-        }
-        Ok(Canvas {
-            id,
-            element,
-            style: String::new(),
-        })
-    }
-
     /// Takes every canvas off the page, as the root stops.
     pub(super) fn clear(&mut self, root: Option<&Root>) {
-        for (key, canvas) in std::mem::take(&mut self.shown) {
-            match root {
-                Some(root) => forget(root, key, &canvas),
-                None => canvas.element.remove(),
-            }
-        }
+        self.canvases.clear(root.map(Drawer).as_ref());
     }
 }
 
-/// Takes `canvas` off the page, and the root forgets it.
-fn forget(root: &Root, key: Key, canvas: &Canvas) {
-    match key {
-        Key::Root(_) => root.forget_surface(canvas.id),
-        Key::App { instance, .. } => root.forget_app_surface(canvas.id, instance),
-    }
-    canvas.element.remove();
-}

@@ -142,6 +142,13 @@ pub fn paint() -> bool {
     )
 }
 
+/// The surfaces the app let go of since the last call, for the page, which keeps a canvas of a
+/// surface its app still holds while no layer shows it.
+#[wasm_bindgen]
+pub fn released() -> Vec<u32> {
+    with(|shim| shim.gpu.take_released(), Vec::new())
+}
+
 #[wasm_bindgen]
 pub fn export_surfaces(surfaces: Vec<u32>) {
     with(|shim| shim.screens.export(surfaces), ());

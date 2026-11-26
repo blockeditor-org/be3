@@ -2538,11 +2538,24 @@ Each step lands on its own.
                  the workspace's files in the root's tree and reads the root's canvas and an
                  app's screen.
                - 4g7g2c4b. Web counterparts of the root's host tests where one exists, as
-                 `web-test/` scripts, with what they need. Left from 4g7g2c4a: a canvas whose
-                 layer leaves the list is removed, not kept hidden for a surface its app still
-                 retains, as be-host-runtime's `Canvases` keeps it (so a tab shown again shows
-                 nothing until its app draws it anew); drive's `paint` reads nothing of the
-                 root on the web; the root's canvases follow its frames, not the host's
+                 `web-test/` scripts, with what they need. The root's canvases are
+                 be-host-runtime's `Canvases`, as an app's screens under be-host's own UI are
+                 (`DrawsCanvases`: the root's page and its apps' workers draw them): a layer that
+                 shows another surface of the same app keeps its canvas, and a canvas whose layer
+                 leaves the list stays hidden while its app holds its surface
+                 (`Root::holds_app_surface`, from the surfaces an app's worker reports it let
+                 go of, app.js's `released`), as natively the sandbox keeps what an instance
+                 presented until it lets the surface go. Left from 4g7g2c4a: a view the root
+                 shows again comes back on a new surface, its app having let the old one go, so
+                 under the root a tab shown again still shows a fresh canvas until its app draws
+                 it (be-host's `shown-again` script fails under the root, with two fresh
+                 canvases), natively too: the root would tell the host the surfaces its views'
+                 kept frames retain (be-sdk-app-host's `Run::retained_surfaces`, which
+                 be-sdk-root's embedded editors hold), which the page keeps and the native
+                 sandbox keeps the textures of; drive's `paint` reads nothing of the root on the
+                 web, nor of be-host's own UI there (a browser does not answer `paint`,
+                 beui-host-window's web `automate`), so that waits for the page answering
+                 paintings at all; the root's canvases follow its frames, not the host's
                  present; on the web be-host's `busy` does not say whether the root's apps
                  are settled (the native `Root::apps_unsettled`), which the web `Root` does not
                  answer yet. `web_host_test`'s `root` runs a page script under the root once each
@@ -2564,8 +2577,12 @@ Each step lands on its own.
                    release whole (no focus change or pointer cancel between), so the root
                    does not dismiss a dialog for an unfocused window.
                  - `a_grown_page_shows_the_workspaces_backdrop_beyond_its_last_frame` reads the
-                   host's canvas, which under the root shows only the background: its
-                   counterpart would read the root's canvas instead.
+                   root's canvas under the root (`test.root`), in the first frame it shows at
+                   the grown size, and fails there: beyond the workspace's old frame the root
+                   shows its own clear colour, since be-root draws no backdrop behind a child (be-host's
+                   `Backdrop`, from the child's reported backdrop), so its target is left out
+                   until it does. Its own target (`:grown-web-host-test`) fails on its base
+                   too: the host's renderer makes no opaque WebGL clear before the test reads it.
            With counterparts whose paintings match be-host's: the desktop shell, F6 between
            views, the lock screen on Super+L (4g7g1), the groups 4g7g2a and 4g7g2b built, and the
            palette. The test

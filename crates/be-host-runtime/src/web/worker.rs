@@ -3,7 +3,7 @@ use std::sync::{Arc, atomic::AtomicBool};
 
 use wasm_bindgen::{JsCast, prelude::*};
 
-use super::canvases::{Canvases, Placement};
+use super::canvases::{CanvasPlacement, Canvases, DrawsCanvases};
 use super::overlay::{self, Overlay};
 use be_wasm_guest_host::{
     Channel, Presented, Received,
@@ -37,7 +37,7 @@ impl Pictures for PresentedBitmap {
 
 pub struct WorkerChannel {
     guest: WebGuest<PresentedBitmap>,
-    canvases: Canvases,
+    canvases: Canvases<u32>,
     overlay: Option<overlay::Shown>,
     exported: HashSet<u32>,
 }
@@ -82,13 +82,14 @@ impl WorkerChannel {
 
     pub fn place(
         &mut self,
-        placements: Vec<Placement>,
+        placements: Vec<CanvasPlacement<u32>>,
         layers: Option<Overlay>,
         retained: &[u32],
     ) -> Result<(), String> {
         let mut canvases = std::mem::take(&mut self.canvases);
-        let placed = canvases.place(self, placements, retained);
+        let failed = canvases.place(self, placements, |surface| retained.contains(&surface));
         self.canvases = canvases;
+        let placed = failed.into_iter().next().map_or(Ok(()), |(_, error)| Err(error));
         let mut shown = self.overlay.take();
         let layered = overlay::show(self, &mut shown, layers);
         self.overlay = shown;
@@ -122,7 +123,12 @@ impl WorkerChannel {
             .ok_or_else(|| "an app's layers could not be handed to its worker".to_owned())
     }
 
-    pub(super) fn show(
+}
+
+impl WorkerChannel {
+    /// Has the worker draw `surface` into the canvas `id`: `canvas`, handed to it, or the one it
+    /// was handed under that id before.
+    fn show_on(
         &self,
         id: u32,
         canvas: Option<&web_sys::OffscreenCanvas>,
@@ -135,17 +141,33 @@ impl WorkerChannel {
             .then_some(())
             .ok_or_else(|| "an app screen could not be handed to its worker".to_owned())
     }
+}
 
-    pub(super) fn forget(&self, id: u32) {
+impl DrawsCanvases for WorkerChannel {
+    type Surface = u32;
+
+    fn show(&self, id: u32, canvas: &web_sys::OffscreenCanvas, surface: u32) -> Result<(), String> {
+        self.show_on(id, Some(canvas), surface)
+    }
+
+    fn retarget(&self, id: u32, _from: u32, to: u32) -> Option<Result<(), String>> {
+        Some(self.show_on(id, None, to))
+    }
+
+    fn forget(&self, id: u32, _surface: u32) {
         let message = message("forget");
         set(&message, "id", &id.into());
         self.guest.post(&message, None);
+    }
+
+    fn kind(&self, _surface: u32) -> &'static str {
+        "screen"
     }
 }
 
 impl Drop for WorkerChannel {
     fn drop(&mut self) {
-        self.canvases.clear();
+        self.canvases.clear(None::<&Self>);
         if let Some(shown) = self.overlay.take() {
             shown.remove();
         }

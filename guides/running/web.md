@@ -89,10 +89,12 @@ hands workers canvases instead (crates/be-host-runtime/src/web):
   `#layers` too, stacked with the overlays by paint order, so it shows above the view as it does
   natively; every other screen stays in `#apps`, under the host's chrome (`presenter::lifted`).
   Screens and overlays carry `data-kind="screen"` or `"overlay"`.
-- A canvas whose layer leaves the list is handed to a new layer that shows the same surface (a
-  view mounted anew), else kept hidden while the runtime retains its surface (the app's layout,
-  or a hidden view's kept frame: guides/apps/runtime.md, Layout and present commits), else
-  removed: a tab shown again shows its views' last frames until their app draws them anew.
+- A layer that shows another surface keeps its canvas, which shows what it did until the app's
+  worker draws the new surface there. A canvas whose layer leaves the list is handed to a new
+  layer that shows the same surface (a view mounted anew), else kept hidden while the runtime
+  retains its surface (the app's layout, or a hidden view's kept frame: guides/apps/runtime.md,
+  Layout and present commits), else removed: a tab shown again shows its views' last frames
+  until their app draws them anew (be-host-runtime's `Canvases`).
 - Screens and overlays are placed from the host's last frame, so on the web they follow the host
   by one frame. The frame's blits become its layer list first (`layers::frame`, guides/apps/runtime.md,
   The layer list): the screens below `Surface::Root(0)`, the host's canvas, go in `#apps`, the
@@ -112,7 +114,9 @@ page, linked through app.js on a WASI of its own, and draws its own surfaces on 
 shim, one linked root a page (be-wasm-root-host's web `Root`). Each layer of its frame shows in
 a canvas of its own in `#layers` above the host's canvas (`data-kind="root"` for its own,
 `"screen"` for an app's, which that app's worker draws), placed by the layer's CSS as an app's
-screen is (`root/page.rs`); the host's canvas shows only the background. Open it on a page with
+screen is, in be-host-runtime's `Canvases` (`root/page.rs`): a canvas whose layer leaves the
+list stays hidden while its app holds the surface, until its worker reports letting it go
+(app.js's `released`). The host's canvas shows only the background. Open it on a page with
 no other tab of the host open, since one tab holds the files. A root that fails to start or
 stops ends the host, as natively: the page is left without it, and the console (`browser.log`)
 says why (`be-host: the root APP stopped: ...`). `//crates/be-host:root-web-host-test`

@@ -280,7 +280,25 @@ impl Root {
             .core
             .borrow()
             .sandbox
-            .show(instance, id, canvas, surface)
+            .show(instance, id, Some(canvas), surface)
+    }
+
+    /// Has the canvas `id` of the app the root spawned as `instance` (`show_app_surface`) show
+    /// what the app presents to its surface `surface` instead, keeping what it shows until the
+    /// app's worker draws that there.
+    pub fn retarget_app_surface(&self, id: u32, instance: u64, surface: u32) -> Result<(), String> {
+        self.shared
+            .core
+            .borrow()
+            .sandbox
+            .show(instance, id, None, surface)
+    }
+
+    /// Whether the app the root spawned as the instance `instance` runs and still holds its
+    /// surface `surface`, which a canvas was handed for (`show_app_surface`): it has not let go
+    /// of it since, as natively the sandbox keeps what it presented there until it does.
+    pub fn holds_app_surface(&self, instance: u64, surface: u32) -> bool {
+        self.shared.core.borrow().sandbox.holds(instance, surface)
     }
 
     /// Stops showing anything on the canvas `id` of the app the root spawned as `instance`.

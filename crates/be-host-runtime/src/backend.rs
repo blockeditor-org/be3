@@ -282,7 +282,7 @@ impl Backend {
     #[cfg(target_arch = "wasm32")]
     pub(super) fn place(
         &mut self,
-        placements: Vec<super::web::Placement>,
+        placements: Vec<super::web::CanvasPlacement<u32>>,
         layers: Option<super::web::Overlay>,
         retained: &[u32],
     ) {

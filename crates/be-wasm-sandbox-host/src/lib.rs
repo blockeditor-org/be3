@@ -130,13 +130,14 @@ impl Server {
 
     /// Shows on `canvas` what the instance the guest spawned with the op `instance` presents to
     /// its surface `surface`, under the canvas's `id` in its worker, as it draws: the canvas
-    /// moves to the worker. An instance that is not a staged app with a display shows nothing.
+    /// moves to the worker; with no canvas, on the one it handed under `id` before. An instance
+    /// that is not a staged app with a display shows nothing.
     #[cfg(target_arch = "wasm32")]
     pub fn show(
         &self,
         instance: OpId,
         id: u32,
-        canvas: &web_sys::OffscreenCanvas,
+        canvas: Option<&web_sys::OffscreenCanvas>,
         surface: u32,
     ) -> Result<(), String> {
         match self.instances.get(&instance).map(|served| &served.instance) {
@@ -152,6 +153,16 @@ impl Server {
         if let Some(Ok(instance)) = self.instances.get(&instance).map(|served| &served.instance) {
             instance.forget(id);
         }
+    }
+
+    /// Whether the instance the guest spawned with the op `instance` runs and still holds its
+    /// surface `surface`, which a canvas was handed for (`show`): it has not let go of it since.
+    #[cfg(target_arch = "wasm32")]
+    pub fn holds(&self, instance: OpId, surface: u32) -> bool {
+        matches!(
+            self.instances.get(&instance).map(|served| &served.instance),
+            Some(Ok(instance)) if instance.holds(surface)
+        )
     }
 
     /// What the surface `surface` of the instance the guest spawned with the op `instance` (its

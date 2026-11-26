@@ -191,8 +191,9 @@ export async function boot(options) {
             const painted = shimModule.paint();
             const [gpu, submit] = shimModule.took();
             const pictures = shimModule.exported();
+            const released = Array.from(shimModule.released());
             return {
-                fields: { painted, pictures, gpu, submit },
+                fields: { painted, pictures, released, gpu, submit },
                 transfer: pictures.map((picture) => picture.bitmap),
                 failure: shimModule.failure(),
             };

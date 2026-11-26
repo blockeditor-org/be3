@@ -5,7 +5,6 @@ use be_lib_layers::{LayerId, Surface, WindowLayers};
 use beui::Color32;
 use wasm_bindgen::JsCast;
 
-use super::worker::WorkerChannel;
 
 const LAYER: &str = "apps";
 /// Where a screen goes that lies above the host's canvas in the frame's layers: a screen over an
@@ -13,18 +12,47 @@ const LAYER: &str = "apps";
 /// in an anchored view shows over it (`presenter::lifted`).
 const ABOVE: &str = "layers";
 
-pub struct Placement {
-    layer: LayerId,
-    surface: u32,
-    style: String,
-    above: bool,
+/// Where a surface shows: a canvas for the layer `layer`, in `#apps` below the host's canvas or
+/// in `#layers` above it (`above`), styled by `style` (`canvas_style`).
+pub struct CanvasPlacement<S> {
+    pub layer: LayerId,
+    pub surface: S,
+    pub style: String,
+    pub above: bool,
+}
+
+/// Whoever draws into the canvases a set of `Canvases` shows: a runtime's worker, or under a
+/// root (be-host's `?root=`) the root's page and its apps' workers.
+pub trait DrawsCanvases {
+    /// What a canvas shows, as its placements name it.
+    type Surface: Copy + PartialEq;
+
+    /// Hands `canvas`, the canvas `id`, to whoever draws `surface` into it.
+    fn show(
+        &self,
+        id: u32,
+        canvas: &web_sys::OffscreenCanvas,
+        surface: Self::Surface,
+    ) -> Result<(), String>;
+
+    /// Has the canvas `id`, which showed `from`, show `to` instead, keeping what it shows until
+    /// `to` is drawn into it: None where it cannot (`to` is drawn by someone else), so `to` shows
+    /// in another canvas.
+    fn retarget(&self, id: u32, from: Self::Surface, to: Self::Surface) -> Option<Result<(), String>>;
+
+    /// Stops drawing into the canvas `id`, which showed `surface`.
+    fn forget(&self, id: u32, surface: Self::Surface);
+
+    /// Which kind of canvas shows `surface`, as its `data-kind` names it for whatever inspects
+    /// the page (crates/be-host/web-test).
+    fn kind(&self, surface: Self::Surface) -> &'static str;
 }
 
 /// Where each runtime's screens show, by its slot: a canvas for each of the frame's screen
 /// layers, in `#apps` below the host's canvas (`Surface::Root`) or in `#layers` above it, stacked
 /// by their place in the list.
-pub fn placements(layers: &WindowLayers, scale: f32) -> HashMap<u64, Vec<Placement>> {
-    let mut placed = HashMap::<u64, Vec<Placement>>::default();
+pub fn placements(layers: &WindowLayers, scale: f32) -> HashMap<u64, Vec<CanvasPlacement<u32>>> {
+    let mut placed = HashMap::<u64, Vec<CanvasPlacement<u32>>>::default();
     let mut above = false;
     for (order, layer) in layers.layers.iter().enumerate() {
         let (instance, surface) = match layer.surface {
@@ -38,7 +66,7 @@ pub fn placements(layers: &WindowLayers, scale: f32) -> HashMap<u64, Vec<Placeme
         let Some(style) = crate::layers::canvas_style(layer, scale, order) else {
             continue;
         };
-        placed.entry(instance).or_default().push(Placement {
+        placed.entry(instance).or_default().push(CanvasPlacement {
             layer: layer.id,
             surface,
             style,
@@ -64,53 +92,79 @@ pub fn set_background(color: Color32) {
         .set_property("background", &format!("rgb({red},{green},{blue})"));
 }
 
-struct Shown {
+struct Shown<S> {
     id: u32,
     element: web_sys::HtmlCanvasElement,
-    surface: u32,
+    surface: S,
     style: String,
     above: bool,
 }
 
-/// The canvases a runtime's screens show in. A canvas keeps what its worker last drew into it,
-/// so a canvas whose layer leaves the list moves to a new layer showing the same surface (a view
-/// mounted anew), and one whose surface the runtime still retains (`Run::retained_surfaces`: the
-/// app's layout, and the kept frames of views it left out, `Shown::keep_left_out`, such as a dock
-/// tab or bar hidden with its tab) stays on the page, hidden, until a layer shows that surface
-/// again or the runtime lets it go, as natively the presenter keeps its texture: shown again
-/// before its app has drawn it anew, a view shows its last frame rather than an empty canvas
+/// The canvases a runtime's screens show in, or under a root the root's frame (be-host's
+/// `?root=`). A canvas keeps what was last drawn into it, so a canvas whose layer leaves the list
+/// moves to a new layer showing the same surface (a view mounted anew), and one whose surface is
+/// still retained (a runtime's `Run::retained_surfaces`: the app's layout, and the kept frames of
+/// views it left out, `Shown::keep_left_out`, such as a dock tab or bar hidden with its tab; under
+/// a root, a surface its app has not let go of) stays on the page, hidden, until a layer shows
+/// that surface again or it is let go, as natively the presenter keeps its texture: shown again,
+/// a view shows its last frame at once rather than an empty canvas until its drawer paints it
 /// (guides/apps/runtime.md, Layout and present commits).
-#[derive(Default)]
-pub(super) struct Canvases {
-    shown: HashMap<LayerId, Shown>,
-    hidden: Vec<Shown>,
+pub struct Canvases<S> {
+    shown: HashMap<LayerId, Shown<S>>,
+    hidden: Vec<Shown<S>>,
+}
+
+impl<S> Default for Canvases<S> {
+    fn default() -> Self {
+        Self {
+            shown: HashMap::default(),
+            hidden: Vec::new(),
+        }
+    }
 }
 
 /// The style of a canvas kept while its view is hidden.
 const HIDDEN: &str = "display: none";
 
-impl Canvases {
-    /// Shows each of `placements` in a canvas, keeping hidden the canvases of the surfaces in
-    /// `retained` that no placement shows.
-    pub(super) fn place(
+impl<S: Copy + PartialEq> Canvases<S> {
+    /// DrawsCanvases each of `placements` in a canvas, keeping hidden the canvases of the surfaces
+    /// `retained` holds that no placement shows. A layer that shows another surface than it did
+    /// keeps its canvas, which shows what it did until the new surface is drawn into it (a view
+    /// shown again on a surface of its own), where its drawer can (`retarget`). Answers the
+    /// surfaces that could not be shown, and why.
+    pub fn place<D: DrawsCanvases<Surface = S>>(
         &mut self,
-        channel: &WorkerChannel,
-        placements: Vec<Placement>,
-        retained: &[u32],
-    ) -> Result<(), String> {
+        drawer: &D,
+        placements: Vec<CanvasPlacement<S>>,
+        retained: impl Fn(S) -> bool,
+    ) -> Vec<(S, String)> {
         let mut placed = HashMap::with_capacity_and_hasher(placements.len(), Default::default());
-        let mut result = Ok(());
+        let mut failed = Vec::new();
         let mut unplaced = Vec::new();
         for placement in placements {
             match self.shown.remove(&placement.layer) {
-                Some(shown) => {
+                Some(shown) if shown.surface == placement.surface => {
                     let key = placement.layer;
-                    placed.insert(key, update(channel, shown, placement, &mut result));
+                    placed.insert(key, update(shown, placement, &mut failed));
                 }
+                Some(mut shown) => match drawer.retarget(shown.id, shown.surface, placement.surface) {
+                    Some(retargeted) => {
+                        if let Err(error) = retargeted {
+                            failed.push((placement.surface, error));
+                        }
+                        shown.surface = placement.surface;
+                        let key = placement.layer;
+                        placed.insert(key, update(shown, placement, &mut failed));
+                    }
+                    None => {
+                        self.hidden.push(shown);
+                        unplaced.push(placement);
+                    }
+                },
                 None => unplaced.push(placement),
             }
         }
-        let mut left: Vec<Shown> = self.shown.drain().map(|(_, shown)| shown).collect();
+        let mut left: Vec<Shown<S>> = self.shown.drain().map(|(_, shown)| shown).collect();
         left.append(&mut self.hidden);
         for placement in unplaced {
             let reused = left
@@ -119,26 +173,26 @@ impl Canvases {
                 .map(|at| left.swap_remove(at));
             let shown = match reused {
                 Some(shown) => shown,
-                None => match create(channel, placement.surface, placement.above) {
+                None => match create(drawer, placement.surface, placement.above) {
                     Ok(shown) => shown,
                     Err(error) => {
-                        result = result.and(Err(error));
+                        failed.push((placement.surface, error));
                         continue;
                     }
                 },
             };
             let key = placement.layer;
-            placed.insert(key, update(channel, shown, placement, &mut result));
+            placed.insert(key, update(shown, placement, &mut failed));
         }
         for mut shown in left {
-            let hides = retained.contains(&shown.surface)
+            let hides = retained(shown.surface)
                 && !self
                     .hidden
                     .iter()
                     .any(|hidden| hidden.surface == shown.surface);
             if !hides {
                 shown.element.remove();
-                channel.forget(shown.id);
+                drawer.forget(shown.id, shown.surface);
                 continue;
             }
             if shown.style != HIDDEN {
@@ -148,43 +202,35 @@ impl Canvases {
             self.hidden.push(shown);
         }
         self.shown = placed;
-        result
+        failed
     }
 
-    pub(super) fn clear(&mut self) {
-        for shown in self.shown.drain().map(|(_, shown)| shown) {
+    /// Takes every canvas off the page, and `drawer`, if any is left, forgets each.
+    pub fn clear<D: DrawsCanvases<Surface = S>>(&mut self, drawer: Option<&D>) {
+        let shown = self.shown.drain().map(|(_, shown)| shown);
+        for shown in shown.chain(self.hidden.drain(..)) {
             shown.element.remove();
-        }
-        for shown in self.hidden.drain(..) {
-            shown.element.remove();
+            if let Some(drawer) = drawer {
+                drawer.forget(shown.id, shown.surface);
+            }
         }
     }
 }
 
-/// Moves `shown` to `placement`: its surface, its layer above or below the host's canvas, and its
-/// style.
-fn update(
-    channel: &WorkerChannel,
-    mut shown: Shown,
-    placement: Placement,
-    result: &mut Result<(), String>,
-) -> Shown {
-    if shown.surface != placement.surface {
-        shown.surface = placement.surface;
-        let told = channel.show(shown.id, None, placement.surface);
-        if result.is_ok() {
-            *result = told;
-        }
-    }
+/// Moves `shown` to `placement`: its layer above or below the host's canvas, and its style.
+fn update<S: Copy>(
+    mut shown: Shown<S>,
+    placement: CanvasPlacement<S>,
+    failed: &mut Vec<(S, String)>,
+) -> Shown<S> {
     if shown.above != placement.above {
-        // Moving a canvas keeps the offscreen canvas its worker draws into.
+        // Moving a canvas keeps the offscreen canvas its drawer draws into.
         match layer(placement.above) {
             Ok(layer) => {
                 let _ = layer.append_child(&shown.element);
                 shown.above = placement.above;
             }
-            Err(error) if result.is_ok() => *result = Err(error),
-            Err(_) => {}
+            Err(error) => failed.push((placement.surface, error)),
         }
     }
     if shown.style != placement.style {
@@ -194,11 +240,11 @@ fn update(
     shown
 }
 
-fn create(channel: &WorkerChannel, surface: u32, above: bool) -> Result<Shown, String> {
+fn create<D: DrawsCanvases>(drawer: &D, surface: D::Surface, above: bool) -> Result<Shown<D::Surface>, String> {
     thread_local! {
         static NEXT: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
     }
-    let failed = |_| "an app screen's canvas could not be made".to_owned();
+    let failed = |_| "a canvas could not be made".to_owned();
     let layer = layer(above)?;
     let document = web_sys::window()
         .and_then(|window| window.document())
@@ -207,9 +253,8 @@ fn create(channel: &WorkerChannel, surface: u32, above: bool) -> Result<Shown, S
         .create_element("canvas")
         .map_err(failed)?
         .dyn_into()
-        .map_err(|_| "an app screen's canvas could not be made".to_owned())?;
-    // Which kind of canvas this is, for whatever inspects the page (crates/be-host/web-test).
-    let _ = element.set_attribute("data-kind", "screen");
+        .map_err(|_| "a canvas could not be made".to_owned())?;
+    let _ = element.set_attribute("data-kind", drawer.kind(surface));
     layer.append_child(&element).map_err(failed)?;
     let id = NEXT.with(|next| {
         let id = next.get();
@@ -226,8 +271,8 @@ fn create(channel: &WorkerChannel, surface: u32, above: bool) -> Result<Shown, S
     let offscreen = shown
         .element
         .transfer_control_to_offscreen()
-        .map_err(|_| "an app screen's canvas could not be handed to its worker".to_owned());
-    match offscreen.and_then(|offscreen| channel.show(id, Some(&offscreen), surface)) {
+        .map_err(|_| "a canvas could not be handed to whoever draws it".to_owned());
+    match offscreen.and_then(|offscreen| drawer.show(id, &offscreen, surface)) {
         Ok(()) => Ok(shown),
         Err(error) => {
             shown.element.remove();

@@ -12,6 +12,12 @@
 // their workers, which the init script does not reach, so they are unchanged. This assumes the
 // host's only opaque clear is the one that starts its frame; a renderer that cleared to an opaque
 // colour anywhere else (a backdrop drawn as a clear, say) would read magenta there too.
+//
+// Under a root on the page (`test.root`, be-host's `:root-grown-web-host-test`), the host's
+// canvas shows only the background, and the root draws its own surface in a canvas of #layers on
+// the page's gpu shim, whose WebGL the init script reaches, with the workspace's screen above it
+// in #layers too: the test reads the root's canvas instead, in the first frame it shows at the
+// grown size.
 
 const GROWN = { width: 1160, height: 700 };
 const CLEARED = [255, 0, 255];
@@ -53,18 +59,22 @@ export default async function (test) {
     await test.page.close();
     await test.openPage();
     const { drive, page } = test;
+    // Where the workspace's screen shows, and the canvas whose frame shows beyond it.
+    const where = test.root === undefined ? { screens: "#apps", drawn: "#host" } : { screens: "#layers", drawn: "root" };
     await drive("settle");
     // Settled, the workspace has drawn its screen: wait for its canvas to show, rather than for
     // a length of time.
-    await page.waitForFunction(() =>
-        [...document.querySelectorAll("#apps canvas[data-kind=screen]")].some(
-            (canvas) => getComputedStyle(canvas).display !== "none" && canvas.getBoundingClientRect().width > 0,
-        ),
+    await page.waitForFunction(
+        (where) =>
+            [...document.querySelectorAll(`${where.screens} canvas[data-kind=screen]`)].some(
+                (canvas) => getComputedStyle(canvas).display !== "none" && canvas.getBoundingClientRect().width > 0,
+            ),
+        where,
     );
 
     // The workspace's canvas: the largest app screen shown, which fills the page.
-    const before = await page.evaluate(() => {
-        const screens = [...document.querySelectorAll("#apps canvas[data-kind=screen]")]
+    const before = await page.evaluate((where) => {
+        const screens = [...document.querySelectorAll(`${where.screens} canvas[data-kind=screen]`)]
             .filter((canvas) => getComputedStyle(canvas).display !== "none")
             .map((canvas) => ({ canvas, rect: canvas.getBoundingClientRect() }))
             .sort((a, b) => b.rect.width * b.rect.height - a.rect.width * a.rect.height);
@@ -72,7 +82,7 @@ export default async function (test) {
         screens[0].canvas.isTheWorkspace = true;
         const { left, top, right, bottom } = screens[0].rect;
         return { left, top, right, bottom, opaqueClears: window.opaqueClears };
-    });
+    }, where);
     if (before === null) throw new Error("the page shows no app screen");
     if (before.opaqueClears === 0) {
         throw new Error("the host's renderer made no opaque WebGL clear, so the test cannot tell its clear colour");
@@ -84,10 +94,52 @@ export default async function (test) {
     // In the ResizeObserver report of the grown size, the host's canvas holds the first frame of
     // that size (the resize's animation frame ran before it): read it there, with where the
     // workspace's canvas is then. A new observer reports its starting size first, so the report
-    // is picked by size.
+    // is picked by size. The root's canvas takes the grown size once the root drew a frame of it,
+    // which the page shows from a later frame than the resize's: under a root, each animation
+    // frame looks for the first in which it has.
     const seen = page.evaluate(
-        ({ grown, before }) =>
+        ({ grown, before, where }) =>
             new Promise((resolve) => {
+                const read = (drawn) => {
+                    const workspace = [...document.querySelectorAll(`${where.screens} canvas`)].find(
+                        (canvas) => canvas.isTheWorkspace,
+                    );
+                    const shown = workspace?.getBoundingClientRect();
+                    const box = drawn.getBoundingClientRect();
+                    const scale = drawn.width / box.width;
+                    const copy = document.createElement("canvas");
+                    copy.width = drawn.width;
+                    copy.height = drawn.height;
+                    const context = copy.getContext("2d");
+                    context.drawImage(drawn, 0, 0);
+                    const pixel = (x, y) =>
+                        [...context.getImageData(Math.round((x - box.left) * scale), Math.round((y - box.top) * scale), 1, 1).data];
+                    const right = { x: before.right + 100, y: (before.top + before.bottom) / 2 };
+                    const below = { x: (before.left + before.right) / 2, y: before.bottom + 50 };
+                    resolve({
+                        host: [drawn.width, drawn.height],
+                        workspace: shown && { right: shown.right, bottom: shown.bottom },
+                        right: { ...right, pixel: pixel(right.x, right.y) },
+                        below: { ...below, pixel: pixel(below.x, below.y) },
+                        background: document.body.style.background,
+                    });
+                };
+                if (where.drawn === "root") {
+                    // The root's own canvas: the largest it shows, which fills the page.
+                    const look = () => {
+                        const drawn = [...document.querySelectorAll("#layers canvas[data-kind=root]")]
+                            .filter((canvas) => getComputedStyle(canvas).display !== "none")
+                            .sort((a, b) => b.width * b.height - a.width * a.height)[0];
+                        const scale = window.devicePixelRatio;
+                        if (drawn?.width === Math.round(grown.width * scale) && drawn.height === Math.round(grown.height * scale)) {
+                            read(drawn);
+                        } else {
+                            requestAnimationFrame(look);
+                        }
+                    };
+                    requestAnimationFrame(look);
+                    return;
+                }
                 const host = document.getElementById("host");
                 const observer = new ResizeObserver((entries) => {
                     const entry = entries.find(
@@ -97,30 +149,11 @@ export default async function (test) {
                     );
                     if (!entry) return;
                     observer.disconnect();
-                    const workspace = [...document.querySelectorAll("#apps canvas")].find(
-                        (canvas) => canvas.isTheWorkspace,
-                    );
-                    const shown = workspace?.getBoundingClientRect();
-                    const scale = host.width / host.clientWidth;
-                    const copy = document.createElement("canvas");
-                    copy.width = host.width;
-                    copy.height = host.height;
-                    const context = copy.getContext("2d");
-                    context.drawImage(host, 0, 0);
-                    const pixel = (x, y) => [...context.getImageData(Math.round(x * scale), Math.round(y * scale), 1, 1).data];
-                    const right = { x: before.right + 100, y: (before.top + before.bottom) / 2 };
-                    const below = { x: (before.left + before.right) / 2, y: before.bottom + 50 };
-                    resolve({
-                        host: [host.width, host.height],
-                        workspace: shown && { right: shown.right, bottom: shown.bottom },
-                        right: { ...right, pixel: pixel(right.x, right.y) },
-                        below: { ...below, pixel: pixel(below.x, below.y) },
-                        background: document.body.style.background,
-                    });
+                    read(host);
                 });
                 observer.observe(host);
             }),
-        { grown: GROWN, before },
+        { grown: GROWN, before, where },
     );
     // The observer is listening once its starting report has come, which the page answers after.
     await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => resolve())));
@@ -128,9 +161,10 @@ export default async function (test) {
     const first = await seen;
     console.log(`the first frame after the page grew: ${JSON.stringify(first)}`);
 
+    const drawn = where.drawn === "root" ? "root's" : "host's";
     const scale = first.host[0] / GROWN.width;
     if (first.host[0] !== Math.round(GROWN.width * scale) || first.host[1] !== Math.round(GROWN.height * scale)) {
-        throw new Error(`the host's canvas was not drawn at the grown size in the first frame: ${JSON.stringify(first)}`);
+        throw new Error(`the ${drawn} canvas was not drawn at the grown size in the first frame: ${JSON.stringify(first)}`);
     }
     if (!first.workspace || first.workspace.right > before.right || first.workspace.bottom > before.bottom) {
         throw new Error(
@@ -143,9 +177,9 @@ export default async function (test) {
     for (const [where, { pixel }] of Object.entries({ right: first.right, below: first.below })) {
         const what =
             pixel[3] < 255
-                ? "a hole in the host's canvas"
+                ? `a hole in the ${drawn} canvas`
                 : pixel.slice(0, 3).every((value, index) => Math.abs(value - CLEARED[index]) <= 2)
-                  ? "the host's clear colour"
+                  ? `the ${drawn} clear colour`
                   : null;
         const matches = pixel.slice(0, 3).every((value, index) => Math.abs(value - backdrop[index]) <= 2);
         if (what !== null || !matches) {

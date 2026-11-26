@@ -179,7 +179,16 @@ fn produced<P: Pictures>(data: &JsValue) -> Produced<P> {
             .map(|frame| js_sys::Uint8Array::new(&frame).to_vec())
             .collect(),
         presented: P::read(data),
-        released: Vec::new(),
+        // Only an app's extension reports the surfaces it let go of (be-host's app.js).
+        released: get(data, "released")
+            .dyn_ref::<js_sys::Array>()
+            .map(|released| {
+                released
+                    .iter()
+                    .filter_map(|surface| Some(surface.as_f64()? as u32))
+                    .collect()
+            })
+            .unwrap_or_default(),
         painted: get(data, "painted").is_truthy(),
         took: StepTime {
             step: milliseconds(data, "step"),

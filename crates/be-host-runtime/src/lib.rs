@@ -85,7 +85,7 @@ pub use runtime::{
 #[cfg(not(target_arch = "wasm32"))]
 pub use wasm::{staged_app, staged_worker};
 #[cfg(target_arch = "wasm32")]
-pub use web::staged_app;
+pub use web::{CanvasPlacement, Canvases, DrawsCanvases, staged_app};
 pub use windows::{forget_windows, request_windows, take_window_requests};
 
 pub fn exiting() {

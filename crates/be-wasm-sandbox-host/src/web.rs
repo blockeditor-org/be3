@@ -10,7 +10,7 @@
 
 use std::{
     cell::RefCell,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     convert::Infallible,
     rc::{Rc, Weak},
     sync::{Arc, atomic::AtomicBool},
@@ -227,6 +227,8 @@ pub struct Instance {
     worker: Worker<WebGuest<Infallible>>,
     /// Why it stopped, once it did.
     failure: Option<String>,
+    /// The surfaces a canvas was handed for (`show`) that the instance has not let go of since.
+    held: RefCell<HashSet<u32>>,
 }
 
 /// Starts an instance of `source`, which calls `wake` whenever it has sent frames or stopped.
@@ -259,27 +261,41 @@ pub fn spawn(source: Source, config: Config, wake: Wake) -> Result<Instance, Str
     Ok(Instance {
         worker: Worker::new(guest, waiting),
         failure: None,
+        held: RefCell::default(),
     })
 }
 
 impl Instance {
     /// Shows on `canvas` what the instance presents to its surface `surface`, under the canvas's
-    /// `id` in its worker, which the canvas moves to (app.js's `show`).
+    /// `id` in its worker, which the canvas moves to (app.js's `show`); with no canvas, on the
+    /// one it was handed under `id` before, which shows what it did until `surface` is drawn.
     pub fn show(
         &self,
         id: u32,
-        canvas: &web_sys::OffscreenCanvas,
+        canvas: Option<&web_sys::OffscreenCanvas>,
         surface: u32,
     ) -> Result<(), String> {
         let message = be_wasm_guest_host::web::message("show");
         be_wasm_guest_host::web::set(&message, "id", &id.into());
         be_wasm_guest_host::web::set(&message, "surface", &surface.into());
-        be_wasm_guest_host::web::set(&message, "canvas", canvas);
-        self.worker
+        if let Some(canvas) = canvas {
+            be_wasm_guest_host::web::set(&message, "canvas", canvas);
+        }
+        let posted = self
+            .worker
             .channel()
-            .post(&message, Some(canvas.as_ref()))
-            .then_some(())
-            .ok_or_else(|| "a canvas could not be handed to the instance's worker".to_owned())
+            .post(&message, canvas.map(|canvas| canvas.as_ref()));
+        if !posted {
+            return Err("a canvas could not be handed to the instance's worker".to_owned());
+        }
+        self.held.borrow_mut().insert(surface);
+        Ok(())
+    }
+
+    /// Whether the instance still holds `surface`, which a canvas was handed for (`show`): it
+    /// runs and has not let go of it since, so what it last drew there is still what it shows.
+    pub fn holds(&self, surface: u32) -> bool {
+        self.failure.is_none() && self.held.borrow().contains(&surface)
     }
 
     /// Stops showing anything on the canvas `id` (`show`).
@@ -327,6 +343,11 @@ impl Instance {
         if self.failure.is_none() {
             self.failure = self.worker.poll();
         }
+        let mut held = self.held.borrow_mut();
+        for surface in self.worker.take_released() {
+            held.remove(&surface);
+        }
+        drop(held);
         let received = self.worker.take_received();
         match &self.failure {
             Some(failure) if received.is_empty() => Err(failure.clone()),
