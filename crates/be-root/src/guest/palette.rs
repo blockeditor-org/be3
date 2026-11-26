@@ -324,7 +324,10 @@ impl Root {
     }
 
     /// The rows of the editors outward from `from` (`palette_rows`).
-    fn editor_rows(&self, from: Option<(Embedded, EditorInstanceId, Option<ScreenId>)>) -> Vec<Row> {
+    fn editor_rows(
+        &self,
+        from: Option<(Embedded, EditorInstanceId, Option<ScreenId>)>,
+    ) -> Vec<Row> {
         let Some((app, editor, screen)) = from else {
             return Vec::new();
         };

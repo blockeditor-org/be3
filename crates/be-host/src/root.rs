@@ -1236,7 +1236,11 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
     for (id, blocks) in root.take_name_asks() {
         let names = blocks
             .into_iter()
-            .map(|block| be_host_stack::node(Uuid::from_bytes(block))?.metadata.name())
+            .map(|block| {
+                be_host_stack::node(Uuid::from_bytes(block))?
+                    .metadata
+                    .name()
+            })
             .collect();
         root.answer_names(id, names);
     }
