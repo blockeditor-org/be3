@@ -5834,10 +5834,10 @@ fn restart_limit() -> usize {
     RESTART_STATE_BYTES
 }
 
-/// This crate's own tests lower a restart's limit here, even while replicas are open; a test
-/// of the host sets it for a block it opens (`opening.restart-limit`).
 #[cfg(test)]
 thread_local! {
+    /// This crate's own tests lower a restart's limit here, even while replicas are open; a
+    /// test of the host sets it for a block it opens (`opening.restart-limit`).
     pub(crate) static RESTART_LIMIT: std::cell::Cell<usize> =
         const { std::cell::Cell::new(RESTART_STATE_BYTES) };
 }
