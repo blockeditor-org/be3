@@ -9,13 +9,20 @@ Fixed items are removed as they land.
 
 - **A stacked dock's old bar over the child that replaced it.** On a phone, with presents
   late (`drive present late`), the frame after a document is opened from the files sometimes
-  shows the files' bar over the document's undrawn view, and sometimes the document's bar:
-  the children of the root's layout can be applied before the present that paints its new bar,
-  as happens whenever a present misses its frame, and which lands first varies between runs
-  (about 1 run in 6 under `stress`). Done: that frame shows the files under their own bar, or
-  the document's bar over its view, every run, and
-  `on_a_phone_opening_a_document_from_the_files_steps_frame_by_frame_with_presents_late` records
-  each frame of the opening (`HostTest::record_frame`) in a painting.
+  showed the files' bar over the document's undrawn view. It came from timing, not from the
+  holds: with the clock stopped, frames still ran between drive commands, and what apps and the
+  block store sent landed at whichever poll followed. Built: a stopped clock's frame waits for
+  every app to be idle (`finish_steps`, `Worker::idle`) and for the block store's commands and
+  type modules (`be_host_stack::finish_commands`); `drive step on` runs no frame between
+  commands; `--no-settle paint` paints the next frame. With those, the frame between is the
+  files under their own bar in every stress run seen, and
+  `on_a_phone_opening_a_document_from_the_files_steps_frame_by_frame_with_presents_late` steps
+  it under `step on`. Left: recording it (`HostTest::record_frame`) in a painting, which still
+  differs in about 3 runs in 50: the text's views are undrawn one frame later than in the others
+  (its first present of the reopened view, or a kept frame of it, lands a frame later). Answering
+  a non-animating app's zero-delay repaint in the next frame on a stopped clock
+  (`Pacing::asked_by`) raised that to about 9 in 50. Done: the painting accepted, and `stress`
+  at 100 runs or more shows no variant.
 
 ## 3. beui platforms
 

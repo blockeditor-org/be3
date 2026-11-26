@@ -495,6 +495,9 @@ impl Runner {
         platform: &mut dyn PlatformServices,
         safe_area: SafeArea,
     ) -> Option<Frame> {
+        if self.layers.iter().any(|layer| layer.holds_frames()) {
+            return None;
+        }
         let started = std::time::Instant::now();
         self.tasks.poll_woken();
         let rendering = self.rendering.as_mut()?;

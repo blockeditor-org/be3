@@ -145,8 +145,13 @@ Cargo.toml: the shapes and glyphs beui's renderer would hand the GPU, each glyph
 coverage image, compressed to a few kilobytes and compared exactly
 (decisions/paint_snapshots_instead_of_screenshots.md). `record()` keeps the current frame, and
 `snapshot` then writes every kept frame, so a test can show how the editor got somewhere.
-A host test's `record_frame()` keeps the frame as it is, without settling, for frames stepped
-one at a time (guides/running/drive.md, Waiting).
+A host test's `record_frame()` keeps the next frame as it is, without settling
+(`--no-settle paint`), for frames stepped one at a time. Turn on `step on` first (with the clock
+stopped, as host tests start): each command then runs only its own frames, and each frame starts
+once the apps and the block store have done what the last one set off (guides/running/drive.md,
+The clock); check a recording of single steps under `stress` before trusting it, since an app's
+view can still be drawn a frame later in a few runs. Leave it off in a test with another device
+that needs this one between commands.
 Every frame is compared, so keep recordings to the frames that say something.
 
 - A painting never holds glyph atlases, so text an earlier frame drew cannot change it. Text
