@@ -665,8 +665,15 @@ impl Searching {
     }
 
     /// Queues again the blocks waiting on a block the mirror has now listed (`held`), and drops
-    /// those whose wait is over without it (`listed`): counted in `unplaceable`, and logged.
-    fn release_unplaced(&mut self, held: impl Fn(Uuid) -> bool, listed: impl Fn(Uuid) -> bool) {
+    /// those whose wait is over without it (`listed`): counted in `unplaceable`, and logged,
+    /// unless the account's view starts below the block not listed (`view_starts_below`), as
+    /// for a block shared alone, which no root this account may read holds.
+    fn release_unplaced(
+        &mut self,
+        held: impl Fn(Uuid) -> bool,
+        listed: impl Fn(Uuid) -> bool,
+        view_starts_below: impl Fn(Uuid, Uuid) -> bool,
+    ) {
         let mut dropped = Vec::new();
         self.unplaced.retain(|block, missing| {
             if held(*missing) {
@@ -674,7 +681,9 @@ impl Searching {
                 return false;
             }
             if listed(*missing) {
-                dropped.push((*block, *missing));
+                if !view_starts_below(*block, *missing) {
+                    dropped.push((*block, *missing));
+                }
                 return false;
             }
             true
@@ -1010,12 +1019,6 @@ fn place(graph: &Graph, block: Uuid) -> Place {
         let held_by_metadata = node.content_type == SEARCH_INDEX_TYPE
             || node.content_type == SETTINGS_TYPE
             || EDIT_KINDS.contains(&node.content_type);
-        // The account's view starts here, below a parent it may not view (`entry`): a block
-        // shared alone, which no root this account may read holds. The mirror never lists its
-        // parent, so waiting to place it would wait for nothing.
-        if node.entry == Some(current) && matches!(node.parent, Some(BlockParent::Block(_))) {
-            return Place::Skip;
-        }
         match node.parent {
             Some(BlockParent::Block(_)) if held_by_metadata => return Place::Skip,
             Some(BlockParent::Block(parent)) => current = parent,
@@ -1031,6 +1034,26 @@ fn place(graph: &Graph, block: Uuid) -> Place {
 /// How far up `place` and `missing_above` look: deeper than any tree a person makes, and a bound on a
 /// cycle the mirror holds for a moment.
 const PLACE_DEPTH: usize = 256;
+
+/// Whether the account's view of `block`'s tree starts just below `missing`, the block on its
+/// way up the mirror does not hold: the one placed in it names itself where the view starts
+/// (`entry`), as the server answers for a parent the reader may not view.
+fn view_starts_below(graph: &Graph, block: Uuid, missing: Uuid) -> bool {
+    let mut current = block;
+    for _ in 0..PLACE_DEPTH {
+        let Some(node) = graph.get(current) else {
+            return false;
+        };
+        match node.parent {
+            Some(BlockParent::Block(parent)) if parent == missing => {
+                return node.entry == Some(current);
+            }
+            Some(BlockParent::Block(parent)) => current = parent,
+            _ => return false,
+        }
+    }
+    false
+}
 
 /// The first block on `block`'s way up that the mirror does not hold, itself included, within
 /// `PLACE_DEPTH` steps.
@@ -1209,6 +1232,7 @@ async fn index(
             state.search.release_unplaced(
                 |missing| graph.get(missing).is_some(),
                 |missing| graph.ready(GraphQuery::Block(missing)),
+                |block, missing| view_starts_below(graph, block, missing),
             );
         }
         if held.search.dirty.is_empty() {
