@@ -2004,32 +2004,46 @@ pub fn wait_until<T>(what: &str, read: impl Fn(&Shared) -> Option<T>) -> T {
     }
 }
 
-/// Waits, up to `limit`, until the worker has run every command the page sent it and no type
-/// module is still working (not for the server): a driven host whose clock is stopped does at each frame's start, so
-/// what the frame takes in never depends on how fast the worker's thread ran (guides/apps/
-/// runtime.md, Settling). Nothing to wait on when the stack is not running.
+/// Waits, up to `limit`, until the worker has run every command the page sent it that it does
+/// not hold for the server (`Shared::held_for_server`, `Shared::outbox_wait`), and no type module
+/// is still working: a driven host whose clock is stopped does at each frame's start, so what
+/// the frame takes in does not depend on how fast the worker's thread ran (guides/apps/
+/// runtime.md, Settling). It never waits on the server, so an offline device's frames do not
+/// wait on a version it cannot seal. False, with what it waited on logged, when it gave up.
+/// Nothing to wait on when the stack is not running.
 #[cfg(not(target_arch = "wasm32"))]
-pub fn finish_commands(limit: std::time::Duration) {
+pub fn finish_commands(limit: std::time::Duration) -> bool {
     let Some((shared, changed)) = stack()
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .as_ref()
         .map(|stack| (Arc::clone(&stack.shared), Arc::clone(&stack.changed)))
     else {
-        return;
+        return true;
     };
     let deadline = std::time::Instant::now() + limit;
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-    while held.pending() > 0 || !held.typing.is_empty() {
+    let running = |held: &Shared| match held.outbox_wait {
+        true => 0,
+        false => held.pending().saturating_sub(held.held_for_server),
+    };
+    while running(&held) > 0 || !held.typing.is_empty() {
         let left = deadline.saturating_duration_since(std::time::Instant::now());
         if left.is_zero() {
-            return;
+            eprintln!(
+                "be-host: a stopped clock's frame went on after {} s with the block store still busy: {} command(s) to run, type modules: {:?}",
+                limit.as_secs(),
+                running(&held),
+                held.typing
+            );
+            return false;
         }
         held = changed
             .wait_timeout(held, left)
             .unwrap_or_else(PoisonError::into_inner)
             .0;
     }
+    true
 }
 
 /// Takes the worker's updates and, unless `done` then holds, waits for the worker to hand over

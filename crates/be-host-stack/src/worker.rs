@@ -917,6 +917,14 @@ pub struct Shared {
     /// bumped. A wait (`wait_until`) fails when it stops counting, not when the worker stops
     /// waking. Bump it beside any state a test may wait on.
     pub progressed: u64,
+    /// Commands the worker took and holds for the server: a seal behind the server's order
+    /// (`after_order`), one behind an upload or the lane (`Uploads::defer`, `Served::defer`),
+    /// and one waiting for the outbox to drain (`Tasks::sent`). A stopped clock's frame does not
+    /// wait for these (`finish_commands`); while one waits for the outbox, the worker runs nothing
+    /// else, so neither does it wait for the commands behind it (`outbox_wait`).
+    pub held_for_server: usize,
+    /// Whether the worker is waiting for the outbox to drain before it carries out a command.
+    pub outbox_wait: bool,
     /// How many commands the page has sent: those the worker has not finished
     /// (`Seen::done`) are pending.
     pub sent: Arc<std::sync::atomic::AtomicUsize>,
@@ -1784,6 +1792,7 @@ impl Session<'_> {
                         tasks: &self.tasks.0,
                         served: &mut self.served,
                         calls: &self.calls.0,
+                        changed: self.changed,
                     };
                     let mut next = Some(command);
                     let mut applied = false;
@@ -1840,6 +1849,7 @@ impl Session<'_> {
                         tasks: &self.tasks.0,
                         served: &mut self.served,
                         calls: &self.calls.0,
+                        changed: self.changed,
                     };
                     let mut applied = false;
                     let mut held = Vec::new();
@@ -1945,6 +1955,7 @@ impl Session<'_> {
                         tasks: &self.tasks.0,
                         served: &mut self.served,
                         calls: &self.calls.0,
+                        changed: self.changed,
                     };
                     let mut held = Vec::new();
                     for command in runnable {
@@ -2043,6 +2054,7 @@ impl Session<'_> {
                     tasks: &self.tasks.0,
                     served: &mut self.served,
                     calls: &self.calls.0,
+                    changed: self.changed,
                 };
                 for command in std::mem::take(&mut after_order) {
                     if let Some(command) = admit(&mut self.uploads, ran.served, command) {
@@ -2128,6 +2140,8 @@ impl Session<'_> {
                 .then(|| self.replicas.modules.held_due())
                 .flatten();
                 held.typing = typing;
+                held.held_for_server =
+                    after_order.len() + self.uploads.deferred() + self.served.deferred();
                 (
                     typing_changed,
                     std::mem::replace(&mut held.modules_due, due),
@@ -3025,6 +3039,7 @@ struct Ran<'a> {
     tasks: &'a Tasks,
     served: &'a mut Served,
     calls: &'a LoopCalls,
+    changed: &'a Condvar,
 }
 
 type DoneReply = Reply<Result<(), String>>;
@@ -3171,12 +3186,15 @@ impl Ran<'_> {
             return false;
         };
         let sealed_owed = matches!(command, Command::SealOwed);
-        if let Some(block) = command.asks_server_of() {
-            self.tasks.sent(self.peer, self.shared, Some(block)).await;
-        }
-        // An export reads a whole tree from the server.
-        if matches!(command, Command::Export { .. }) {
-            self.tasks.sent(self.peer, self.shared, None).await;
+        let outbox = match &command {
+            // An export reads a whole tree from the server.
+            Command::Export { .. } => Some(None),
+            command => command.asks_server_of().map(Some),
+        };
+        if let Some(block) = outbox {
+            self.outbox_wait(true);
+            self.tasks.sent(self.peer, self.shared, block).await;
+            self.outbox_wait(false);
         }
         let applied = match command {
             // In the lane while attached (`carry_out`); offline, only what the device can answer
@@ -3319,6 +3337,16 @@ impl Ran<'_> {
             command,
         );
         self.done(false);
+    }
+
+    /// Says whether the worker waits for the outbox to drain (`Shared::outbox_wait`), waking a
+    /// frame that waits for its commands (`finish_commands`).
+    fn outbox_wait(&self, waiting: bool) {
+        self.shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .outbox_wait = waiting;
+        self.changed.notify_all();
     }
 
     fn done(&self, sealed_owed: bool) {
