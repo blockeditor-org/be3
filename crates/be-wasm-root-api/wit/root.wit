@@ -829,6 +829,9 @@ interface host {
         /// Whether the organization is a company's, whose members it invites,
         /// rather than the person's own.
         company: bool,
+        /// Whether the account is a local one, with no server: it has no
+        /// contacts and opens no share links.
+        local: bool,
         /// Whether the person administers the organization: its members and
         /// invitations.
         administrator: bool,

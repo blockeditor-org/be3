@@ -796,6 +796,7 @@ impl Runtime {
         }
         self.error = Some(error);
         self.held_frame = None;
+        self.late.clear();
         let _ = be_wasm_panic::contain(|| self.backend.shutdown());
         self.instances.forget_fetches(None);
         previews::forget(&self.app.identity.id);
@@ -838,9 +839,7 @@ impl Runtime {
         if *self.run.session.state() == SessionState::Idle && self.backend.ready() {
             self.run.session.start(now);
         }
-        // What was held back from a late present is heard first, in the order it came.
-        let mut forwarded = std::mem::take(&mut self.late);
-        forwarded.reserve(received.len());
+        let mut forwarded = Vec::with_capacity(received.len());
         for heard in received {
             match heard {
                 Heard::Hello(hello) => {
@@ -874,17 +873,7 @@ impl Runtime {
                 return;
             }
         }
-        // Presents taken in late: held from the first on until a poll takes them in.
-        if host::presents_late()
-            && !self.taking_in
-            && let Some(first) = forwarded
-                .iter()
-                .position(|heard| matches!(heard, Heard::Presented(_)))
-        {
-            self.late = forwarded.split_off(first);
-            host::request_repaint();
-        }
-        self.hear(forwarded);
+        self.take_in(forwarded, host::presents_late() && !self.taking_in);
         let (count, longest) = self.backend.stepped();
         self.steps += count;
         if count > 0 {
@@ -913,9 +902,31 @@ impl Runtime {
         for image in previews::take_withdrawn(&self.app.identity.id) {
             self.backend.withdraw(image);
         }
-        // A late present's frame stays with the worker until its present is heard.
+        self.show_presented(|runtime| runtime.backend.received_frame());
+    }
+
+    /// Hears what the app sent after what a late present held back, in the order it came.
+    /// Taken in `late` (`host::presents_late`, outside a poll), everything from the first
+    /// present on is held again, for the next poll to hear.
+    fn take_in(&mut self, received: Vec<Heard>, late: bool) {
+        let mut forwarded = std::mem::take(&mut self.late);
+        forwarded.extend(received);
+        if late
+            && let Some(first) = forwarded
+                .iter()
+                .position(|heard| matches!(heard, Heard::Presented(_)))
+        {
+            self.late = forwarded.split_off(first);
+            host::request_repaint();
+        }
+        self.hear(forwarded);
+    }
+
+    /// Shows the frame `take` gives (the worker's last presented), unless a late present is
+    /// held: its frame stays with the worker until the present is heard.
+    fn show_presented(&mut self, take: impl FnOnce(&mut Self) -> Option<Frame>) {
         if self.late.is_empty()
-            && let Some(frame) = self.backend.received_frame()
+            && let Some(frame) = take(self)
         {
             self.received(frame);
         }

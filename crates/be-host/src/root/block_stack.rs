@@ -493,6 +493,7 @@ fn view(core: &HostCore) -> CoreView {
         }),
         organization: organization.map(|organization| organization.name.clone()),
         company: shown.status.company,
+        local: shown.status.local,
         administrator: shown.status.administrator,
         escrow_warning: shown.status.escrow_warning.clone(),
         hosting: shown

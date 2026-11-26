@@ -162,9 +162,14 @@ impl Contacts {
         be_host_base::watches::publish::<be_sdk_api::ContactsWatch>(&contacts);
     }
 
-    pub(crate) fn poll(&mut self, base: &str, ready: bool) {
+    /// Opens a link the page was opened with once the organization is ready; a local account,
+    /// which has no server and so no contacts, refuses it.
+    pub(crate) fn poll(&mut self, base: &str, ready: bool, local: bool) {
         if ready && let Some(text) = self.waiting.take() {
-            self.paste(&text, base);
+            match local {
+                true => be_host_base::notices::refuse(crate::NO_SERVER.to_owned()),
+                false => self.paste(&text, base),
+            }
         }
     }
 
