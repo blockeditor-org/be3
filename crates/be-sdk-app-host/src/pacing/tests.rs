@@ -1,5 +1,6 @@
 use super::*;
 
+mod a_frame_asked_for_at_once_without_animating_is_drawn_in_the_next_host_frame_while_the_clock_stands_still;
 mod a_frame_asked_for_while_one_is_in_flight_is_asked_again_once_it_is_answered;
 mod a_frame_is_asked_once_per_host_frame;
 mod a_frame_waits_for_apps_until_the_next_present_less_its_own_composite;
