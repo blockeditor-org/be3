@@ -197,10 +197,6 @@ struct State {
     described: HashMap<ScreenId, Graft>,
     /// Whether the app was told to describe its screens, as `describing` said when it last was.
     told_describing: bool,
-    /// Whether a screen's tree changed since the root last described itself (`read_trees`): a
-    /// frame that shows the change is owed, as a press that only moves the focus changes no
-    /// pixel but the tree drive and screen readers read.
-    redescribed: bool,
     /// The editors the person picked from a frame menu of, each with how many of its layout
     /// commits the pick still lets it open the palette (`MENU_PICK_COMMITS`).
     menu_picked: HashMap<EditorInstanceId, u32>,
@@ -565,7 +561,6 @@ impl Embedded {
             keyboard: HashSet::default(),
             described: HashMap::default(),
             told_describing: false,
-            redescribed: false,
             menu_picked: HashMap::default(),
             drag: None,
             accepting: HashSet::default(),
@@ -806,8 +801,7 @@ impl Embedded {
             || !state.docks.is_empty()
             || !state.told.is_empty()
             || state.drag.is_some()
-            || state.restyled
-            || state.redescribed;
+            || state.restyled;
         match owes {
             true => Wants {
                 next: Some(state.now),
@@ -1129,12 +1123,6 @@ impl Embedded {
             focused,
             full,
         ))
-    }
-
-    /// The root described itself (or was asked for no tree): what its screens' trees changed
-    /// until now is shown, and owes no frame.
-    pub(crate) fn read_trees(&self) {
-        self.state.borrow_mut().redescribed = false;
     }
 
     /// The person picked from a frame menu of its editor `editor` (`editor.menu-pick`), which
@@ -1707,7 +1695,6 @@ impl State {
                             .entry(report.screen)
                             .or_insert_with(|| Graft::new(next_document()))
                             .update(tree);
-                        self.redescribed = true;
                     }
                     match &report.anchored {
                         Some(anchored) => {
