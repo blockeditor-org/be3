@@ -17,7 +17,7 @@ pub use manifest::{
 pub use store::{FileStore, MemoryStore, ObjectStore};
 #[cfg(feature = "vault")]
 pub use vault::{
-    ContentKey, Keyring, Ledger, Noted, PartWriter, Pins, Unnamed, Vault, VaultStore, Written,
+    ContentKey, Keyring, Ledger, Noted, PartWriter, Pins, Unnamed, Vault, VaultStore, WeakUnnamed, Written,
     sealed_key,
 };
 

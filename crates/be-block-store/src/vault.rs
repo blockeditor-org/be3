@@ -10,8 +10,8 @@ use uuid::Uuid;
 
 mod unnamed;
 
-pub use unnamed::{Ledger, Noted, Pins, Unnamed, VaultStore, Written};
-use unnamed::{COLLECTING, Claim};
+pub use unnamed::{Ledger, Noted, Pins, Unnamed, VaultStore, WeakUnnamed, Written};
+use unnamed::Claim;
 
 use crate::{
     StoreError,
@@ -347,7 +347,9 @@ impl<S: ObjectStore> Vault<S> {
 
     /// Puts what a writer sealed. A part writer's (`pins`) is pinned first, and noted unnamed
     /// when the store lacks it; one another owner noted is claimed, since this owner's writer
-    /// may come to name it. Anything else is named by whoever put it.
+    /// may come to name it. Anything else is named by whoever put it. The lock is held only to
+    /// pin and to note, never across the store: an object another owner put between the look
+    /// and the note was claimed by nothing, so the store is looked at again once it is noted.
     fn put_written(
         &self,
         key: Uuid,
@@ -360,24 +362,24 @@ impl<S: ObjectStore> Vault<S> {
         };
         let hash = Hash::of(sealed);
         let owner = self.store.owner;
-        {
+        let noted = {
             let mut notes = self.store.unnamed.lock();
             *notes.pinned.entry(hash).or_default() += 1;
             pins.objects.push(hash);
-            match notes.noted.get(&hash) {
-                Some(noted) if noted.owner != owner => notes.claim(&[hash], owner, Claim::Put)?,
-                Some(_) => {}
-                None if self.store.inner.has(hash)? => {}
-                None => {
-                    let noted = Noted { block, owner };
-                    if let Some(ledger) = &notes.ledger {
-                        ledger.note(hash, noted)?;
-                    }
-                    notes.noted.insert(hash, noted);
-                }
-            }
-        }
+            notes.noted.get(&hash).map(|noted| noted.owner)
+        };
         // Pinned, so no collection removes it meanwhile.
+        match noted {
+            Some(noted) if noted != owner => {
+                self.store
+                    .unnamed
+                    .lock()
+                    .claim(&[hash], owner, Claim::Put)?;
+            }
+            Some(_) => {}
+            None if self.store.inner.has(hash)? => {}
+            None => self.note(hash, Noted { block, owner })?,
+        }
         self.store.inner.put(sealed)?;
         self.sealed
             .write()
@@ -498,6 +500,32 @@ impl<S: ObjectStore> Vault<S> {
         Ok(key)
     }
 
+    /// Notes `object`, which the store lacked when looked at, as this owner's: in the ledger
+    /// first, so a claim that finds it noted here forgets it there too.
+    fn note(&self, object: Hash, noted: Noted) -> Result<(), StoreError> {
+        let ledger = self.store.unnamed.lock().ledger.clone();
+        if let Some(ledger) = &ledger {
+            ledger.note(object, noted)?;
+        }
+        {
+            let mut notes = self.store.unnamed.lock();
+            match notes.noted.get(&object) {
+                // Another owner's writer noted it meanwhile: this owner's may name it too.
+                Some(other) if other.owner != noted.owner => {
+                    return notes.claim(&[object], noted.owner, Claim::Put);
+                }
+                _ => {
+                    notes.noted.insert(object, noted);
+                }
+            }
+        }
+        // Put meanwhile by another owner, whose claim found nothing noted yet.
+        if self.store.inner.has(object)? {
+            self.store.unnamed.lock().forget(&[object])?;
+        }
+        Ok(())
+    }
+
     fn put_sealed(&self, key: Uuid, sealed: &[u8]) -> Result<Hash, StoreError> {
         let hash = self.store.put(sealed)?;
         self.sealed
@@ -510,9 +538,6 @@ impl<S: ObjectStore> Vault<S> {
     /// Leaves `objects` out of what a collection may remove: they were looked for by something
     /// other than the part writer that noted them, which may name them now (`Claim::Looked`).
     fn claim(&self, objects: &[Hash]) -> Result<(), StoreError> {
-        if COLLECTING.get() {
-            return Ok(());
-        }
         self.store
             .unnamed
             .lock()
@@ -536,42 +561,44 @@ impl<S: ObjectStore> Vault<S> {
     /// on this device names (a held commit, an outbox entry); it takes out of the candidates
     /// the blocks whose objects it cannot tell about yet (edits kept that may name them),
     /// which stay noted for a later collection. The rest are removed, and those named are no
-    /// longer noted, being held as any commit's are. It all runs under the lock part writers
-    /// pin under, shared by every vault over the store, and removes nothing while an access
-    /// through any of them is under way (`VaultStore`); `named` reads through this vault without
-    /// locking or claiming, and must not seal or put. Answers how many objects it removed.
+    /// longer noted, being held as any commit's are. `named` runs without the lock part writers
+    /// pin under, shared by every vault over the store, so store reads go on meanwhile; it
+    /// reads through this vault, whose own reads claim nothing, and must not seal or put. Then,
+    /// under the lock, a candidate claimed or pinned meanwhile is passed over, and nothing is
+    /// removed while an access through any vault is under way (`VaultStore`), since it may have
+    /// found an object it has not yet claimed. Answers how many objects it removed.
     pub fn collect(
         &self,
         named: impl FnOnce(&mut HashMap<Uuid, HashSet<Hash>>) -> Result<HashSet<Hash>, StoreError>,
     ) -> Result<usize, StoreError> {
         let owner = self.store.owner;
-        let mut notes = self.store.unnamed.lock();
-        if notes.accessing > 0 {
-            return Ok(0);
-        }
         let mut candidates: HashMap<Uuid, HashSet<Hash>> = HashMap::new();
-        for (object, noted) in &notes.noted {
-            if noted.owner == owner && !notes.pinned.contains_key(object) {
-                candidates.entry(noted.block).or_default().insert(*object);
+        {
+            let notes = self.store.unnamed.lock();
+            for (object, noted) in &notes.noted {
+                if noted.owner == owner && !notes.pinned.contains_key(object) {
+                    candidates.entry(noted.block).or_default().insert(*object);
+                }
             }
         }
         if candidates.is_empty() {
             return Ok(0);
         }
-        let named = {
-            struct Collecting;
-            impl Drop for Collecting {
-                fn drop(&mut self) {
-                    COLLECTING.set(false);
-                }
-            }
-            COLLECTING.set(true);
-            let _collecting = Collecting;
-            named(&mut candidates)?
-        };
+        let named = named(&mut candidates)?;
+        let mut notes = self.store.unnamed.lock();
+        if notes.accessing > 0 {
+            return Ok(0);
+        }
         let mut forgotten = Vec::new();
         let mut removed = 0;
         for object in candidates.into_values().flatten() {
+            let still = notes
+                .noted
+                .get(&object)
+                .is_some_and(|noted| noted.owner == owner);
+            if !still || notes.pinned.contains_key(&object) {
+                continue;
+            }
             if !named.contains(&object) {
                 self.store.inner.remove(object)?;
                 self.sealed.write().expect("never poisoned").remove(&object);

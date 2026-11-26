@@ -9,7 +9,9 @@ use super::*;
 /// writers let go of another's commits may name. Sealing is convergent under the block's one
 /// key: a part the member streams of the same bytes is the owner's let go of, and a whole write
 /// of the same bytes puts the same objects. The member's offline commit names both, and the
-/// owner's collection, which walks only the owner's commits, keeps them.
+/// owner's collection, which walks only the owner's commits, keeps them, even after a restart
+/// that came while the member's part was still held: the member's claims reached the ledger
+/// as they were made, not once the part was let go of.
 #[tokio::test]
 async fn what_another_scope_on_the_device_names_survives_a_collection() {
     let harness = Harness::start().await;
@@ -26,7 +28,8 @@ async fn what_another_scope_on_the_device_names_survives_a_collection() {
         .await
         .unwrap();
 
-    let refs = refs::RefsDb::memory();
+    let file = RefsFile::new();
+    let refs = file.open();
     let store = MemoryStore::new();
     let mine = harness.device(&owner, &refs, &store).await;
     let theirs = harness.device(&member, &refs, &store).await;
@@ -61,6 +64,13 @@ async fn what_another_scope_on_the_device_names_survives_a_collection() {
         .await
         .unwrap();
     assert!(matches!(saved, Saved::Kept(_)), "{saved:?}");
+    // The host stops before the part is let go of, and starts again.
+    drop(offline);
+    drop(mine);
+    drop(refs);
+    let refs = file.open();
+    let mine = harness.offline(&owner, &refs, &store);
+    let offline = harness.offline(&member, &refs, &store);
     drop(written);
 
     assert_eq!(

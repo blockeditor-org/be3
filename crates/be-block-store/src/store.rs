@@ -29,11 +29,30 @@ pub trait ObjectStore: Send + Sync {
     fn len(&self, hash: Hash) -> Result<Option<usize>, StoreError> {
         Ok(self.get(hash)?.map(|bytes| bytes.len()))
     }
+
+    /// Which objects this is, the same for every handle on them (a clone, or a `FileStore`
+    /// opened on the same directory) and for none other: the vaults over one store share what
+    /// their part writers left unnamed (`Unnamed`), and be-block-client keeps it per store
+    /// (`RefsDb::unnamed`). None for a store no vault shares.
+    fn identity(&self) -> Option<Vec<u8>> {
+        None
+    }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct MemoryStore {
     objects: Arc<RwLock<HashMap<Hash, Vec<u8>>>>,
+    /// Its `identity`, which its clones share.
+    id: uuid::Uuid,
+}
+
+impl Default for MemoryStore {
+    fn default() -> Self {
+        Self {
+            objects: Arc::default(),
+            id: uuid::Uuid::new_v4(),
+        }
+    }
 }
 
 impl MemoryStore {
@@ -83,6 +102,10 @@ impl ObjectStore for MemoryStore {
     fn remove(&self, hash: Hash) -> Result<(), StoreError> {
         self.objects.write().unwrap().remove(&hash);
         Ok(())
+    }
+
+    fn identity(&self) -> Option<Vec<u8>> {
+        Some(self.id.as_bytes().to_vec())
     }
 }
 
@@ -251,6 +274,11 @@ impl ObjectStore for FileStore {
             Err(error) => Err(error.into()),
         }
     }
+    /// Its directory, as the filesystem resolves it.
+    fn identity(&self) -> Option<Vec<u8>> {
+        let root = fs::canonicalize(&self.root).unwrap_or_else(|_| self.root.clone());
+        Some(root.into_os_string().into_encoded_bytes())
+    }
 }
 
 const ABANDONED_WRITE_AGE: Duration = Duration::from_secs(60 * 60);
@@ -323,5 +351,9 @@ impl<S: ObjectStore + ?Sized> ObjectStore for Arc<S> {
 
     fn len(&self, hash: Hash) -> Result<Option<usize>, StoreError> {
         (**self).len(hash)
+    }
+
+    fn identity(&self) -> Option<Vec<u8>> {
+        (**self).identity()
     }
 }
