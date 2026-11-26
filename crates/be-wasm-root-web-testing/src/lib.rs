@@ -9,7 +9,7 @@
 #![cfg(target_arch = "wasm32")]
 
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     future::Future,
     rc::Rc,
     sync::Arc,
@@ -58,6 +58,7 @@ pub async fn run() -> Result<String, JsValue> {
     passed.push(a_linked_root_draws_its_own_surface_on_the_page().await?);
     passed.push(an_app_a_linked_root_spawns_draws_into_a_canvas_its_worker_is_handed().await?);
     passed.push(a_frame_past_its_deadline_draws_without_the_child_it_waits_for().await?);
+    passed.push(a_root_with_something_to_step_between_frames_wakes_its_page().await?);
     passed.push(a_root_that_keeps_waking_itself_stops_at_its_patience().await?);
     passed.push(a_root_that_keeps_waking_itself_lets_the_page_run_its_tasks().await?);
     passed.push(a_guest_compiles_a_module_and_talks_to_an_instance_of_it().await?);
@@ -318,6 +319,48 @@ async fn a_frame_past_its_deadline_draws_without_the_child_it_waits_for() -> Res
         format!("the frame past its deadline showed {shown:?}, not the root alone")
     })?;
     Ok("a frame past its deadline drew the root alone".to_owned())
+}
+
+async fn a_root_with_something_to_step_between_frames_wakes_its_page() -> Result<String, JsValue>
+{
+    let root = Rc::new(root().await?.with_patience(PATIENT));
+    let woken = Rc::new(Cell::new(0_u32));
+    let counts = Rc::clone(&woken);
+    root.on_wake(move || counts.set(counts.get() + 1));
+    // The frame ends at its deadline, which has passed: the child it spawned answers after it,
+    // between frames, which the page hears of.
+    frame(&root, 1, Duration::ZERO).await??;
+    let during = woken.get();
+    for _ in 0..100 {
+        if woken.get() > during {
+            break;
+        }
+        sleep(Duration::from_millis(100)).await?;
+    }
+    check(woken.get() > during, || {
+        "the page heard of nothing the root had to step for between frames".to_owned()
+    })?;
+    // The frame the page draws for it steps the root with what arrived.
+    let done = frame(&root, 2, PATIENT).await??;
+    let shown = shown(&done)?;
+    check(shown == vec![ROOT_LAYER, CHILD_LAYER], || {
+        format!("the frame drawn for the wake showed {shown:?}, not the child over the root")
+    })?;
+    Ok("a root with something to step between frames woke its page, which drew it a frame"
+        .to_owned())
+}
+
+/// Answers once `wait` has passed, on the page's timer.
+async fn sleep(wait: Duration) -> Result<(), JsValue> {
+    let promise = Promise::new(&mut |resolve, _| {
+        let global = js_sys::global();
+        if let Ok(set) = js_sys::Reflect::get(&global, &"setTimeout".into())
+            && let Ok(set) = set.dyn_into::<Function>()
+        {
+            let _ = set.call2(&global, &resolve, &(wait.as_millis() as f64).into());
+        }
+    });
+    JsFuture::from(promise).await.map(drop)
 }
 
 async fn a_root_that_keeps_waking_itself_stops_at_its_patience() -> Result<String, JsValue> {

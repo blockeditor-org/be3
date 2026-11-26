@@ -767,13 +767,8 @@ Each step lands on its own.
            so its deadline assumes the default.
          - A replaced device stops the root rather than moving it, so a replaced renderer
            (device loss) quits be-host under `--root`; and no host ships a root.
-         - `--root` on the web (4g7g2c): be-host's web build runs no root yet. When it does, the web
-           `Root` (be-wasm-root-host's `web.rs`) needs an `on_wake` as the native one has: a
-           wake between frames only resumes a frame being drawn there (`Shared::resume` does
-           nothing while none is), so a root that wakes itself for a frame its apps want
-           (be-root's `Root::stepped`) gets none until its page draws one. The microtask a
-           wake queues would call the page's `on_wake` while nothing is drawing, for it to
-           ask `requestAnimationFrame` for one.
+         - `--root` on the web (4g7g2c): be-host's web build runs no root yet (the web `Root`'s
+           `on_wake` came with 4g7g2c3).
    - 4f. The router over the layer list:
      - 4f1. Built: raw input to the root. beui's `Program` gained `input(window, &Input)`, which
        the runner offers each of the platform's inputs, in its window's points, after the
@@ -2513,8 +2508,12 @@ Each step lands on its own.
                - Left for 4g7g2c4: placing each canvas by the layer list as CSS (its transform,
                  clip, opacity and order, be-host-runtime's web `canvases` and `overlay`), and
                  a child's preview (app.js's `export`, `import`).
-             - 4g7g2c3. The web `Root`'s `on_wake`, as the native one has (Left of 4e5c), so a
-               root that wakes itself between frames gets one from `requestAnimationFrame`.
+             - 4g7g2c3. Built: the web `Root`'s `on_wake`, as the native one has (Left of 4e5c):
+               a wake while no frame is drawn (an instance answering, a compile finishing, the
+               root waking itself, the page answering what it waited on) calls the page's, from
+               the microtask the wake queued, so a page that draws on demand asks
+               `requestAnimationFrame` for a frame. be-wasm-root-web-testing's
+               `a_root_with_something_to_step_between_frames_wakes_its_page`.
              - 4g7g2c4. be-host's web build runs `RootShell` (`?root=`), its native-only parts
                (the desktop, program windows, the login session) left out, with a web
                counterpart of the root's host tests where one exists.

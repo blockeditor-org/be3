@@ -107,6 +107,9 @@ struct Shared {
     /// whatever input and rendering the page has waiting.
     after: web_sys::MessageChannel,
     _resumed: Closure<dyn FnMut(web_sys::MessageEvent)>,
+    /// What the page asks to hear when the root has something to step for between frames
+    /// (`Root::on_wake`).
+    woken: RefCell<Option<Rc<dyn Fn()>>>,
 }
 
 /// The most of the page's thread a root steps for at once: one step at least, and others while
@@ -236,6 +239,7 @@ impl Root {
             stepping: Cell::new(false),
             after,
             _resumed: resumed,
+            woken: RefCell::new(None),
         });
         ROOTS.with(|roots| roots.borrow_mut().insert(id, Rc::downgrade(&shared)));
         Ok(Self { shared })
@@ -296,6 +300,16 @@ impl Root {
 
     fn shim(&self) -> Option<JsValue> {
         self.shared.core.borrow().guest.shim.clone()
+    }
+
+    /// Calls `wake` whenever the root has something to step for between frames: an instance it
+    /// spawned sent frames or stopped, a compile finished, it woke itself, or the page answered
+    /// what it waited on. A page that draws only on demand asks `requestAnimationFrame` for a
+    /// frame, which steps the root with what arrived. It is called from a microtask of its own,
+    /// never from inside a call into the root or its host, and never while a frame is drawn,
+    /// whose wakes resume that frame instead.
+    pub fn on_wake(&self, wake: impl Fn() + 'static) {
+        *self.shared.woken.borrow_mut() = Some(Rc::new(wake));
     }
 
     /// How long past a frame's deadline the root itself may take, `STEP_TIMEOUT` unless set.
@@ -725,6 +739,12 @@ impl Shared {
         let progress = {
             let mut core = self.core.borrow_mut();
             if !core.drawing() {
+                drop(core);
+                // Between frames: the page draws one for what arrived.
+                let woken = self.woken.borrow().clone();
+                if let Some(woken) = woken {
+                    woken();
+                }
                 return;
             }
             self.stepping.set(true);
