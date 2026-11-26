@@ -80,10 +80,12 @@ fn the_same_organization_log_listed_as_a_block_and_as_an_organization_is_proven_
     let says: Vec<bool> = moved
         .retirements
         .iter()
-        .map(|retirement| match Entry::decode(&retirement.entry).unwrap().record {
-            Record::Retirement(retired) => retired.administrator,
-            other => panic!("a retirement: {other:?}"),
-        })
+        .map(
+            |retirement| match Entry::decode(&retirement.entry).unwrap().record {
+                Record::Retirement(retired) => retired.administrator,
+                other => panic!("a retirement: {other:?}"),
+            },
+        )
         .collect();
     assert_eq!(
         not_administered,

@@ -236,21 +236,21 @@ fn accepted(spec: SurfaceSpec) -> Delivery {
 
 fn opening() -> Delivery {
     Delivery::Open(Opening {
-            instance: INSTANCE,
-            editor: [6; 16],
-            account_id: [3; 16],
-            organization_id: [4; 16],
-            client_id: [5; 16],
-            offers_share: true,
-            kind: OpeningKind::Block(OpenBlock {
-                block_id: [1; 16],
-                block_type: [2; 16],
-                view_block: None,
-                editable: true,
-                page_origin: String::new(),
-                host_palette: false,
-            }),
-        })
+        instance: INSTANCE,
+        editor: [6; 16],
+        account_id: [3; 16],
+        organization_id: [4; 16],
+        client_id: [5; 16],
+        offers_share: true,
+        kind: OpeningKind::Block(OpenBlock {
+            block_id: [1; 16],
+            block_type: [2; 16],
+            view_block: None,
+            editable: true,
+            page_origin: String::new(),
+            host_palette: false,
+        }),
+    })
 }
 
 struct Rig {

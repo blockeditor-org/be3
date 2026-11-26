@@ -53,7 +53,9 @@ fn a_fit_view_that_measures_new_content_asks_the_host_for_its_frame() {
             .expect("the app's frames decode");
     }
     assert!(
-        heard.iter().any(|heard| matches!(heard, Heard::FrameNeeded)),
+        heard
+            .iter()
+            .any(|heard| matches!(heard, Heard::FrameNeeded)),
         "the app asks for the frame that draws the fitted view, with nothing else to prompt it"
     );
 }

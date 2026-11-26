@@ -75,10 +75,12 @@ fn a_member_taking_a_new_phrase_signs_that_it_retires_a_member() {
     let says: Vec<bool> = moved
         .retirements
         .iter()
-        .map(|retirement| match Entry::decode(&retirement.entry).unwrap().record {
-            Record::Retirement(retired) => retired.administrator,
-            other => panic!("a retirement: {other:?}"),
-        })
+        .map(
+            |retirement| match Entry::decode(&retirement.entry).unwrap().record {
+                Record::Retirement(retired) => retired.administrator,
+                other => panic!("a retirement: {other:?}"),
+            },
+        )
         .collect();
     let _ = promoted;
     assert_eq!(
