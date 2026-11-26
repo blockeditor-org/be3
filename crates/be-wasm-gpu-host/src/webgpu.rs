@@ -320,6 +320,24 @@ impl Gpu {
         self.web.tickets = to;
     }
 
+    /// Holds `device`'s newest scope, or its newest popped one, as waiting on `more` more calls
+    /// (`more` negative lets them go), as one on a browser's device waits on its calls' errors.
+    #[cfg(test)]
+    pub(crate) fn hold_scope(&mut self, device: u32, more: isize) {
+        let state = self.web.devices.get_mut(device, "device").expect("the device");
+        let scope = match state.popped.last_mut() {
+            Some(scope) => scope,
+            None => state.scopes.last_mut().expect("a scope is open"),
+        };
+        scope.pending = scope.pending.saturating_add_signed(more);
+    }
+
+    /// How many errors the host holds for the app to read.
+    #[cfg(test)]
+    pub(crate) fn errors_held(&self) -> usize {
+        self.web.errors.values().count()
+    }
+
     /// The uncaptured errors since the last call that no listener of the app heard: the
     /// app's host writes them to the app's log.
     pub fn take_logged(&mut self) -> Vec<String> {

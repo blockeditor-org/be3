@@ -2,7 +2,7 @@ use super::web::*;
 use super::*;
 
 #[test]
-fn a_dropped_ticket_settles_nothing_and_is_not_waited_for() {
+fn a_dropped_ticket_settles_nothing_and_only_a_dropped_map_is_still_waited_for() {
     let mut gpu = gpu();
     let device = device(&mut gpu, Vec::new()).unwrap();
     let module = module(&mut gpu, device, "@compute @workgroup_size(1) fn main() {}");
