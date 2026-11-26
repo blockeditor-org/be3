@@ -372,6 +372,20 @@ Peers' derived views of a held edit: plans/peers_preview_held_edits.md.
 
 ## 26. Server protocol
 
+- **Send a lowering whose answer was lost again.** When a read answers a log
+  marked unsure (`KeyBook::sending`, `Peer::answered`) without the lowering in
+  it, the device now judges by that log and quietly drops the revocation: the
+  person believes they revoked someone the server never revoked. Instead, keep
+  the signed entry with the mark (`refs::Table::Unsure` holds only the log) and
+  send it again once a read shows it missing; the server answers an entry it
+  already holds as appended, and refuses one whose previous entry moved on, in
+  which case the person is told the change did not go through. Done when a
+  be-block-client test loses a revocation's write before the server takes it
+  (the relay holds the request, then cuts) and the next read sends it again, so
+  the log holds it and the revoked member no longer gets new epochs. Left aside
+  because the resend must re-check the entry against the log as served (its
+  previous entry, its signer's right then), which is more than a quiet retry.
+
 - **Authority names a head of its signer's choosing.** A record on authority from
   the organization's or an ancestor's log names an entry of it (`Authority`,
   `Link::head`), and `answer` checks the signer's right as of that entry alone:
