@@ -185,8 +185,7 @@ pub struct Vault<S> {
     keys: Keyring,
     chunker: ChunkerConfig,
     sealed: RwLock<HashMap<Hash, Uuid>>,
-    unnamed: Mutex<Unnamed>,
-    ledger: Option<Arc<dyn Ledger>>,
+    unnamed: Arc<Mutex<Unnamed>>,
 }
 
 /// Where a vault keeps, across restarts, the objects its part writers sealed that the store did
@@ -213,19 +212,41 @@ struct Unnamed {
     /// How many open part writers, or parts they finished that are still held (`Written`), name
     /// each object: never collected while named so.
     pinned: HashMap<Hash, usize>,
+    /// Pinned objects put meanwhile by something other than a part writer, which may name
+    /// them: no longer noted once their pins go.
+    claimed: HashSet<Hash>,
+    ledger: Option<Arc<dyn Ledger>>,
+}
+
+impl Unnamed {
+    /// Notes no more `objects`, here and in the ledger.
+    fn forget(&mut self, objects: &[Hash]) -> Result<(), StoreError> {
+        for object in objects {
+            self.noted.remove(object);
+        }
+        match (&self.ledger, objects.is_empty()) {
+            (Some(ledger), false) => ledger.forget(objects),
+            _ => Ok(()),
+        }
+    }
+}
+
+fn lock(unnamed: &Mutex<Unnamed>) -> std::sync::MutexGuard<'_, Unnamed> {
+    unnamed.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// The objects a part writer sealed, kept from collection while this lives: the writer's, then
 /// its finished part's (`Written`), until whoever holds it names the part in a commit or lets
 /// go of it.
-pub struct Pins<'a, S> {
-    vault: &'a Vault<S>,
+pub struct Pins {
+    unnamed: Arc<Mutex<Unnamed>>,
     objects: Vec<Hash>,
 }
 
-impl<S> Drop for Pins<'_, S> {
+impl Drop for Pins {
     fn drop(&mut self) {
-        let mut unnamed = self.vault.unnamed();
+        let mut unnamed = lock(&self.unnamed);
+        let mut claimed = Vec::new();
         for object in self.objects.drain(..) {
             if let std::collections::hash_map::Entry::Occupied(mut entry) =
                 unnamed.pinned.entry(object)
@@ -233,21 +254,27 @@ impl<S> Drop for Pins<'_, S> {
                 *entry.get_mut() -= 1;
                 if *entry.get() == 0 {
                     entry.remove();
+                    if unnamed.claimed.remove(&object) {
+                        claimed.push(object);
+                    }
                 }
             }
         }
+        // One the ledger still notes is only looked at again by a collection, which keeps
+        // what names it.
+        let _ = unnamed.forget(&claimed);
     }
 }
 
 /// A part a part writer finished (`PartWriter::finish`): its objects stay out of a collection's
 /// reach while this is held, so hold it until the part is named (a commit sealed into the outbox
-/// with it, a hold the server took) or is let go of.
-pub struct Written<'a, S> {
+/// with it) or is let go of. It borrows nothing, so a replica can hold it as long as it needs.
+pub struct Written {
     part: Option<PartRef>,
-    _pins: Option<Pins<'a, S>>,
+    _pins: Option<Pins>,
 }
 
-impl<S> Written<'_, S> {
+impl Written {
     /// The part, or None when no byte was written.
     pub fn part(&self) -> Option<PartRef> {
         self.part
@@ -264,7 +291,7 @@ pub struct PartWriter<'a, S> {
     splitter: Splitter,
     chunks: Vec<PartRef>,
     /// None for the writer inside `Vault::write`, whose caller names what it seals at once.
-    pins: Option<Pins<'a, S>>,
+    pins: Option<Pins>,
 }
 
 impl<'a, S: ObjectStore> PartWriter<'a, S> {
@@ -290,7 +317,7 @@ impl<'a, S: ObjectStore> PartWriter<'a, S> {
     }
 
     /// Seals the rest and answers the part, pinned while the answer is held.
-    pub fn finish(self) -> Result<Written<'a, S>, StoreError> {
+    pub fn finish(self) -> Result<Written, StoreError> {
         let Self {
             vault,
             key,
@@ -310,7 +337,7 @@ impl<'a, S: ObjectStore> PartWriter<'a, S> {
 
 impl<S> Vault<S> {
     fn unnamed(&self) -> std::sync::MutexGuard<'_, Unnamed> {
-        self.unnamed.lock().unwrap_or_else(PoisonError::into_inner)
+        lock(&self.unnamed)
     }
 }
 
@@ -321,19 +348,18 @@ impl<S: ObjectStore> Vault<S> {
             keys,
             chunker: ChunkerConfig::DEFAULT,
             sealed: RwLock::default(),
-            unnamed: Mutex::default(),
-            ledger: None,
+            unnamed: Arc::default(),
         }
     }
 
     /// Keeps what its part writers seal unnamed in `ledger`, starting from what it noted
     /// before, so a collection after a restart still finds a part a stopped writer left.
-    pub fn with_ledger(mut self, ledger: Arc<dyn Ledger>) -> Result<Self, StoreError> {
-        self.unnamed
-            .get_mut()
-            .unwrap_or_else(PoisonError::into_inner)
-            .noted = ledger.noted()?.into_iter().collect();
-        self.ledger = Some(ledger);
+    pub fn with_ledger(self, ledger: Arc<dyn Ledger>) -> Result<Self, StoreError> {
+        {
+            let mut unnamed = self.unnamed();
+            unnamed.noted = ledger.noted()?.into_iter().collect();
+            unnamed.ledger = Some(ledger);
+        }
         Ok(self)
     }
 
@@ -376,7 +402,7 @@ impl<S: ObjectStore> Vault<S> {
     pub fn part_writer(&self, key: Uuid) -> Result<PartWriter<'_, S>, StoreError> {
         let sealing = self.keys.held(key).ok_or(StoreError::MissingKey(key))?;
         let pins = Pins {
-            vault: self,
+            unnamed: Arc::clone(&self.unnamed),
             objects: Vec::new(),
         };
         Ok(self.writer(key, sealing, Some(pins)))
@@ -386,7 +412,7 @@ impl<S: ObjectStore> Vault<S> {
         &'a self,
         key: Uuid,
         sealing: (ContentKey, Uuid),
-        pins: Option<Pins<'a, S>>,
+        pins: Option<Pins>,
     ) -> PartWriter<'a, S> {
         PartWriter {
             vault: self,
@@ -403,7 +429,7 @@ impl<S: ObjectStore> Vault<S> {
         key: Uuid,
         sealing: &(ContentKey, Uuid),
         chunk: &[u8],
-        pins: Option<&mut Pins<'_, S>>,
+        pins: Option<&mut Pins>,
     ) -> Result<PartRef, StoreError> {
         let length = u32::try_from(chunk.len()).map_err(|_| StoreError::ChunkTooLarge)?;
         let sealed = sealing.0.seal(key, sealing.1, chunk, true);
@@ -418,7 +444,7 @@ impl<S: ObjectStore> Vault<S> {
         key: Uuid,
         block: Uuid,
         sealed: &[u8],
-        pins: Option<&mut Pins<'_, S>>,
+        pins: Option<&mut Pins>,
     ) -> Result<Hash, StoreError> {
         let Some(pins) = pins else {
             return self.put_sealed(key, sealed);
@@ -429,7 +455,7 @@ impl<S: ObjectStore> Vault<S> {
             *unnamed.pinned.entry(hash).or_default() += 1;
             pins.objects.push(hash);
             if !unnamed.noted.contains_key(&hash) && !self.store.has(hash)? {
-                if let Some(ledger) = &self.ledger {
+                if let Some(ledger) = &unnamed.ledger {
                     ledger.note(hash, block)?;
                 }
                 unnamed.noted.insert(hash, block);
@@ -486,7 +512,7 @@ impl<S: ObjectStore> Vault<S> {
         key: Uuid,
         sealing: &(ContentKey, Uuid),
         mut parts: Vec<PartRef>,
-        mut pins: Option<&mut Pins<'_, S>>,
+        mut pins: Option<&mut Pins>,
     ) -> Result<Option<PartRef>, StoreError> {
         loop {
             if parts.len() <= 1 {
@@ -555,7 +581,7 @@ impl<S: ObjectStore> Vault<S> {
 
     fn put_sealed(&self, key: Uuid, sealed: &[u8]) -> Result<Hash, StoreError> {
         let hash = self.store.put(sealed)?;
-        self.claim(&[hash])?;
+        self.claim_put(hash)?;
         self.sealed
             .write()
             .expect("never poisoned")
@@ -563,25 +589,37 @@ impl<S: ObjectStore> Vault<S> {
         Ok(hash)
     }
 
-    /// Leaves `objects` out of what a collection may remove: they were put, or looked for, by
-    /// something other than the part writer that noted them, which may name them now. A pinned
-    /// object stays noted: its writer, or whoever holds its part, reads it back as it works
-    /// (a merge reading what it merged), and the pin keeps it meanwhile.
-    pub fn claim(&self, objects: &[Hash]) -> Result<(), StoreError> {
+    /// Leaves `objects` out of what a collection may remove: they were looked for by something
+    /// other than the part writer that noted them, which may name them now. A pinned object
+    /// stays noted: its writer, or whoever holds its part, reads it back as it works (a merge
+    /// reading what it merged), and the pin keeps it meanwhile.
+    fn claim(&self, objects: &[Hash]) -> Result<(), StoreError> {
         let mut unnamed = self.unnamed();
         if unnamed.noted.is_empty() {
             return Ok(());
         }
-        let Unnamed { noted, pinned } = &mut *unnamed;
         let claimed: Vec<Hash> = objects
             .iter()
-            .filter(|object| !pinned.contains_key(object) && noted.remove(object).is_some())
+            .filter(|object| {
+                !unnamed.pinned.contains_key(object) && unnamed.noted.contains_key(object)
+            })
             .copied()
             .collect();
-        if let (false, Some(ledger)) = (claimed.is_empty(), &self.ledger) {
-            ledger.forget(&claimed)?;
+        unnamed.forget(&claimed)
+    }
+
+    /// `object` was put other than by a part writer, by what names it: no longer noted, or,
+    /// while it is pinned, once its pins go (`Pins`).
+    fn claim_put(&self, object: Hash) -> Result<(), StoreError> {
+        let mut unnamed = self.unnamed();
+        if !unnamed.noted.contains_key(&object) {
+            return Ok(());
         }
-        Ok(())
+        if unnamed.pinned.contains_key(&object) {
+            unnamed.claimed.insert(object);
+            return Ok(());
+        }
+        unnamed.forget(&[object])
     }
 
     /// How many objects its part writers sealed that a collection has not yet found named or
@@ -590,15 +628,17 @@ impl<S: ObjectStore> Vault<S> {
         self.unnamed().noted.len()
     }
 
-    /// Removes the objects part writers sealed that nothing names: `named` answers, of those
-    /// unpinned by the block whose key sealed them, the ones something on this device names
-    /// (a held commit, an outbox entry). The rest are removed, and those named are no longer
+    /// Removes the objects part writers sealed that nothing names: `named` is given those
+    /// unpinned, by the block whose key sealed them, and answers the ones something on this
+    /// device names (a held commit, an outbox entry); it takes out of the candidates the
+    /// blocks whose objects it cannot tell about yet (edits kept that may name them), which
+    /// stay noted for a later collection. The rest are removed, and those named are no longer
     /// noted, being held as any commit's are. It all runs under the lock part writers pin
-    /// under, so `named` must not seal or look anything up through this vault but `mark`;
+    /// under, so `named` must not take that lock (seal, put or claim through this vault);
     /// answers how many objects it removed.
     pub fn collect(
         &self,
-        named: impl FnOnce(&HashMap<Uuid, HashSet<Hash>>) -> Result<HashSet<Hash>, StoreError>,
+        named: impl FnOnce(&mut HashMap<Uuid, HashSet<Hash>>) -> Result<HashSet<Hash>, StoreError>,
     ) -> Result<usize, StoreError> {
         let mut unnamed = self.unnamed();
         let mut candidates: HashMap<Uuid, HashSet<Hash>> = HashMap::new();
@@ -610,7 +650,7 @@ impl<S: ObjectStore> Vault<S> {
         if candidates.is_empty() {
             return Ok(0);
         }
-        let named = named(&candidates)?;
+        let named = named(&mut candidates)?;
         let mut forgotten = Vec::new();
         let mut removed = 0;
         for object in candidates.into_values().flatten() {
@@ -621,25 +661,27 @@ impl<S: ObjectStore> Vault<S> {
             }
             forgotten.push(object);
         }
-        if let Some(ledger) = &self.ledger {
-            ledger.forget(&forgotten)?;
-        }
-        for object in &forgotten {
-            unnamed.noted.remove(object);
-        }
+        unnamed.forget(&forgotten)?;
         Ok(removed)
     }
 
     /// Adds to `marked` every object of the manifest tree this store holds, going into no node
-    /// already marked or missing: what a collection (`collect`) keeps.
-    pub fn mark(&self, manifest: &Manifest, marked: &mut HashSet<Hash>) -> Result<(), StoreError> {
+    /// already marked or missing: what a collection (`collect`) keeps. Answers those it added.
+    pub fn mark(
+        &self,
+        manifest: &Manifest,
+        marked: &mut HashSet<Hash>,
+    ) -> Result<Vec<Hash>, StoreError> {
+        let mut added = Vec::new();
         self.walk_manifest(manifest, 0..u64::MAX, |part, _| {
             let hash = part.hash();
             if !self.store.has(hash)? || !marked.insert(hash) {
                 return Ok(false);
             }
+            added.push(hash);
             Ok(true)
-        })
+        })?;
+        Ok(added)
     }
 
     /// The reused parts of `part` sealed under a key other than `key`, which a write under
@@ -720,7 +762,7 @@ impl<S: ObjectStore> Vault<S> {
         key: Uuid,
         sealing: &(ContentKey, Uuid),
         node: Node,
-        pins: Option<&mut Pins<'_, S>>,
+        pins: Option<&mut Pins>,
     ) -> Result<NodeRef, StoreError> {
         let length = node.parts.iter().map(|part| part.length()).sum();
         let sealed = sealing.0.seal(key, sealing.1, &encode_value(&node)?, true);
@@ -1013,7 +1055,7 @@ impl<S: ObjectStore> Vault<S> {
         let hash = self
             .store
             .put(&self.keys.seal_content(key, &encode_value(value)?)?)?;
-        self.claim(&[hash])?;
+        self.claim_put(hash)?;
         Ok(hash)
     }
 

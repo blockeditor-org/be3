@@ -12,7 +12,8 @@ use crate::replicas::{Feed, write_part};
 /// A module's `part-writer` written a piece at a time: the host seals each write as it comes
 /// (`Peer::part_writer`), and `finish` answers the part a whole put of the same bytes makes,
 /// held on the server for the block, so another device reads it back whole before any commit
-/// names it.
+/// names it. The replica's reach keeps it pinned from the vault's collection until a commit
+/// names it (`Reach::named`).
 #[test]
 fn a_part_a_module_writes_in_pieces_is_held_and_read_back_whole() {
     with_another_device(|peer, another, _shared, _replicas| async move {
@@ -41,11 +42,12 @@ fn a_part_a_module_writes_in_pieces_is_held_and_read_back_whole() {
 
         let answers = Rc::new(RefCell::new(Vec::new()));
         let (feed, fed) = tokio::sync::mpsc::unbounded_channel();
+        let reach: Arc<std::sync::Mutex<crate::replicas::reach::Reach>> = Arc::default();
         tokio::task::spawn_local(write_part(
             Arc::clone(&peer),
             block,
             false,
-            Arc::default(),
+            Arc::clone(&reach),
             fed,
             Arc::default(),
             {
@@ -94,6 +96,22 @@ fn a_part_a_module_writes_in_pieces_is_held_and_read_back_whole() {
             .expect("the host answered")
             .expect("the part is put");
         assert_eq!(part.length(), bytes.len() as u64);
+
+        // Held by the server, named by no commit: the reach's pin keeps it here.
+        let objects = peer.part_objects(&[part]).expect("the part is held");
+        let store = peer.commits().vault().store();
+        assert_eq!(reach.lock().unwrap().pinned(), 1);
+        assert_eq!(peer.collect_unnamed().expect("collects"), 0, "pinned");
+        for object in &objects {
+            assert!(be_block_store::ObjectStore::has(store, *object).unwrap(), "{object} stays while pinned");
+        }
+        reach.lock().unwrap().named([part]);
+        assert_eq!(reach.lock().unwrap().pinned(), 0);
+        assert_eq!(
+            peer.collect_unnamed().expect("collects"),
+            objects.len(),
+            "let go of, the commit that would name it never made, it is collected"
+        );
 
         assert_eq!(
             another

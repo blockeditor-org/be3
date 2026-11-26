@@ -2258,6 +2258,26 @@ impl Refs {
         ])
     }
 
+    /// Whether `block` keeps edits here that may name a part no commit names yet: its kept
+    /// edits (`OpenEdits`), edits set aside and not yet read, or its journal's entries past the
+    /// base. A collection leaves the block's unnamed parts alone while it does
+    /// (`Peer::collect_unnamed`).
+    pub fn keeps_edits(&self, block: Uuid) -> bool {
+        let state = self.state.lock().unwrap();
+        state
+            .open_edits
+            .get(&block)
+            .is_some_and(|kept| !kept.edits.is_empty() || !kept.submissions.is_empty())
+            || state
+                .set_aside
+                .get(&block)
+                .is_some_and(|aside| aside.iter().any(|aside| aside.kept.is_some()))
+            || state
+                .journals
+                .get(&block)
+                .is_some_and(|journal| !journal.entries.is_empty())
+    }
+
     /// Every block's kept edits set aside.
     pub fn set_aside_edits(&self) -> Vec<(Uuid, Vec<SetAside>)> {
         let state = self.state.lock().unwrap();
