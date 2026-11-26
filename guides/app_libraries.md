@@ -268,7 +268,12 @@ On wasi:webgpu, each app device keeps the features and limits it asked for
 and its own error scopes: the host wraps creates, queue calls, `finish` and
 pass `end` in wgpu scopes of all three kinds and files what they catch into
 the app's innermost scope of that kind, or its uncaptured errors
-(`Gpu::take_logged` when nothing listens), settling pops through the poll.
+(`Gpu::take_logged` when nothing listens, which be-wasm-host and the shim write
+to the app's log), settling pops through the poll. Every app device is a view
+of one wgpu device, which would take any object and checks only its own
+limits, so the host refuses an object of another app device (`Gpu::held`,
+every handle looked up inside a call) and checks the app device's lower limits
+itself (`webgpu/limits.rs`).
 
 The app GPU API is meant to be everything JS WebGPU gives a page, with the
 host device's optional features and limits, since the same app runs in a

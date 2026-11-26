@@ -7,7 +7,7 @@ use be_wasm_gpu_convert::allowed::Allowed;
 use be_wasm_gpu_convert::{Convert, TryConvert, webgpu as convert};
 use be_wasm_ops::local::{Promise, Sender, Settled};
 
-use super::{Failure, Kind};
+use super::{Failure, Kind, limits};
 use crate::Gpu;
 use crate::queries::QuerySet;
 use crate::tables::Table;
@@ -55,9 +55,66 @@ impl Gpu {
         if device.is_some_and(|device| self.device_lost(device)) {
             return;
         }
-        if let Err(failure) = act(self) {
+        let outer = std::mem::replace(&mut self.web.acting, device);
+        let result = act(self);
+        self.web.acting = outer;
+        if let Err(failure) = result {
             self.raise(device, failure);
         }
+    }
+
+    /// Refuses an object made on another app device than the one the call is made on: every
+    /// app device is a view of one wgpu device, which would take it.
+    pub(super) fn belongs(&self, kind: Kind, handle: u32) -> Result<(), Failure> {
+        match (self.web.acting, self.owner(kind, handle)) {
+            (Some(device), Some(owner)) if owner != device => Err(Failure::validation(format!(
+                "{} is of another device than the one it is used with",
+                kind.name()
+            ))),
+            _ => Ok(()),
+        }
+    }
+
+    /// Refuses writing into a texture the host shares between apps, which they only read.
+    pub(super) fn writable(&self, texture: u32) -> Result<(), Failure> {
+        match self.web.imported.contains(&texture) {
+            true => Err(Failure::validation("a shared texture is only read")),
+            false => Ok(()),
+        }
+    }
+
+    /// The limits of the app device the call is made on.
+    pub(super) fn acting_limits(&self) -> Option<&wgpu::Limits> {
+        let device = self.web.acting?;
+        self.web.devices.get(device, "device").ok().map(|device| &device.limits)
+    }
+
+    /// Refuses an index into a list the call's device has `limit` of, named as wgpu names it.
+    pub(super) fn slot(
+        &self,
+        what: &str,
+        index: u32,
+        (name, limit): (&str, fn(&wgpu::Limits) -> u32),
+    ) -> Result<(), Failure> {
+        match self.acting_limits() {
+            Some(limits) if index >= limit(limits) => Err(Failure::validation(format!(
+                "{what} is {index}, past the device's {name} of {}",
+                limit(limits)
+            ))),
+            _ => Ok(()),
+        }
+    }
+
+    /// The object `handle` names in `table`, which must belong to the call's device.
+    pub(super) fn held<'a, T>(
+        &'a self,
+        table: &'a Table<T>,
+        kind: Kind,
+        handle: u32,
+        name: &str,
+    ) -> Result<&'a T, Failure> {
+        self.belongs(kind, handle)?;
+        found(table.get(handle, name))
     }
 
     fn buffer_range(
@@ -66,7 +123,7 @@ impl Gpu {
         offset: Option<u64>,
         size: Option<u64>,
     ) -> Result<(wgpu::Buffer, u64, u64), Failure> {
-        let found = found(self.buffers.get(buffer, "buffer"))?.clone();
+        let found = self.held(&self.buffers, Kind::Buffer, buffer, "buffer")?.clone();
         let offset = offset.unwrap_or(0);
         let size = match size {
             Some(size) => size,
@@ -83,7 +140,7 @@ impl Gpu {
         match layout {
             web::GpuLayoutMode::Auto => Ok(None),
             web::GpuLayoutMode::Specific(layout) => {
-                found(self.pipeline_layouts.get(layout.0, "pipeline layout")).map(|layout| Some(layout.clone()))
+                self.held(&self.pipeline_layouts, Kind::PipelineLayout, layout.0, "pipeline layout").map(|layout| Some(layout.clone()))
             }
         }
     }
@@ -102,11 +159,11 @@ impl Gpu {
         descriptor: &web::GpuRenderPipelineDescriptor,
     ) -> Result<wgpu::RenderPipeline, Failure> {
         let layout = self.pipeline_layout(descriptor.layout)?;
-        let vertex_module = found(self.modules.get(descriptor.vertex.module.0, "shader module"))?.clone();
+        let vertex_module = self.held(&self.modules, Kind::Module, descriptor.vertex.module.0, "shader module")?.clone();
         let fragment_module = descriptor
             .fragment
             .as_ref()
-            .map(|fragment| found(self.modules.get(fragment.module.0, "shader module")).cloned())
+            .map(|fragment| self.held(&self.modules, Kind::Module, fragment.module.0, "shader module").cloned())
             .transpose()?;
         let vertex_constants = self.constants(descriptor.vertex.constants)?;
         let fragment_constants = match &descriptor.fragment {
@@ -163,6 +220,9 @@ impl Gpu {
                     .collect()
             })
             .unwrap_or_default();
+        if let Some((_, limits)) = self.device_has(device) {
+            limits::render_pipeline(&limits, &buffers, targets.len())?;
+        }
         let primitive = descriptor.primitive.unwrap_or(web::GpuPrimitiveState {
             topology: None,
             strip_index_format: None,
@@ -251,7 +311,7 @@ impl Gpu {
         descriptor: &web::GpuComputePipelineDescriptor,
     ) -> Result<wgpu::ComputePipeline, Failure> {
         let layout = self.pipeline_layout(descriptor.layout)?;
-        let module = found(self.modules.get(descriptor.compute.module.0, "shader module"))?.clone();
+        let module = self.held(&self.modules, Kind::Module, descriptor.compute.module.0, "shader module")?.clone();
         let constants = self.constants(descriptor.compute.constants)?;
         let constants: Vec<(&str, f64)> = constants.iter().map(|(key, value)| (key.as_str(), *value)).collect();
         Ok(self.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
@@ -268,7 +328,7 @@ impl Gpu {
     }
 
     fn try_bind_group(&self, descriptor: &web::GpuBindGroupDescriptor) -> Result<wgpu::BindGroup, Failure> {
-        let layout = found(self.group_layouts.get(descriptor.layout.0, "bind group layout"))?.clone();
+        let layout = self.held(&self.group_layouts, Kind::GroupLayout, descriptor.layout.0, "bind group layout")?.clone();
         enum Held {
             Buffer(wgpu::Buffer, u64, Option<u64>),
             Sampler(wgpu::Sampler),
@@ -278,22 +338,22 @@ impl Gpu {
         for entry in &descriptor.entries {
             held.push(match entry.resource {
                 web::GpuBindingResource::GpuBuffer(buffer) => {
-                    Held::Buffer(found(self.buffers.get(buffer.0, "buffer"))?.clone(), 0, None)
+                    Held::Buffer(self.held(&self.buffers, Kind::Buffer, buffer.0, "buffer")?.clone(), 0, None)
                 }
                 web::GpuBindingResource::GpuBufferBinding(binding) => Held::Buffer(
-                    found(self.buffers.get(binding.buffer.0, "buffer"))?.clone(),
+                    self.held(&self.buffers, Kind::Buffer, binding.buffer.0, "buffer")?.clone(),
                     binding.offset.unwrap_or(0),
                     binding.size,
                 ),
                 web::GpuBindingResource::GpuSampler(sampler) => {
-                    Held::Sampler(found(self.samplers.get(sampler.0, "sampler"))?.clone())
+                    Held::Sampler(self.held(&self.samplers, Kind::Sampler, sampler.0, "sampler")?.clone())
                 }
                 web::GpuBindingResource::GpuTextureView(view) => {
-                    Held::View(found(self.views.get(view.0, "texture view"))?.clone())
+                    Held::View(self.held(&self.views, Kind::View, view.0, "texture view")?.clone())
                 }
                 // A texture binds as its default view, as WebGPU's `GPUBindingResource` has it.
                 web::GpuBindingResource::GpuTexture(texture) => Held::View(
-                    found(self.textures.get(texture.0, "texture"))?
+                    self.held(&self.textures, Kind::Texture, texture.0, "texture")?
                         .create_view(&wgpu::TextureViewDescriptor::default()),
                 ),
             });
@@ -653,18 +713,7 @@ impl Host for Gpu {
             };
             allowed.texture(&wgpu_descriptor).map_err(Failure::validation)?;
             if let Some(limits) = &limits {
-                let size = wgpu_descriptor.size;
-                let largest = match wgpu_descriptor.dimension {
-                    wgpu::TextureDimension::D1 => limits.max_texture_dimension_1d,
-                    wgpu::TextureDimension::D2 => limits.max_texture_dimension_2d,
-                    wgpu::TextureDimension::D3 => limits.max_texture_dimension_3d,
-                };
-                if size.width > largest || size.height > largest {
-                    return Err(Failure::validation(format!(
-                        "a {} by {} texture is larger than the device's limit, {largest}",
-                        size.width, size.height
-                    )));
-                }
+                limits::texture(limits, &wgpu_descriptor)?;
             }
             Ok(gpu.device.create_texture(&wgpu_descriptor))
         });
@@ -736,6 +785,9 @@ impl Host for Gpu {
                 entries: &entries,
             };
             allowed.group_layout(&wgpu_descriptor).map_err(Failure::validation)?;
+            if let Some((_, limits)) = gpu.device_has(this.0) {
+                limits::group_layout(&limits, &entries)?;
+            }
             Ok(gpu.device.create_bind_group_layout(&wgpu_descriptor))
         });
         web::GpuBindGroupLayout(handle)
@@ -747,12 +799,24 @@ impl Host for Gpu {
         descriptor: web::GpuPipelineLayoutDescriptor,
     ) -> web::GpuPipelineLayout {
         let handle = self.make(Some(this.0), Kind::PipelineLayout, descriptor.label.as_deref(), |gpu| &mut gpu.pipeline_layouts, |gpu| {
+            if let Some((_, limits)) = gpu.device_has(this.0) {
+                limits::within(
+                    "a pipeline layout's bind groups",
+                    descriptor.bind_group_layouts.len() as u64,
+                    limits.max_bind_groups,
+                )?;
+                limits::within(
+                    "a pipeline layout's immediate size",
+                    descriptor.immediate_size.unwrap_or(0).into(),
+                    limits.max_immediate_size,
+                )?;
+            }
             let layouts = descriptor
                 .bind_group_layouts
                 .iter()
                 .map(|layout| {
                     layout
-                        .map(|layout| found(gpu.group_layouts.get(layout.0, "bind group layout")).cloned())
+                        .map(|layout| gpu.held(&gpu.group_layouts, Kind::GroupLayout, layout.0, "bind group layout").cloned())
                         .transpose()
                 })
                 .collect::<Result<Vec<_>, _>>()?;
@@ -890,8 +954,15 @@ impl Host for Gpu {
     }
 
     fn gpu_device_lost(&mut self, this: web::GpuDevice, settle: Promise<web::GpuDeviceLostInfo>) {
-        if let Ok(device) = self.web.devices.get_mut(this.0, "device") {
-            device.losing.push(settle);
+        match self.web.devices.get_mut(this.0, "device") {
+            Ok(device) => device.losing.push(settle),
+            // A device that never was is lost from the start, so the app's wait ends.
+            Err(message) => {
+                let info = web::GpuDeviceLostInfo(
+                    self.web.lost_infos.insert((web::GpuDeviceLostReason::Unknown, message)),
+                );
+                self.web.settled.push(settle.settle(&info));
+            }
         }
         self.settling.wake();
     }
@@ -910,8 +981,9 @@ impl Host for Gpu {
     }
 
     fn gpu_device_on_uncaptured_error(&mut self, this: web::GpuDevice, settle: Sender<web::GpuError>) {
-        if let Ok(device) = self.web.devices.get_mut(this.0, "device") {
-            device.uncaptured.push(settle);
+        match self.web.devices.get_mut(this.0, "device") {
+            Ok(device) => device.uncaptured.push(settle),
+            Err(_) => self.web.settled.push(settle.end()),
         }
     }
 
@@ -1091,9 +1163,23 @@ impl Host for Gpu {
         let device = self.device_of(Kind::Texture, this.0);
         let label = descriptor.as_ref().and_then(|descriptor| descriptor.label.clone());
         let handle = self.make(device, Kind::View, label.as_deref(), |gpu| &mut gpu.views, |gpu| {
-            let texture = found(gpu.textures.get(this.0, "texture"))?;
+            let texture = gpu.held(&gpu.textures, Kind::Texture, this.0, "texture")?;
+            let shared = gpu.web.imported.contains(&this.0);
             let Some(descriptor) = descriptor else {
-                return Ok(texture.create_view(&wgpu::TextureViewDescriptor::default()));
+                return Ok(texture.create_view(&wgpu::TextureViewDescriptor {
+                    usage: shared.then_some(wgpu::TextureUsages::TEXTURE_BINDING),
+                    ..Default::default()
+                }));
+            };
+            let usage = match (shared, descriptor.usage.map(Convert::<wgpu::TextureUsages>::convert)) {
+                (false, usage) => usage,
+                (true, None) => Some(wgpu::TextureUsages::TEXTURE_BINDING),
+                (true, Some(usage)) if wgpu::TextureUsages::TEXTURE_BINDING.contains(usage) => Some(usage),
+                (true, Some(_)) => {
+                    return Err(Failure::validation(
+                        "a shared texture is only sampled: its views have no other usage",
+                    ));
+                }
             };
             if descriptor.swizzle.as_deref().is_some_and(|swizzle| swizzle != "rgba") {
                 return Err(Failure::validation(
@@ -1104,7 +1190,7 @@ impl Host for Gpu {
                 label: descriptor.label.as_deref(),
                 format: descriptor.format.map(Convert::convert),
                 dimension: descriptor.dimension.map(Convert::convert),
-                usage: descriptor.usage.map(Convert::convert),
+                usage,
                 aspect: descriptor.aspect.map_or(wgpu::TextureAspect::All, Convert::convert),
                 base_mip_level: descriptor.base_mip_level.unwrap_or(0),
                 mip_level_count: descriptor.mip_level_count,
@@ -1161,7 +1247,17 @@ impl Host for Gpu {
     }
 
     fn gpu_texture_usage(&mut self, this: web::GpuTexture) -> web::GpuTextureUsage {
-        self.texture_of(this, |texture| texture.usage().convert(), web::GpuTextureUsage::empty())
+        let shared = self.web.imported.contains(&this.0);
+        self.texture_of(
+            this,
+            |texture| match shared {
+                true => (texture.usage()
+                    & (wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_SRC))
+                    .convert(),
+                false => texture.usage().convert(),
+            },
+            web::GpuTextureUsage::empty(),
+        )
     }
 
     fn gpu_texture_texture_binding_view_dimension(&mut self, _this: web::GpuTexture) -> Option<web::GpuTextureViewDimension> {
@@ -1220,7 +1316,7 @@ impl Host for Gpu {
     fn gpu_render_pipeline_get_bind_group_layout(&mut self, this: web::GpuRenderPipeline, index: u32) -> web::GpuBindGroupLayout {
         let device = self.device_of(Kind::RenderPipeline, this.0);
         let handle = self.make(device, Kind::GroupLayout, None, |gpu| &mut gpu.group_layouts, |gpu| {
-            Ok(found(gpu.pipelines.get(this.0, "render pipeline"))?.get_bind_group_layout(index))
+            Ok(gpu.held(&gpu.pipelines, Kind::RenderPipeline, this.0, "render pipeline")?.get_bind_group_layout(index))
         });
         web::GpuBindGroupLayout(handle)
     }
@@ -1228,7 +1324,7 @@ impl Host for Gpu {
     fn gpu_compute_pipeline_get_bind_group_layout(&mut self, this: web::GpuComputePipeline, index: u32) -> web::GpuBindGroupLayout {
         let device = self.device_of(Kind::ComputePipeline, this.0);
         let handle = self.make(device, Kind::GroupLayout, None, |gpu| &mut gpu.group_layouts, |gpu| {
-            Ok(found(gpu.compute_pipelines.get(this.0, "compute pipeline"))?.get_bind_group_layout(index))
+            Ok(gpu.held(&gpu.compute_pipelines, Kind::ComputePipeline, this.0, "compute pipeline")?.get_bind_group_layout(index))
         });
         web::GpuBindGroupLayout(handle)
     }
@@ -1318,8 +1414,8 @@ impl Host for Gpu {
         size: Option<u64>,
     ) {
         self.record(this.0, |gpu| {
-            let from = found(gpu.buffers.get(source.0, "buffer"))?.clone();
-            let to = found(gpu.buffers.get(destination.0, "buffer"))?.clone();
+            let from = gpu.held(&gpu.buffers, Kind::Buffer, source.0, "buffer")?.clone();
+            let to = gpu.held(&gpu.buffers, Kind::Buffer, destination.0, "buffer")?.clone();
             let (source_offset, destination_offset) = (source_offset.unwrap_or(0), destination_offset.unwrap_or(0));
             Ok(Box::new(move |encoder: &mut wgpu::CommandEncoder| {
                 encoder.copy_buffer_to_buffer(&from, source_offset, &to, destination_offset, size)
@@ -1335,8 +1431,9 @@ impl Host for Gpu {
         copy_size: web::GpuExtent3D,
     ) {
         self.record(this.0, |gpu| {
-            let from = found(gpu.buffers.get(source.buffer.0, "buffer"))?.clone();
-            let to = found(gpu.textures.get(destination.texture.0, "texture"))?.clone();
+            let from = gpu.held(&gpu.buffers, Kind::Buffer, source.buffer.0, "buffer")?.clone();
+            gpu.writable(destination.texture.0)?;
+            let to = gpu.held(&gpu.textures, Kind::Texture, destination.texture.0, "texture")?.clone();
             Ok(Box::new(move |encoder: &mut wgpu::CommandEncoder| {
                 encoder.copy_buffer_to_texture(buffer_info(&from, &source), texture_info(&to, &destination), copy_size.convert())
             }))
@@ -1351,8 +1448,8 @@ impl Host for Gpu {
         copy_size: web::GpuExtent3D,
     ) {
         self.record(this.0, |gpu| {
-            let from = found(gpu.textures.get(source.texture.0, "texture"))?.clone();
-            let to = found(gpu.buffers.get(destination.buffer.0, "buffer"))?.clone();
+            let from = gpu.held(&gpu.textures, Kind::Texture, source.texture.0, "texture")?.clone();
+            let to = gpu.held(&gpu.buffers, Kind::Buffer, destination.buffer.0, "buffer")?.clone();
             Ok(Box::new(move |encoder: &mut wgpu::CommandEncoder| {
                 encoder.copy_texture_to_buffer(texture_info(&from, &source), buffer_info(&to, &destination), copy_size.convert())
             }))
@@ -1367,8 +1464,9 @@ impl Host for Gpu {
         copy_size: web::GpuExtent3D,
     ) {
         self.record(this.0, |gpu| {
-            let from = found(gpu.textures.get(source.texture.0, "texture"))?.clone();
-            let to = found(gpu.textures.get(destination.texture.0, "texture"))?.clone();
+            let from = gpu.held(&gpu.textures, Kind::Texture, source.texture.0, "texture")?.clone();
+            gpu.writable(destination.texture.0)?;
+            let to = gpu.held(&gpu.textures, Kind::Texture, destination.texture.0, "texture")?.clone();
             Ok(Box::new(move |encoder: &mut wgpu::CommandEncoder| {
                 encoder.copy_texture_to_texture(texture_info(&from, &source), texture_info(&to, &destination), copy_size.convert())
             }))
@@ -1377,7 +1475,7 @@ impl Host for Gpu {
 
     fn gpu_command_encoder_clear_buffer(&mut self, this: web::GpuCommandEncoder, buffer: web::GpuBuffer, offset: Option<u64>, size: Option<u64>) {
         self.record(this.0, |gpu| {
-            let buffer = found(gpu.buffers.get(buffer.0, "buffer"))?.clone();
+            let buffer = gpu.held(&gpu.buffers, Kind::Buffer, buffer.0, "buffer")?.clone();
             let offset = offset.unwrap_or(0);
             Ok(Box::new(move |encoder: &mut wgpu::CommandEncoder| encoder.clear_buffer(&buffer, offset, size)))
         });
@@ -1420,21 +1518,31 @@ impl Host for Gpu {
 
     fn gpu_compute_pass_encoder_set_pipeline(&mut self, this: web::GpuComputePassEncoder, pipeline: web::GpuComputePipeline) {
         self.compute(this.0, |gpu, pass| {
-            pass.set_pipeline(found(gpu.compute_pipelines.get(pipeline.0, "compute pipeline"))?);
+            pass.set_pipeline(gpu.held(&gpu.compute_pipelines, Kind::ComputePipeline, pipeline.0, "compute pipeline")?);
             Ok(())
         });
     }
 
     fn gpu_compute_pass_encoder_dispatch_workgroups(&mut self, this: web::GpuComputePassEncoder, x: u32, y: Option<u32>, z: Option<u32>) {
-        self.compute(this.0, |_, pass| {
-            pass.dispatch_workgroups(x, y.unwrap_or(1), z.unwrap_or(1));
+        self.compute(this.0, |gpu, pass| {
+            let (y, z) = (y.unwrap_or(1), z.unwrap_or(1));
+            if let Some(limits) = gpu.acting_limits() {
+                for count in [x, y, z] {
+                    limits::within(
+                        "a dispatch's workgroups along one dimension",
+                        count.into(),
+                        limits.max_compute_workgroups_per_dimension,
+                    )?;
+                }
+            }
+            pass.dispatch_workgroups(x, y, z);
             Ok(())
         });
     }
 
     fn gpu_compute_pass_encoder_dispatch_workgroups_indirect(&mut self, this: web::GpuComputePassEncoder, indirect_buffer: web::GpuBuffer, indirect_offset: u64) {
         self.compute(this.0, |gpu, pass| {
-            let buffer = found(gpu.buffers.get(indirect_buffer.0, "buffer"))?.clone();
+            let buffer = gpu.held(&gpu.buffers, Kind::Buffer, indirect_buffer.0, "buffer")?.clone();
             pass.dispatch_workgroups_indirect(&buffer, indirect_offset);
             Ok(())
         });
@@ -1480,8 +1588,9 @@ impl Host for Gpu {
     ) -> Result<(), web::SetBindGroupError> {
         let offsets = offsets(dynamic_offsets_data, dynamic_offsets_data_start, dynamic_offsets_data_length)?;
         self.compute(this.0, |gpu, pass| {
+            gpu.slot("a bind group index", index, ("max_bind_groups", |limits| limits.max_bind_groups))?;
             let group = bind_group
-                .map(|group| found(gpu.groups.get(group.0, "bind group")).cloned())
+                .map(|group| gpu.held(&gpu.groups, Kind::Group, group.0, "bind group").cloned())
                 .transpose()?;
             pass.set_bind_group(index, group.as_ref(), offsets);
             Ok(())
@@ -1555,7 +1664,7 @@ impl Host for Gpu {
         self.render(this.0, |gpu, pass| {
             let bundles = bundles
                 .iter()
-                .map(|bundle| found(gpu.bundles.get(bundle.0, "render bundle")).cloned())
+                .map(|bundle| gpu.held(&gpu.bundles, Kind::Bundle, bundle.0, "render bundle").cloned())
                 .collect::<Result<Vec<_>, _>>()?;
             pass.execute_bundles(&bundles);
             Ok(())
@@ -1602,8 +1711,9 @@ impl Host for Gpu {
     ) -> Result<(), web::SetBindGroupError> {
         let offsets = offsets(dynamic_offsets_data, dynamic_offsets_data_start, dynamic_offsets_data_length)?;
         self.render(this.0, |gpu, pass| {
+            gpu.slot("a bind group index", index, ("max_bind_groups", |limits| limits.max_bind_groups))?;
             let group = bind_group
-                .map(|group| found(gpu.groups.get(group.0, "bind group")).cloned())
+                .map(|group| gpu.held(&gpu.groups, Kind::Group, group.0, "bind group").cloned())
                 .transpose()?;
             pass.set_bind_group(index, group.as_ref(), offsets);
             Ok(())
@@ -1633,7 +1743,7 @@ impl Host for Gpu {
 
     fn gpu_render_pass_encoder_set_pipeline(&mut self, this: web::GpuRenderPassEncoder, pipeline: web::GpuRenderPipeline) {
         self.render(this.0, |gpu, pass| {
-            let pipeline = found(gpu.pipelines.get(pipeline.0, "render pipeline"))?.clone();
+            let pipeline = gpu.held(&gpu.pipelines, Kind::RenderPipeline, pipeline.0, "render pipeline")?.clone();
             pass.set_pipeline(&pipeline);
             Ok(())
         });
@@ -1648,7 +1758,7 @@ impl Host for Gpu {
         size: Option<u64>,
     ) {
         self.render(this.0, |gpu, pass| {
-            let buffer = found(gpu.buffers.get(buffer.0, "buffer"))?.clone();
+            let buffer = gpu.held(&gpu.buffers, Kind::Buffer, buffer.0, "buffer")?.clone();
             let slice = found(crate::slice(&buffer, offset.unwrap_or(0), size))?;
             pass.set_index_buffer(slice, index_format.convert());
             Ok(())
@@ -1664,8 +1774,9 @@ impl Host for Gpu {
         size: Option<u64>,
     ) {
         self.render(this.0, |gpu, pass| {
+            gpu.slot("a vertex buffer slot", slot, ("max_vertex_buffers", |limits| limits.max_vertex_buffers))?;
             let buffer = buffer
-                .map(|buffer| found(gpu.buffers.get(buffer.0, "buffer")).cloned())
+                .map(|buffer| gpu.held(&gpu.buffers, Kind::Buffer, buffer.0, "buffer").cloned())
                 .transpose()?;
             let slice = found(crate::vertex_slice(buffer.as_ref(), slot, offset.unwrap_or(0), size))?;
             pass.set_vertex_buffer(slot, slice);
@@ -1701,7 +1812,7 @@ impl Host for Gpu {
 
     fn gpu_render_pass_encoder_draw_indirect(&mut self, this: web::GpuRenderPassEncoder, indirect_buffer: web::GpuBuffer, indirect_offset: u64) {
         self.render(this.0, |gpu, pass| {
-            let buffer = found(gpu.buffers.get(indirect_buffer.0, "buffer"))?.clone();
+            let buffer = gpu.held(&gpu.buffers, Kind::Buffer, indirect_buffer.0, "buffer")?.clone();
             pass.draw_indirect(&buffer, indirect_offset);
             Ok(())
         });
@@ -1709,7 +1820,7 @@ impl Host for Gpu {
 
     fn gpu_render_pass_encoder_draw_indexed_indirect(&mut self, this: web::GpuRenderPassEncoder, indirect_buffer: web::GpuBuffer, indirect_offset: u64) {
         self.render(this.0, |gpu, pass| {
-            let buffer = found(gpu.buffers.get(indirect_buffer.0, "buffer"))?.clone();
+            let buffer = gpu.held(&gpu.buffers, Kind::Buffer, indirect_buffer.0, "buffer")?.clone();
             pass.draw_indexed_indirect(&buffer, indirect_offset);
             Ok(())
         });
@@ -1750,8 +1861,9 @@ impl Host for Gpu {
     ) -> Result<(), web::SetBindGroupError> {
         let offsets = offsets(dynamic_offsets_data, dynamic_offsets_data_start, dynamic_offsets_data_length)?.to_vec();
         self.bundled(this.0, |gpu| {
+            gpu.slot("a bind group index", index, ("max_bind_groups", |limits| limits.max_bind_groups))?;
             let group = bind_group
-                .map(|group| found(gpu.groups.get(group.0, "bind group")).cloned())
+                .map(|group| gpu.held(&gpu.groups, Kind::Group, group.0, "bind group").cloned())
                 .transpose()?;
             Ok(crate::bundles::Command::BindGroup(index, group, offsets))
         });
@@ -1772,7 +1884,7 @@ impl Host for Gpu {
 
     fn gpu_render_bundle_encoder_set_pipeline(&mut self, this: web::GpuRenderBundleEncoder, pipeline: web::GpuRenderPipeline) {
         self.bundled(this.0, |gpu| {
-            Ok(crate::bundles::Command::Pipeline(found(gpu.pipelines.get(pipeline.0, "render pipeline"))?.clone()))
+            Ok(crate::bundles::Command::Pipeline(gpu.held(&gpu.pipelines, Kind::RenderPipeline, pipeline.0, "render pipeline")?.clone()))
         });
     }
 
@@ -1785,7 +1897,7 @@ impl Host for Gpu {
         size: Option<u64>,
     ) {
         self.bundled(this.0, |gpu| {
-            let buffer = found(gpu.buffers.get(buffer.0, "buffer"))?.clone();
+            let buffer = gpu.held(&gpu.buffers, Kind::Buffer, buffer.0, "buffer")?.clone();
             Ok(crate::bundles::Command::IndexBuffer(buffer, index_format.convert(), offset.unwrap_or(0), size))
         });
     }
@@ -1799,8 +1911,9 @@ impl Host for Gpu {
         size: Option<u64>,
     ) {
         self.bundled(this.0, |gpu| {
+            gpu.slot("a vertex buffer slot", slot, ("max_vertex_buffers", |limits| limits.max_vertex_buffers))?;
             let buffer = buffer
-                .map(|buffer| found(gpu.buffers.get(buffer.0, "buffer")).cloned())
+                .map(|buffer| gpu.held(&gpu.buffers, Kind::Buffer, buffer.0, "buffer").cloned())
                 .transpose()?;
             Ok(crate::bundles::Command::VertexBuffer(slot, buffer, offset.unwrap_or(0), size))
         });
@@ -1837,14 +1950,14 @@ impl Host for Gpu {
 
     fn gpu_render_bundle_encoder_draw_indirect(&mut self, this: web::GpuRenderBundleEncoder, indirect_buffer: web::GpuBuffer, indirect_offset: u64) {
         self.bundled(this.0, |gpu| {
-            let buffer = found(gpu.buffers.get(indirect_buffer.0, "buffer"))?.clone();
+            let buffer = gpu.held(&gpu.buffers, Kind::Buffer, indirect_buffer.0, "buffer")?.clone();
             Ok(crate::bundles::Command::DrawIndirect(buffer, indirect_offset))
         });
     }
 
     fn gpu_render_bundle_encoder_draw_indexed_indirect(&mut self, this: web::GpuRenderBundleEncoder, indirect_buffer: web::GpuBuffer, indirect_offset: u64) {
         self.bundled(this.0, |gpu| {
-            let buffer = found(gpu.buffers.get(indirect_buffer.0, "buffer"))?.clone();
+            let buffer = gpu.held(&gpu.buffers, Kind::Buffer, indirect_buffer.0, "buffer")?.clone();
             Ok(crate::bundles::Command::DrawIndexedIndirect(buffer, indirect_offset))
         });
     }
@@ -1855,6 +1968,9 @@ impl Host for Gpu {
             return;
         }
         self.wrapped(device, |gpu| {
+            for buffer in command_buffers {
+                gpu.belongs(Kind::CommandBuffer, buffer.0)?;
+            }
             let mut buffers = Vec::with_capacity(command_buffers.len());
             for buffer in command_buffers {
                 buffers.push(found(gpu.command_buffers.take(buffer.0, "command buffer"))?);
@@ -1897,7 +2013,7 @@ impl Host for Gpu {
             return Ok(());
         }
         self.wrapped(device, |gpu| {
-            let buffer = found(gpu.buffers.get(buffer.0, "buffer"))?;
+            let buffer = gpu.held(&gpu.buffers, Kind::Buffer, buffer.0, "buffer")?;
             gpu.queue.write_buffer(buffer, buffer_offset, written);
             Ok(())
         });
@@ -1917,7 +2033,8 @@ impl Host for Gpu {
             return;
         }
         self.wrapped(device, |gpu| {
-            let texture = found(gpu.textures.get(destination.texture.0, "texture"))?;
+            gpu.writable(destination.texture.0)?;
+            let texture = gpu.held(&gpu.textures, Kind::Texture, destination.texture.0, "texture")?;
             gpu.queue.write_texture(
                 texture_info(texture, &destination),
                 data,
@@ -2071,6 +2188,7 @@ impl Host for Gpu {
 
     fn gpu_texture_drop(&mut self, this: web::GpuTexture) {
         self.made_textures.remove(&this.0);
+        self.web.imported.remove(&this.0);
         self.drop_object(Kind::Texture, this.0, |gpu| &mut gpu.textures);
     }
 

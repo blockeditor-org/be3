@@ -86,10 +86,21 @@ impl Gpu {
                     view_formats: &view_formats,
                 })
             };
-            Ok(vec![texture(), texture()])
+            // A device that cannot make this canvas (an sRGB view on WebGL2, which has no
+            // `VIEW_FORMATS`) refuses the configuration: the canvas keeps no textures, rather
+            // than invalid ones the compositor would trip over.
+            let scope = gpu.device.push_error_scope(wgpu::ErrorFilter::Validation);
+            let textures = vec![texture(), texture()];
+            match crate::caught(scope.pop()) {
+                Some(error) => Err(Failure::validation(format!(
+                    "the device cannot make a {format:?} canvas viewed as {view_formats:?}: {error}"
+                ))),
+                None => Ok(textures),
+            }
         });
-        if let Some(textures) = made {
-            self.insert_surface(surface, textures, view_formats);
+        match made {
+            Some(textures) => self.insert_surface(surface, textures, view_formats),
+            None => self.detach_surface(surface),
         }
     }
 
@@ -244,7 +255,11 @@ impl Host for Gpu {
             .get(&image)
             .cloned();
         match texture {
-            Some(texture) => Some(web::GpuTexture(self.textures.insert(texture))),
+            Some(texture) => {
+                let handle = self.textures.insert(texture);
+                self.web.imported.insert(handle);
+                Some(web::GpuTexture(handle))
+            }
             None => {
                 self.textures.skip();
                 None

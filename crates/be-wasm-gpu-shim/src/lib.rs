@@ -115,6 +115,9 @@ pub fn forget(id: u32) {
 pub fn paint() -> bool {
     with(
         |shim| {
+            for error in shim.gpu.take_logged() {
+                web_sys::console::warn_1(&format!("an app's uncaught gpu error: {error}").into());
+            }
             let presented = shim.gpu.take_presented();
             shim.screens.presented(&presented);
             let gpu = &shim.gpu;
