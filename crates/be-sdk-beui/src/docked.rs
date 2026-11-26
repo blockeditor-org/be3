@@ -766,9 +766,10 @@ pub(crate) fn bridge_child_dock(
                 });
                 match converted {
                     Some(converted) => {
-                        let fresh = declared.borrow().as_ref().is_none_or(|(held, last)| {
-                            *held != child || *last != converted
-                        });
+                        let fresh = declared
+                            .borrow()
+                            .as_ref()
+                            .is_none_or(|(held, last)| *held != child || *last != converted);
                         if fresh {
                             declared.replace(Some((child, converted.clone())));
                             link.declare(converted);
