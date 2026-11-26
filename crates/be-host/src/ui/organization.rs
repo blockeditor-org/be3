@@ -164,7 +164,8 @@ fn HostMenu(
                 on_click={move || pick(UiCommand::StopHosting(kept.block))}
             />
         </ForEach>
-        // A local account has no server: no contacts, and no share links to open.
+        // A local account has no server: no contacts, and no share links to open. The group's
+        // separator then goes on the first item shown after them.
         <Show value={served}>
             <MenuItem
                 @test_id={"host.menu.contacts".to_owned()}
@@ -183,6 +184,7 @@ fn HostMenu(
         <Show value={company}>
             <MenuItem
                 @test_id={"host.menu.invite".to_owned()}
+                separated={move || !served.get()}
                 label="Invite member"
                 glyph=ICON_USER_PLUS
                 detail={organization}
@@ -192,6 +194,7 @@ fn HostMenu(
         <Show value={administrator}>
             <MenuItem
                 @test_id={"host.menu.members".to_owned()}
+                separated={move || !served.get() && !company.get()}
                 label="Members"
                 glyph=ICON_USERS
                 on_click={move || pick(UiCommand::OpenMembers)}
@@ -205,6 +208,7 @@ fn HostMenu(
         </Show>
         <MenuItem
             @test_id={"host.menu.agents".to_owned()}
+            separated={move || !served.get() && !company.get() && !administrator.get()}
             label="Agents"
             glyph=ICON_BOT
             on_click={move || pick(UiCommand::OpenAgents)}

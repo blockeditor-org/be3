@@ -143,14 +143,7 @@ pub(super) fn HostMenu(
         })
     });
     let company = create_memo(move || core.with(|view| view.company));
-    let served = create_memo(move || {
-        core.with(|view| {
-            !view
-                .accounts
-                .iter()
-                .any(|account| account.current && account.server.is_none())
-        })
-    });
+    let served = create_memo(move || core.with(|view| !view.local));
     let administrator = create_memo(move || core.with(|view| view.administrator));
     let can_close = create_memo(move || core.with(|view| view.can_close));
     let escrow_warning =
@@ -198,7 +191,8 @@ pub(super) fn HostMenu(
                 on_click={move || command(CoreCommand::StopHosting(kept.with_untracked(|kept| kept.block)))}
             />
         </ForEach>
-        // A local account has no server: no contacts, and no share links to open.
+        // A local account has no server: no contacts, and no share links to open. The group's
+        // separator then goes on the first item shown after them.
         <Show value={served}>
             <MenuItem
                 label="Contacts"
@@ -219,6 +213,7 @@ pub(super) fn HostMenu(
                 label="Invite member"
                 glyph=ICON_USER_PLUS
                 @test_id={"host.menu.invite"}
+                separated={move || !served.get()}
                 detail={organization}
                 on_click={move || want.call(Asking::Invite)}
             />
@@ -228,6 +223,7 @@ pub(super) fn HostMenu(
                 label="Members"
                 glyph=ICON_USERS
                 @test_id={"host.menu.members"}
+                separated={move || !served.get() && !company.get()}
                 on_click={move || want.call(Asking::Members)}
             />
             <MenuItem
@@ -241,6 +237,7 @@ pub(super) fn HostMenu(
             label="Agents"
             glyph=ICON_BOT
             @test_id={"host.menu.agents"}
+            separated={move || !served.get() && !company.get() && !administrator.get()}
             on_click={move || want.call(Asking::Agents)}
         />
         <MenuItem

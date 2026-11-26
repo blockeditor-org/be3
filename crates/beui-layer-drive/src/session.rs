@@ -43,7 +43,7 @@ const PAUSE_FRAMES: u32 = 64;
 const CLIPBOARD_WAIT: Duration = Duration::from_secs(5);
 
 pub const USAGE: &str = "Session:
-  settle                    wait until nothing is left to draw; --no-settle settle runs one frame
+  settle                    wait until nothing is left to draw
   pause MILLISECONDS        let that much time pass, by the program's clock
   clock stop / clock run    stop the program's clock, so time passes only with pause, frame by frame
   hurry off / hurry on      stop or start the program's shortcuts for a driven run, such as saving at once,
@@ -159,7 +159,8 @@ while X,Y and X,Y,WIDTH,HEIGHT are that place's own pixels, such as the platform
 Every command that gives input waits for the program to settle and answers with what changed in the tree,
 at most 60 lines of it; before the command, --changes=N|all changes that (--changes=0 answers with
 nothing, without comparing the trees), and --no-settle answers after the frame that took the input
-instead of waiting.";
+instead of waiting. On a session command (settle, clock, hurry, present and the like), --no-settle
+answers after one frame instead of once the program settles.";
 
 pub const PANE: char = '\u{1f}';
 
@@ -1058,7 +1059,7 @@ impl Session {
         let reply = match failed {
             Some(error) => Some(Reply::Error(error)),
             None => match &mut active.phase {
-                // `--no-settle settle` steps one frame.
+                // A session command under `--no-settle` answers after one frame.
                 Phase::Settling { before } if quiet || immediate => {
                     Some(Reply::Text(match (before.as_deref(), limit) {
                         (None, _) | (Some(_), Some(0)) => String::new(),

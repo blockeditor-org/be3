@@ -21,6 +21,7 @@ mod an_app_with_no_editors_open_is_stopped_once_it_has_been_unused_for_a_while;
 mod children_that_move_wait_with_a_child_that_comes_in_the_same_layout;
 mod killing_an_app_stops_it_as_any_stop_does;
 mod only_the_views_hidden_last_keep_their_last_frame;
+mod presents_taken_in_late_are_heard_in_order_at_the_poll;
 
 fn manifest() -> AppManifest {
     be_sdk_manifest::manifest_from_json(
