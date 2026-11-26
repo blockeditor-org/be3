@@ -1,11 +1,11 @@
 use super::*;
 
 /// A block shared alone with this account, below a parent it may not view, lies in no root this
-/// account may read: the mirror marks where its view starts (`entry`), and search leaves it out
-/// at once rather than asking the mirror for the parent, which never lists it, and logging it
-/// as a block it cannot place.
+/// account may read. Search asks the mirror for the parent to place it, the mirror lists none,
+/// and the block is left out of search: as the server's answer says this account's view starts
+/// there (`entry`), not as a block the mirror cannot place, which is counted and logged as a fault.
 #[test]
-fn a_block_shared_alone_is_left_out_of_search_without_waiting_to_place_it() {
+fn a_block_shared_alone_is_left_out_of_search_as_no_bug() {
     let harness = Harness::start();
     let sharer = Someone::register(
         harness.server.directory(),
