@@ -41,6 +41,8 @@ struct Projection<C: LiveEdit> {
     /// whether it still holds it: those that do not are let go.
     due: RefCell<Vec<Rc<dyn Fn() -> bool>>>,
     reads: RefCell<HashMap<u64, Box<Read>>>,
+    /// Asked for as another content type than its block is held as (`refused`).
+    refused: Cell<bool>,
 }
 
 type Read = dyn FnOnce(Result<Vec<u8>, String>);
@@ -103,6 +105,7 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
             ended: Callbacks::default(),
             due: RefCell::new(Vec::new()),
             reads: RefCell::new(HashMap::default()),
+            refused: Cell::new(false),
         }))
     }
 
@@ -143,10 +146,16 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
         self.0.due.borrow_mut().push(Rc::new(due));
     }
 
+    /// Whether this was refused as another content type than its block is held as.
+    pub(crate) fn is_refused(&self) -> bool {
+        self.0.refused.get()
+    }
+
     /// A projection of `block` that never loads, failing with `reason`, on a host of its own:
     /// it takes none of the block's updates and sends nothing.
     pub(crate) fn refused(block: Option<uuid::Uuid>, reason: String) -> Self {
         let live = Self::new(EditorHost::default(), block);
+        live.0.refused.set(true);
         let _ = live.0.mirror.borrow_mut().receive(
             be_sdk_type_guest::editor::ToEditor::Failed(reason),
         );
