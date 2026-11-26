@@ -14,6 +14,7 @@ fn drawn(root: &mut Root, time: u64) -> Vec<Layer> {
                 time,
                 wall_clock: 0,
                 utc_offset: 0,
+                preferences: Default::default(),
                 window: window(),
                 describe: false,
                 phone: false,

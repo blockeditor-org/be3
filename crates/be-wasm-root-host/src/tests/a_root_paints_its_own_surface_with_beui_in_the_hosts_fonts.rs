@@ -10,6 +10,7 @@ fn a_root_paints_its_own_surface_with_beui_in_the_hosts_fonts() {
             time: 1,
             wall_clock: 0,
             utc_offset: 0,
+            preferences: Default::default(),
             window: window(),
             describe: false,
             phone: false,

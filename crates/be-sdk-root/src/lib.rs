@@ -64,7 +64,7 @@ pub use children::{
 };
 pub use embedded::{
     AnchoredView, BlockSpawn, Embedded, Hosted, Spawn, SpawnFailure, Wants, describing,
-    next_document, phone, set_clock, set_describing, set_phone, tell_editor,
+    next_document, phone, set_clock, set_describing, set_phone, set_preferences, tell_editor,
 };
 pub use own::OwnSurface;
 pub use windows::{Delivery, Windows};
