@@ -30,7 +30,10 @@ fn a_part_writer_dropped_unfinished_ends_its_task_and_holds_nothing() {
             unwritten.contains("at least one byte"),
             "a writer finished with nothing written fails: {unwritten}"
         );
-        assert!(replicas.status(block).is_some(), "the replica is still open");
+        assert!(
+            replicas.status(block).is_some(),
+            "the replica is still open"
+        );
         assert_eq!(
             replicas.writing(),
             0,

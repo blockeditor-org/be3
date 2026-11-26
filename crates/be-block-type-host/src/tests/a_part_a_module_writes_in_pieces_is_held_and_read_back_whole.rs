@@ -64,7 +64,8 @@ fn a_part_a_module_writes_in_pieces_is_held_and_read_back_whole() {
                 .step(host.take_outbound(), &mut outbound)
                 .expect("the module steps");
             for frame in outbound {
-                host.receive(&frame).expect("the host takes the module's frame");
+                host.receive(&frame)
+                    .expect("the host takes the module's frame");
             }
             while let Some(event) = host.next_event() {
                 let Incoming::Started(started) = event else {

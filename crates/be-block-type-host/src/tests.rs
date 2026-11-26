@@ -34,10 +34,10 @@ mod a_module_restart_mid_drag_keeps_the_drag;
 mod a_module_that_keeps_stopping_stops_for_good_and_says_so;
 mod a_modules_answer_is_seen_after_the_host_task_spent_its_budget;
 mod a_part_a_module_writes_in_pieces_is_held_and_read_back_whole;
+mod a_part_read_for_an_editor_keeps_the_replicas_unsettled_until_answered;
 mod a_part_writer_dropped_unfinished_ends_its_task_and_holds_nothing;
 mod a_part_writer_open_when_its_module_restarts_ends_its_task_and_holds_nothing;
 mod a_part_writer_written_too_far_ahead_of_sealing_is_let_go_of;
-mod a_part_read_for_an_editor_keeps_the_replicas_unsettled_until_answered;
 mod a_rejoin_whose_unsealed_edits_no_seal_can_take_waits_without_asking_again;
 mod a_relayed_message_sealed_with_a_key_another_search_awaits_waits_for_it;
 mod a_reopened_replica_holds_an_editors_operations_less_those_replayed;
@@ -460,10 +460,7 @@ thread_local! {
 }
 
 impl be_sdk_type_guest::abi::Guest for Writing {
-    fn start(
-        waker: be_sdk_type_guest::abi::Waker,
-        _: &mut Vec<Vec<u8>>,
-    ) -> Result<Self, String> {
+    fn start(waker: be_sdk_type_guest::abi::Waker, _: &mut Vec<Vec<u8>>) -> Result<Self, String> {
         WAKER.set(Some(waker));
         Ok(Self {
             serving: be_sdk_type_guest::Serving::new(be_type_example_counter::block_types()),
@@ -546,14 +543,13 @@ fn tell(told: Writer) {
 
 /// Asserts that the part `WRITTEN` makes under `block`'s key was never held for it, so another
 /// device cannot read it.
-async fn assert_unheld(
-    peer: &Peer<MemoryStore>,
-    another: &Peer<MemoryStore>,
-    block: Uuid,
-) {
+async fn assert_unheld(peer: &Peer<MemoryStore>, another: &Peer<MemoryStore>, block: Uuid) {
     let mut writer = peer.part_writer(block).await.expect("a writer");
     writer.write(&WRITTEN).expect("written");
-    let part = writer.finish().expect("sealed").expect("a byte was written");
+    let part = writer
+        .finish()
+        .expect("sealed")
+        .expect("a byte was written");
     assert!(
         another.read_part(part, 0, part.length()).await.is_err(),
         "the writer's part was never held for the block"
