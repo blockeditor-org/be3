@@ -834,6 +834,7 @@ impl Inner {
                 taken_before: 0,
                 doubtful_through: 0,
                 kept_restart: 0,
+                restart_limit: None,
                 kept_through: 0,
                 kept_submitted: 0,
                 kept_submissions: Vec::new(),
