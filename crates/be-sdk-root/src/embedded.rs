@@ -1915,7 +1915,9 @@ impl State {
     }
 
     /// Relays the app what its root's host sent it (`host.forwarded`), after the frames that
-    /// open its editors: before its hello, held with them.
+    /// open its editors: before its hello, held with them. The order holds because the host
+    /// answers the open-editor call with those frames before it forwards anything, and the guest
+    /// executor runs tasks first in, first out.
     fn relay(&mut self, frames: Vec<Vec<u8>>) {
         if self.failure.is_some() {
             return;
@@ -1952,6 +1954,7 @@ impl State {
 
     fn fail(&mut self, failure: String) {
         self.failure.get_or_insert(failure);
+        self.opening.clear();
         self.wake();
     }
 

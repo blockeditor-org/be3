@@ -18,7 +18,7 @@ export default async function (test) {
     // (be-host's `busy` does not yet say whether the root and its apps took it in there), so
     // each press waits for its target first.
     const press = async (account, target, ...rest) => {
-        await account.drive("wait", target);
+        if (test.root) await account.drive("wait", target);
         await account.drive("click", target, ...rest);
     };
     const expect = (condition, what, shown) => {

@@ -8,7 +8,7 @@ export default async function (test) {
     // (be-host's `busy` does not yet say whether they settled there), so each press waits for
     // its target first.
     const press = async (target, ...rest) => {
-        await drive("wait", target);
+        if (test.root) await drive("wait", target);
         await drive("click", target, ...rest);
     };
     await press("#file-tree.new");
