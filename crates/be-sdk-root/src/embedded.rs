@@ -29,7 +29,7 @@ use be_sdk_app_host::{
     holds::Held,
     pacing::{Ask, Asking, FRAME_TIMEOUT, Pacing},
     run::{Run, Telling},
-    session::{Session, SessionFailure, SessionState},
+    session::{LOAD_TIMEOUT, Session, SessionFailure, SessionState},
     wire::Wire,
 };
 use be_wasm_root_api::{Shown, ShownBlock, guest::host};
@@ -144,6 +144,11 @@ struct State {
     /// Whether the app said hello: one that stops after it stopped, one that stops before it
     /// could not start.
     started: bool,
+    /// Whether its instance started (`instance.started`): its session starts with the next
+    /// frame, which gives it its while to say hello from then.
+    loaded: bool,
+    /// The frame clock's time it was spawned at, which its load is bounded from (`LOAD_TIMEOUT`).
+    spawned: Duration,
     /// What the app answered it painted (`Embedded::paintings`), until taken.
     painted_answer: Option<Vec<u8>>,
     /// The frame clock's time, as the last frame was asked for.
@@ -534,6 +539,8 @@ impl Embedded {
             told_types: 0,
             opening: Vec::new(),
             started: false,
+            loaded: false,
+            spawned: now,
             painted_answer: None,
             now,
             pass: 0,
@@ -716,6 +723,14 @@ impl Embedded {
             state.pass += 1;
             // The frame asked for now shows the cursor as it is.
             state.restyled = false;
+            if state.loaded && *state.run.session.state() == SessionState::Idle {
+                state.run.session.start(millis(now));
+            } else if !state.loaded
+                && state.failure.is_none()
+                && now.saturating_sub(state.spawned) >= LOAD_TIMEOUT
+            {
+                state.fail(format!("its module did not load within {LOAD_TIMEOUT:?}"));
+            }
             state.run.session.tick(millis(now));
             state.failed_session();
             // Asked to describe its screens while the root's host asks for the root's tree, and
@@ -1531,6 +1546,12 @@ impl State {
         match heard {
             Heard::Hello(hello) => {
                 self.started = true;
+                // A hello before the frame that would start its session (`Embedded::frame`)
+                // came within its while.
+                if *self.run.session.state() == SessionState::Idle {
+                    let now = self.now;
+                    self.run.session.start(millis(now));
+                }
                 let accepted = self.run.session.connect(&hello, self.run.preferences());
                 self.wire.accept(&accepted);
                 let opening = std::mem::take(&mut self.opening);
@@ -2024,8 +2045,8 @@ async fn hear_host() {
 }
 
 /// Hears the app until it stops or the last `Embedded` of it goes: then it lets go of the
-/// instance, which stops it. Its session starts once the instance did, and it has the session's
-/// while from then to say hello.
+/// instance, which stops it. Once the instance started, the app's session starts with the next
+/// frame, and it has the session's while from then to say hello.
 async fn hear(state: Weak<RefCell<State>>, instance: Rc<Instance>, stop: Rc<Stop>) {
     match until_stopped(&stop, instance.started()).await {
         None => return,
@@ -2036,8 +2057,9 @@ async fn hear(state: Weak<RefCell<State>>, instance: Rc<Instance>, stop: Rc<Stop
             let mut state = state.borrow_mut();
             match started {
                 Ok(Ok(())) => {
-                    let now = state.now;
-                    state.run.session.start(millis(now));
+                    state.loaded = true;
+                    state.run.pacing.need();
+                    state.wake();
                 }
                 Ok(Err(failure)) => return state.fail(format!("the app stopped: {failure}")),
                 Err(error) => {

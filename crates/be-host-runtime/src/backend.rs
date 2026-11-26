@@ -221,6 +221,14 @@ impl Backend {
         self.error.take()
     }
 
+    /// How long its worker has been loading its module, while it has not started.
+    pub(super) fn loading_for(&self) -> Option<Duration> {
+        self.worker
+            .as_ref()
+            .is_some_and(|worker| !worker.ready())
+            .then(|| host::now().saturating_sub(self.started))
+    }
+
     pub(super) fn state(&self) -> &'static str {
         match &self.worker {
             Some(worker) if worker.ready() => "running",

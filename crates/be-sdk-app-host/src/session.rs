@@ -4,6 +4,12 @@ use be_sdk_api::{Hello, HelloAccepted, Preferences, SurfaceSpec, SurfaceSupport}
 
 const LIFECYCLE_TIMEOUT_MILLISECONDS: u64 = 5_000;
 
+/// How long a host may take to load and link an app's module, from its spawn, before it takes the
+/// load to be hung and stops the app: its session, and the while it has to say hello, start only
+/// once it loaded. Generous, since on the web the module is fetched and linked in a worker of its
+/// own, which takes seconds.
+pub const LOAD_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SessionState {
     Idle,

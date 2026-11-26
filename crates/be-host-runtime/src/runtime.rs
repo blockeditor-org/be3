@@ -826,6 +826,16 @@ impl Runtime {
         if *self.run.session.state() == SessionState::Idle && self.backend.ready() {
             self.run.session.start(now);
         }
+        // A load that never finishes stops the app rather than leave it starting for ever.
+        if *self.run.session.state() == SessionState::Idle
+            && let Some(loading) = self.backend.loading_for()
+        {
+            let timeout = be_sdk_app_host::session::LOAD_TIMEOUT;
+            if loading >= timeout {
+                return self.stopped(format!("its module did not load within {timeout:?}"));
+            }
+            host::request_repaint_after(timeout - loading);
+        }
         let mut forwarded = Vec::with_capacity(received.len());
         for heard in received {
             match heard {
