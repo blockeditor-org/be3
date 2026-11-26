@@ -217,7 +217,9 @@ Depends on #686 (session catch-ups replaced by server ordering).
   568d72d49 (2026-11-25): 0 of 1000 each at 32 at once on 4 cores, and 0 of 240 each at 16 at
   once beside two whole-crate runs, nor did `an_edit_sealed_offline_onto_a_seal_the_server_lost_lands_once`
   (0 of 600 at 32), so what failed is not reproduced locally: the next failure's output (a full
-  verify keeps it) is what to read.
+  verify keeps it) is what to read. Nor on b46be69e6 (2026-11-26): 0 of 460 each, up to 72 at
+  once on 4 cores, and none of them in three runs of the whole crate, each test its own
+  process, 32 at once.
 
 - **A joined block's tabs, once under verify load.**
   `a_joined_blocks_tabs_carry_its_menu` waited for "Referenced by (2)" and saw
@@ -430,7 +432,25 @@ Depends on #686 (session catch-ups replaced by server ordering).
   and `players_carry_on_with_the_next_host_once_the_first_closes_the_world` 120 of 120 the
   second way. Ruled out for the first way: the phone claiming on a stale word that no one
   hosts as it reopens the Counter; with the phone's answers held from its close until after
-  it reopens, it still stands by (its replica leaves the session as the tab closes).
+  it reopens, it still stands by (its replica leaves the session as the tab closes). On
+  b46be69e6 it passed 100 of 100 (40 at 4 at a time, 60 at 6 with `--apart --latency 75`), as
+  did `players_carry_on_with_the_next_host_once_the_first_closes_the_world` and
+  `typing_after_a_pause_undoes_as_its_own_step` (60 of 60 each, the same way), and
+  `be_root_in_place_of_the_hosts_ui_shows_the_children_its_session_places`, `..._lands_a_block_dragged_from_the_files_on_a_canvas`
+  and `..._shows_a_picker_a_canvas_places` (50 of 50 each, 6 at a time with `--apart`), which
+  verify has seen fail too: their next failure's output is what to read.
+- **A dropped image's card that never shows its image, under the root.**
+  `be_root_in_place_of_the_hosts_ui_lands_a_file_dropped_from_outside_on_a_canvas` paints 1200
+  shapes for the accepted 1201 in about 1 run in 8 (8 of 80, and 23 of 160, `stress --apart
+  --parallel 8` on 4 cores): the two cards the test drops, one under be-host's UI and one under
+  the root, lie on one another, and one of their image children draws nothing (its `Artwork`
+  has no image and no thumbhash, so a zero rect). It is a steady state, not a late arrival: a
+  painting taken after a further `pause 1000` and `settle` is the same. Once in 40 the card
+  dropped under the root was also fitted to 25x61 points, as if its child told no intrinsic
+  size before the card was made. Suspects: which child's payload never reaches `watch`
+  (be-app-image `root/picture.rs`; the reopened card's payload is left in the store and read by
+  range), and how the root sizes a dropped card. Done: the cause found and fixed at its source,
+  and the painting the same every run.
 
 ## 16. Host test tools
 

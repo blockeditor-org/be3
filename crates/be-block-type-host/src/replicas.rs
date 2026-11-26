@@ -1184,6 +1184,10 @@ pub struct Replicas<H: Host> {
     scopes: HashMap<(usize, OpId), types::Scope>,
     pending: Vec<Io>,
     relaying: usize,
+    /// Parts of blocks' stored forms read for their replicas (`Call::ReadPart`) and not
+    /// answered yet: an editor's range read, such as a blob's payload left in the store, waits
+    /// on one, so the replicas have yet to settle (`unsettled`).
+    reading_parts: usize,
     /// Per block, the holder's seal being fetched (`Io::SealFetched`) and the latest one heard
     /// meanwhile, fetched next: one fetch in flight a block, however fast its seals come.
     seal_fetches: HashMap<Uuid, SealFetch>,
@@ -1292,6 +1296,7 @@ impl<H: Host> Replicas<H> {
             scopes: HashMap::new(),
             pending: Vec::new(),
             relaying: 0,
+            reading_parts: 0,
             seal_fetches: HashMap::new(),
             seal_fetch_ids: 0,
             seals_held: HashMap::new(),
@@ -1344,6 +1349,19 @@ impl<H: Host> Replicas<H> {
 
     pub fn relaying(&self) -> bool {
         self.relaying > 0
+    }
+
+    /// Why the type modules and their replicas have yet to settle: the modules' own reasons
+    /// (`Modules::unsettled`), and parts read for a replica that have yet to be answered.
+    pub fn unsettled(&self) -> Vec<String> {
+        let mut reasons = self.modules.unsettled();
+        if self.reading_parts > 0 {
+            reasons.push(format!(
+                "{} part read(s) for replicas wait on the store",
+                self.reading_parts
+            ));
+        }
+        reasons
     }
 
     /// Whether a head the session's holder sealed is still being fetched (`Io::SealFetched`).
@@ -4526,6 +4544,9 @@ impl<H: Host> Replicas<H> {
             } => {
                 let heads = answer.heads();
                 let submitted = matches!(*answer, Answered::Submit(..));
+                if matches!(*answer, Answered::ReadPart(..)) {
+                    self.reading_parts -= 1;
+                }
                 let delivered = self.modules.generation(module) == generation;
                 if delivered {
                     self.modules
@@ -5901,6 +5922,7 @@ impl<H: Host> Replicas<H> {
                 false
             }
             Call::ReadPart { reply, part, range } => {
+                self.reading_parts += 1;
                 let peer = Arc::clone(peer);
                 let io = self.io.clone();
                 self.answer_later(replica, module, async move {
