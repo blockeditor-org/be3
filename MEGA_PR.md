@@ -125,6 +125,7 @@ Landed on 2026-11-24:
 - `dialogs-clear-color`: a dialog's window of its own clears to nothing, not its app's surface; the export dialog's child sits inside the card's border, rounded by the card's inner radius (card tokens RADIUS, BORDER, INSIDE_BORDER, INNER_RADIUS).
 - `backlog-7`: backlog §7 sessions: a reader outside the session replays a journal by parts; a stateless request's scope reads only its own block's parts (Scope::check); hosted channel slow-down (configurable burst), waiting join, newest handshake, inherited players; a recheck drops only the admission it checked; an edit given again by its part goes as its kept submission.
 - `backlog-8`: a list's code lines keep their continuation spaces in their marker, so code lines up with its fence; notes on macOS live resize and a view given the keyboard early.
+- `host-adapter-4g7g1`: be-host serves the screen lock and displays' keep changes under --root; under the root the host's frame is begun for its clock but not ended; survey of the host tests 4g7g2 must pass.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
