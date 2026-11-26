@@ -96,6 +96,41 @@ impl Gpu {
         Ok((mapped, range))
     }
 
+    /// A view of `texture` as `descriptor` asks, or its default view.
+    fn view(&self, handle: u32, descriptor: Option<web::GpuTextureViewDescriptor>) -> Result<wgpu::TextureView, Failure> {
+        let Some(descriptor) = descriptor else {
+            return self.default_view(handle);
+        };
+        let texture = self.held(&self.textures, Kind::Texture, handle, "texture")?;
+        let shared = self.web.imported.contains(&handle);
+        let usage = match (shared, descriptor.usage.map(Convert::<wgpu::TextureUsages>::convert)) {
+            (false, usage) => usage,
+            (true, None) => Some(wgpu::TextureUsages::TEXTURE_BINDING),
+            (true, Some(usage)) if wgpu::TextureUsages::TEXTURE_BINDING.contains(usage) => Some(usage),
+            (true, Some(_)) => {
+                return Err(Failure::validation(
+                    "a shared texture is only sampled: its views have no other usage",
+                ));
+            }
+        };
+        if descriptor.swizzle.as_deref().is_some_and(|swizzle| swizzle != "rgba") {
+            return Err(Failure::validation(
+                "a swizzled view needs the texture-component-swizzle feature",
+            ));
+        }
+        Ok(texture.create_view(&wgpu::TextureViewDescriptor {
+            label: descriptor.label.as_deref(),
+            format: descriptor.format.map(Convert::convert),
+            dimension: descriptor.dimension.map(Convert::convert),
+            usage,
+            aspect: descriptor.aspect.map_or(wgpu::TextureAspect::All, Convert::convert),
+            base_mip_level: descriptor.base_mip_level.unwrap_or(0),
+            mip_level_count: descriptor.mip_level_count,
+            base_array_layer: descriptor.base_array_layer.unwrap_or(0),
+            array_layer_count: descriptor.array_layer_count,
+        }))
+    }
+
     /// A texture's default view, as `create-view` with no descriptor and a texture bound
     /// directly make it: only sampled when the host shares the texture between apps.
     pub(super) fn default_view(&self, texture: u32) -> Result<wgpu::TextureView, Failure> {
@@ -1460,61 +1495,18 @@ impl Host for Gpu {
         descriptor: Option<web::GpuTextureViewDescriptor>,
     ) -> web::GpuTextureView {
         let device = self.device_of(Kind::Texture, this.0);
-        let label = descriptor
-            .as_ref()
-            .and_then(|descriptor| descriptor.label.clone());
-        let handle = self.make(
-            device,
-            Kind::View,
-            label.as_deref(),
-            |gpu| &mut gpu.views,
-            |gpu| {
-                let Some(descriptor) = descriptor else {
-                    return gpu.default_view(this.0);
-                };
-                let texture = gpu.held(&gpu.textures, Kind::Texture, this.0, "texture")?;
-                let shared = gpu.web.imported.contains(&this.0);
-                let usage = match (
-                    shared,
-                    descriptor
-                        .usage
-                        .map(Convert::<wgpu::TextureUsages>::convert),
-                ) {
-                    (false, usage) => usage,
-                    (true, None) => Some(wgpu::TextureUsages::TEXTURE_BINDING),
-                    (true, Some(usage)) if wgpu::TextureUsages::TEXTURE_BINDING.contains(usage) => {
-                        Some(usage)
-                    }
-                    (true, Some(_)) => {
-                        return Err(Failure::validation(
-                            "a shared texture is only sampled: its views have no other usage",
-                        ));
-                    }
-                };
-                if descriptor
-                    .swizzle
-                    .as_deref()
-                    .is_some_and(|swizzle| swizzle != "rgba")
-                {
-                    return Err(Failure::validation(
-                        "a swizzled view needs the texture-component-swizzle feature",
-                    ));
-                }
-                Ok(texture.create_view(&wgpu::TextureViewDescriptor {
-                    label: descriptor.label.as_deref(),
-                    format: descriptor.format.map(Convert::convert),
-                    dimension: descriptor.dimension.map(Convert::convert),
-                    usage,
-                    aspect: descriptor
-                        .aspect
-                        .map_or(wgpu::TextureAspect::All, Convert::convert),
-                    base_mip_level: descriptor.base_mip_level.unwrap_or(0),
-                    mip_level_count: descriptor.mip_level_count,
-                    base_array_layer: descriptor.base_array_layer.unwrap_or(0),
-                    array_layer_count: descriptor.array_layer_count,
-                }))
-            },
-        );
+        let label = descriptor.as_ref().and_then(|descriptor| descriptor.label.clone());
+        let handle = self.make(device, Kind::View, label.as_deref(), |gpu| &mut gpu.views, |gpu| {
+            // A view of a destroyed texture is valid in WebGPU: using it is what fails, at the
+            // submit, so what wgpu raises now is let go.
+            let destroyed = gpu.web.destroyed.contains(&this.0);
+            let scope = destroyed.then(|| gpu.device.push_error_scope(wgpu::ErrorFilter::Validation));
+            let made = gpu.view(this.0, descriptor);
+            if let Some(scope) = scope {
+                crate::caught(scope.pop());
+            }
+            made
+        });
         web::GpuTextureView(handle)
     }
 
@@ -1524,6 +1516,7 @@ impl Host for Gpu {
         }
         if let Ok(texture) = self.textures.get(this.0, "texture") {
             texture.destroy();
+            self.web.destroyed.insert(this.0);
         }
     }
 
@@ -2947,6 +2940,7 @@ impl Host for Gpu {
     fn gpu_texture_drop(&mut self, this: web::GpuTexture) {
         self.made_textures.remove(&this.0);
         self.web.imported.remove(&this.0);
+        self.web.destroyed.remove(&this.0);
         self.drop_object(Kind::Texture, this.0, |gpu| &mut gpu.textures);
     }
 
