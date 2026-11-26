@@ -349,6 +349,7 @@ web_host_test(
     name = "root-web-host-test",
     bundle = ":web",
     caddyfile = ":Caddyfile",
+    root = "be3.root",
     server = "//crates/be-server-bin:bin",
     test = "web-test/be_root_shows_the_workspace_in_place_of_the_hosts_ui.mjs",
 )

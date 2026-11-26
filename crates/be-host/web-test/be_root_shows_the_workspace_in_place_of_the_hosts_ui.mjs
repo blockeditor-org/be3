@@ -4,10 +4,8 @@
 // canvas: the root's own surface, which it draws on the page's device, and the screens of the
 // apps it embeds (the workspace's files among them), which their workers draw.
 export default async function (test) {
-    // One tab at a time holds the host's files (the `block-files` Web Lock).
-    await test.page.close();
-    // Which waits for the workspace's files in the root's tree, as for be-host's own UI.
-    await test.openPage("root=be3.root");
+    // The harness opened it on `?root=be3.root` (the test's `root`), and found the workspace's
+    // files in the root's tree.
     const { page } = test;
 
     // The colour at the middle of each canvas the page shows the root's frame in, by its kind,
