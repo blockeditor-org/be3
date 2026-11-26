@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::{
     StoreError,
-    chunker::{ChunkerConfig, split},
+    chunker::{ChunkerConfig, Splitter},
     hash::Hash,
     manifest::{
         ChunkRef, LoadedPart, Manifest, Node, NodeRef, Part, PartRef, Stored, decode_value,
@@ -187,6 +187,55 @@ pub struct Vault<S> {
     sealed: RwLock<HashMap<Hash, Uuid>>,
 }
 
+/// One part's bytes being written a piece at a time (`Vault::part_writer`): each chunk is sealed
+/// and put as soon as the bytes end it, so it holds at most one chunk's bytes and the refs of the
+/// chunks so far.
+pub struct PartWriter<'a, S> {
+    vault: &'a Vault<S>,
+    key: Uuid,
+    sealing: (ContentKey, Uuid),
+    splitter: Splitter,
+    chunks: Vec<PartRef>,
+}
+
+impl<S: ObjectStore> PartWriter<'_, S> {
+    /// Appends `bytes` to the part.
+    pub fn write(&mut self, bytes: &[u8]) -> Result<(), StoreError> {
+        let Self {
+            vault,
+            key,
+            sealing,
+            splitter,
+            chunks,
+        } = self;
+        splitter.push(bytes, |chunk| {
+            chunks.push(vault.put_chunk(*key, sealing, chunk)?);
+            Ok(())
+        })
+    }
+
+    /// The bytes written that no chunk sealed yet holds.
+    pub fn held(&self) -> usize {
+        self.splitter.held()
+    }
+
+    /// Seals the rest and answers the part, or None when no byte was written.
+    pub fn finish(self) -> Result<Option<PartRef>, StoreError> {
+        let Self {
+            vault,
+            key,
+            sealing,
+            splitter,
+            mut chunks,
+        } = self;
+        splitter.finish(|chunk| {
+            chunks.push(vault.put_chunk(key, &sealing, chunk)?);
+            Ok::<_, StoreError>(())
+        })?;
+        vault.group(key, &sealing, chunks)
+    }
+}
+
 impl<S: ObjectStore> Vault<S> {
     pub fn new(store: S, keys: Keyring) -> Self {
         Self {
@@ -231,6 +280,34 @@ impl<S: ObjectStore> Vault<S> {
         Ok(Manifest { content_type, root })
     }
 
+    /// A writer of one part's bytes, sealed under `key` a chunk at a time as they come: what
+    /// `write` makes of a `Part::Bytes` of the same bytes, without holding them all.
+    pub fn part_writer(&self, key: Uuid) -> Result<PartWriter<'_, S>, StoreError> {
+        let sealing = self.keys.held(key).ok_or(StoreError::MissingKey(key))?;
+        Ok(self.writer(key, sealing))
+    }
+
+    fn writer(&self, key: Uuid, sealing: (ContentKey, Uuid)) -> PartWriter<'_, S> {
+        PartWriter {
+            vault: self,
+            key,
+            sealing,
+            splitter: Splitter::new(self.chunker),
+            chunks: Vec::new(),
+        }
+    }
+
+    fn put_chunk(
+        &self,
+        key: Uuid,
+        sealing: &(ContentKey, Uuid),
+        chunk: &[u8],
+    ) -> Result<PartRef, StoreError> {
+        let length = u32::try_from(chunk.len()).map_err(|_| StoreError::ChunkTooLarge)?;
+        let hash = self.put_sealed(key, &sealing.0.seal(key, sealing.1, chunk, true))?;
+        Ok(PartRef::Chunk(ChunkRef { hash, length }))
+    }
+
     fn write_part(
         &self,
         key: Uuid,
@@ -239,15 +316,9 @@ impl<S: ObjectStore> Vault<S> {
     ) -> Result<Option<PartRef>, StoreError> {
         match part {
             Part::Bytes(bytes) => {
-                let mut chunks = Vec::new();
-                for range in split(bytes, self.chunker) {
-                    let length =
-                        u32::try_from(range.len()).map_err(|_| StoreError::ChunkTooLarge)?;
-                    let hash =
-                        self.put_sealed(key, &sealing.0.seal(key, sealing.1, &bytes[range], true))?;
-                    chunks.push(PartRef::Chunk(ChunkRef { hash, length }));
-                }
-                self.group(key, sealing, chunks)
+                let mut writer = self.writer(key, *sealing);
+                writer.write(bytes)?;
+                writer.finish()
             }
             Part::Reused(part) => match self.sealed_under(part.hash())? == key {
                 true => Ok(Some(*part)),

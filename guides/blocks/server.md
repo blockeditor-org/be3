@@ -8,7 +8,11 @@ the server are in guides/blocks/keys.md.
 - **be-block-store**: content-addressed, encrypted objects. `Hash` is the
   SHA-256 of the *ciphertext*, so the server verifies what it holds without
   reading it. `chunker::split` is content-defined, so an edit in the middle of a
-  large file re-uploads one chunk. A `Manifest` (`{content_type, root}`) names
+  large file re-uploads one chunk; `chunker::Splitter` cuts the same chunks from
+  bytes handed over in pieces, so `Vault::part_writer` seals a part a chunk at a
+  time as it is written, holding at most one chunk, and answers the `PartRef` a
+  whole write of the same bytes would (`write` seals every `Part::Bytes` through
+  it). A `Manifest` (`{content_type, root}`) names
   the root of a tree of sealed `Node`s over the chunks, in the shape of the
   content's parts (guides/blocks/content_types.md, "Parts"); a leaf split over
   many chunks is grouped under nodes chosen by the chunks' hashes. Unchanged
