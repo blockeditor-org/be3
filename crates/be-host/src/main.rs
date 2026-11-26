@@ -621,6 +621,9 @@ struct HostCore {
     #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
     root_opens: Vec<(String, be_sdk_api::EditorInstanceId, BlockOpen)>,
     account_error: Option<String>,
+    /// A local account was just made: its stack's start says so if the browser will not keep
+    /// its storage.
+    tell_unkept_storage: bool,
     organization: Option<Organization>,
     organizations: Vec<Organization>,
     joining: Option<Joining>,
@@ -1027,6 +1030,7 @@ impl HostCore {
             #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
             root_opens: Vec::new(),
             account_error: None,
+            tell_unkept_storage: false,
             organization: None,
             organizations: Vec::new(),
             joining: None,
@@ -1691,14 +1695,7 @@ impl HostCore {
         self.account_error = None;
         self.server_url = String::new();
         self.add_account_open = false;
-        // On the web it lives only in this origin's storage, which the browser may evict unless
-        // asked to keep it.
-        #[cfg(target_arch = "wasm32")]
-        platform::spawn_request(async {
-            if !platform::keep_storage().await {
-                notices::refuse(STORAGE_NOT_KEPT.to_owned());
-            }
-        });
+        self.tell_unkept_storage = true;
         self.switch_account(saved);
     }
 
@@ -4076,6 +4073,19 @@ impl HostCore {
         };
         be_host_base::watches::publish::<be_sdk_api::LinkBaseWatch>(&link_base);
         self.publish_role();
+        // On the web a local account lives only in this origin's storage, which the browser may
+        // evict unless asked to keep it: asked each time it starts, and said so when it is made.
+        let tell = std::mem::take(&mut self.tell_unkept_storage);
+        #[cfg(target_arch = "wasm32")]
+        if self.account.server == ServerLocation::Local {
+            platform::spawn_request(async move {
+                if !platform::keep_storage().await && tell {
+                    notices::refuse(STORAGE_NOT_KEPT.to_owned());
+                }
+            });
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        let _ = tell;
         be_host_stack::start(be_host_stack::Config {
             local: self.account.server == ServerLocation::Local,
             server_url: self.server_url.clone(),

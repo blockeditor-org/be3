@@ -669,7 +669,9 @@ pub struct EditorHost {
     graph: Rc<crate::graph::GraphState>,
     account: Rc<Cell<Uuid>>,
     organization: Rc<Cell<Uuid>>,
-    local_account: Rc<Cell<bool>>,
+    /// Sharing is not offered (`opening.offers-share` false), so an editor made without an
+    /// opening offers it.
+    no_share: Rc<Cell<bool>>,
     page_origin: Rc<RefCell<String>>,
     module: Rc<RefCell<std::rc::Weak<crate::module::ModuleState>>>,
     settings_draft: Rc<RefCell<Option<crate::SettingsDraft>>>,
@@ -2810,14 +2812,16 @@ impl EditorHost {
         self.organization.get()
     }
 
-    pub fn set_local_account(&self, local: bool) {
-        self.local_account.set(local);
+    pub fn set_offers_share(&self, offered: bool) {
+        self.no_share.set(!offered);
     }
 
-    /// The account is a local one, with no server (`opening.local-account`): nothing it holds is
-    /// shared, so an editor offers no Share.
-    pub fn local_account(&self) -> bool {
-        self.local_account.get()
+    /// Whether the editor offers sharing at all (`opening.offers-share`): Share, and the access
+    /// a block is viewed at. False for a local account, which has no server to share through.
+    /// Whether a block may be shared is its access, apart from this (guides/apps/host_services.md,
+    /// "Offered and permitted").
+    pub fn offers_share(&self) -> bool {
+        !self.no_share.get()
     }
 
     /// The origin of the web page the host runs in, empty where it is not a web page. On the

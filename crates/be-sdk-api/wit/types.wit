@@ -916,9 +916,12 @@ interface types {
         account-id: account-id,
         organization-id: organization-id,
         client-id: installation-id,
-        /// The account is a local one, with no server (guides/hosting.md, Local
-        /// accounts): nothing it holds is shared, so an editor offers no Share.
-        local-account: bool,
+        /// Whether editors offer sharing at all (Share, and the access a block
+        /// is viewed at): false for a local account, which has no server to
+        /// share through (guides/hosting.md, Local accounts). Whether the
+        /// account may share a given block is its access, apart from this. It
+        /// holds for the instance's life, as the account it opens for does.
+        offers-share: bool,
         kind: opening-kind,
     }
 

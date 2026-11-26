@@ -522,7 +522,7 @@ fn frame_actions(
         .enabled(can(|state| state.can_rename))
         .register(),
         // A local account has no server to share through, so it is offered no Share.
-        share: (!editor.host().local_account()).then(|| {
+        share: editor.host().offers_share().then(|| {
             Action::new("editor.share", "Share", move || editor.host().share_block(id))
                 .glyph(ICON_SHARE_2)
                 .pin(Pin::Label)
