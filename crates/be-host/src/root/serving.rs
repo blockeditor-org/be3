@@ -817,7 +817,7 @@ impl Served {
 
     /// Stops serving every instance, closing their editors first.
     pub(super) fn close_all(&mut self) {
-        self.retain(|..| false);
+        self.retain(|_, _| false);
     }
 }
 
