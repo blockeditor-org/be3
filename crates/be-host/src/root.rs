@@ -642,12 +642,11 @@ impl beui::native::Program for RootShell {
             // One that cannot be read (a folder, or one it may not read) is left out, but the
             // drop is handed on all the same, so the root ends the drag.
             beui::FileDrag::Dropped(file) => {
-                let dropped = be_host_runtime::read_dropped(file.clone()).map(|dropped| {
-                    DroppedFile {
+                let dropped =
+                    be_host_runtime::read_dropped(file.clone()).map(|dropped| DroppedFile {
                         name: dropped.name,
                         data: dropped.data,
-                    }
-                });
+                    });
                 if let Some(Taken::Files(FileDrag::Dropped(held))) = self.input.last_mut() {
                     held.extend(dropped);
                     return true;

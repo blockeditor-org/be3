@@ -35,7 +35,11 @@ struct Row {
 /// What choosing a row does.
 enum Run {
     /// Runs the action `id` on the screen of the app `app` that described it.
-    Action { app: u64, screen: ScreenId, id: String },
+    Action {
+        app: u64,
+        screen: ScreenId,
+        id: String,
+    },
     /// Opens the block (quick open).
     Open(OpenableBlock),
 }
@@ -157,7 +161,10 @@ impl Root {
         });
         let items: Vec<PaletteItem> = rows.iter().map(|row| row.item.clone()).collect();
         let (typed_out, items_out) = match &blocks {
-            Some(blocks) => (Some(Rc::clone(&blocks.typed)), Some(Rc::clone(&blocks.items))),
+            Some(blocks) => (
+                Some(Rc::clone(&blocks.typed)),
+                Some(Rc::clone(&blocks.items)),
+            ),
             None => (None, None),
         };
         let (placeholder, label) = match mode {
@@ -317,13 +324,11 @@ impl Root {
             match (picked, palette.closed.get()) {
                 (Some(key), _) => Some(palette.rows.iter().find(|row| row.item.key == key).map(
                     |row| match &row.run {
-                        Run::Action { app, screen, id } => {
-                            Run::Action {
-                                app: *app,
-                                screen: *screen,
-                                id: id.clone(),
-                            }
-                        }
+                        Run::Action { app, screen, id } => Run::Action {
+                            app: *app,
+                            screen: *screen,
+                            id: id.clone(),
+                        },
                         Run::Open(block) => Run::Open(block.clone()),
                     },
                 )),
@@ -419,7 +424,11 @@ impl Root {
             .enumerate()
             .map(|(at, block)| Row {
                 item: PaletteItem {
-                    key: block.block.iter().map(|byte| format!("{byte:02x}")).collect(),
+                    key: block
+                        .block
+                        .iter()
+                        .map(|byte| format!("{byte:02x}"))
+                        .collect(),
                     title: block.name.clone(),
                     detail: block.detail.clone(),
                     glyph: Some(beui::icons::ICON_FILE),

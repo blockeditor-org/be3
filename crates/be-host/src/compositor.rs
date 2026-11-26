@@ -23,9 +23,9 @@ pub(crate) use editors::with_window;
 pub(crate) use editors::{
     ConflictSurface, OwnedEditors, PanelReport, PresentingSurface, ShellDisplay, ShellSurface,
 };
-pub(crate) use palette::{
-    HostPalette, OpenableBlock, quick_open, quick_open_blocks, quick_open_ready, search_ask,
-};
+pub(crate) use palette::HostPalette;
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+pub(crate) use palette::{OpenableBlock, quick_open, quick_open_blocks, quick_open_ready, search_ask};
 
 type Listeners = HashMap<String, Vec<(u64, Trigger)>>;
 

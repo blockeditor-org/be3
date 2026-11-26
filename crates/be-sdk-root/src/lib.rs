@@ -552,7 +552,11 @@ impl Embedding {
         use be_wasm_root_api::input::FileDrag;
         match drag {
             FileDrag::Hovered => {
-                if self.files.as_ref().is_none_or(|files| files.window != window) {
+                if self
+                    .files
+                    .as_ref()
+                    .is_none_or(|files| files.window != window)
+                {
                     self.leave_files();
                     self.files = Some(FilesOver { window, over: None });
                     // Over whatever the pointer is over already: no move may come before a drop.
@@ -565,7 +569,11 @@ impl Embedding {
             }
             FileDrag::Dropped(dropped) => {
                 // Dropped with no hover first (a host that says only the drop): as if hovered.
-                if self.files.as_ref().is_none_or(|files| files.window != window) {
+                if self
+                    .files
+                    .as_ref()
+                    .is_none_or(|files| files.window != window)
+                {
                     self.drag_files(window, FileDrag::Hovered);
                 }
                 self.files_at_pointer(window);
@@ -593,7 +601,11 @@ impl Embedding {
                     action: DropAction::Copy,
                     dropped: true,
                 };
-                tell_editor(over.app.instance(), over.editor, &EditorEvent::Drag(Some(dropped)));
+                tell_editor(
+                    over.app.instance(),
+                    over.editor,
+                    &EditorEvent::Drag(Some(dropped)),
+                );
                 over.app.end_drag(over.editor);
             }
         }
@@ -630,7 +642,11 @@ impl Embedding {
     /// an app's editor it is over that takes a drag hears them there (`editor-event.drag`, with
     /// no files yet), and the one it left hears them leave.
     fn follow_files(&mut self, window: Option<u64>, routed: &[Delivery]) {
-        if self.files.as_ref().is_none_or(|files| files.window != window) {
+        if self
+            .files
+            .as_ref()
+            .is_none_or(|files| files.window != window)
+        {
             return;
         }
         for delivery in routed {

@@ -329,7 +329,10 @@ impl Root {
     /// The blocks the root asked to open since the last call (`host.open-block`).
     pub fn take_block_opens(
         &self,
-    ) -> Vec<(Option<be_wasm_root_api::OpenedIn>, be_wasm_root_api::OpenableBlock)> {
+    ) -> Vec<(
+        Option<be_wasm_root_api::OpenedIn>,
+        be_wasm_root_api::OpenableBlock,
+    )> {
         self.shared.core.borrow_mut().take_block_opens()
     }
 

@@ -190,7 +190,10 @@ struct Core<G> {
     /// The finds the root cancelled that the host took already, until it takes them too.
     block_finds_cancelled: Vec<u64>,
     /// The blocks the root asked to open (`host.open-block`), until the host takes them.
-    block_opens: Vec<(Option<be_wasm_root_api::OpenedIn>, be_wasm_root_api::OpenableBlock)>,
+    block_opens: Vec<(
+        Option<be_wasm_root_api::OpenedIn>,
+        be_wasm_root_api::OpenableBlock,
+    )>,
     /// The id the next of those is handed to the host with.
     next_editor: u64,
     /// What the root forwarded the host of the apps it spawned (`host.forward`), each app's
@@ -728,7 +731,10 @@ impl<G: Inline> Core<G> {
     /// The blocks the root asked to open since the last call (`host.open-block`).
     fn take_block_opens(
         &mut self,
-    ) -> Vec<(Option<be_wasm_root_api::OpenedIn>, be_wasm_root_api::OpenableBlock)> {
+    ) -> Vec<(
+        Option<be_wasm_root_api::OpenedIn>,
+        be_wasm_root_api::OpenableBlock,
+    )> {
         std::mem::take(&mut self.block_opens)
     }
 

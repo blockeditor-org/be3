@@ -289,7 +289,10 @@ impl Root {
     /// the editor it asked as.
     pub fn take_block_opens(
         &mut self,
-    ) -> Vec<(Option<be_wasm_root_api::OpenedIn>, be_wasm_root_api::OpenableBlock)> {
+    ) -> Vec<(
+        Option<be_wasm_root_api::OpenedIn>,
+        be_wasm_root_api::OpenableBlock,
+    )> {
         self.core.take_block_opens()
     }
 

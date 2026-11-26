@@ -34,7 +34,11 @@ fn be_root_in_place_of_the_hosts_ui_quick_opens_a_file_from_the_workspace() {
     host.restart_as_root(ROOT);
     host.wait("Tab \"Text\"");
     host.run(&["settle"]);
-    assert_eq!(host.count("Tab \"Text\""), 1, "one of the two texts is open");
+    assert_eq!(
+        host.count("Tab \"Text\""),
+        1,
+        "one of the two texts is open"
+    );
     // The workspace's own focus: its tab menu's button, once the menu closes.
     host.click("#dock.editors.menu");
     host.key("Escape");
@@ -43,10 +47,7 @@ fn be_root_in_place_of_the_hosts_ui_quick_opens_a_file_from_the_workspace() {
     host.type_text("text");
     host.run(&["settle"]);
     let rows = listed(&mut host);
-    assert!(
-        rows.len() >= 2,
-        "quick open lists both texts: {rows:?}"
-    );
+    assert!(rows.len() >= 2, "quick open lists both texts: {rows:?}");
     host.snapshot("be_root_quick_open_lists_the_blocks_the_host_finds");
     // The open text is listed first: choosing it opens no other tab.
     host.key("Enter");
