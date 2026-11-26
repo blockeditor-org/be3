@@ -625,6 +625,10 @@ struct HostCore {
     /// asked, until the root's host routes them (root.rs, `open_blocks`).
     #[cfg(not(target_os = "android"))]
     root_opens: Vec<(String, be_sdk_api::EditorInstanceId, BlockOpen)>,
+    /// The dialogs editors asked the shell for under a root (a share, an export), by the block
+    /// each is for, until the root's host asks the shell it embeds.
+    #[cfg(not(target_os = "android"))]
+    root_dialogs: Vec<(Uuid, ShellDialog)>,
     account_error: Option<String>,
     /// A local account was just made: its stack's start says so if the browser will not keep
     /// its storage.
@@ -1041,6 +1045,8 @@ impl HostCore {
             root_session_pending: false,
             #[cfg(not(target_os = "android"))]
             root_opens: Vec::new(),
+            #[cfg(not(target_os = "android"))]
+            root_dialogs: Vec::new(),
             account_error: None,
             tell_unkept_storage: false,
             organization: None,
@@ -3089,6 +3095,13 @@ impl HostCore {
     }
 
     fn show_dialog(&mut self, from: Option<Uuid>, id: Uuid, dialog: ShellDialog) {
+        // Under a root the shell is the session's editor the root embeds, which the root's host
+        // asks (`serving::serve_editors`).
+        #[cfg(not(target_os = "android"))]
+        if self.under_root {
+            self.root_dialogs.push((id, dialog));
+            return;
+        }
         if let Some(handler) = self.handler_for(from, ShellRequest::Dialog) {
             self.with_editor(handler, |handler| handler.show_dialog(id, dialog));
         }

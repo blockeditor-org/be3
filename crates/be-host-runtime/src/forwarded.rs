@@ -171,6 +171,18 @@ impl Forwarded {
         self.instances.set_shell(Some(instance));
     }
 
+    /// Asks its shell (`set_shell`) to show the dialog `dialog` for `block`, as be-host asks its
+    /// own shell what an editor's block command asks for (a share, an export). Answers whether
+    /// it runs the shell, which alone shows these.
+    pub fn show_dialog(&mut self, block: Uuid, dialog: be_sdk_api::ShellDialog) -> bool {
+        let Some(shell) = self.shell else {
+            return false;
+        };
+        let messages = self.instances.show_dialog(shell, block, dialog);
+        self.wire.send(messages);
+        true
+    }
+
     /// Whether the editor `instance` is the shell (`set_shell`).
     pub fn is_shell(&self, instance: EditorInstanceId) -> bool {
         self.shell == Some(instance)
