@@ -18,13 +18,13 @@
 //!   agents, contacts and share links, with the secrets they make answered once
 //!   (`host.make-secret`) and held only while they show;
 //! - the host's panels its session's editor places (`HostPanel`), which its menu asks for as
-//!   be-host's does: its statistics and memory graph, watched only while one shows, and its
-//!   menu's rows.
+//!   be-host's does: its statistics and memory graph, watched only while one shows, its menu's
+//!   rows (or a sheet on a phone), and the apps it runs, each to kill or crash.
 //!
 //! - the session's view (core-view's `showing`): its block's editor, which its host opens and
 //!   serves, filling the window under everything else, with a notice over it
-//!   (`SESSION_NOTICE_LAYER`) while its app loads or after it stopped. Its children come with
-//!   4g7b3.
+//!   (`SESSION_NOTICE_LAYER`) while its app loads or after it stopped; one that stopped once it
+//!   ran asks for the session picker. Its children come with 4g7b3.
 //!
 //! Only the guest (`guest`, wasm32 alone) needs more than the constants below, which the tests
 //! that run it read natively.
