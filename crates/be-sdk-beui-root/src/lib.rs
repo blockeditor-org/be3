@@ -50,7 +50,7 @@ use beui_renderer_wgpu::{Repaint, Resources};
 use beui_runner::renderer::{Loaded, Renderer};
 use beui_runner::{Incoming, Launch, PlatformServices, RunOptions, Runner};
 use beui_types::geometry::Region;
-use beui_types::{Color32, PreferenceSource, Preferences, Rect, Vec2, WindowId, vec2};
+use beui_types::{Color32, Preferences, Rect, Vec2, WindowId, vec2};
 
 /// What the surfaces of one root drawn with beui share.
 #[derive(Clone)]
@@ -131,10 +131,8 @@ impl BeuiRoot {
         self.0.clock.get().0
     }
 
-    /// Pins beui's clocks for `context` to the host's, and its preferences to the host's: they
-    /// are the system's, as a platform's are to a program.
+    /// Pins beui's clocks for `context` to the host's.
     fn pin(&self, context: &Context) {
-        context.set_preference_layer(PreferenceSource::System, self.0.preferences.get().into());
         let (time, wall_clock) = self.0.clock.get();
         let now = self.0.epoch + time;
         context.set_clock(now);
@@ -269,6 +267,10 @@ impl BeuiSurface {
         });
         runner.reports().resized(width, height);
         runner.reports().scaled(raster);
+        // The host's preferences are the system's, as a platform's are to a program.
+        runner
+            .reports()
+            .system_preferences(root.0.preferences.get().into());
         let woken = Arc::new(AtomicBool::new(false));
         let waking = Arc::clone(&woken);
         let wake: Arc<dyn Fn() + Send + Sync> = Arc::new(wake);
@@ -397,6 +399,10 @@ impl BeuiSurface {
         }
         self.woken.store(false, Ordering::Release);
         self.root.pin(self.runner.context());
+        // The host's preferences are the system's, as a platform's are to a program.
+        self.runner
+            .reports()
+            .system_preferences(self.root.0.preferences.get().into());
         let mut window = Window {
             paste_shortcut: self.root.0.paste_shortcut.get(),
         };
