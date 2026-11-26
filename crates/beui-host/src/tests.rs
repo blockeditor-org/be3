@@ -759,6 +759,7 @@ mod autoscrolling_slowly_away_from_the_end_of_a_following_scroll_leaves_it;
 mod back_and_a_press_outside_close_the_emoji_menu_and_back_the_find_bar;
 mod backspace_deletes_the_character_before_the_caret;
 mod bars_docked_along_one_edge_share_its_band_side_by_side;
+mod bars_on_a_deeper_layers_pane_come_back_there_in_the_order_dropped;
 mod bars_of_one_key_from_two_docked_tabs_share_one_window_that_follows_the_tab_shown_last;
 mod beuis_keyboard_is_used_only_where_the_platform_has_none_of_its_own;
 mod breaking_anywhere_wraps_monospace_text_every_column;
@@ -3546,4 +3547,158 @@ fn hosted_dock(size: Vec2) -> Dock {
         open,
         locked,
     }
+}
+
+#[component]
+pub(crate) fn LayerBar(name: &'static str) -> NodeId {
+    let bar = dock::use_dock_bar();
+    let direction = create_memo(move || bar.map_or(Direction::Horizontal, |bar| bar.direction()));
+    view! {
+        <Frame @test_id={format!("bar.{name}")}>
+            <List direction={direction} spacing=4.0>
+                <dock::styled::DockBarGrip />
+                <Frame width=24.0 height=24.0 />
+                <Frame width=24.0 height=24.0 />
+            </List>
+        </Frame>
+    }
+}
+
+pub(crate) struct LayeredDock {
+    pub(crate) outer: dock::DockingLayout<u64>,
+    pub(crate) middle: dock::DockingLayout<u64>,
+    pub(crate) inner: dock::DockingLayout<u64>,
+}
+
+/// Each layer's snapshot, outermost first, as their owners would save them apart.
+pub(crate) type LayeredSnapshots = [dock::DockingSnapshot<u64>; 3];
+
+/// Three layers: the outer dock's tab 2 hosts the middle dock (panes 10 and 11), whose tab 11
+/// hosts the inner dock (panes 20 over 21). The middle dock's own bar ("middle", lent to tab 2)
+/// starts floating over its first pane; the inner dock's own bar ("inner", lent to tab 11) docks
+/// in the top band of its first pane. With `saved`, each layer restores its snapshot as it is
+/// built, as an editor reopened would.
+pub(crate) fn layered_dock(saved: Option<LayeredSnapshots>) -> (Document, LayeredDock) {
+    use dock::{
+        DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockSplit, DockTab,
+        DockingLayout, SplitSize,
+    };
+    let built = Rc::new(std::cell::Cell::new(None));
+    let handle = Rc::clone(&built);
+    let document = build_node(move || {
+        let outer = DockingLayout::new();
+        let middle = DockingLayout::<u64>::new();
+        let inner = DockingLayout::<u64>::new();
+        if let Some([saved_outer, saved_middle, saved_inner]) = saved.clone() {
+            outer.restore(saved_outer);
+            middle.restore(saved_middle);
+            inner.restore(saved_inner);
+        }
+        handle.set(Some(LayeredDock {
+            outer,
+            middle,
+            inner,
+        }));
+        let over = DockBarPlacement::Over(DockEdge::Top, DockAlign::Center);
+        let band = DockBarPlacement::Beside(DockEdge::Top, DockAlign::Center);
+        view! {
+            <dock_host::styled::DockHost>
+                <dock::Docking layout=outer focus=2u64>
+                    <DockSplit id="root" size={SplitSize::Fraction(0.2)}>
+                        <DockPane id="side">
+                            <DockTab id=1u64 title="Side">
+                                <Frame @test_id="content.1" />
+                            </DockTab>
+                        </DockPane>
+                        <DockPane id="main">
+                            <DockTab id=2u64 title="Nested">
+                                <dock::Docking layout=middle>
+                                    <DockSplit id="middle" size={SplitSize::Fraction(0.5)}>
+                                        <DockPane id="left">
+                                            <DockTab id=10u64 title="Left">
+                                                <Frame @test_id="content.10" />
+                                            </DockTab>
+                                        </DockPane>
+                                        <DockPane id="right">
+                                            <DockTab id=11u64 title="Right">
+                                                <dock::Docking layout=inner>
+                                                    <DockSplit
+                                                        id="inner"
+                                                        size={SplitSize::Fraction(0.5)}
+                                                        direction={Direction::Vertical}
+                                                    >
+                                                        <DockPane id="upper">
+                                                            <DockTab id=20u64 title="Upper">
+                                                                <Frame @test_id="content.20" />
+                                                            </DockTab>
+                                                        </DockPane>
+                                                        <DockPane id="lower">
+                                                            <DockTab id=21u64 title="Lower">
+                                                                <Frame @test_id="content.21" />
+                                                            </DockTab>
+                                                        </DockPane>
+                                                    </DockSplit>
+                                                    <DockBar id=8u64 placement=band>
+                                                        <LayerBar name="inner" />
+                                                    </DockBar>
+                                                </dock::Docking>
+                                            </DockTab>
+                                        </DockPane>
+                                    </DockSplit>
+                                    <DockBar id=9u64 placement=over>
+                                        <LayerBar name="middle" />
+                                    </DockBar>
+                                </dock::Docking>
+                            </DockTab>
+                        </DockPane>
+                    </DockSplit>
+                </dock::Docking>
+            </dock_host::styled::DockHost>
+        }
+    });
+    let built = built.take().expect("the dock was built");
+    (document, built)
+}
+
+/// The grip leading a `LayerBar`.
+pub(crate) fn grip_of(harness: &Harness, name: &str) -> Pos2 {
+    let bar = harness.find(name);
+    let list = harness.document().children(bar)[0];
+    harness.center(harness.document().children(list)[0])
+}
+
+/// The middle layer's bar as the outer dock holds it (the one bar that may show on three
+/// panes): the tab naming the pane it shows on, and its placement.
+pub(crate) fn middle_bar(outer: &dock::DockingLayout<u64>) -> (Option<dock::TabId>, Option<dock::DockBarPlacement>) {
+    let state = outer.state().get_untracked();
+    let bar = state
+        .bars()
+        .into_iter()
+        .find(|bar| state.bar_panes(*bar).len() == 3)
+        .expect("the middle dock's own bar is lent to the tab hosting it");
+    (state.bar_tab(bar), state.bar_placement(bar))
+}
+
+pub(crate) fn inside(edge: dock::DockEdge, body: Rect) -> Pos2 {
+    match edge {
+        dock::DockEdge::Top => pos2(body.center().x, body.top() + 4.0),
+        dock::DockEdge::Bottom => pos2(body.center().x, body.bottom() - 4.0),
+        dock::DockEdge::Left => pos2(body.left() + 4.0, body.center().y),
+        dock::DockEdge::Right => pos2(body.right() - 4.0, body.center().y),
+    }
+}
+
+pub(crate) fn along(edge: dock::DockEdge, bar: Rect, body: Rect) -> bool {
+    match edge {
+        dock::DockEdge::Top => (bar.bottom() - body.top()).abs() < 2.0,
+        dock::DockEdge::Bottom => (bar.top() - body.bottom()).abs() < 2.0,
+        dock::DockEdge::Left => (bar.right() - body.left()).abs() < 2.0,
+        dock::DockEdge::Right => (bar.left() - body.right()).abs() < 2.0,
+    }
+}
+
+pub(crate) fn side_by_side(harness: &Harness, first: &str, second: &str) -> bool {
+    let first = harness.rect(harness.find(first));
+    let second = harness.rect(harness.find(second));
+    (first.center().y - second.center().y).abs() < 2.0 && first.right() <= second.left() + 1.0
 }

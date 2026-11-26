@@ -3,7 +3,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use beui_dock_state::{
-    DockBarPlacement, DockMapping, DockMode, DockSpec, DockSpecNode, DockState, TabId, joined_host,
+    DockBarPane, DockBarPlacement, DockMapping, DockMode, DockSpec, DockSpecNode, DockState, TabId, joined_host,
     joined_key, joined_prefix,
 };
 use beui_view::reactive::NodeId;
@@ -343,6 +343,78 @@ impl Registry {
         }
     }
 
+    /// The tab of this dock a bar's pane names, once every dock it is named through has joined
+    /// and its tab has an id here: every dock joins the one that places its tab bodies, the
+    /// outermost, so each step is a tab of the dock the one before hosts (`Foreign::outer`).
+    pub(crate) fn resolve(&self, pane: &DockBarPane) -> Option<TabId> {
+        let (reached, rest) = self.reach(pane);
+        rest.is_empty().then_some(reached)
+    }
+
+    /// As far as `pane` resolves here: the tab reached, and the steps left beyond it.
+    fn reach(&self, pane: &DockBarPane) -> (TabId, Vec<TabId>) {
+        let foreign = self.foreign.borrow();
+        let mut steps = pane.via.iter().copied().chain(std::iter::once(pane.tab));
+        let mut reached = steps.next().expect("a pane names at least its tab");
+        let mut rest: Vec<TabId> = steps.collect();
+        while let Some(next) = rest.first().copied() {
+            let Some(outer) = foreign.outer(reached, next) else {
+                break;
+            };
+            reached = outer;
+            rest.remove(0);
+        }
+        (reached, rest)
+    }
+
+    /// `pane` named as far as it resolves here.
+    fn reached(&self, pane: &DockBarPane) -> DockBarPane {
+        let (reached, mut rest) = self.reach(pane);
+        match rest.pop() {
+            Some(tab) => {
+                rest.insert(0, reached);
+                DockBarPane { via: rest, tab }
+            }
+            None => DockBarPane::own(reached),
+        }
+    }
+
+    /// How `pane` is named from this dock's own tabs: a tab a joined dock holds, through the
+    /// tabs hosting it, down to its own id in the dock that declared it.
+    pub(crate) fn path_of(&self, pane: &DockBarPane) -> DockBarPane {
+        let foreign = self.foreign.borrow();
+        let mut path = pane.clone();
+        loop {
+            let first = path.via.first().copied().unwrap_or(path.tab);
+            let Some((host, inner)) = foreign.inner(first) else {
+                return path;
+            };
+            match path.via.first_mut() {
+                Some(step) => *step = inner,
+                None => path.tab = inner,
+            }
+            path.via.insert(0, host);
+        }
+    }
+
+    /// `state` with the bar panes it names through docks joined since resolved to tabs it holds,
+    /// if any were.
+    pub(crate) fn resolve_bar_panes(&self, state: &DockState) -> Option<DockState> {
+        let mut next = state.clone();
+        let mut changed = false;
+        for bar in state.bars() {
+            let Some(pane) = state.bar_pane_tab(bar).filter(|pane| !pane.via.is_empty()) else {
+                continue;
+            };
+            if let Some(tab) = self.resolve(pane).filter(|tab| state.contains(*tab)) {
+                next.set_bar_pane_tab(bar, Some(DockBarPane::own(tab)));
+                next.place_by_slot(bar);
+                changed = true;
+            }
+        }
+        changed.then_some(next)
+    }
+
     pub(crate) fn graft(&self, state: &mut DockState, host: TabId, from: &DockState) -> bool {
         let Some(group) = state.find_group(&joined_key(host)) else {
             return false;
@@ -356,6 +428,11 @@ impl Registry {
                 tab: &|inner| foreign.outer(host, inner),
                 key: &|key| Some(format!("{prefix}{key}")),
                 group: &|_| None,
+                pane: Some(&|pane| {
+                    let mut via = vec![host];
+                    via.extend_from_slice(&pane.via);
+                    Some(self.reached(&DockBarPane { via, tab: pane.tab }))
+                }),
             },
         );
         true
@@ -400,6 +477,14 @@ impl Registry {
                     tab: &inner,
                     key: &|key| key.strip_prefix(prefix.as_str()).map(str::to_owned),
                     group: &|key| joined_host(key).and_then(inner),
+                    pane: Some(&|pane| {
+                        let path = self.path_of(pane);
+                        let (first, via) = path.via.split_first()?;
+                        (*first == host).then(|| DockBarPane {
+                            via: via.to_vec(),
+                            tab: path.tab,
+                        })
+                    }),
                 },
             );
             subtree.set_outside(state.outside_of(group, &inner));

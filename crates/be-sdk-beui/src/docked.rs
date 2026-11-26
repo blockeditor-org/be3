@@ -8,7 +8,7 @@ use be_sdk_api::{ChildId, DockTabPath};
 use beui::NodeId;
 use beui::dock::SplitSize;
 use beui::dock::{
-    DockAlign, DockBarControl, DockBarMove, DockBarPlacement, DockBodies, DockCompact,
+    DockAlign, DockBarControl, DockBarPane, DockBarMove, DockBarPlacement, DockBodies, DockCompact,
     DockDeclaration, DockDeclaredBar, DockDeclaredDialog, DockDeclaredGroup, DockDeclaredTab,
     DockDragStage, DockEdge, DockHostEvent, DockHostLink, DockHostSlot, DockHosted, DockMapping,
     DockMode, DockOutside, DockOutsidePlace, DockRequest, DockSpec, DockSpecBar, DockSpecEntry,
@@ -1010,6 +1010,7 @@ fn nested_restore(
             tab: &|tab| Some(tab),
             key: &|key| Some(key.to_owned()),
             group: &|_| None,
+            pane: None,
         },
     );
     Some(DockRequest::Restore(state))
@@ -1405,13 +1406,61 @@ pub struct SavedDockLayout {
     layout: api::DockLayout,
     recent: Vec<u64>,
     history: Vec<(u64, u64, bool)>,
+    bars: Vec<SavedBarPlace>,
+}
+
+/// What `layout`'s bars cannot say: a pane of a dock joined below this one, named through the
+/// tabs hosting it (`via`, with `pane` that dock's own id), and where the bar was among its pane's
+/// bars across layers (`DockSpecBar::slot`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+struct SavedBarPlace {
+    bar: u64,
+    via: Vec<u64>,
+    pane: u64,
+    slot: Option<u64>,
+}
+
+impl SavedBarPlace {
+    fn of(bar: &DockSpecBar) -> Option<Self> {
+        let deeper = bar.pane.as_ref().filter(|pane| !pane.via.is_empty());
+        if deeper.is_none() && bar.slot.is_none() {
+            return None;
+        }
+        Some(Self {
+            bar: bar.bar.value(),
+            via: deeper.map_or_else(Vec::new, |pane| {
+                pane.via.iter().map(|tab| tab.value()).collect()
+            }),
+            pane: deeper.map_or(0, |pane| pane.tab.value()),
+            slot: bar.slot.map(|slot| slot as u64),
+        })
+    }
+
+    fn apply(&self, spec: &mut DockSpec) {
+        let Some(bar) = spec
+            .bars
+            .iter_mut()
+            .find(|bar| bar.bar.value() == self.bar)
+        else {
+            return;
+        };
+        if !self.via.is_empty() {
+            bar.pane = Some(DockBarPane {
+                via: self.via.iter().copied().map(TabId::new).collect(),
+                tab: TabId::new(self.pane),
+            });
+        }
+        bar.slot = self.slot.map(|slot| slot as usize);
+    }
 }
 
 impl SavedDockLayout {
     pub fn of(snapshot: &DockingSnapshot<TabId>) -> Self {
         let state = snapshot.state();
+        let spec = state.spec();
         Self {
-            layout: spec_to_layout(&state.spec(), &own_path),
+            bars: spec.bars.iter().filter_map(SavedBarPlace::of).collect(),
+            layout: spec_to_layout(&spec, &own_path),
             recent: state.recent_tabs().iter().map(|tab| tab.value()).collect(),
             history: state
                 .history()
@@ -1422,9 +1471,12 @@ impl SavedDockLayout {
     }
 
     pub fn snapshot(&self) -> DockingSnapshot<TabId> {
-        let spec = layout_to_spec(&self.layout, &mut |path| {
+        let mut spec = layout_to_spec(&self.layout, &mut |path| {
             path.is_own().then(|| TabId::new(path.tab))
         });
+        for place in &self.bars {
+            place.apply(&mut spec);
+        }
         let mut state = DockState::from_spec(&spec);
         state.keep_visits(
             self.recent.iter().copied().map(TabId::new).collect(),
@@ -1451,6 +1503,20 @@ impl SavedDockLayout {
         });
         let mapped = |tab: u64| map(TabId::new(tab)).value();
         Self {
+            bars: self
+                .bars
+                .iter()
+                .map(|place| SavedBarPlace {
+                    bar: mapped(place.bar),
+                    via: place
+                        .via
+                        .iter()
+                        .enumerate()
+                        .map(|(at, &tab)| if at == 0 { mapped(tab) } else { tab })
+                        .collect(),
+                    ..place.clone()
+                })
+                .collect(),
             layout: spec_to_layout(&spec, &own_path),
             recent: self.recent.iter().map(|&tab| mapped(tab)).collect(),
             history: self
@@ -1488,7 +1554,11 @@ fn spec_to_layout(spec: &DockSpec, path: PathOf<'_>) -> api::DockLayout {
                     },
                     placement: placement_to_api(bar.placement),
                     hidden: bar.hidden,
-                    pane: bar.pane.and_then(path),
+                    pane: bar
+                        .pane
+                        .as_ref()
+                        .and_then(DockBarPane::resolved)
+                        .and_then(path),
                 })
             })
             .collect(),
@@ -1571,7 +1641,8 @@ fn layout_to_spec(layout: &api::DockLayout, tab: TabOf<'_>) -> DockSpec {
                     },
                     placement: placement_from_api(&bar.placement),
                     hidden: bar.hidden,
-                    pane: bar.pane.as_ref().and_then(&mut *tab),
+                    pane: bar.pane.as_ref().and_then(&mut *tab).map(DockBarPane::own),
+                    slot: None,
                 })
             })
             .collect(),

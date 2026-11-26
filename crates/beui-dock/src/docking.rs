@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 use beui_dock_state::{
-    DockBarPlacement, DockEdge, DockMode, DockSpec, DockSpecBar, DockSpecEntry, DockSpecNode,
+    DockBarPane, DockBarPlacement, DockEdge, DockMode, DockSpec, DockSpecBar, DockSpecEntry, DockSpecNode,
     DockSpecPane, DockSpecWindow, DockState, SIDE_PANEL_WIDTH, SplitSize, TabId, joined_host,
     joined_key, joined_prefix,
 };
@@ -390,6 +390,16 @@ impl AnyDockingLayout {
     fn snapshot_ids(&self) -> (DockState, Vec<(DockId, TabId)>) {
         let mut state = self.state.get();
         let inner = self.inner();
+        // Before the joined docks' tabs go: a pane of a dock joined below this one named through
+        // the tabs hosting it, as that dock saves its tabs itself.
+        for bar in state.bars() {
+            let path = state
+                .bar_pane_tab(bar)
+                .map(|pane| inner.registry.path_of(pane));
+            if let Some(path) = path {
+                state.set_bar_pane_tab(bar, Some(path));
+            }
+        }
         while let Some((group, host)) = state.joined_groups().first().copied() {
             state.unhost_group(group, host);
         }
@@ -731,7 +741,11 @@ impl AnyDockingLayout {
                     kind,
                     owner,
                     placement: bar.placement,
-                    pane: bar.pane.and_then(|pane| spec.owner_tab(pane)),
+                    pane: bar
+                        .pane
+                        .as_ref()
+                        .and_then(DockBarPane::resolved)
+                        .and_then(|pane| spec.owner_tab(pane)),
                 })
             })
             .collect()
@@ -799,9 +813,11 @@ impl AnyDockingLayout {
             self.mode.set(hosted.mode);
         }
         inner.hosted.set(hosted);
-        let grafted = self
-            .state
-            .with_untracked(|state| inner.registry.graft_pending(state));
+        let grafted = self.state.with_untracked(|state| {
+            let grafted = inner.registry.graft_pending(state);
+            let held = grafted.as_ref().unwrap_or(state);
+            inner.registry.resolve_bar_panes(held).or(grafted)
+        });
         if let Some(grafted) = grafted {
             self.ask(DockRequest::Restore(grafted));
         }
@@ -844,6 +860,7 @@ impl AnyDockingLayout {
                     placement: *placement,
                     hidden: false,
                     pane: None,
+                    slot: None,
                 });
             }
         }
@@ -1124,7 +1141,10 @@ impl AnyDockingLayout {
                 owner: Some(owner),
                 placement: declared.placement,
                 hidden: false,
-                pane: declared.pane.map(|pane| self.mint_foreign(host, pane)),
+                pane: declared
+                    .pane
+                    .map(|pane| DockBarPane::own(self.mint_foreign(host, pane))),
+                slot: None,
             });
         }
         for window in &spec.windows {

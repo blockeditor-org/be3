@@ -4,7 +4,7 @@ use be_lib_geometry::Direction;
 use be_lib_geometry::{Pos2, Rect};
 
 use super::{
-    Bar, DockBarPlacement, DockCompact, DockEdge, DockHome, DockOutside, DockState, Entry,
+    Bar, DockBarPane, DockBarPlacement, DockCompact, DockEdge, DockHome, DockOutside, DockState, Entry,
     FLOATING_SIZE, Group, GroupId, Home, Leaf, LeafId, MIN_SIDEBAR_WIDTH, Node, Side, Split,
     SplitId, SplitSize, Surface, SurfaceId, TabId, Tree,
 };
@@ -33,7 +33,9 @@ pub struct DockSpecBar {
     pub hidden: bool,
     /// The tab of the owner's joined dock whose pane shows the bar (`DockState::place_bar_on`);
     /// `None` is its first pane.
-    pub pane: Option<TabId>,
+    pub pane: Option<DockBarPane>,
+    /// Where the bar was among its pane's bars across layers when saved (`number_bar_slots`).
+    pub slot: Option<usize>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -362,7 +364,8 @@ impl DockState {
                     owner: declared.owner,
                     placement: declared.placement,
                     hidden: declared.hidden,
-                    pane: declared.pane,
+                    pane: declared.pane.clone(),
+                    slot: declared.slot,
                 },
             );
         }

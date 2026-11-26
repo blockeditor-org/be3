@@ -10,6 +10,7 @@ fn bar(bar: u64, owner: u64) -> DockSpecBar {
         placement: TOP,
         hidden: false,
         pane: None,
+        slot: None,
     }
 }
 

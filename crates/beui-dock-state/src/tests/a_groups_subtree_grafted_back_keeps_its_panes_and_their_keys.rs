@@ -28,6 +28,7 @@ fn a_groups_subtree_grafted_back_keeps_its_panes_and_their_keys() {
         tab: &|tab| (tab.value() >= 10).then(|| TabId::new(tab.value() - 10)),
         key: &|key| key.strip_prefix("x/").map(str::to_owned),
         group: &|_| None,
+        pane: None,
     };
 
     let mut subtree = state.subtree(group, &out);
@@ -54,6 +55,7 @@ fn a_groups_subtree_grafted_back_keeps_its_panes_and_their_keys() {
         tab: &|tab| Some(TabId::new(tab.value() + 10)),
         key: &|key| Some(format!("x/{key}")),
         group: &|_| None,
+        pane: None,
     };
     state.graft(group, &subtree, &back);
 

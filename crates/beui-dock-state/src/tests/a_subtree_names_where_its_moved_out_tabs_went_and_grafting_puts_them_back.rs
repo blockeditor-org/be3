@@ -48,6 +48,7 @@ fn a_subtree_names_where_its_moved_out_tabs_went_and_grafting_puts_them_back() {
             tab: &inner,
             key: &|key| key.strip_prefix("x/").map(str::to_owned),
             group: &|_| None,
+            pane: None,
         },
     );
     subtree.set_outside(outside);
@@ -63,6 +64,7 @@ fn a_subtree_names_where_its_moved_out_tabs_went_and_grafting_puts_them_back() {
             tab: &|tab| Some(TabId::new(tab.value() + 10)),
             key: &|key| Some(format!("x/{key}")),
             group: &|_| None,
+            pane: None,
         },
     );
     let right = leaf_of(&fresh, 2);

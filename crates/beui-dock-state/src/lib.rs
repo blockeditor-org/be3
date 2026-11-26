@@ -17,7 +17,7 @@ mod spec;
 mod switch;
 
 use bars::Bar;
-pub use bars::{DockAlign, DockBarPlacement, DockEdge};
+pub use bars::{DockAlign, DockBarPane, DockBarPlacement, DockEdge};
 pub use compact::{COMPACT_SHARE, COMPACT_SIDE, DockCompact, compact_length};
 pub use history::DockVisit;
 pub use joined::{

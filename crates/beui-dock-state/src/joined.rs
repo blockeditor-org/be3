@@ -3,7 +3,7 @@ use be_lib_stable_hash::{HashMap, HashSet};
 use be_lib_geometry::Rect;
 
 use super::{
-    Bar, DockCompact, DockHome, DockSpecNode, DockState, DockVisit, Entry, Group, GroupId, Home,
+    Bar, DockBarPane, DockCompact, DockHome, DockSpecNode, DockState, DockVisit, Entry, Group, GroupId, Home,
     LeafId, Node, Split, SplitId, TabId, Tree,
 };
 
@@ -40,6 +40,17 @@ pub struct DockMapping<'a> {
     pub tab: &'a dyn Fn(TabId) -> Option<TabId>,
     pub key: &'a dyn Fn(&str) -> Option<String>,
     pub group: &'a dyn Fn(&str) -> Option<TabId>,
+    /// Maps the pane a bar shows on (`DockBarPane`); `None` maps its first step with `tab`.
+    pub pane: Option<&'a dyn Fn(&DockBarPane) -> Option<DockBarPane>>,
+}
+
+impl DockMapping<'_> {
+    fn pane(&self, pane: &DockBarPane) -> Option<DockBarPane> {
+        match self.pane {
+            Some(map) => map(pane),
+            None => pane.mapped(self.tab),
+        }
+    }
 }
 
 #[derive(Default)]
@@ -392,7 +403,8 @@ impl DockState {
                     owner,
                     placement: bar.placement,
                     hidden: bar.hidden,
-                    pane: bar.pane.and_then(|pane| (map.tab)(pane)),
+                    pane: bar.pane.as_ref().and_then(|pane| map.pane(pane)),
+                    slot: bar.slot,
                 })
             })
             .collect();
@@ -532,7 +544,13 @@ impl DockState {
             self.set_bar_placement(moved, bar.placement);
             self.set_bar_hidden(moved, bar.hidden);
             if let Some(held) = self.bars.iter_mut().find(|held| held.bar == moved) {
-                held.pane = bar.pane.and_then(|pane| (map.tab)(pane));
+                held.pane = bar.pane.as_ref().and_then(|pane| map.pane(pane));
+                held.slot = bar.slot;
+            }
+        }
+        for bar in &from.bars {
+            if let Some(moved) = (map.tab)(bar.bar) {
+                self.place_by_slot(moved);
             }
         }
         let unlocked: Vec<DockHome> = from
