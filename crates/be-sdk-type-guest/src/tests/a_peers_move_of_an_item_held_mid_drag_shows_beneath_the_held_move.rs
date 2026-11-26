@@ -1,8 +1,8 @@
 use super::*;
 
-/// A peer changes the item a drag here holds: this device keeps showing the held value on top
-/// of it, and once the drag commits every replica ends with the drag's, which the order took
-/// last.
+/// A peer changes the item a drag here holds: both devices show the held value on top of it,
+/// the peer previewing the drag above its own edit, and once the drag commits every replica
+/// ends with the drag's, which the order took last.
 #[test]
 fn a_peers_move_of_an_item_held_mid_drag_shows_beneath_the_held_move() {
     let (mut sim, a, _) = super::tentative::dragging(2);
@@ -14,7 +14,7 @@ fn a_peers_move_of_an_item_held_mid_drag_shows_beneath_the_held_move() {
     assert_eq!(texts(sim.mirror(0, 1)), ["mine", "b"]);
     assert_eq!(texts(sim.mirror(0, 2)), ["mine", "b"]);
     assert_eq!(texts(&sim.content(0)), ["theirs", "b"]);
-    assert_eq!(texts(sim.mirror(1, 1)), ["theirs", "b"]);
+    assert_eq!(texts(sim.mirror(1, 1)), ["mine", "b"]);
 
     sim.gesture(0, 1, Gesture::Commit);
     sim.settle();

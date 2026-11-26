@@ -392,7 +392,7 @@ impl Inner {
                         operations
                             .iter()
                             .filter(|operation| !operation.mine)
-                            .map(|operation| operation.operation.clone()),
+                            .filter_map(|operation| operation.operation.clone()),
                     );
                 }
                 if let Some(held) = self.blocks.get_mut(&block) {

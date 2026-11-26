@@ -192,3 +192,304 @@ where
         }
     }
 }
+
+/// A peer's tentative layer, previewed here as it is told (`SessionMessage::Held`).
+pub(super) struct PeerLayer<Op> {
+    layer: u64,
+    origin: u64,
+    /// How many of the peer's held edits it stands for (`Held::to`).
+    to: u64,
+    operations: Vec<Op>,
+    /// The peer's last local edit it goes out as, once it commits.
+    commits_through: Option<u64>,
+}
+
+impl<C, H> Replica<C, H>
+where
+    C: LiveEdit + Merge + Clone + Default,
+    H: Recorder<C>,
+{
+    /// Whether anything shows above this replica's unconfirmed edits: its own tentative layer
+    /// or a peer's.
+    pub(super) fn layered(&self) -> bool {
+        !self.tentative.is_empty() || !self.peer_layers.is_empty()
+    }
+
+    /// How many edits the peers' layers show.
+    pub(super) fn peer_edits(&self) -> usize {
+        self.peer_layers
+            .values()
+            .map(|layer| layer.operations.len())
+            .sum()
+    }
+
+    /// The edits shown above this replica's unconfirmed ones, in the order they show: the
+    /// peers' layers, then its own.
+    pub(super) fn layer_edits(&self) -> Vec<C::Op> {
+        self.peer_layers
+            .values()
+            .flat_map(|layer| layer.operations.iter().cloned())
+            .chain(self.tentative.iter().map(|held| held.operation.clone()))
+            .collect()
+    }
+
+    /// Applies the layers to `content`, which shows what is beneath them.
+    pub(super) fn apply_layers(&self, content: &mut C) {
+        for layer in self.peer_layers.values() {
+            for operation in &layer.operations {
+                content.apply(operation);
+            }
+        }
+        for held in &self.tentative {
+            content.apply(&held.operation);
+        }
+    }
+
+    /// What shows, but for the peers' layers: what this replica's own edits are recorded
+    /// against for undo.
+    pub(super) fn own_visible(&self) -> C {
+        if self.peer_layers.is_empty() {
+            return self.visible.clone();
+        }
+        let mut content = self.layer_free();
+        for held in &self.tentative {
+            content.apply(&held.operation);
+        }
+        content
+    }
+
+    /// What shows, composed afresh: the unconfirmed edits, then the layers.
+    pub(super) fn composed(&self) -> C {
+        let mut content = self.layer_free();
+        self.apply_layers(&mut content);
+        content
+    }
+
+    /// Every edit shown unsettled, in order, as the editors are told it after an edit
+    /// beneath them all: each unsent operation then counts as one.
+    pub(super) fn unsettled_edits(&mut self) -> Vec<C::Op> {
+        let mut local: Vec<C::Op> = self
+            .pending
+            .iter()
+            .filter_map(|sent| sent.operation.clone())
+            .collect();
+        self.in_flight = local.len() as u64;
+        for (pending, _, weight, ..) in &mut self.unsent {
+            local.push(pending.clone());
+            *weight = 1;
+        }
+        local.extend(self.layer_edits());
+        local
+    }
+
+    /// The peers whose layers the order holds now, committed.
+    pub(super) fn reached_layers(&self) -> Vec<ClientId> {
+        self.peer_layers
+            .iter()
+            .filter(|(_, layer)| self.reached(layer))
+            .map(|(client, _)| *client)
+            .collect()
+    }
+
+    fn reached(&self, layer: &PeerLayer<C::Op>) -> bool {
+        layer.commits_through.is_some_and(|through| {
+            self.origins
+                .get(&layer.origin)
+                .is_some_and(|(held, _)| *held >= through)
+        })
+    }
+
+    /// `from` told its tentative layer (`SessionMessage::Held`).
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn heard_held(
+        &mut self,
+        from: ClientId,
+        layer: u64,
+        origin: u64,
+        start: u64,
+        to: u64,
+        operations: Vec<serde_bytes::ByteBuf>,
+        commits_through: Option<u64>,
+    ) {
+        if from == self.client || !may_hold(&self.state, from) || !self.loaded {
+            return;
+        }
+        if self.unreadable.is_some() || self.not_yet || self.diverged {
+            return;
+        }
+        if self
+            .peer_layers
+            .get(&from)
+            .is_some_and(|held| held.layer > layer)
+        {
+            return;
+        }
+        let Ok(operations) = operations
+            .iter()
+            .map(|operation| C::decode_operation(operation))
+            .collect::<Result<Vec<_>, _>>()
+        else {
+            self.incompatible = true;
+            return self.drop_peer_layer(from);
+        };
+        let held = self.peer_layers.get(&from);
+        let appends = start > 0 && held.is_some_and(|held| held.layer == layer && held.to == start);
+        if start > 0 && !appends {
+            // It holds another count of the layer's edits (it joined late, reloaded, or held
+            // an earlier layer): it shows none of it, and asks for the whole.
+            if held.is_some_and(|held| held.layer < layer) {
+                self.drop_peer_layer(from);
+            }
+            if self.asked_layers.get(&from) != Some(&layer) {
+                self.asked_layers.insert(from, layer);
+                self.send(Some(from), &SessionMessage::HeldAgain);
+            }
+            return;
+        }
+        if !appends {
+            self.asked_layers.remove(&from);
+            // Told whole, or dropped: what it held of the peer's leaves.
+            let before = self.unsettled();
+            let held_any = self
+                .peer_layers
+                .remove(&from)
+                .is_some_and(|held| !held.operations.is_empty());
+            if operations.is_empty() && commits_through.is_none() {
+                if held_any {
+                    self.relay(before);
+                }
+                return;
+            }
+            self.peer_layers.insert(
+                from,
+                PeerLayer {
+                    layer,
+                    origin,
+                    to,
+                    operations: match held_any {
+                        true => operations.clone(),
+                        false => Vec::new(),
+                    },
+                    commits_through,
+                },
+            );
+            match held_any {
+                true => self.relay(before),
+                false => {
+                    for operation in operations {
+                        self.land_peer_edit(from, operation);
+                    }
+                }
+            }
+        } else {
+            if let Some(held) = self.peer_layers.get_mut(&from) {
+                held.to = to;
+                held.commits_through = commits_through.or(held.commits_through);
+            }
+            for operation in operations {
+                self.land_peer_edit(from, operation);
+            }
+        }
+        // Told it commits once the order held it already.
+        if self
+            .peer_layers
+            .get(&from)
+            .is_some_and(|held| self.reached(held))
+        {
+            self.drop_peer_layer(from);
+        }
+    }
+
+    /// Shows `operation` on top of `client`'s layer, beneath the layers above it.
+    fn land_peer_edit(&mut self, client: ClientId, operation: C::Op) {
+        let shown_beneath = self.peer_edits() == 0 && self.tentative.is_empty();
+        let Some(layer) = self.peer_layers.get_mut(&client) else {
+            return;
+        };
+        layer.operations.push(operation.clone());
+        if shown_beneath {
+            self.beneath = Some(self.visible.clone());
+        }
+        if !self.covered {
+            return self.rebuild_visible();
+        }
+        let above: Vec<C::Op> = self
+            .peer_layers
+            .range(client + 1..)
+            .flat_map(|(_, layer)| layer.operations.iter().cloned())
+            .chain(self.tentative.iter().map(|held| held.operation.clone()))
+            .collect();
+        let unsettled = self.unsettled();
+        if above.is_empty() {
+            self.visible.apply(&operation);
+            return self.journal(
+                super::Journaled::Edited {
+                    operation,
+                    unsettled,
+                },
+                None,
+            );
+        }
+        // What shows beneath it: everything under the layers, then the layers up to its own,
+        // that one as it was.
+        let mut under = self.layer_free();
+        for (held, layer) in self.peer_layers.range(..=client) {
+            let shown = match *held == client {
+                true => layer.operations.len() - 1,
+                false => layer.operations.len(),
+            };
+            for operation in &layer.operations[..shown] {
+                under.apply(operation);
+            }
+        }
+        self.visible
+            .apply_beneath(&mut under, &operation, &above, &mut Vec::new());
+        self.journal(
+            super::Journaled::Under {
+                operation,
+                unsettled,
+                above: above.len() as u64,
+            },
+            None,
+        );
+    }
+
+    /// Drops what this replica shows of `client`'s layer.
+    pub(super) fn drop_peer_layer(&mut self, client: ClientId) {
+        let before = self.unsettled();
+        let held_any = self
+            .peer_layers
+            .remove(&client)
+            .is_some_and(|held| !held.operations.is_empty());
+        if held_any {
+            self.relay(before);
+        }
+    }
+
+    /// The layers changed with no edit beneath them, `before` edits having shown unsettled:
+    /// what shows is composed afresh, and the editors told what is unsettled now.
+    fn relay(&mut self, before: u64) {
+        if !self.covered {
+            return self.rebuild_visible();
+        }
+        self.beneath = None;
+        self.visible = self.composed();
+        let local = self.unsettled_edits();
+        self.journal(
+            super::Journaled::Relaid {
+                unsettled: before,
+                local,
+            },
+            None,
+        );
+    }
+}
+
+/// Whether `client` may send a `Held`: only a participant that may edit, as the server takes
+/// submissions only from them.
+fn may_hold(state: &be_block_protocol::SessionState, client: ClientId) -> bool {
+    state
+        .participants
+        .iter()
+        .any(|participant| participant.client == client && participant.may_edit)
+}
