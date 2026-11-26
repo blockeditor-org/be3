@@ -489,12 +489,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   beui-core-html's `watch()` seeds the signal synchronously the first time it
   is made, and those eager `measure` calls at build go.
 
-- **A lift wakes only the carries it concerns.** The board keeps every carried
-  payload in one `lifted` signal, so each `carries(&payload)` reader (every
-  slider, colour control and scrollbar thumb's `ThumbCarry`, every splitter, every
-  `is_carried` row) reruns on any lift or put-down anywhere in the tree. Done: a
-  per-payload signal or keyed subscription, so a lift wakes only the readers of
-  its own payload, shown by a test that counts the effects a lift runs.
 - **The display arrangement refits for a carried display.** The area's view
   fits the arrangement at the lift and clips what it draws, so a display
   carried to a place beyond that fit (below a display beside it) is cut off at

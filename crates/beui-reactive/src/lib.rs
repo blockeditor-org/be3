@@ -37,8 +37,8 @@ pub use loading::{Boundary, ErrorBoundary, Pending, Ready, hold};
 pub use memo::{Compute, Fresh, FromPrevious, Memo, create_memo};
 pub use reader::Reader;
 pub use runtime::{
-    ZoneGuard, check_tracked_read, component_body, enter_zone, flush, forget_zone, untrack,
-    wake_with, wake_zone_with, zone_pending,
+    ZoneGuard, check_tracked_read, component_body, enter_zone, flush, forget_zone, tracking,
+    untrack, wake_with, wake_zone_with, zone_pending,
 };
 pub use scope::{
     Release, RootScope, Scope, ScopeContext, child_scope, current_scope, on_cleanup, on_release,

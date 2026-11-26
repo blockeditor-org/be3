@@ -1,10 +1,11 @@
+use std::any::TypeId;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use be_lib_stable_hash::HashMap;
 use beui_view::drag::{CarryId, DragFrame};
 use beui_view::drag::{DragPoint, Driver, EdgeScroller, Order, Space};
-use beui_view::reactive::{Get, NodeId, OwnedSignal, tree_local};
+use beui_view::reactive::{Get, NodeId, OwnedSignal, OwnedTrigger, tree_local};
 
 mod sites;
 use beui_view::types::input::PointerId;
@@ -22,6 +23,14 @@ pub fn drag_board() -> Rc<Board> {
     })
 }
 
+/// A reader of one payload's carry: whether a payload is its own, and what wakes it.
+struct Watch {
+    matches: Box<dyn Fn(&dyn std::any::Any) -> bool>,
+    woken: OwnedTrigger,
+}
+
+type Watches = Rc<RefCell<HashMap<TypeId, HashMap<u64, Watch>>>>;
+
 /// The scroller a carry is scrolling: its id, how deep into its band, how to tell it, and
 /// the pointer whose carry scrolls it (only that one moves or stops it).
 type Scrolling = (u64, Vec2, Rc<dyn Fn(Option<Vec2>)>, PointerId);
@@ -38,8 +47,15 @@ pub struct Board {
     placing: RefCell<Vec<sites::Placing>>,
     /// The item a lift is lifting, while the sites give their places for it.
     lifting: Cell<Option<Rect>>,
-    /// Each carry's payload, by the id its lift returned.
+    /// Each carry's payload, by the id its lift returned. Readers track `watches` or `kinds`,
+    /// not this, so a lift wakes only the readers of its own payload.
     lifted: OwnedSignal<Vec<(CarryId, Erased)>>,
+    /// Each reader of one payload's carry (`carries`, `frame_of`), by the payload's type and
+    /// an id of its own: a lift or put-down wakes only those whose payload equals its own.
+    watches: Watches,
+    next_watch: Cell<u64>,
+    /// Readers of every carried payload of a type (`carried`), by the type.
+    kinds: RefCell<HashMap<TypeId, OwnedTrigger>>,
     /// The frame each carry shows.
     shown: OwnedSignal<Vec<(CarryId, DragFrame)>>,
     /// What the last carry said for a screen reader, and which carry said it.
@@ -59,6 +75,9 @@ impl Board {
             placing: RefCell::default(),
             lifting: Cell::default(),
             lifted: OwnedSignal::new(Vec::new()),
+            watches: Rc::default(),
+            next_watch: Cell::default(),
+            kinds: RefCell::default(),
             shown: OwnedSignal::new(Vec::new()),
             said: OwnedSignal::new(None),
         }
