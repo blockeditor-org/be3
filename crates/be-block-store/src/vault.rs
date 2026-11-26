@@ -564,15 +564,18 @@ impl<S: ObjectStore> Vault<S> {
     }
 
     /// Leaves `objects` out of what a collection may remove: they were put, or looked for, by
-    /// something other than the part writer that noted them, which may name them now.
+    /// something other than the part writer that noted them, which may name them now. A pinned
+    /// object stays noted: its writer, or whoever holds its part, reads it back as it works
+    /// (a merge reading what it merged), and the pin keeps it meanwhile.
     pub fn claim(&self, objects: &[Hash]) -> Result<(), StoreError> {
         let mut unnamed = self.unnamed();
         if unnamed.noted.is_empty() {
             return Ok(());
         }
+        let Unnamed { noted, pinned } = &mut *unnamed;
         let claimed: Vec<Hash> = objects
             .iter()
-            .filter(|object| unnamed.noted.remove(object).is_some())
+            .filter(|object| !pinned.contains_key(object) && noted.remove(object).is_some())
             .copied()
             .collect();
         if let (false, Some(ledger)) = (claimed.is_empty(), &self.ledger) {
