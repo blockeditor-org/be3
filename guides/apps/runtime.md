@@ -598,7 +598,7 @@ goes out after the poll that shows the held frame.
 A driven host can take presents in late (`drive present late`, `host::presents_late`): outside
 a poll, `Runtime::pump` holds everything an app sent from its first present on (`late`), and
 the app's presented frame with the worker, and settling counts the app as answered once only
-those are owed; the next poll hears them first. So a host test draws the frame between a
+those are owed; the next poll hears them first. So a host test reaches the frame between a
 layout and its present, as a present that misses its frame's deadline does
 (`on_a_phone_opening_a_document_from_the_files_steps_frame_by_frame_with_presents_late`).
 

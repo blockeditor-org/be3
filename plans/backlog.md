@@ -18,12 +18,14 @@ Fixed items are removed as they land.
   Done: both survive a save and restore, shown by a beui-host dock test.
 
 - **A stacked dock's old bar over the child that replaced it.** On a phone, with presents
-  late (`drive present late`), the frame after a document is opened from the files shows the
-  files' bar over the document's undrawn view: the children of the root's layout are applied
-  before the present that paints its new bar (frame 2 of
-  `on_a_phone_opening_a_document_from_the_files_steps_frame_by_frame_with_presents_late`), as
-  happens whenever a present misses its frame. Done: that frame shows the files under their
-  own bar, or the document's bar over its view, and the painting is accepted again.
+  late (`drive present late`), the frame after a document is opened from the files sometimes
+  shows the files' bar over the document's undrawn view, and sometimes the document's bar:
+  the children of the root's layout can be applied before the present that paints its new bar,
+  as happens whenever a present misses its frame, and which lands first varies between runs
+  (about 1 run in 6 under `stress`). Done: that frame shows the files under their own bar, or
+  the document's bar over its view, every run, and
+  `on_a_phone_opening_a_document_from_the_files_steps_frame_by_frame_with_presents_late` records
+  each frame of the opening (`HostTest::record_frame`) in a painting.
 
 ## 3. beui platforms
 
