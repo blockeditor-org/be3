@@ -3,9 +3,7 @@ use std::rc::Rc;
 use be_block_content::be_block_model::{Document, Field, FieldRef, List, Model};
 use be_block_content::{LiveEdit, ObjectId, Root, Touched};
 use be_sdk::LackingEdit;
-use be_sdk::{
-    BlockWatch, ContentGesture, LiveContent, Objects, Projected, Subscription, Unready,
-};
+use be_sdk::{BlockWatch, ContentGesture, LiveContent, Objects, Projected, Subscription, Unready};
 use beui::reactive::*;
 
 pub(crate) fn ready<T>(read: Result<T, Unready>) -> Ready<T> {

@@ -156,9 +156,11 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
     pub(crate) fn refused(block: Option<uuid::Uuid>, reason: String) -> Self {
         let live = Self::new(EditorHost::default(), block);
         live.0.refused.set(true);
-        let _ = live.0.mirror.borrow_mut().receive(
-            be_sdk_type_guest::editor::ToEditor::Failed(reason),
-        );
+        let _ = live
+            .0
+            .mirror
+            .borrow_mut()
+            .receive(be_sdk_type_guest::editor::ToEditor::Failed(reason));
         live
     }
 
@@ -509,10 +511,7 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
             return;
         }
         let due = self.0.due.borrow().clone();
-        let gone: Vec<_> = due
-            .into_iter()
-            .filter(|due| !due())
-            .collect();
+        let gone: Vec<_> = due.into_iter().filter(|due| !due()).collect();
         if !gone.is_empty() {
             self.0
                 .due

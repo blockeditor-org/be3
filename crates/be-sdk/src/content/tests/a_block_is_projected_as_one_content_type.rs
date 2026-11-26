@@ -35,7 +35,8 @@ fn a_block_is_projected_as_one_content_type() {
         ));
     }
     assert_eq!(
-        held.read(|content| content.root().items.len()).unwrap_or_default(),
+        held.read(|content| content.root().items.len())
+            .unwrap_or_default(),
         1
     );
 }
