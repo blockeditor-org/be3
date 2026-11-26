@@ -184,7 +184,11 @@ impl Canvas {
         let origin = crate::dom::origin();
         let placed_at = Pos2::new(rect.min.x - origin.x, rect.min.y - origin.y);
         let mut changed = self.arrange(rect.size());
-        if self.view.get().is_some() && (placed_at - self.placed_at.get()).length() >= 0.25 {
+        // A local view does not follow where the canvas is placed, so a scroll moves nothing.
+        if self.view.get().is_some()
+            && !self.local_view.get()
+            && (placed_at - self.placed_at.get()).length() >= 0.25
+        {
             self.placed_at.set(placed_at);
             self.apply();
             changed = true;
