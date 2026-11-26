@@ -938,10 +938,7 @@ pub(super) fn share_named(preview: &SharePreview) -> String {
         .split(|character: char| character.is_whitespace() || character.is_control())
         .filter(|word| !word.is_empty())
         .collect::<Vec<_>>()
-        .join(" ")
-        .chars()
-        .filter(|character| !character.is_control())
-        .collect();
+        .join(" ");
     match name.chars().count() {
         0 => "The block".to_owned(),
         count if count > 60 => format!("“{}…”", name.chars().take(60).collect::<String>()),

@@ -20,12 +20,7 @@ fn be_root_in_place_of_the_hosts_ui_lets_a_player_dig_through_the_editor_that_ho
     let mut laptop = HostTest::device(&dev);
 
     // An organization whose links admit anyone with an account, as a game's would.
-    laptop.click("#file-tree.host-menu");
-    laptop.click("#host.menu.switch-organization");
-    laptop.click("TextInput \"Organization name\"");
-    laptop.type_text("Studio");
-    laptop.click("Button \"Create\"");
-    laptop.wait("#file-tree.host-menu");
+    create_organization(&mut laptop, "Studio");
     laptop.click("Tab \"Settings\"");
     laptop.click("#settings.organization");
     laptop.click("#settings.organization.share-links");
