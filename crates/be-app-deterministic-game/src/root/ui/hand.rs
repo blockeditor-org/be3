@@ -1,4 +1,3 @@
-use be_sdk_beui::beui::CanvasView;
 use std::rc::Rc;
 
 use be_sdk_beui::beui::reactive::*;
@@ -54,7 +53,6 @@ pub(crate) fn HandBar(
                 .collect::<Vec<_>>()
         })
     });
-    let screen = Some(CanvasView::new(Pos2::ZERO, 1.0));
     let built = view! {
         <Layers>
             <Show value={shown}>
@@ -64,7 +62,7 @@ pub(crate) fn HandBar(
                     border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
                     @test_id={"game.hand"}
                 >
-                    <Canvas view={screen}>
+                    <Canvas>
                         <ForEach value={keys}>|(id, spot): (ItemId, Spot)|
                             <HandItem id spot hand={hand} bar={bar} play={play} hidden={hidden} />
                         </ForEach>
@@ -97,10 +95,13 @@ fn HandItem(
             Some((index, hand.len(), hand[index].clone()))
         })
     });
+    // The hand's rects are in the frame's points, as the bar was measured; the canvas places
+    // them from the bar's corner.
     let rect = create_memo(move || {
+        let bar = bar.get();
         held.get()
-            .and_then(|(index, count, _)| hand_rects(bar.get(), count).get(index).copied())
-            .unwrap_or(Rect::ZERO)
+            .and_then(|(index, count, _)| hand_rects(bar, count).get(index).copied())
+            .map_or(Rect::ZERO, |rect| rect.translate(-bar.min.to_vec2()))
     });
     let theme = use_theme();
     let draw = move || {

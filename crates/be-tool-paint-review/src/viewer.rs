@@ -345,7 +345,7 @@ fn Stage(review: Review) -> NodeId {
                             };
                             view! {
                                 <Frame focus={focused}>
-                                    <Canvas view local_view=true>
+                                    <Canvas view>
                                         <CanvasItem
                                             x=0.0
                                             y=0.0

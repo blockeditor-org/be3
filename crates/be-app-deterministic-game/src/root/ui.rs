@@ -321,6 +321,7 @@ fn GamePlay(
     };
     let stage = NodeRef::new();
     editor.content(&stage);
+    editor.name_canvas(&stage);
     let chrome = editor.chrome_shown();
     view! {
         <List spacing=Space::None>

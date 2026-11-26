@@ -87,7 +87,7 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
     let ids = create_memo(move || rows.get().iter().map(|row| row.id).collect::<Vec<Uuid>>());
 
     let offset = create_signal(Vec2::ZERO);
-    let camera = create_memo(move || Some(CanvasView::new(placed.get().min - offset.get(), 1.0)));
+    let camera = create_memo(move || Some(CanvasView::new(Pos2::ZERO - offset.get(), 1.0)));
 
     let pixels_per_frame = state.pixels_per_frame;
     let duration = state.duration;

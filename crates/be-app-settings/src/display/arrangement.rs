@@ -288,7 +288,7 @@ pub(super) fn ArrangementRow(
                 border={Border::DEFAULT}
                 radius=Radius::Sm
             >
-                <Canvas view={canvas} local_view=true width={AREA.x} height={AREA.y}>
+                <Canvas view={canvas} width={AREA.x} height={AREA.y}>
                     <CanvasItem
                         x={move || reach.get().min.x}
                         y={move || reach.get().min.y}

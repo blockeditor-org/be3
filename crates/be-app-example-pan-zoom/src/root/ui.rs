@@ -99,6 +99,7 @@ pub fn PanZoom(editor: Editor) -> NodeId {
     let selected = create_signal(None::<usize>);
     let stage = NodeRef::new();
     editor.content(&stage);
+    editor.name_canvas(&stage);
     editor.keep_fitted(|| Some(Fit::Area(Rect::from_min_size(pos2(0.0, 0.0), WORLD))));
 
     let chrome = editor.chrome_shown();

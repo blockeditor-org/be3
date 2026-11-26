@@ -271,6 +271,11 @@ every space's scale and translation. Pointer callbacks also carry `local` and
 ([pan_and_zoom.md](../pan_and_zoom.md)). A length of the node's own compared
 with window positions is multiplied by the space's scale first.
 
+A `Canvas`'s view is in the canvas's own points on both cores: its origin is
+where the world's origin sits from the canvas's corner, so a canvas a parent
+moves or a scroll carries takes its items with it. A window position is in a
+canvas's points once the canvas's corner (its `measure` rect's `min`) is taken off.
+
 ## Platforms, the runner and input
 
 A platform only translates native input into `Incoming`; everything a frame

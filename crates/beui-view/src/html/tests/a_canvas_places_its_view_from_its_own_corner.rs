@@ -1,10 +1,10 @@
 use super::*;
 
-/// The HTML core's side of beui-host's test of the same name: a local view's origin is in
-/// the canvas's own points, so its items sit where the view puts them from the canvas's
-/// corner however far down and in its parent places it.
+/// The HTML core's side of beui-host's test of the same name: a view's origin is in the
+/// canvas's own points, so its items sit where the view puts them from the canvas's corner
+/// however far down and in its parent places it.
 #[test]
-fn a_canvas_with_a_local_view_places_its_items_from_its_own_corner() {
+fn a_canvas_places_its_view_from_its_own_corner() {
     let view = Some(CanvasView::new(pos2(10.0, 5.0), 2.0));
     let painting = painting([240, 200], || {
         view! {
@@ -18,7 +18,7 @@ fn a_canvas_with_a_local_view_places_its_items_from_its_own_corner() {
                                 height={90.0}
                                 outline={Some(Outline::new(INK, 1.0))}
                             >
-                                <Canvas view={view} local_view={true}>
+                                <Canvas view={view}>
                                     <CanvasItem
                                         x={3.0}
                                         y={4.0}
@@ -39,5 +39,5 @@ fn a_canvas_with_a_local_view_places_its_items_from_its_own_corner() {
             </Root>
         }
     });
-    painting.snapshot("html_canvas_local_view.browser");
+    painting.snapshot("html_canvas_own_corner.browser");
 }

@@ -5,7 +5,7 @@ use be_sdk_beui::{Editor, LoadingPane, ZoomBar};
 use beui::icons::ICON_WRENCH;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{CursorIcon, NodeId, PointerPress, Rect};
+use beui::{CursorIcon, NodeId, PointerPress, Pos2, Rect};
 
 use super::hotbar_ui::{HOTBAR_WIDTH, Hotbar, ToolSettings};
 use super::panels::{Panels, StorageDialog};
@@ -235,7 +235,9 @@ fn GridCanvas(session: Session) -> NodeId {
     let placed = create_signal(Rect::ZERO);
     let view = editor.canvas();
     let world = editor.world();
-    let camera = create_memo(move || grid_view(view.get(), world.get(), placed.get()));
+    // The grid in its canvas's own points: the canvas fills the content from its corner.
+    let laid = create_memo(move || Rect::from_min_size(Pos2::ZERO, placed.get().size()));
+    let camera = create_memo(move || grid_view(view.get(), world.get(), laid.get()));
     create_effect(move || {
         let camera = camera.get();
         session.set_camera(camera);
@@ -250,7 +252,7 @@ fn GridCanvas(session: Session) -> NodeId {
     let graph_hover = session.graph_hover;
     let drawing = create_memo(move || {
         let camera = camera.get();
-        let rect = placed.get();
+        let rect = laid.get();
         let pointer = pointer.get();
         let hovered = debug_hover.get();
         let graph = graph_hover.get();
@@ -264,7 +266,8 @@ fn GridCanvas(session: Session) -> NodeId {
 
     let last = StoredCell::new(None::<[f32; 2]>);
     let at = move |press: PointerPress| {
-        let world = camera.get_untracked().to_canvas(press.pos);
+        let corner = placed.get_untracked().min.to_vec2();
+        let world = camera.get_untracked().to_canvas(press.pos - corner);
         [world.x, world.y]
     };
     let on_press = move |press: PointerPress| {
@@ -305,6 +308,8 @@ fn GridCanvas(session: Session) -> NodeId {
 
     let content = NodeRef::new();
     editor.content(&content);
+    let canvas = NodeRef::new();
+    editor.name_canvas(&canvas);
     let built = view! {
         <Frame @node_ref={&content}>
             <Interactive
@@ -322,7 +327,7 @@ fn GridCanvas(session: Session) -> NodeId {
                         <Drawing draw={move || draw_gpu(drawing.get())} />
                     </CanvasItem>
                     <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                        <Canvas view={shown}>
+                        <Canvas @node_ref=&canvas view={shown}>
                             <ForEach
                                 value={labels}
                                 key={|label: &ComponentLabel| label.key}

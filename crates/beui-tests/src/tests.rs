@@ -53,6 +53,7 @@ mod back_slide;
 mod blank;
 mod buttons;
 mod canvas;
+mod canvas_scrolled;
 mod carry;
 mod choices;
 mod covering;

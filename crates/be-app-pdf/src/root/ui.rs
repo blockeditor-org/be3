@@ -232,6 +232,8 @@ fn DetailsPanel(details: Details) -> NodeId {
 #[component]
 fn Viewer(editor: Editor, content: NodeRef, shown: Memo<Shown>) -> NodeId {
     let pan = gestures::pan_zoom(move |delta: Vec2| editor.pan(delta), Callback::empty());
+    let canvas = NodeRef::new();
+    editor.name_canvas(&canvas);
     view! {
         <Frame @node_ref={&content}>
             <Interactive
@@ -239,7 +241,7 @@ fn Viewer(editor: Editor, content: NodeRef, shown: Memo<Shown>) -> NodeId {
                 on_pointer={pan.pointer}
                 on_wheel={pan.wheel}
             >
-                <PageCanvas shown={shown} view={editor.canvas()} />
+                <PageCanvas shown={shown} view={editor.canvas()} canvas />
             </Interactive>
         </Frame>
     }
@@ -249,6 +251,7 @@ fn Viewer(editor: Editor, content: NodeRef, shown: Memo<Shown>) -> NodeId {
 fn PageCanvas(
     shown: Memo<Shown>,
     #[prop(default = None)] view: be_sdk_beui::beui::reactive::Prop<Option<CanvasView>>,
+    #[prop(default = NodeRef::new())] canvas: NodeRef,
 ) -> NodeId {
     let size = create_memo(move || shown.get().size());
     let keys =
@@ -258,7 +261,7 @@ fn PageCanvas(
     view! {
         <List spacing=Space::None>
             <ListItem grow=1.0>
-                <Canvas view={view}>
+                <Canvas @node_ref=&canvas view={view}>
                     <CanvasItem
                         x=0.0
                         y=0.0
@@ -341,6 +344,8 @@ pub fn PdfPreview(editor: Editor) -> NodeId {
     }
 }
 
+/// What of the page shows in `content`, the content's rect in the frame's points. `view` is
+/// in the page canvas's own points, and the canvas fills the content from its corner.
 fn viewport(
     content: Rect,
     view: Option<CanvasView>,
@@ -348,10 +353,9 @@ fn viewport(
     pixels_per_point: f32,
 ) -> Viewport {
     let page_rect = match view {
-        Some(view) => Rect::from_min_max(
-            view.to_screen(Pos2::ZERO),
-            view.to_screen(Pos2::new(page_size.x, page_size.y)),
-        ),
+        Some(view) => view
+            .rect_to_screen(Rect::from_min_size(Pos2::ZERO, page_size))
+            .translate(content.min.to_vec2()),
         None => fitted(content, page_size),
     };
     Viewport {

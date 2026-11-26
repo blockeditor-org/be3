@@ -867,9 +867,19 @@ impl CanvasState {
         camera_view(
             self.editor.canvas().get_untracked(),
             self.editor.world().get_untracked(),
-            self.cells.value().stage.get(),
+            self.seen(),
             self.framed(),
         )
+    }
+
+    /// The stage in its canvas's own points, which the camera is in.
+    fn seen(&self) -> Rect {
+        Rect::from_min_size(Pos2::ZERO, self.cells.value().stage.get().size())
+    }
+
+    /// Where the stage's canvas is in the frame, whose points the pointer and drops are in.
+    fn stage_corner(&self) -> Vec2 {
+        self.cells.value().stage.get().min.to_vec2()
     }
 
     pub(crate) fn framed(&self) -> Option<WorldRect> {
@@ -885,15 +895,14 @@ impl CanvasState {
 
     /// The world point under `at` on the stage: none with no camera.
     pub(crate) fn world_at(&self, at: Pos2) -> Option<CanvasPoint> {
-        let canvas = self.camera()?.to_canvas(at);
+        let canvas = self.camera()?.to_canvas(at - self.stage_corner());
         Some(CanvasPoint::new(canvas.x, canvas.y))
     }
 
     /// The world the stage shows: nothing, at the origin, with no camera.
     pub(crate) fn visible_world(&self) -> Rect {
-        self.camera().map_or(Rect::ZERO, |camera| {
-            camera.rect_to_canvas(self.cells.value().stage.get())
-        })
+        self.camera()
+            .map_or(Rect::ZERO, |camera| camera.rect_to_canvas(self.seen()))
     }
 
     pub(crate) fn viewport_center(&self) -> CanvasPoint {
@@ -996,8 +1005,8 @@ impl CanvasState {
     }
 }
 
-/// The camera the stage shows the canvas through: the host's `view`, or, with none, one fitted
-/// to `framed` (a preview's). None while fitting to a stage not measured yet, which has no
+/// The camera the stage shows the canvas through, in the stage canvas's own points (as `stage`
+/// is): the host's `view`, or, with none, one fitted to `framed` (a preview's). None while fitting to a stage not measured yet, which has no
 /// scale: the canvas is then shown through none, rather than one of nothing.
 pub(crate) fn camera_view(
     view: Option<CanvasView>,
@@ -2639,7 +2648,7 @@ impl CanvasState {
         let Some(camera) = self.camera() else {
             return;
         };
-        let on_screen = camera.to_screen(pos2(at.x, at.y));
+        let on_screen = camera.to_screen(pos2(at.x, at.y)) + self.stage_corner();
         self.pick_block_from(center, Rect::from_min_size(on_screen, Vec2::ZERO));
     }
 

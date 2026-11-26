@@ -239,13 +239,14 @@ struct Inner {
     scale: Rc<Cell<PointScale>>,
     contents: Rc<ContentCache>,
     content_rect: Cell<Rect>,
+    canvas_rect: Cell<Option<Rect>>,
     intrinsic: Cell<Option<Vec2>>,
     pending_resize: Cell<Option<Vec2>>,
     pending_presence: Cell<Option<bool>>,
     pending_reveal: Cell<Option<u64>>,
     pushed: Rc<Cell<bool>>,
     seen_ratio: Cell<Option<f32>>,
-    shown_rect: Cell<Option<Rect>>,
+    shown_rect: Cell<Option<(Rect, Option<Rect>)>>,
     shown: RefCell<ShownEditor>,
     on_shown: Callbacks<(), dyn Fn(&ShownEditor)>,
     on_pumped: Callbacks<(), dyn Fn()>,
@@ -273,6 +274,7 @@ impl EditorCore {
             scale,
             contents,
             content_rect: Cell::new(Rect::ZERO),
+            canvas_rect: Cell::new(None),
             intrinsic: Cell::new(None),
             pending_resize: Cell::new(None),
             pending_presence: Cell::new(None),
@@ -538,6 +540,17 @@ impl EditorCore {
         self.0.host.report_content(self.to_host(rect));
     }
 
+    /// Reports where the editor's canvas was laid out, in the frame's points: `canvas()` is
+    /// the camera in its own points from then on. Whether it moved, which changes `canvas()`.
+    pub fn report_canvas(&self, rect: Rect) -> bool {
+        if self.0.canvas_rect.replace(Some(rect)) == Some(rect) {
+            return false;
+        }
+        let canvas = self.canvas();
+        self.0.shown.borrow_mut().canvas = canvas;
+        true
+    }
+
     fn view_rect(&self) -> Option<Rect> {
         let ratio = self.ratio();
         self.0.host.view().map(|rect| rect.scaled(ratio))
@@ -547,10 +560,22 @@ impl EditorCore {
         self.0.host.view_scale().unwrap_or(1.0)
     }
 
-    pub fn canvas(&self) -> Option<CanvasView> {
+    /// The camera in the frame's points: where the world's origin shows in the frame, which
+    /// is what the host's view and the anchors of `zoom_at` and `fit` are in.
+    fn frame_view(&self) -> Option<CanvasView> {
         let scale = self.view_scale();
         self.view_rect()
             .map(|rect| CanvasView::new(rect.min, scale))
+    }
+
+    /// The camera in the points of the canvas the editor reported (`report_canvas`), what a
+    /// `Canvas` there is handed. Until the canvas is first laid out it is taken to be at the
+    /// frame's corner.
+    pub fn canvas(&self) -> Option<CanvasView> {
+        let corner = self.0.canvas_rect.get().map_or(Pos2::ZERO, |rect| rect.min);
+        self.frame_view().map(|view| {
+            CanvasView::new(view.origin - corner.to_vec2(), view.scale)
+        })
     }
 
     pub fn pan(&self, delta: Vec2) {
@@ -581,7 +606,7 @@ impl EditorCore {
     }
 
     pub fn reveal(&self, target: Rect) {
-        let Some(placement) = self.canvas() else {
+        let Some(placement) = self.frame_view() else {
             return;
         };
         let shown = placement.rect_to_screen(target).center();
@@ -629,7 +654,8 @@ impl EditorCore {
             });
         }
         let rect = inner.content_rect.get();
-        if pushed || inner.shown_rect.replace(Some(rect)) != Some(rect) {
+        let laid = (rect, inner.canvas_rect.get());
+        if pushed || inner.shown_rect.replace(Some(laid)) != Some(laid) {
             shown.placed = rect;
             let scale = self.view_scale();
             let divisor = scale.max(f32::EPSILON);

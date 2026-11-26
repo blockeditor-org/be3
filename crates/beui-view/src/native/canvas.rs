@@ -23,7 +23,6 @@ pub(crate) fn canvas(
     width: Prop<f32>,
     height: Prop<f32>,
     scrolls_across: bool,
-    local_view: bool,
     arrangement: Prop<Option<CanvasArrangement>>,
     on_reveal: Callback<Vec2>,
     children: Children<CanvasItem>,
@@ -31,7 +30,6 @@ pub(crate) fn canvas(
     let canvas = with_document(Document::create_canvas);
     with_document(|document| {
         document.set_canvas_scrolls_across(canvas, scrolls_across);
-        document.set_canvas_local_view(canvas, local_view);
         document.set_canvas_on_reveal(canvas, on_reveal);
     });
     children.mount(canvas);

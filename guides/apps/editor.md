@@ -120,7 +120,8 @@ says, `EditorHost::set_phone_layout`).
 `capabilities.pan_and_zoom` means the content has a view of its own. The host
 owns that camera (guides/pan_and_zoom.md;
 decisions/pan_and_zoom_camera_belongs_to_the_host.md): `editor.canvas()` is
-the `CanvasView` a beui `Canvas` takes and `editor.scale()` the zoom, both
+the `CanvasView` a beui `Canvas` takes, in the points of the canvas the editor
+names with `editor.name_canvas(&node_ref)`, and `editor.scale()` the zoom, both
 written before every frame. The editor keeps no zoom or offset of its own and
 asks to move the view with `editor.pan`, `zoom`, `reveal`, `fit` and
 `keep_fitted`.

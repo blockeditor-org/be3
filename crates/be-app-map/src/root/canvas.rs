@@ -95,12 +95,14 @@ pub(crate) fn MapCanvas(state: MapState) -> NodeId {
 
     let content = NodeRef::new();
     state.editor().content(&content);
+    let canvas = NodeRef::new();
+    state.editor().name_canvas(&canvas);
 
     view! {
         <List spacing=Space::None>
             <ListItem grow=1.0>
                 <MapSurface state={state} @node_ref={&content}>
-                    <Canvas view={camera} @test_id={"map.canvas"}>
+                    <Canvas @node_ref=&canvas view={camera} @test_id={"map.canvas"}>
                         <ForEach value={covering}>|tile: TileId| {
                             let world = world;
                             let scale = scale;

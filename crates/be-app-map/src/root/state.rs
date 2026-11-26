@@ -235,17 +235,25 @@ impl MapState {
             || self.editor.placed().get_untracked().is_positive()
     }
 
+    /// The host's camera in the frame's points, which the pointer, drops and `zoom_at` are in:
+    /// the map's canvas fills its content from the content's corner.
     fn host_camera(&self) -> Option<CanvasView> {
-        match self.preview {
-            true => None,
-            false => self.editor.canvas().get_untracked(),
+        if self.preview {
+            return None;
         }
+        let view = self.editor.canvas().get_untracked()?;
+        let corner = self.editor.placed().get_untracked().min.to_vec2();
+        Some(CanvasView::new(view.origin + corner, view.scale))
     }
 
+    /// The camera the map's canvas is handed: the anchored one, in the canvas's own points.
     pub(crate) fn camera(&self) -> Option<CanvasView> {
         self.editor.canvas().track();
+        self.editor.placed().track();
         self.anchor.track();
+        let corner = self.editor.placed().get_untracked().min.to_vec2();
         self.anchored_camera()
+            .map(|camera| CanvasView::new(camera.origin - corner, camera.scale))
     }
 
     fn anchored_camera(&self) -> Option<CanvasView> {

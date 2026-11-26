@@ -23,6 +23,7 @@
 
 use beui::primitives::*;
 use beui::reactive::*;
+use beui::styled;
 use beui::{
     Align, Align2, CanvasView, Color32, Corners, Direction, Dismiss, Extent, FontId, Key, KeyPress,
     Placement, PointerInput, PointerStage, Rect, ScrollPosition, Sides, TextCaret, TextGlyph,
@@ -116,6 +117,9 @@ pub fn Fixture(name: String) -> Root {
         },
         "canvas" => view! {
             <CanvasFixture />
+        },
+        "canvas_scrolled" => view! {
+            <CanvasScrolledFixture />
         },
         "overlay" => view! {
             <OverlayFixture />
@@ -1067,7 +1071,7 @@ fn CanvasFixture() -> NodeId {
     };
     let held = view! {
         <Frame width=240.0 height=120.0 fill={BLUE}>
-            <Canvas @node_ref=&canvas view={view} local_view=true>
+            <Canvas @node_ref=&canvas view={view}>
                 <CanvasItem x=20.0 y=10.0 width=20.0 height=20.0 scales=true>{item}</CanvasItem>
             </Canvas>
         </Frame>
@@ -1089,6 +1093,56 @@ fn CanvasFixture() -> NodeId {
             <Text color={INK}>{report}</Text>
             <Button id="canvas.pan" label="Pan" on_click={move || pan.set(Vec2::new(50.0, 0.0))} />
             <Button id="canvas.zoom" label="Zoom" on_click={move || scale.set(2.0)} />
+        </List>
+    }
+}
+
+/// A canvas below a spacer in a scroll: its view is in its own points, so its item sits where
+/// the view puts it from the canvas's corner wherever the scroll carries the canvas.
+#[component]
+fn CanvasScrolledFixture() -> NodeId {
+    let (canvas, frame) = (NodeRef::new(), NodeRef::new());
+    let view = Some(CanvasView::new(beui::Pos2::new(5.0, 5.0), 1.0));
+    let item = view! {
+        <Frame width=20.0 height=20.0 fill={AMBER} @test_id="canvas_scrolled.item" />
+    };
+    let held = view! {
+        <Frame @node_ref=&frame width=240.0 height=120.0 fill={PAPER}>
+            <styled::Scroll>
+                <List spacing=0.0>
+                    <Frame width=240.0 height=60.0 fill={GREEN} />
+                    <Frame width=240.0 height=120.0 fill={BLUE}>
+                        <Canvas @node_ref=&canvas view={view}>
+                            <CanvasItem x=20.0 y=10.0 width=20.0 height=20.0>{item}</CanvasItem>
+                        </Canvas>
+                    </Frame>
+                    <Frame width=240.0 height=200.0 fill={GREEN} />
+                </List>
+            </styled::Scroll>
+        </Frame>
+    };
+    let canvas_rect = measured_rect(canvas.get());
+    let frame_rect = measured_rect(frame.get());
+    let item_rect = measured_rect(item);
+    let report = create_memo(move || match (item_rect.get(), canvas_rect.get()) {
+        (Some(item), Some(canvas)) => format!(
+            "Item at {:.0},{:.0}",
+            item.min.x - canvas.min.x,
+            item.min.y - canvas.min.y
+        ),
+        _ => "Item unmeasured".to_owned(),
+    });
+    let scrolled = create_memo(move || match (canvas_rect.get(), frame_rect.get()) {
+        (Some(canvas), Some(frame)) if canvas.min.y - frame.min.y < 59.5 => {
+            "Canvas scrolled".to_owned()
+        }
+        _ => "Canvas unscrolled".to_owned(),
+    });
+    view! {
+        <List spacing=12.0>
+            {held}
+            <Text color={INK}>{report}</Text>
+            <Text color={INK}>{scrolled}</Text>
         </List>
     }
 }

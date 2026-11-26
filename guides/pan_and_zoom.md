@@ -13,16 +13,30 @@ reference editor.
 ## What the editor is given and asks for
 
 `editor.canvas()` and `editor.scale()` are signals the framework writes before
-every frame (`beui::reactive::CanvasView`, a plain `{origin, scale}`, in the
-editor's own coordinates). An editor never told its view fills its space at a
-scale of one. It moves the camera by asking: `editor.pan(delta)`,
-`editor.zoom(factor)`, `editor.zoom_at(factor, anchor)`, and `editor.reveal(rect)`
-to centre a rectangle of its world.
+every frame (`beui::reactive::CanvasView`, a plain `{origin, scale}`). An editor
+never told its view fills its space at a scale of one. It moves the camera by
+asking: `editor.pan(delta)`, `editor.zoom(factor)`, `editor.zoom_at(factor,
+anchor)`, and `editor.reveal(rect)` to centre a rectangle of its world. Anchors,
+the `room` of `editor.fit`, and the points the pointer and drops give are in the
+frame's points.
 
 It names the node its content is in once, `editor.content(&node_ref)`; the
 framework reports that node's rectangle as insets after every layout. That is
 how the host knows what rectangle to pan and zoom and read gestures over, so a
 wheel over the editor's sidebar is not a wheel over its content.
+
+It names its `Canvas` the same way, `editor.name_canvas(&node_ref)`, and
+`editor.canvas()` is the camera in that canvas's own points (be-sdk's
+`EditorCore::canvas`: the host's view less the canvas's corner), which is what
+the `Canvas` takes. After every layout of the app's document the framework finds
+the canvas again through the node ref (`follow_canvases` in
+`crates/be-sdk-beui/src/editor.rs`, the document's `on_laid_out`) and, if it
+moved, hands the new view at once, so the document lays it out again before it
+paints or takes a press: a sidebar appearing beside the canvas, as on taking the
+frame, leaves the world where the host's camera shows it. A point the pointer
+gives is in the canvas's points once the canvas's corner is taken off it; an
+editor whose canvas fills its content from the content's corner takes off
+`editor.placed()`'s corner (the PDF, the map).
 
 ## Fitting
 
@@ -117,7 +131,10 @@ the parent draws, so the host does not wait: beui marks each `Embed` inside a
 panning `Canvas` (`Document::panned_by_canvas`), the app reports those
 children as `follows_view`, and the host maps the child's last rectangle from
 the view sent at the serial that placed it to the view it is about to send
-(`view_rect` on `HostChild`; guides/apps/runtime.md, "Frames and pacing").
+(`view_rect` on `HostChild`; guides/apps/runtime.md, "Frames and pacing"). The
+host's view is in the frame's points while the canvas reads the camera in its
+own, but the editor's canvas is handed the host's view less its corner (above),
+so a world point shows where the host's view puts it and the mapping holds.
 A card needs none of that: a pan only moves its rectangle, so the host moves
 its last texture.
 
@@ -125,26 +142,22 @@ its last texture.
 
 An editor hands its `CanvasView` to `<Canvas view={...}>`
 (`crates/beui-view/src/components/canvas.rs`, node in
-`crates/beui-core/src/base/canvas.rs`). Each `CanvasItem` carries a rectangle
-in world coordinates mapped through the view (`origin + point * scale`),
-ignoring the `Canvas` node's own laid-out rect, so items track the shared
-camera however the layout around the canvas changes. A canvas whose camera is
-its own rather than the frame's (one under `PanZoom`, whose handle's `view` is
-in its content's points; Settings' display arrangement, fitted to its displays
-inside a scrolled page) sets `local_view`, which puts the view's origin in the
-canvas's own points, so its items move with the layout. Never fold a measured
-rect's `min` into a view instead: that follows the layout a frame late, and
-inside a scroll the measure and the view chase each other.
+`crates/beui-core/src/base/canvas.rs`, and `crates/beui-core-html/src/canvas.rs` on
+the HTML core). Each `CanvasItem` carries a rectangle in world coordinates mapped
+through the view (`origin + point * scale`), and the view's origin is in the
+canvas's own points on both cores: the items move with the canvas as any node's
+children do, so a scroll or a sidebar carries the world along and asks nothing of
+the canvas. An editor's canvas gets the host's camera that way through
+`name_canvas` (above); a canvas whose camera is its own (one under `PanZoom`, whose
+handle's `view` is in its content's points; Settings' display arrangement, fitted to
+its displays inside a scrolled page; the video timeline's scroll) builds its view
+from its own size and offsets alone. Never fold a measured rect's `min` into a view:
+that follows the layout a frame late, and inside a scroll the measure and the view
+chase each other.
 
-An editor's `editor.canvas()` stays in its frame's points, and its canvas leaves
-`local_view` off, for now: be-sdk knows where the editor's content is but not where
-each of its canvases sits in it (the PDF's beside its sidebar, the video's timeline
-in a row), and a child that took the frame is mapped by the host from the view in
-frame points (`follows_view`, above). Making local the only meaning is in
-plans/backlog.md (34). Placing is not transforming: text in an ordinary item keeps
-its size, so an item that should grow with the zoom reads `scale` and sizes itself
-(the pan-zoom example's cards), and is laid out and painted again on every frame of a
-zoom.
+Placing is not transforming: text in an ordinary item keeps its size, so an item
+that should grow with the zoom reads `scale` and sizes itself (the pan-zoom
+example's cards), and is laid out and painted again on every frame of a zoom.
 
 `<CanvasItem scales=true>` is transformed instead: laid out in the canvas's
 own units inside a scaled space (`Rects::set_scaled_space`,

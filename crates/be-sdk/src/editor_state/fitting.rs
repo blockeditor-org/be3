@@ -44,7 +44,7 @@ impl EditorCore {
     }
 
     fn fitted(&self, world: Rect, room: Rect, max_scale: f32) -> Option<Zoomed> {
-        let view = self.0.shown.borrow().canvas?;
+        let view = self.frame_view()?;
         let room = Rect::from_min_size(room.min, room.size().max(Vec2::splat(1.0)));
         let target = (room.width() / world.width().max(f32::EPSILON))
             .min(room.height() / world.height().max(f32::EPSILON))

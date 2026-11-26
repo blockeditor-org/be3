@@ -94,7 +94,7 @@ pub fn PanZoomStage(
         <unstyled::PanZoom @test_id="stage" view>|handle: unstyled::PanZoomHandle| {
             let unstyled::PanZoomHandle { view, .. } = handle;
             view! {
-                <Canvas view local_view=true>
+                <Canvas view>
                     <CanvasItem @test_id="item" x=0.0 y=0.0 width=100.0 height=50.0 />
                 </Canvas>
             }

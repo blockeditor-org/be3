@@ -4797,7 +4797,7 @@ fn CanvasBoard(view: Memo<Option<CanvasView>>, focused: ReadSignal<bool>) -> Nod
     let [first, second, third, fourth] = STAGE_CARDS;
     view! {
         <Frame focus={focused} radius=Radius::Md>
-            <Canvas view local_view=true>
+            <Canvas view>
                 <StageCard card=first />
                 <StageCard card=second />
                 <StageCard card=third />

@@ -117,8 +117,10 @@ fn Artwork(
             size,
         )
     });
+    let canvas = NodeRef::new();
+    editor.name_canvas(&canvas);
     let built = view! {
-        <Canvas view={editor.canvas()}>
+        <Canvas @node_ref=&canvas view={editor.canvas()}>
             <CanvasItem
                 x={move || shape.get().left()}
                 y={move || shape.get().top()}

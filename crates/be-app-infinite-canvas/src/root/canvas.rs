@@ -39,10 +39,15 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
     });
     create_effect(move || state.set_stage(shown.get()));
 
+    // The camera is in the canvas's own points, and the canvas is laid out at `shown`.
+    let canvas = NodeRef::new();
+    state.editor().name_canvas(&canvas);
+    let seen = create_memo(move || Rect::from_min_size(Pos2::ZERO, shown.get().size()));
     let view = state.editor().canvas();
     let world = state.editor().world();
     let camera = create_memo(move || {
-        super::state::camera_view(view.get(), world.get(), placed.get(), state.framed())
+        let stage = placed.get().translate(-shown.get().min.to_vec2());
+        super::state::camera_view(view.get(), world.get(), stage, state.framed())
     });
     let ids = state.entities.ids();
     let embedding = create_memo(move || state.entities.embedding());
@@ -56,7 +61,7 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
         ))
     });
     let previewing = state.previewing();
-    let (grid, tiles) = grid_of(state, camera, shown);
+    let (grid, tiles) = grid_of(state, camera, seen);
     let frames = create_memo(move || {
         state
             .entities
@@ -87,6 +92,7 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
             <Frame padding={inset} fill={outside_frames}>
                 <CanvasSurface state={state}>
                     <Canvas
+                        @node_ref=&canvas
                         view={camera}
                         on_reveal={reveal_by(state.editor())}
                         @test_id={"infinite-canvas.canvas"}
@@ -107,9 +113,9 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                             <EntityEmbed state id />
                         </ForEach>
                         {(!previewing).then(|| view! {
-                            <CanvasHint state={state} camera={camera} stage={shown} />
+                            <CanvasHint state={state} camera={camera} stage={seen} />
                             <CanvasOverlay state={state} camera={camera} />
-                            <LiveOverlay state={state} camera={camera} stage={shown} />
+                            <LiveOverlay state={state} camera={camera} stage={seen} />
                         })}
                     </Canvas>
                 </CanvasSurface>

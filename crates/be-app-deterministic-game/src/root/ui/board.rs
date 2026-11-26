@@ -58,10 +58,6 @@ pub(crate) fn spot_test_id(spot: Spot) -> String {
     }
 }
 
-fn screen_view() -> Option<CanvasView> {
-    Some(CanvasView::new(Pos2::ZERO, 1.0))
-}
-
 #[component]
 pub(crate) fn Stage(
     editor: Editor,
@@ -84,11 +80,19 @@ pub(crate) fn Stage(
     });
     let bar = create_signal(Rect::ZERO);
 
+    // The table's camera in the frame's points, which the pointer, the hand bar and the
+    // carries are in: the canvas is the content, so its corner is where the content was laid.
     let view_now = move || {
-        canvas
-            .get_untracked()
-            .unwrap_or_else(|| CanvasView::new(editor.content_rect().min, 1.0))
+        let corner = editor.content_rect().min;
+        canvas.get_untracked().map_or_else(
+            || CanvasView::new(corner, 1.0),
+            |view| CanvasView::new(view.origin + corner.to_vec2(), view.scale),
+        )
     };
+    // Flights and the lifted piece are drawn at their places in the frame, over the stage:
+    // its canvas's view takes the stage's corner off them.
+    let stage_corner = create_signal(Vec2::ZERO);
+    let screen_view = create_memo(move || Some(CanvasView::new(Pos2::ZERO - stage_corner.get(), 1.0)));
     let world = move |pos: Pos2| view_now().to_canvas(pos);
     let in_bar =
         move |pos: Pos2| !hand.with_untracked(Vec::is_empty) && bar.get_untracked().contains(pos);
@@ -426,7 +430,7 @@ pub(crate) fn Stage(
                     </ListItem>
                     <HandBar hand bar play={play} hidden />
                 </List>
-                <Canvas view={screen_view()}>
+                <Canvas view={screen_view}>
                     <ForEach value={motion.flying}>|id: ItemId|
                         <FlightItem id motion={motion} />
                     </ForEach>
@@ -444,6 +448,12 @@ pub(crate) fn Stage(
             </Layers>
         </Interactive>
     };
+    let stage_measured = measure(stage.get());
+    create_effect(move || {
+        if let Some(measured) = stage_measured.get() {
+            stage_corner.set(measured.rect.min.to_vec2());
+        }
+    });
     built
 }
 

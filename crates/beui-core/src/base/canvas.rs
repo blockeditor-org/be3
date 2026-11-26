@@ -181,8 +181,6 @@ pub struct CanvasNode {
     shift: Vec2,
     zoom: Zoom,
     scrolls_across: bool,
-    /// Whether the view's origin is in the canvas's own points rather than the frame's.
-    local_view: bool,
     on_reveal: Callback<Vec2>,
     revealing: Option<Revealing>,
     arrangement: Option<CanvasArrangement>,
@@ -211,14 +209,13 @@ impl CanvasNode {
         self.scrolls_across
     }
 
-    fn shift(&self, doc: &Document, painter: &Painter, rect: Rect) -> Vec2 {
+    /// The view's origin is in the canvas's own points, so its items move with the canvas as
+    /// any node's children do.
+    fn shift(&self, doc: &Document, rect: Rect) -> Vec2 {
         match self.view {
-            Some(view) if self.local_view => doc
-                .pixel_grid()
-                .snap_vec(view.origin.to_vec2() + rect.min.to_vec2()),
             Some(view) => doc
                 .pixel_grid()
-                .snap_vec(view.origin.to_vec2() - painter.origin()),
+                .snap_vec(view.origin.to_vec2() + rect.min.to_vec2()),
             None => Vec2::ZERO,
         }
     }
@@ -434,7 +431,7 @@ impl Element for CanvasNode {
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         let host = doc.laying_out().expect("a canvas is laid out as itself");
         self.arrange(doc, rect.size());
-        let shift = self.shift(doc, painter, rect);
+        let shift = self.shift(doc, rect);
         let zoom = self.zoom();
         let painted = (self.host, self.shift, self.zoom);
         let was_laid = std::mem::take(&mut self.laid);
@@ -674,7 +671,6 @@ impl Document {
             shift: Vec2::ZERO,
             zoom: Zoom::NONE,
             scrolls_across: false,
-            local_view: false,
             on_reveal: Callback::empty(),
             revealing: None,
             arrangement: None,
@@ -688,12 +684,6 @@ impl Document {
     pub fn set_canvas_scrolls_across(&mut self, canvas: NodeOf<CanvasNode>, scrolls: bool) {
         if self.arena.get_as::<CanvasNode>(canvas).scrolls_across != scrolls {
             self.arena.get_mut_as::<CanvasNode>(canvas).scrolls_across = scrolls;
-        }
-    }
-
-    pub fn set_canvas_local_view(&mut self, canvas: NodeOf<CanvasNode>, local: bool) {
-        if self.arena.get_as::<CanvasNode>(canvas).local_view != local {
-            self.arena.get_mut_as::<CanvasNode>(canvas).local_view = local;
         }
     }
 

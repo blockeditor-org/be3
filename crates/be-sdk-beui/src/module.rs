@@ -160,13 +160,15 @@ impl beui::native::Program for ModuleProgram {
             let requested = self.requested.read_only();
             let registry = Rc::clone(&module.registry);
             let views = views.clone();
-            be_sdk_beui_platform_api::runtime().build(Box::new(move || {
+            let mut document = be_sdk_beui_platform_api::runtime().build(Box::new(move || {
                 view! {
                     <beui::styled::Root clear_color=ColorRole::None>
                         <ModuleWindows registry requested views />
                     </beui::styled::Root>
                 }
-            }))
+            }));
+            document.on_laid_out(crate::editor::follow_canvases);
+            document
         });
         beui::native::with_reactive_scope(document, || {});
         let mut fitted = Vec::new();

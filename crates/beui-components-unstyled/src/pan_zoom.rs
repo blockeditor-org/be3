@@ -33,8 +33,8 @@ impl PanZoomView {
     }
 
     /// The camera that centres `center` in `rect`, in the points `rect` is in: a rect at
-    /// the origin gives the content-local view `PanZoomHandle::view` hands a `local_view`
-    /// canvas; `PanZoom`'s own gestures use its window rect, with anchors in window points.
+    /// the origin gives the content-local view `PanZoomHandle::view` hands a `Canvas`;
+    /// `PanZoom`'s own gestures use its window rect, with anchors in window points.
     pub fn canvas(self, rect: Rect) -> CanvasView {
         let middle = rect.center();
         CanvasView::new(
@@ -70,7 +70,7 @@ impl PanZoomView {
 }
 
 pub struct PanZoomHandle {
-    /// The camera in the content's own points: hand it to a `Canvas` with `local_view`.
+    /// The camera in the content's own points: hand it to a `Canvas`.
     pub view: Memo<Option<CanvasView>>,
     pub scale: Memo<f32>,
     pub panning: ReadSignal<bool>,

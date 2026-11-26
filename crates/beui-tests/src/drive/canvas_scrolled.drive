@@ -1,0 +1,8 @@
+# A canvas's view is in its own points: below a spacer in a scroll, its item sits
+# where the view puts it from the canvas's corner, before and after a scroll.
+clock stop
+wait 'Item at 25,15'
+wait 'Canvas unscrolled'
+wheel '#canvas_scrolled.item' 2
+wait 'Canvas scrolled'
+wait 'Item at 25,15'

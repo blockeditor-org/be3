@@ -366,6 +366,7 @@ impl OwnedEditor {
             roots: RefCell::new(None),
             settings: RefCell::default(),
             content: RefCell::new(None),
+            canvas: RefCell::new(None),
             contents,
             children: RefCell::new(Vec::new()),
             next_child: Cell::new(0),
@@ -414,6 +415,7 @@ struct EditorState {
     roots: RefCell<Option<BlockList>>,
     settings: RefCell<settings::SettingsCache>,
     content: RefCell<Option<(NodeRef, u64)>>,
+    canvas: RefCell<Option<(NodeRef, u64)>>,
     contents: Rc<Contents>,
     children: RefCell<Vec<(u64, Rc<ChildRecord>)>>,
     next_child: Cell<u64>,
@@ -838,6 +840,9 @@ impl Editor {
         self.state().shown.files.read_only()
     }
 
+    /// The host's camera in the points of the canvas `name_canvas` named: hand it to that
+    /// `Canvas`. A point the pointer gives, in the frame's points, is in the canvas's once the
+    /// canvas's corner is taken off it.
     pub fn canvas(&self) -> ReadSignal<Option<CanvasView>> {
         self.state().shown.canvas.read_only()
     }
@@ -1187,6 +1192,38 @@ impl Editor {
         *self.state().content.borrow_mut() = Some((*node, document_zone()));
     }
 
+    /// Names the `Canvas` the editor draws its world on. `canvas()` is the camera in that
+    /// node's own points, which is what the `Canvas` takes: the framework follows where the
+    /// node is laid out, so a canvas beside a sidebar or below a bar gets the view that puts
+    /// the world where the host's camera shows it. A move of the canvas is answered in the
+    /// layout that made it, before anything is painted or pressed.
+    pub fn name_canvas(&self, node: &NodeRef) {
+        *self.state().canvas.borrow_mut() = Some((*node, document_zone()));
+        NAMED_CANVASES.with_borrow_mut(|named| {
+            named.retain(|editor| editor.0.is_alive());
+            named.push(*self);
+        });
+    }
+
+    /// Where the named canvas of this editor is laid out in `document`: a canvas a rebuild
+    /// replaced is found through the node ref again.
+    fn follow_canvas(&self, document: &Document) {
+        let state = self.state();
+        let zone = document.zone();
+        let laid = state
+            .canvas
+            .borrow()
+            .as_ref()
+            .filter(|(_, owner)| *owner == 0 || *owner == zone)
+            .and_then(|(node, _)| node.try_get())
+            .and_then(|node| document.node_rect(node));
+        if let Some(rect) = laid
+            && state.core.report_canvas(rect)
+        {
+            state.shown.canvas.set(state.core.canvas());
+        }
+    }
+
     pub fn content_rect(&self) -> Rect {
         self.state().core.content_rect()
     }
@@ -1423,6 +1460,29 @@ impl Editor {
         };
         state.core.report_content(rect);
     }
+}
+
+thread_local! {
+    /// The editors that named a canvas (`Editor::name_canvas`), which `follow_canvases` keeps
+    /// where their canvases are laid out.
+    static NAMED_CANVASES: RefCell<Vec<Editor>> = const { RefCell::new(Vec::new()) };
+}
+
+/// After each layout of an app's document: hands every editor whose named canvas moved the
+/// camera in the canvas's new points, which the document lays out again before it paints.
+pub(crate) fn follow_canvases() {
+    let named: Vec<Editor> = NAMED_CANVASES.with_borrow_mut(|named| {
+        named.retain(|editor| editor.0.is_alive());
+        named.clone()
+    });
+    if named.is_empty() {
+        return;
+    }
+    beui::native::try_with_document(|document| {
+        for editor in &named {
+            editor.follow_canvas(document);
+        }
+    });
 }
 
 fn document_zone() -> u64 {
