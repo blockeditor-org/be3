@@ -14,6 +14,13 @@ export default async function (test) {
             if (message.text().includes(refusal)) refused.push(message.text());
             if (message.text().includes(threadRefusal)) threads.push(message.text());
         });
+    // Under a root on the page, a click settles before what the root shows for it does
+    // (be-host's `busy` does not yet say whether the root and its apps took it in there), so
+    // each press waits for its target first.
+    const press = async (account, target, ...rest) => {
+        await account.drive("wait", target);
+        await account.drive("click", target, ...rest);
+    };
     const expect = (condition, what, shown) => {
         if (!condition) throw new Error(`${what}: ${JSON.stringify(shown, null, 1)}`);
     };
@@ -27,9 +34,9 @@ export default async function (test) {
     watch(ada.page);
 
     // Dev and Ada become contacts through Dev's link.
-    await test.drive("click", "#file-tree.host-menu");
-    await test.drive("click", "#host.menu.contacts");
-    await test.drive("click", "#host.contacts.new-link");
+    await press(test, "#file-tree.host-menu");
+    await press(test, "#host.menu.contacts");
+    await press(test, "#host.contacts.new-link");
     await test.drive("wait", "#host.contacts.link");
     const link = (await test.drive("tree"))
         .split("\n")
@@ -37,60 +44,60 @@ export default async function (test) {
         .find((value) => value?.includes("#contact/"));
     await test.drive("key", "Escape");
     await test.drive("wait", "not", 'Dialog "Contacts"');
-    await ada.drive("click", "#file-tree.host-menu");
-    await ada.drive("click", "#host.menu.contacts");
-    await ada.drive("click", "#host.contacts.paste");
+    await press(ada, "#file-tree.host-menu");
+    await press(ada, "#host.menu.contacts");
+    await press(ada, "#host.contacts.paste");
     await ada.drive("type", link);
-    await ada.drive("click", "#host.contacts.open");
+    await press(ada, "#host.contacts.open");
     await ada.drive("wait", "#host.contacts.offered.accept");
-    await ada.drive("click", "#host.contacts.offered.accept");
+    await press(ada, "#host.contacts.offered.accept");
     await ada.drive("wait", 'Label value="Dev"');
     await ada.drive("key", "Escape");
     await ada.drive("wait", "not", 'Dialog "Contacts"');
-    await test.drive("click", "#file-tree.host-menu");
-    await test.drive("click", "#host.menu.contacts");
+    await press(test, "#file-tree.host-menu");
+    await press(test, "#host.menu.contacts");
     await test.drive("wait", 'Label value="Ada"');
     await test.drive("key", "Escape");
     await test.drive("wait", "not", 'Dialog "Contacts"');
 
     // Dev makes a chat, Plans, and shares it with Ada, who opens it.
-    await test.drive("click", "#file-tree.new");
-    await test.drive("click", 'MenuItem "New in My files…"');
+    await press(test, "#file-tree.new");
+    await press(test, 'MenuItem "New in My files…"');
     await test.drive("wait", "#picker.more");
-    await test.drive("click", "#picker.more");
+    await press(test, "#picker.more");
     await test.drive("wait", 'Button "Chat"');
-    await test.drive("click", 'Button "Chat"');
+    await press(test, 'Button "Chat"');
     await test.drive("wait", 'TextInput "Name" value="Chat"');
-    await test.drive("click", 'TextInput "Name" value="Chat"');
+    await press(test, 'TextInput "Name" value="Chat"');
     await test.drive("key", "ctrl+a");
     await test.drive("type", "Plans");
     await test.drive("key", "Enter");
     await test.drive("wait", 'TreeItem "Plans"');
     await test.drive("wait", "#dock.editors.pin.editor.share");
-    await test.drive("click", "#dock.editors.pin.editor.share");
+    await press(test, "#dock.editors.pin.editor.share");
     await test.drive("wait", "#share.query");
-    await test.drive("click", "#share.query");
+    await press(test, "#share.query");
     await test.drive("wait", 'TextInput "Add contacts" focused');
     await test.drive("type", "Ada");
     await test.drive("wait", 'Button "Ada (ada@localhost)"');
-    await test.drive("click", 'Button "Ada (ada@localhost)"');
+    await press(test, 'Button "Ada (ada@localhost)"');
     await test.drive("wait", "#share.add");
-    await test.drive("click", "#share.add");
+    await press(test, "#share.add");
     await test.drive("wait", 'Label value="ada@localhost"');
-    await test.drive("click", "#share.close");
+    await press(test, "#share.close");
     await ada.drive("wait", 'TreeItem "Plans"');
-    await ada.drive("click", 'TreeItem "Plans"');
+    await press(ada, 'TreeItem "Plans"');
     await ada.drive("wait", "#chat.draft");
     await test.drive("wait", "#chat.draft");
 
     // Each writes, and each sees what the other wrote.
-    await ada.drive("click", "#chat.draft");
+    await press(ada, "#chat.draft");
     await ada.drive("type", "the draft is ready");
-    await ada.drive("click", "#chat.send");
+    await press(ada, "#chat.send");
     await test.drive("wait", "the draft is ready");
-    await test.drive("click", "#chat.draft");
+    await press(test, "#chat.draft");
     await test.drive("type", "reading it now");
-    await test.drive("click", "#chat.send");
+    await press(test, "#chat.send");
     await ada.drive("wait", "reading it now");
     await test.drive("wait", "reading it now");
     await ada.drive("wait", "the draft is ready");
