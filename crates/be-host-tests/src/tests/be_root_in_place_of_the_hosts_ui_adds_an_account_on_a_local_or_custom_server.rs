@@ -16,7 +16,9 @@ fn add_an_account(host: &mut HostTest, painted: &str) {
     host.wait("#account.server");
     assert!(!host.tree().contains("https://api.be3.pfg.pw"));
     host.crop("Dialog \"Connect to server\"");
-    host.snapshot(&format!("{painted}_asks_a_remote_account_for_server_and_gateway"));
+    host.snapshot(&format!(
+        "{painted}_asks_a_remote_account_for_server_and_gateway"
+    ));
 }
 
 #[test]

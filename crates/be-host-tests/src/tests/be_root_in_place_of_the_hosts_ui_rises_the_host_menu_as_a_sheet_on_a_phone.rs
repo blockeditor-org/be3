@@ -41,6 +41,9 @@ fn be_root_in_place_of_the_hosts_ui_rises_the_host_menu_as_a_sheet_on_a_phone() 
     host.run(&["resize", "1100x720"]);
     host.restart_as_root(ROOT);
     host.run(&["settle"]);
-    rise_the_host_menu(&mut host, "be_root_rises_the_host_menu_as_a_sheet_on_a_phone");
+    rise_the_host_menu(
+        &mut host,
+        "be_root_rises_the_host_menu_as_a_sheet_on_a_phone",
+    );
     host.close();
 }

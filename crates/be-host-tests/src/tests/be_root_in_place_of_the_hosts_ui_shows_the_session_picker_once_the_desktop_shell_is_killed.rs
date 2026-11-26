@@ -29,13 +29,19 @@ fn be_root_in_place_of_the_hosts_ui_shows_the_session_picker_once_the_desktop_sh
         ..Options::default()
     };
     let mut host = HostTest::start(options);
-    kill_the_desktop_shell(&mut host, "the_host_shows_the_session_picker_once_its_shell_is_killed");
+    kill_the_desktop_shell(
+        &mut host,
+        "the_host_shows_the_session_picker_once_its_shell_is_killed",
+    );
     host.close();
     // A host of its own, which be-host's own UI never killed a shell on: a window its UI
     // opened is not shown when the root starts on the same data (the plan's 4g7e2).
     let mut host = HostTest::start(options);
     host.restart_as_root(ROOT);
     host.run(&["settle"]);
-    kill_the_desktop_shell(&mut host, "be_root_shows_the_session_picker_once_its_shell_is_killed");
+    kill_the_desktop_shell(
+        &mut host,
+        "be_root_shows_the_session_picker_once_its_shell_is_killed",
+    );
     host.close();
 }

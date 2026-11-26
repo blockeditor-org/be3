@@ -2,13 +2,13 @@
 
 use super::*;
 use be_sdk_api::HostPanel;
-use beui::{Placement, ScrollPosition, Vec2};
 use beui::icons::{
     ICON_ARCHIVE_RESTORE, ICON_ARROW_LEFT_RIGHT, ICON_BOT, ICON_BUG, ICON_CLOUD_ALERT,
     ICON_CLOUD_CHECK, ICON_CLOUD_OFF, ICON_CLOUD_SYNC, ICON_CONTACT, ICON_GAUGE, ICON_INFO,
     ICON_KEY, ICON_LAYERS, ICON_LAYOUT_PANEL_LEFT, ICON_LINK, ICON_MAIL, ICON_POWER, ICON_PUZZLE,
     ICON_RADIO_TOWER, ICON_SHIELD_ALERT, ICON_USER_COG, ICON_USER_PLUS, ICON_USERS,
 };
+use beui::{Placement, ScrollPosition, Vec2};
 
 /// Where the root's menu is hit, in its surface's pixels: its button at the window's top
 /// right, and the menu it opens while it shows.

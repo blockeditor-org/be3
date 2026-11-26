@@ -14,6 +14,9 @@ fn be_root_in_place_of_the_hosts_ui_creates_an_agent_in_a_personal_organization(
     host.click("#file-tree.host-menu");
     host.click("#host.menu.agents");
     host.wait("Dialog \"Agents\"");
+    // The organization and the list come from the host after the dialog shows.
+    host.wait("Label value=\"Organization: Personal\"");
+    host.wait("Label value=\"No agents yet.\"");
     host.crop("Dialog \"Agents\"");
     host.snapshot("be_root_can_manage_agents");
     host.click("#host.agents.name");

@@ -236,8 +236,7 @@ impl Root {
     /// Says the app `name` stopped for `why` in a toast of its own, as be-host says one of its
     /// own did.
     fn toast_stopped(&self, name: &str, why: &str) {
-        if let (Some(surface), Some(own)) =
-            (&mut *self.toasts.borrow_mut(), self.own_toasts.get())
+        if let (Some(surface), Some(own)) = (&mut *self.toasts.borrow_mut(), self.own_toasts.get())
         {
             surface.enter(|| {
                 own.update(|own| {

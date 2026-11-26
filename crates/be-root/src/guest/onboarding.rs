@@ -1184,7 +1184,10 @@ pub(super) fn AddAccountDialog(
                                             spacing=Space::Lg
                                         >
                                             <ListItem grow=1.0>
-                                                <Text size=TextSize::Xl @test_id="account.browser-code">
+                                                <Text
+                                                    size=TextSize::Xl
+                                                    @test_id="account.browser-code"
+                                                >
                                                     {code}
                                                 </Text>
                                             </ListItem>

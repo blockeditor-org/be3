@@ -19,12 +19,12 @@ use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    AboutHost, AccountRow, AgentRow, ContactCard, ContactMismatch, ContactRow, CoreCommand, CoreSecret,
-    CoreView, CoreWait, DiscardReason, DisplayQuestion, FrameDone, FrameRequest, HostStatistics,
-    HostedBlock, InvitationRow, InvitationState, LockState, MemberRole, MemberRow, MemoryMinutes,
-    NewAccount, Notice, OrganizationRow, OrganizationsListed, PairingApproval, PowerAction,
-    ProfileRow, Refusal, RoleChange, SavingState, SecretCommand, ServerAccount, SetAside,
-    ShareAccess, SharePreview, StatisticRow, SyncState, UnsentEdit, WindowSize,
+    AboutHost, AccountRow, AgentRow, ContactCard, ContactMismatch, ContactRow, CoreCommand,
+    CoreSecret, CoreView, CoreWait, DiscardReason, DisplayQuestion, FrameDone, FrameRequest,
+    HostStatistics, HostedBlock, InvitationRow, InvitationState, LockState, MemberRole, MemberRow,
+    MemoryMinutes, NewAccount, Notice, OrganizationRow, OrganizationsListed, PairingApproval,
+    PowerAction, ProfileRow, Refusal, RoleChange, SavingState, SecretCommand, ServerAccount,
+    SetAside, ShareAccess, SharePreview, StatisticRow, SyncState, UnsentEdit, WindowSize,
     guest::{
         exports::{frames, input, paintings},
         host,

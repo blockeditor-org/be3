@@ -60,8 +60,7 @@ mod windows;
 
 pub use children::{
     ALREADY_OPEN_ABOVE, Around, Children, KeyboardMove, NOT_SHOWN_YET, PanelPlace, PanelReport,
-    Spawning,
-    child_screen, framing_screen, main_screen, preview_screen, preview_screen_of,
+    Spawning, child_screen, framing_screen, main_screen, preview_screen, preview_screen_of,
 };
 pub use embedded::{
     AnchoredView, BlockSpawn, Embedded, Hosted, Spawn, SpawnFailure, Wants, describing,

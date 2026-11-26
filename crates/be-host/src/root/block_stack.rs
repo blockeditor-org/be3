@@ -7,11 +7,12 @@
 
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    AboutHost, AccountRow, AgentCredentials, AgentRow, AgentsArea, BrowserSignIn, CoreCommand, CoreFailure,
-    CoreSecret, CoreView, CoreWait, DefaultServer, DiscardReason, HostedBlock, Invitation, Leaving,
-    MemberRole, NewAccount, OrganizationRow, OrganizationsArea, OrganizationsListed,
-    PairingRequest, ProfileRow, Reauthenticating, RecoveryArea, Refusal, SecretCommand,
-    SessionKind, SessionRow, SessionsArea, SetAside, SigningIn, UnlockArea, UnsentEdit,
+    AboutHost, AccountRow, AgentCredentials, AgentRow, AgentsArea, BrowserSignIn, CoreCommand,
+    CoreFailure, CoreSecret, CoreView, CoreWait, DefaultServer, DiscardReason, HostedBlock,
+    Invitation, Leaving, MemberRole, NewAccount, OrganizationRow, OrganizationsArea,
+    OrganizationsListed, PairingRequest, ProfileRow, Reauthenticating, RecoveryArea, Refusal,
+    SecretCommand, SessionKind, SessionRow, SessionsArea, SetAside, SigningIn, UnlockArea,
+    UnsentEdit,
 };
 use be_wasm_root_host::Root;
 use uuid::Uuid;

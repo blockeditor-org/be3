@@ -25,9 +25,9 @@ be_wasm_ops_bindgen::generate!({
 
 pub use frames::{FrameDone, FrameRequest, HostInput, WindowSize};
 pub use host::{
-    AboutHost, AccountRow, AgentCredentials, AgentRow, AgentsArea, BlockCatalog, BrowserSignIn, ContactCard,
-    ContactMismatch, ContactRow, ContactsArea, CoreCommand, CoreFailure, CoreSecret, CoreView,
-    CoreWait, DefaultServer, DiscardReason, DisplayQuestion, DisplayState, EditorApp,
+    AboutHost, AccountRow, AgentCredentials, AgentRow, AgentsArea, BlockCatalog, BrowserSignIn,
+    ContactCard, ContactMismatch, ContactRow, ContactsArea, CoreCommand, CoreFailure, CoreSecret,
+    CoreView, CoreWait, DefaultServer, DiscardReason, DisplayQuestion, DisplayState, EditorApp,
     HostStatistics, HostedBlock, Invitation, InvitationRow, InvitationState, InvitationsArea,
     Leaving, LockState, MemberRole, MemberRow, MembersArea, MemoryMinutes, MemoryPoint, NewAccount,
     Notice, NoticeAction, OpenableBlock, OpenedEditor, OpenedIn, OrganizationRow,
