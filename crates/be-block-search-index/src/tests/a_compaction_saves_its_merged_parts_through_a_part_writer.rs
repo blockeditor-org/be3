@@ -1,8 +1,42 @@
+use std::{cell::RefCell, collections::HashMap};
+
 use super::*;
 use be_block_store::{ContentKey, Keyring, MemoryStore, PartRef, Vault};
-use be_lib_search::{MemoryParts, PartKind};
+use be_lib_search::{Error, MemoryParts, PartKind, PartName, PartsOut};
 
-use crate::{AsyncRead, MERGES_PER_PASS, REMEMBERED, Saving};
+use crate::{AsyncRead, MERGES_PER_PASS, REMEMBERED, SavedParts};
+
+/// Saves each part to a vault once it is finished.
+struct Saving<'a> {
+    vault: &'a Vault<MemoryStore>,
+    key: uuid::Uuid,
+    writing: RefCell<HashMap<PartName, Vec<u8>>>,
+    saved: RefCell<HashMap<PartName, Option<PartRef>>>,
+}
+
+impl PartsOut for Saving<'_> {
+    fn write(&self, part: &PartName, bytes: &[u8]) -> Result<(), Error> {
+        let mut writing = self.writing.borrow_mut();
+        writing.entry(*part).or_default().extend_from_slice(bytes);
+        Ok(())
+    }
+
+    fn finish(&self, part: &PartName) -> Result<(), Error> {
+        let bytes = self.writing.borrow_mut().remove(part).unwrap_or_default();
+        let mut writer = self.vault.part_writer(self.key).unwrap();
+        writer.write(&bytes).unwrap();
+        self.saved.borrow_mut().insert(*part, writer.finish().unwrap());
+        Ok(())
+    }
+}
+
+impl SavedParts for Saving<'_> {
+    fn saved(&self, part: &PartName) -> Result<Option<PartRef>, Error> {
+        let saved = self.saved.borrow();
+        let part = saved.get(part).ok_or(Error::Write(format!("{part:?}")))?;
+        Ok(*part)
+    }
+}
 
 /// Reads saved parts from a vault, as the host's `read-part` does.
 struct VaultRead<'a>(&'a Vault<MemoryStore>);
@@ -54,7 +88,12 @@ fn a_compaction_saves_its_merged_parts_through_a_part_writer() {
     expected.forget_before(now - REMEMBERED);
 
     let mut compacted = content.clone();
-    let out = Saving::new(&vault, key, &read);
+    let out = Saving {
+        vault: &vault,
+        key,
+        writing: RefCell::default(),
+        saved: RefCell::default(),
+    };
     run(compacted.compact(&read, &out, origin, now, u64::MAX)).unwrap();
     assert_eq!(compacted.index(), &expected);
     assert_eq!(compacted.index().segment_count(), 1);

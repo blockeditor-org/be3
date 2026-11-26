@@ -799,13 +799,18 @@ index and search it locally.
   (`SearchIndexContent::compact`), none whose merge reads more than
   `MERGE_BYTES` (8 MiB), so no edit waits on a large merge. A merge streams:
   be-lib-search's `merge_segments` reads each input part forward a window at a
-  time (`scan::Window`, about a sealed chunk) and merges the inputs' documents
-  (twice: new local ids and offsets, then the records) and dictionaries k-way,
-  one term's postings held at once, holding otherwise a `u32` per document; it
-  writes its four parts through a `PartsOut` as it goes (`Written::saved` names
-  them), which be-block-search-index's `Saving` seals a chunk at a time with
-  `Vault::part_writer` under the index's key. The parts it saves are
-  `Held::Saved`, reused by the commit and uploaded by its drain. What the cap leaves
+  time (`scan::Window`, about a sealed chunk: up to five per input) and merges
+  the inputs' documents (twice: new local ids and offsets, then the records)
+  and dictionaries k-way. It holds two `u32` per document, each input's
+  deletion bitmap, one term's whole posting list with its positions, and the
+  table chunks the moved documents' entries live in (`table::Edit` loads each
+  chunk it changes). It writes its four parts through a `PartsOut` as it goes
+  (`Written::saved` names them); be-block-search-index's `SavedParts` answers
+  the saved part each became, and be-host-stack's `Saving` seals them a chunk
+  at a time with `Vault::part_writer` under the index's key. The parts it saves
+  are `Held::Saved`, reused by the commit and uploaded by its drain. A
+  compaction never merges a segment it wrote itself, which would drop parts it
+  sealed already; the next compaction does. What the cap leaves
   (`SearchIndexContent::merges_over`) is merged while the host is idle
   (`compact_idle_indexes`): nothing queued, written or caught up for search, no
   search running, no command waiting, the outbox empty and no module working.

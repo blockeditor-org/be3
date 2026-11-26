@@ -126,6 +126,7 @@ impl Splitter {
             let room = self.config.maximum.max(1) - self.held.len();
             let (taken, rest) = bytes.split_at(room.min(bytes.len()));
             self.held.extend_from_slice(taken);
+            debug_assert!(self.held.len() <= self.config.maximum.max(1));
             bytes = rest;
             while let Some(length) = cut(&self.held, self.config, &mut self.scan, false) {
                 chunk(&self.held[..length])?;

@@ -7,10 +7,9 @@
 //! (`MergeParts`) as `Index::merge` unions them; within a session, where nothing can be read,
 //! a side unchanged from the base gives way and anything else keeps ours as a conflict.
 
-use std::{cell::RefCell, collections::HashMap, ops::Range};
+use std::{collections::HashMap, ops::Range};
 
 use be_block_commit::MergeResult;
-use be_block_store::{ObjectStore, PartWriter, Vault};
 use be_lib_search::{Batch, DocId, Error, Id, Index, PartName, Parts, PartsOut, Written};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -51,7 +50,9 @@ const MERGES_PER_PASS: usize = 2;
 /// The most bytes of parts one merge reads as a batch is written, so a batch's write stays
 /// quick. Segments whose merge would read more are left for a pass while the device is idle
 /// (`SearchIndexContent::merges_over`), which merges any: a merge reads its inputs and writes
-/// its output a piece at a time, so its size is no matter for memory.
+/// its output a piece at a time, holding two `u32` per document, one term's whole posting list,
+/// up to five read windows of about 1 MiB per input and the table chunks its documents' entries
+/// live in, not its inputs' bytes.
 pub const MERGE_BYTES: u64 = 8 << 20;
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -103,7 +104,7 @@ impl SearchIndexContent {
             .apply(&self.reader([self], read), origin, batch, latest)
             .await?;
         let needs_text = written.needs_text.clone();
-        *self = Self::rebuilt(index, written, [&*self]);
+        *self = Self::rebuilt(index, written, [&*self], &Unsaved)?;
         Ok(needs_text)
     }
 
@@ -112,10 +113,10 @@ impl SearchIndexContent {
     /// merged segments' parts through `out`, and forgets the retired segments and removed blocks
     /// recorded longer than `REMEMBERED` before `now` (milliseconds): what the device that
     /// writes a batch does with it, so the segments a query reads stay few.
-    pub async fn compact<F: AsyncRead, S: ObjectStore>(
+    pub async fn compact<F: AsyncRead>(
         &mut self,
         read: &F,
-        out: &Saving<'_, S, F>,
+        out: &impl SavedParts,
         origin: Id,
         now: i64,
         bytes: u64,
@@ -134,14 +135,7 @@ impl SearchIndexContent {
             )
             .await?;
         index.forget_before(now - REMEMBERED);
-        let saved = out.saved.borrow();
-        let mut rebuilt = Self::rebuilt(index, written, [&*self]);
-        for (name, held) in &mut rebuilt.parts {
-            if let Some(part) = saved.get(name) {
-                *held = part.clone();
-            }
-        }
-        *self = rebuilt;
+        *self = Self::rebuilt(index, written, [&*self], out)?;
         Ok(())
     }
 
@@ -197,26 +191,35 @@ impl SearchIndexContent {
         Reader { parts, read }
     }
 
-    /// The content of `index` after a change wrote `written`: its new parts as bytes, and
-    /// every other part it names as one of `sides` held it (a part it saved, empty).
-    fn rebuilt<const N: usize>(index: Index, written: Written, sides: [&Self; N]) -> Self {
+    /// The content of `index` after a change wrote `written`: its new parts as bytes or as
+    /// `saved` saved them, and every other part it names as one of `sides` held it. A part it
+    /// names that none of those has is an error.
+    fn rebuilt<const N: usize>(
+        index: Index,
+        written: Written,
+        sides: [&Self; N],
+        saved: &impl SavedParts,
+    ) -> Result<Self, Error> {
         let mut added: HashMap<PartName, Vec<u8>> = written.added.into_iter().collect();
         let parts = index
             .parts()
             .into_iter()
             .map(|name| {
-                let held = added.remove(&name).map(Held::Bytes).or_else(|| {
-                    sides.iter().find_map(|side| {
-                        side.parts
-                            .iter()
-                            .find(|(held, _)| *held == name)
-                            .map(|(_, part)| part.clone())
-                    })
-                });
-                (name, held.unwrap_or(Held::Bytes(Vec::new())))
+                if let Some(bytes) = added.remove(&name) {
+                    return Ok((name, Held::Bytes(bytes)));
+                }
+                if written.saved.contains(&name) {
+                    let held = saved.saved(&name)?.map_or(Held::Bytes(Vec::new()), Held::Saved);
+                    return Ok((name, held));
+                }
+                sides
+                    .iter()
+                    .find_map(|side| side.parts.iter().find(|(held, _)| *held == name))
+                    .map(|(_, part)| (name, part.clone()))
+                    .ok_or_else(|| Error::Write(format!("no part {name:?} was written")))
             })
-            .collect();
-        Self { index, parts }
+            .collect::<Result<_, Error>>()?;
+        Ok(Self { index, parts })
     }
 
     fn header(&self) -> Vec<u8> {
@@ -309,74 +312,32 @@ fn read_held<'a, F: AsyncRead>(
     }
 }
 
-/// Where a compaction writes its merged segments' parts (`PartsOut`): each sealed a chunk at a
-/// time as it is written (`Vault::part_writer`) under the index block's key, so neither the
-/// merge nor this holds a part whole. A finished part is a saved part (`Held::Saved`), which the
-/// commit that names it reuses and its drain uploads; it is read back with `read`.
-pub struct Saving<'a, S, F> {
-    vault: &'a Vault<S>,
-    key: uuid::Uuid,
-    read: &'a F,
-    writing: RefCell<HashMap<PartName, PartWriter<'a, S>>>,
-    saved: RefCell<HashMap<PartName, Held>>,
+/// Where a compaction writes its merged segments' parts (`PartsOut`), and the saved part each
+/// one it finished is: be-host-stack's seals each a chunk at a time with `Vault::part_writer`
+/// under the index block's key, so neither the merge nor it holds a part whole. A saved part is
+/// `Held::Saved`, which the commit that names it reuses and its drain uploads.
+pub trait SavedParts: PartsOut {
+    /// The part `part` was saved as, None for one finished with nothing written; an error for
+    /// one this did not finish.
+    fn saved(&self, part: &PartName) -> Result<Option<PartRef>, Error>;
 }
 
-impl<'a, S: ObjectStore, F: AsyncRead> Saving<'a, S, F> {
-    /// A sink sealing under `key`, which `vault` holds, and reading back with `read`.
-    pub fn new(vault: &'a Vault<S>, key: uuid::Uuid, read: &'a F) -> Self {
-        Self {
-            vault,
-            key,
-            read,
-            writing: RefCell::default(),
-            saved: RefCell::default(),
-        }
-    }
-}
+/// Where a change that writes no part through a sink saves its parts: nowhere.
+struct Unsaved;
 
-impl<S: ObjectStore, F: AsyncRead> Parts for Saving<'_, S, F> {
-    fn read<'a>(
-        &'a self,
-        part: &'a PartName,
-        range: Range<u64>,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, Error>> + 'a>> {
-        match self.saved.borrow().get(part) {
-            Some(held) => read_held(held, range, self.read),
-            None => Box::pin(async move { Err(Error::Read(format!("no part {part:?} saved"))) }),
-        }
-    }
-}
-
-impl<S: ObjectStore, F: AsyncRead> PartsOut for Saving<'_, S, F> {
-    fn write(&self, part: &PartName, bytes: &[u8]) -> Result<(), Error> {
-        let mut writing = self.writing.borrow_mut();
-        let writer = match writing.entry(*part) {
-            std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
-            std::collections::hash_map::Entry::Vacant(entry) => entry.insert(
-                self.vault
-                    .part_writer(self.key)
-                    .map_err(|error| Error::Write(error.to_string()))?,
-            ),
-        };
-        writer
-            .write(bytes)
-            .map_err(|error| Error::Write(error.to_string()))
+impl PartsOut for Unsaved {
+    fn write(&self, part: &PartName, _: &[u8]) -> Result<(), Error> {
+        Err(Error::Write(format!("{part:?} has nowhere to be saved")))
     }
 
     fn finish(&self, part: &PartName) -> Result<(), Error> {
-        let held = match self.writing.borrow_mut().remove(part) {
-            Some(writer) => writer
-                .finish()
-                .map_err(|error| Error::Write(error.to_string()))?
-                .map_or(Held::Bytes(Vec::new()), Held::Saved),
-            None => Held::Bytes(Vec::new()),
-        };
-        self.saved.borrow_mut().insert(*part, held);
-        Ok(())
+        Err(Error::Write(format!("{part:?} has nowhere to be saved")))
     }
+}
 
-    fn holds(&self, part: &PartName) -> bool {
-        self.saved.borrow().contains_key(part)
+impl SavedParts for Unsaved {
+    fn saved(&self, part: &PartName) -> Result<Option<PartRef>, Error> {
+        Err(Error::Write(format!("{part:?} was not saved")))
     }
 }
 
@@ -524,11 +485,10 @@ impl MergeParts for SearchIndexContent {
                 .merge(&theirs.index, &reader, origin)
                 .await
                 .map_err(|error| error.to_string())?;
-            Ok(MergeResult::Clean(Self::rebuilt(
-                index,
-                written,
-                [&ours, &theirs],
-            )))
+            Ok(MergeResult::Clean(
+                Self::rebuilt(index, written, [&ours, &theirs], &Unsaved)
+                    .map_err(|error| error.to_string())?,
+            ))
         })
     }
 }

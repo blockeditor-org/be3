@@ -13,6 +13,10 @@ use crate::{
 };
 
 mod a_commit_time_past_the_readers_bound_counts_as_the_oldest;
+mod a_merge_of_documents_out_of_order_is_corrupt;
+mod a_merge_of_a_dictionary_out_of_order_is_corrupt;
+mod a_merge_drops_a_document_the_table_moved_though_unmasked;
+mod a_compaction_leaves_the_segments_it_merged_for_the_next;
 mod a_full_put_replaces_a_partial_one_at_the_same_commit;
 mod a_long_run_of_batches_compacted_a_few_merges_at_a_time_stays_few_segments;
 mod a_merge_over_the_byte_cap_is_not_made;
@@ -86,10 +90,6 @@ impl PartsOut for Store {
 
     fn finish(&self, part: &PartName) -> Result<(), Error> {
         self.parts.finish(part)
-    }
-
-    fn holds(&self, part: &PartName) -> bool {
-        self.parts.holds(part)
     }
 }
 
