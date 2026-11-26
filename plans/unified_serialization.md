@@ -20,10 +20,15 @@ marker, with every rule an older build relies on already in place.
 `crates/be-wasm-schema-lock` (the lockfile), in the be-wasm family so be-wasm-ops can use them.
 Nothing uses them yet.
 
-- A tagged, canonical encoding: fields by id, each skippable; a missing field decodes as its
-  type's default where it has one; `#[schema(unknown)]` keeps unknown fields or variants and
-  writes them back; every list goes through `Encode::encode_list`, so bytes are one copy;
-  `&str` and `&[u8]` decode borrowed.
+- A tagged, canonical encoding made to decode fast: numbers fixed-width little-endian (a `u64`
+  is 8 bytes), lengths a fixed 4 bytes so nothing written moves, and a list of numbers its
+  memory, so it encodes and decodes as one copy on little-endian machines. Fields by id, each
+  skippable; a missing field decodes as its type's default where it has one;
+  `#[schema(unknown)]` keeps unknown fields or variants and writes them back; `&str` and `&[u8]`
+  decode borrowed. Values nest at most `MAX_DEPTH` deep, so untrusted input cannot overflow the
+  stack; `usize` and `isize` are refused, as their width differs between wasm32 and 64-bit.
+  A fuzz target (`:fuzz-decode`) and a test drive both decoding arbitrary bytes and reading back
+  values built from them.
 - The source is the truth for structure and freezing (`be_wasm_schema::frozen!()` freezes a
   file); `schema.lock` holds the ids, so members reorder freely. Every entry updates
   incrementally; an unfrozen one takes any change. A frozen one refuses a retype, a closed
@@ -38,11 +43,6 @@ Nothing uses them yet.
 
 ## Steps
 
-0. **Fast one-copy encoding.** Scalars in fields and in packed lists become fixed-width
-   little-endian (a `u64` is 8 bytes), so a field or a list of numbers decodes as a copy; ids
-   and lengths stay varints. Reading in place (aligned views, as rkyv or Cap'n Proto do) stays
-   possible later, since the format is ours. Size is won back by compression, a layer of its
-   own (plans/deferred/compression.md).
 1. **Decide the one definition language.** Rust (derives, and an attribute macro over traits
    for interfaces, with a WIT or other description generated for readers) or WIT for
    everything (which needs a dialect for document semantics and field annotations). Record it
@@ -56,7 +56,9 @@ Nothing uses them yet.
 3. **Protocols.** The bindgen writes the format in place of postcard; method ids come from the
    lockfile, not hashes of names; `with` becomes a check against the mapped type's lockfile
    entry, and `encodings`, `lenient`, `inline` and `be_wasm_ops::wire`'s byte encodings go.
-   Decide whether every protocol variant is open. Local interfaces (the GPU) stay flattened
+   Decide whether every protocol variant is open. Reading in place (aligned views, as rkyv or
+   Cap'n Proto do) stays possible later, since the format is ours; compression wins size back
+   (plans/deferred/compression.md). Local interfaces (the GPU) stay flattened
    wasm calls; the lockfile checks that a frozen one only gains functions.
 4. **The rest.** bincode (be-lib-remap, tabletop) and remaining postcard. JSON for files people
    edit and tools' output stays.

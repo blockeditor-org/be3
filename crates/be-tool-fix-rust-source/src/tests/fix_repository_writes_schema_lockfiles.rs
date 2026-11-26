@@ -38,7 +38,7 @@ fn fix_repository_writes_schema_lockfiles() {
     assert!(
         fs::read_to_string(&lock)
             .unwrap()
-            .contains("struct Point (frozen from 3)")
+            .contains("struct Point\n  frozen from 3\n")
     );
     fs::write(
         source.join("lib.rs"),
@@ -58,7 +58,7 @@ fn fix_repository_writes_schema_lockfiles() {
         &lock,
         fs::read_to_string(&lock)
             .unwrap()
-            .replace(" (frozen from 3)", ""),
+            .replace("  frozen from 3\n", ""),
     )
     .unwrap();
     fix(&root, false).unwrap();

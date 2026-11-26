@@ -1,3 +1,9 @@
-load("@root//buck/cargo:defs.bzl", "cargo_crate")
+load("@root//buck/cargo:defs.bzl", "cargo_fuzz", "cargo_library", "cargo_package", "cargo_test")
 
-cargo_crate()
+cargo_package()
+
+cargo_library()
+
+cargo_test()
+
+cargo_fuzz(extra_features = ["fuzzing"])

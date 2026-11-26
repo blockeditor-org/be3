@@ -44,6 +44,7 @@ mod a_rename_of_a_frozen_member_is_made_in_the_lockfile;
 mod a_schema_type_has_one_name_in_its_crate;
 mod an_unfrozen_type_takes_any_change;
 mod freezing_records_where_later_members_start;
+mod only_be_wasm_schema_frozen_freezes_a_file;
 mod reordering_keeps_every_id;
 mod the_derive_numbers_as_the_next_lockfile_will;
 mod the_derive_refuses_what_the_lockfile_froze;

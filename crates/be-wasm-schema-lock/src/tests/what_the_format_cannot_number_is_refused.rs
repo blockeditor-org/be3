@@ -19,6 +19,18 @@ fn what_the_format_cannot_number_is_refused() {
             "#[derive(Schema)] enum Shape { #[schema(default)] Line(f64) }",
             "only a unit variant",
         ),
+        (
+            "#[derive(Schema)] struct Page { offset: usize }",
+            "Page.offset: usize is as wide as a pointer",
+        ),
+        (
+            "#[derive(Schema)] struct Offsets(Vec<isize>);",
+            "Offsets: isize is as wide as a pointer",
+        ),
+        (
+            "#[derive(Schema)] enum Seek { To(usize) }",
+            "Seek::To: usize",
+        ),
     ] {
         one_error(lock_of(&[("a.rs", source)], &Lock::default()), error);
     }

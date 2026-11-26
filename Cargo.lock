@@ -3531,6 +3531,7 @@ name = "be-wasm-schema"
 version = "0.1.0"
 dependencies = [
  "be-wasm-schema-derive",
+ "bytemuck",
 ]
 
 [[package]]

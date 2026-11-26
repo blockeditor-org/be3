@@ -85,7 +85,7 @@ fn expand(input: &DeriveInput) -> Result<TokenStream, Vec<String>> {
                         const OPTIONAL: bool = #optional;
                         fn decode(value: #s::Value<#de>) -> ::std::result::Result<Self, #s::Error> {
                             let _ = Self::__SCHEMA_CHECKS;
-                            let bytes = value.bytes()?;
+                            let mut reader = #s::Reader::of(value)?;
                             #decode
                         }
                         fn absent() -> ::std::option::Option<Self> { #absent }
@@ -101,7 +101,7 @@ fn expand(input: &DeriveInput) -> Result<TokenStream, Vec<String>> {
                     const OPTIONAL: bool = true;
                     fn decode(value: #s::Value<'de>) -> ::std::result::Result<Self, #s::Error> {
                         let _ = Self::__SCHEMA_CHECKS;
-                        let mut reader = #s::Reader::new(value.bytes()?);
+                        let mut reader = #s::Reader::of(value)?;
                         while !reader.is_empty() {
                             reader.field()?;
                         }
@@ -163,10 +163,7 @@ fn expand(input: &DeriveInput) -> Result<TokenStream, Vec<String>> {
                 match &variant.fields {
                     Fields::Unit => {
                         encode_arms.push(quote! {
-                            Self::#ident => {
-                                #s::write_key(#id, #s::Wire::Len, out);
-                                out.push(0);
-                            }
+                            Self::#ident => #s::write_empty(#id, out),
                         });
                         decode_arms.push(quote!(#id => Ok(Self::#ident),));
                     }
@@ -192,7 +189,7 @@ fn expand(input: &DeriveInput) -> Result<TokenStream, Vec<String>> {
                             }
                         });
                         decode_arms.push(quote! {
-                            #id => { let bytes = value.bytes()?; #decode }
+                            #id => { let mut reader = #s::Reader::of(value)?; #decode }
                         });
                     }
                 }
@@ -355,7 +352,7 @@ impl<'a> Message<'a> {
         }
     }
 
-    /// Reads `bytes` into `path { fields }`.
+    /// Reads `reader`, inside the message, into `path { fields }`.
     fn decode(&self, path: &TokenStream) -> TokenStream {
         let s = quote!(::be_wasm_schema);
         let de = &self.de;
@@ -379,7 +376,6 @@ impl<'a> Message<'a> {
         quote! {
             #(let mut #slots: ::std::option::Option<#s::Value<#de>> = None;)*
             #keeper
-            let mut reader = #s::Reader::new(bytes);
             while !reader.is_empty() {
                 let (id, value) = reader.field()?;
                 match id {

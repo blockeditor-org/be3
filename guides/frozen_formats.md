@@ -13,7 +13,10 @@ A block saved under another schema is still offered for reset
 type is unfrozen.
 
 The tools to freeze a format stay, with nothing using them, so freezing later
-is a matter of adding data, not building machinery.
+is a matter of adding data, not building machinery. Their replacement, one
+encoding whose ids a checked-in `schema.lock` holds and whose files freeze with
+`be_wasm_schema::frozen!()`, is a prototype in `crates/be-wasm-schema` that
+nothing uses yet (plans/unified_serialization.md).
 
 ## Freezing a format later
 

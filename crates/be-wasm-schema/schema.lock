@@ -30,10 +30,50 @@ struct Everything
   12 boxed: Box<PersonV1>
   13 nothing: Nothing
 
-struct FrozenPoint (frozen from 3)
+struct FrozenPoint
+  frozen from 3
   1 y: i32
   2 x: i32
   3 label: Option<String>
+
+struct FuzzBorrowed
+  1 name: &'a str
+  2 data: &'a [u8]
+  3 numbers: Vec<u16>
+
+struct FuzzKeeping
+  1 flag: bool
+
+enum FuzzOpen
+  open
+  1 Dot
+
+struct FuzzRecord
+  1 flag: bool
+  2 small: u8
+  3 wide: u64
+  4 signed: i32
+  5 ratio: f64
+  6 letter: char
+  7 name: String
+  8 data: Vec<u8>
+  9 numbers: Vec<u16>
+  10 floats: Vec<f32>
+  11 maybe: Option<u32>
+  12 nested: Option<Option<String>>
+  13 map: BTreeMap<String, Vec<i64>>
+  14 shape: FuzzShape
+  15 children: Vec<FuzzRecord>
+
+enum FuzzShape
+  1 Dot
+  2 Circle(f64)
+  3 Label{}
+  4 Boxed(Box<FuzzShape>)
+
+struct FuzzShape::Label
+  1 text: String
+  2 size: u16
 
 struct Holder
   1 shape: ClosedShape
@@ -60,7 +100,8 @@ struct PersonV2
   3 email: Option<String>
   4 tags: Vec<String>
 
-enum ShapeV1 (open)
+enum ShapeV1
+  open
   1 Dot
   2 Circle(f64)
 

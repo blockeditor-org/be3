@@ -1,12 +1,17 @@
 [package]
 name = "be-wasm-schema"
-description = "One tagged, canonical encoding for every type be3 saves or sends, numbered by the crate's schema.lock so a frozen type only grows"
+description = "One tagged, canonical, fast-decoding encoding for every type be3 saves or sends, numbered by the crate's schema.lock so a frozen type only grows"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
 
+[features]
+# The fuzz module (src/fuzz.rs), for the fuzz target and the tests.
+fuzzing = []
+
 [dependencies]
 be-wasm-schema-derive = { path = "../be-wasm-schema-derive" }
+bytemuck = "1"
 
 [lints]
 workspace = true

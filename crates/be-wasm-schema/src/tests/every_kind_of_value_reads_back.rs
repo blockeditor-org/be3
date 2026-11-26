@@ -45,5 +45,5 @@ fn every_kind_of_value_reads_back() {
     };
     assert_eq!(decode::<Tree>(&encode(&tree)), Ok(tree));
     assert_eq!(decode::<Id>(&encode(&Id(300))), Ok(Id(300)));
-    assert_eq!(encode(&-1i32), [1]);
+    assert_eq!(encode(&-1i32), [0xff; 4]);
 }

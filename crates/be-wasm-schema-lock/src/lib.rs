@@ -113,6 +113,14 @@ impl Lock {
                 let Some((_, entry)) = current.as_mut() else {
                     return Err(fail("a member outside a type"));
                 };
+                if member == "open" {
+                    entry.open = true;
+                    continue;
+                }
+                if let Some(from) = member.strip_prefix("frozen from ") {
+                    entry.frozen_from = Some(from.parse().map_err(|_| fail("not an id"))?);
+                    continue;
+                }
                 let (id, rest) = member.split_once(' ').ok_or_else(|| fail("no id"))?;
                 let id: u32 = id.parse().map_err(|_| fail("not an id"))?;
                 let end = rest
@@ -138,16 +146,7 @@ impl Lock {
             if let Some((name, entry)) = current.take() {
                 lock.insert(name, entry);
             }
-            let (head, flags) = match line.split_once(" (") {
-                Some((head, flags)) => (
-                    head,
-                    flags
-                        .strip_suffix(')')
-                        .ok_or_else(|| fail("unclosed flags"))?,
-                ),
-                None => (line, ""),
-            };
-            let (word, rest) = head.split_once(' ').ok_or_else(|| fail("not a type"))?;
+            let (word, rest) = line.split_once(' ').ok_or_else(|| fail("not a type"))?;
             let kind = match word {
                 "struct" => Kind::Struct,
                 "enum" => Kind::Enum,
@@ -160,22 +159,13 @@ impl Lock {
                     .ok_or_else(|| fail("a newtype's type"))?,
                 _ => (rest, ""),
             };
-            let mut entry = Entry {
+            let entry = Entry {
                 kind,
                 inner: inner.to_owned(),
                 open: false,
                 frozen_from: None,
                 members: Vec::new(),
             };
-            for flag in flags.split(", ").filter(|flag| !flag.is_empty()) {
-                if flag == "open" {
-                    entry.open = true;
-                } else if let Some(from) = flag.strip_prefix("frozen from ") {
-                    entry.frozen_from = Some(from.parse().map_err(|_| fail("not an id"))?);
-                } else {
-                    return Err(fail("an unknown flag"));
-                }
-            }
             current = Some((name.to_owned(), entry));
         }
         if let Some((name, entry)) = current.take() {
@@ -197,17 +187,13 @@ impl Lock {
             if entry.kind == Kind::Newtype {
                 let _ = write!(text, ": {}", entry.inner);
             }
-            let mut flags = Vec::new();
+            text.push('\n');
             if entry.open {
-                flags.push("open".to_owned());
+                text.push_str("  open\n");
             }
             if let Some(from) = entry.frozen_from {
-                flags.push(format!("frozen from {from}"));
+                let _ = writeln!(text, "  frozen from {from}");
             }
-            if !flags.is_empty() {
-                let _ = write!(text, " ({})", flags.join(", "));
-            }
-            text.push('\n');
             for member in &entry.members {
                 let shape = if member.retired {
                     " retired"
@@ -335,6 +321,16 @@ pub fn describe(input: &syn::DeriveInput) -> Result<Vec<Described>, String> {
             "{name}: a Schema type takes at most one lifetime and no type parameters"
         ));
     }
+    let portable = |ty: &syn::Type, of: &str| -> Result<String, String> {
+        let shape = shape_of(ty);
+        let mut words = shape.split(|c: char| !(c.is_alphanumeric() || c == '_'));
+        if let Some(word) = words.find(|word| matches!(*word, "usize" | "isize")) {
+            return Err(format!(
+                "{of}: {word} is as wide as a pointer, which differs between wasm32 and 64-bit hosts; use a fixed-size integer (u32, u64)"
+            ));
+        }
+        Ok(shape)
+    };
     let fields = |fields: &syn::FieldsNamed, of: &str| -> Result<Vec<(String, String)>, String> {
         let mut members = Vec::new();
         let mut unknown = 0;
@@ -343,11 +339,13 @@ pub fn describe(input: &syn::DeriveInput) -> Result<Vec<Described>, String> {
                 unknown += 1;
                 continue;
             }
-            let ident = field.ident.as_ref().map(ToString::to_string);
-            members.push((
-                ident.unwrap_or_default(),
-                format!(": {}", shape_of(&field.ty)),
-            ));
+            let ident = field
+                .ident
+                .as_ref()
+                .map(ToString::to_string)
+                .unwrap_or_default();
+            let shape = portable(&field.ty, &format!("{of}.{ident}"))?;
+            members.push((ident, format!(": {shape}")));
         }
         if unknown > 1 {
             return Err(format!("{of}: at most one field keeps unknown fields"));
@@ -371,9 +369,9 @@ pub fn describe(input: &syn::DeriveInput) -> Result<Vec<Described>, String> {
                 members: Vec::new(),
             }]),
             syn::Fields::Unnamed(unnamed) if unnamed.unnamed.len() == 1 => Ok(vec![Described {
+                inner: portable(&unnamed.unnamed[0].ty, &name)?,
                 name,
                 kind: Kind::Newtype,
-                inner: shape_of(&unnamed.unnamed[0].ty),
                 open: false,
                 members: Vec::new(),
             }]),
@@ -403,7 +401,8 @@ pub fn describe(input: &syn::DeriveInput) -> Result<Vec<Described>, String> {
                 let shape = match &variant.fields {
                     syn::Fields::Unit => String::new(),
                     syn::Fields::Unnamed(unnamed) if unnamed.unnamed.len() == 1 => {
-                        format!("({})", shape_of(&unnamed.unnamed[0].ty))
+                        let of = format!("{name}::{variant_name}");
+                        format!("({})", portable(&unnamed.unnamed[0].ty, &of)?)
                     }
                     syn::Fields::Unnamed(_) => {
                         return Err(format!(
@@ -611,8 +610,17 @@ pub fn update(sources: &[Source], old: &Lock) -> Result<Lock, Vec<String>> {
             }
         };
         let frozen = file.items.iter().any(|item| {
-            matches!(item, syn::Item::Macro(call)
-                if call.mac.path.segments.last().is_some_and(|segment| segment.ident == "frozen"))
+            let syn::Item::Macro(call) = item else {
+                return false;
+            };
+            let path: Vec<String> = call
+                .mac
+                .path
+                .segments
+                .iter()
+                .map(|segment| segment.ident.to_string())
+                .collect();
+            path == ["frozen"] || path == ["be_wasm_schema", "frozen"]
         });
         let mut inputs = Vec::new();
         collect(&file.items, &mut inputs);
