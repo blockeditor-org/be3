@@ -37,7 +37,8 @@ struct Projection<C: LiveEdit> {
     lacking_followed: Cell<bool>,
     lacking_changes: Callbacks<(), dyn Fn()>,
     ended: Callbacks<(), dyn Fn(ContentGesture)>,
-    due: RefCell<Option<Rc<dyn Fn()>>>,
+    /// Asks each editor's cache holding the projection to pump it (`on_due`).
+    due: RefCell<Vec<Rc<dyn Fn()>>>,
     reads: RefCell<HashMap<u64, Box<Read>>>,
 }
 
@@ -65,8 +66,23 @@ impl<C: LiveEdit> PartialEq for LiveContent<C> {
 
 impl<C: LiveEdit> Eq for LiveContent<C> {}
 
+impl<C: LiveEdit + 'static> LiveContent<C> {
+    /// The projection, held weakly whatever its content type (`EditorHost::projection`).
+    pub(crate) fn hold(&self) -> std::rc::Weak<dyn std::any::Any> {
+        let any: Rc<dyn std::any::Any> = self.0.clone();
+        Rc::downgrade(&any)
+    }
+
+    /// The projection `held` holds weakly, while it is alive: none if gone, or `Err` if it is
+    /// of another content type.
+    pub(crate) fn upgrade(held: &std::rc::Weak<dyn std::any::Any>) -> Option<Result<Self, ()>> {
+        let any = held.upgrade()?;
+        Some(any.downcast::<Projection<C>>().map(Self).map_err(|_| ()))
+    }
+}
+
 impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
-    pub fn new(host: EditorHost, block: Option<uuid::Uuid>) -> Self {
+    pub(crate) fn new(host: EditorHost, block: Option<uuid::Uuid>) -> Self {
         host.follow(block);
         Self(Rc::new(Projection {
             host,
@@ -81,7 +97,7 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
             lacking_followed: Cell::new(false),
             lacking_changes: Callbacks::default(),
             ended: Callbacks::default(),
-            due: RefCell::new(None),
+            due: RefCell::new(Vec::new()),
             reads: RefCell::new(HashMap::default()),
         }))
     }
@@ -112,12 +128,12 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
     }
 
     pub fn on_due(&self, due: impl Fn() + 'static) {
-        *self.0.due.borrow_mut() = Some(Rc::new(due));
+        self.0.due.borrow_mut().push(Rc::new(due));
     }
 
     pub fn ready(&self) -> Result<(), Unready> {
         self.adopt_lazily();
-        let told = self.0.told.get() || self.0.due.borrow().is_none();
+        let told = self.0.told.get() || self.0.due.borrow().is_empty();
         if self.loaded() && told {
             return Ok(());
         }
@@ -462,7 +478,7 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
             return;
         }
         let due = self.0.due.borrow().clone();
-        if let Some(due) = due {
+        for due in due {
             due();
         }
     }

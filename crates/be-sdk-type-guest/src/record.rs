@@ -27,6 +27,11 @@ pub trait Recorder<C: LiveEdit>: Default {
         let _ = origin;
     }
 
+    /// Commits the open undo groups of `editor`, which detached.
+    fn commit_groups_of(&mut self, editor: u64) {
+        let _ = editor;
+    }
+
     fn void(&mut self, gesture: GestureId) {
         let _ = gesture;
     }
@@ -94,6 +99,10 @@ impl<C: Undo> Recorder<C> for History<C, u64> {
 
     fn split(&mut self, origin: Option<u64>) {
         History::split(self, origin);
+    }
+
+    fn commit_groups_of(&mut self, editor: u64) {
+        History::commit_groups_of(self, editor);
     }
 
     fn void(&mut self, gesture: GestureId) {

@@ -206,6 +206,20 @@ impl<C: Undo, T: Moment> History<C, T> {
         self.held.retain(|(of, _)| *of != gesture);
     }
 
+    /// Commits the open undo groups of `editor`, which left without ending them: their edits
+    /// were written as they were made, so each is kept as one step.
+    pub fn commit_groups_of(&mut self, editor: u64) {
+        let (left, open) = std::mem::take(&mut self.groups)
+            .into_iter()
+            .partition::<Vec<_>, _>(|(gesture, _)| gesture.editor == Some(editor));
+        self.groups = open;
+        for (_, step) in left {
+            if let Some(step) = step {
+                self.push((step, None));
+            }
+        }
+    }
+
     /// Ends the burst `origin`'s last edit went into, so its next edit starts a step of its
     /// own however soon it comes. An edit made in an open gesture goes into that gesture
     /// whatever the burst.

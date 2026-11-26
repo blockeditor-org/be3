@@ -560,15 +560,21 @@ order: presence and channel messages. The rules an agent most needs:
   move, in the order made, to the end of `unsent` (and become one undo step), and
   a cancel drops only its own. Peers' entries go beneath the layer (it is part of
   `local` for `apply_beneath`), an ordinary edit made meanwhile is queued beneath
-  it and recorded for undo against the content without it, and seals, stashes,
+  it, told to editors as going beneath it (`Landed::Under`, so none is shown the
+  content afresh), and recorded for undo against the content without it, and seals, stashes,
   `content` and descriptions never hold it. An undo while it is held cancels all
-  of it and does nothing else; its open gestures stay open, dropping what their
-  editors send, until they end them. A redo is refused. A restart carries the layer
+  of it and does nothing else; its open gestures stay open, voided, dropping what
+  their editors send, until they end them, but hold nothing: an undo or redo
+  before then is an ordinary one. A redo is refused while the layer is held. A restart carries the layer
   after `unsent`; a gesture with an edit that does not carry, and every open one
   at a replacement, ends here: the editor is told `ToEditor::GestureEnded`, its
   later edits are dropped, and its `EditorMirror` answers with a cancel of the
-  gesture, which ends it for `Holds` on both sides. An editor that detaches
-  cancels its own. Gestures are named by the editor and an id of its own
+  gesture, which ends it for `Holds` on both sides. `Holds` cannot see a gesture
+  the replica ends so (it ends in a job, not at a message), so until that cancel
+  an undo is spent on it, and a commit crossing the replica's word counts its
+  operations though the replica dropped them: a round trip either way, and the
+  counted edits are covered by `journaled-taken` once nothing else waits. An editor that detaches
+  cancels its own tentative gestures and commits its undo groups. Gestures are named by the editor and an id of its own
   (`FromEditor::Gesture { id, .. }`, `FromEditor::Operate { gesture, .. }`), so one
   editor holds several.
   `be_sdk_type_guest::holds::Holds` decides, from the messages alone, which
