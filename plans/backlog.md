@@ -532,6 +532,13 @@ Peers' derived views of a held edit: plans/peers_preview_held_edits.md.
 
 ## 26. Server protocol
 
+- **A retired administrator's key on an organization path.** A partial
+  organization path may reduce an administrator's retirement, and a reader
+  cannot tell it from a member's (guides/blocks/keys.md, "Accepted limits", "A
+  retired administrator's key"). Done: the reduced step commits whether it
+  retires an administrator, checked by whole-log checkers, and `answer` refuses
+  a partial organization path that reduces one, with a be-block-keys test where
+  a stolen retired administrator key's record below is refused.
 - **Authority names a head of its signer's choosing.** A record on authority from
   the organization's or an ancestor's log names an entry of it (`Authority`,
   `Link::head`), and `answer` checks the signer's right as of that entry alone:

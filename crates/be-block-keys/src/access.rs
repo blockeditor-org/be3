@@ -22,8 +22,9 @@ use crate::{
 /// else the account's signing key signs (authorship has a domain of its own).
 const ACCESS_INFO: &[u8] = b"be3.access.v1";
 /// What an entry's hash covers comes after this: the hash of the entry before it, whether it
-/// lowered anyone's access, whether it is a parent record, and its digest (`Entry::digest`), so
-/// an entry reduced to those (`Reduced`) hashes as the whole entry does.
+/// lowered anyone's access, whether it is a parent record, whether it is an owner record
+/// (`owns`), whether it is a retirement (`retires`), and its digest (`Entry::digest`), so an
+/// entry reduced to those (`Reduced`) hashes as the whole entry does.
 const ACCESS_HASH_INFO: &[u8] = b"be3.access.hash.v1";
 /// What an entry's digest covers comes after this.
 const ACCESS_DIGEST_INFO: &[u8] = b"be3.access.digest.v1";
@@ -1107,8 +1108,9 @@ pub struct Checked {
     /// are left empty) and vouches for no escrow epoch.
     pub hides_lowering: bool,
     /// For a block's log: whether a reduced entry is a retirement (`Reduced::retires`), which
-    /// may have retired the key of an account the path proves: the key the path names for them may sign nothing
-    /// after it, so the log names no one's authority for a record elsewhere (`answer`).
+    /// may have retired the key of an account the path proves: the key the path names for them
+    /// may sign nothing after it, so the log names no one's authority for a record elsewhere
+    /// (`answer`).
     pub hides_retirement: bool,
     /// Whether the log was served as a proof path (`proof_path`): some entries reduced, so
     /// `grants`, `levels`, `administrators` and `members` hold only those it proves, and a
@@ -1422,8 +1424,10 @@ impl Checked {
                             state.demote_owner(former);
                         }
                     }
-                    // An organization's path reduces only the retirements of members who never
-                    // administered it, whose keys grant nothing outside it.
+                    // An honest organization path reduces only the retirements of members who
+                    // never administered it, whose keys grant nothing outside it. A server can
+                    // reduce an administrator's too, and a reader cannot tell the two apart
+                    // (guides/blocks/keys.md, "Accepted limits", "A retired administrator's key").
                     if reduced.retires && kind == LogKind::Block {
                         state.hides_retirement = true;
                     }

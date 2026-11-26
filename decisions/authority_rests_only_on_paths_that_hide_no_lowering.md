@@ -12,9 +12,12 @@ lowered anyone, every retirement, and the accounts they name (`proof_path`'s
 `lowerings`). The flag is per log, so every reader served a path of that log
 sees them. It is set while `access_log_authorities` names the log as above a
 record, which the append of the first such record below writes, so it holds
-from the first path served after that record. The organization's paths already
-reduce no lowering and no administrator's retirement (every record about an
-administrator is whole), and one that hides a lowering names no administrator.
+from the first path served after that record. An honest organization path
+already reduces no lowering and no administrator's retirement (every record
+about an administrator is whole), and one that hides a lowering names no
+administrator. A lying server can still reduce an administrator's retirement on
+an organization path, which a reader cannot tell from a member's: that is an
+accepted limit (guides/blocks/keys.md, "A retired administrator's key").
 
 ## Why
 

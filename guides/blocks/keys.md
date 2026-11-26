@@ -1163,6 +1163,13 @@ who lost access. Cited from code by these names.
   entry from before, and devices take it. A record resting on a block no
   longer above anything the reader views does not check for that reader until
   a manager signs it again from where it lies.
+- **A retired administrator's key.** A reader served a partial path of the
+  organization's log cannot tell an administrator's retirement from a member's,
+  since both reduce to `retires`, so `answer` refuses no organization path for
+  reducing one. A server that reduces an administrator's retirement, where that
+  administrator signs nothing after it in the organization's log, keeps the old
+  key among the signers, and a stolen retired key then signs records below that
+  devices take on the organization's authority.
 - **What a parent record proves on a device**: that its signer held Edit or
   above on the moved block. Edit on the destination, and Manage where
   `BlockGraph::move_refusal` asks for it, are the server's checks alone, so an
