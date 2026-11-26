@@ -8,7 +8,7 @@ const LIFECYCLE_TIMEOUT_MILLISECONDS: u64 = 5_000;
 /// load to be hung and stops the app: its session, and the while it has to say hello, start only
 /// once it loaded. Generous, since on the web the module is fetched and linked in a worker of its
 /// own, which takes seconds.
-pub const LOAD_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+pub const LOAD_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SessionState {
