@@ -87,7 +87,11 @@ fn a_window_is_named_anew_when_its_desktop_entry_changes() {
     );
     read();
     flush();
-    assert_eq!(names().len(), 3, "reading the same entries again changes nothing");
+    assert_eq!(
+        names().len(),
+        3,
+        "reading the same entries again changes nothing"
+    );
 }
 
 /// Removes its folder as it drops, so a test that fails leaves nothing behind either.

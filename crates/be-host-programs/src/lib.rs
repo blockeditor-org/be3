@@ -222,7 +222,9 @@ impl Entries {
         let at = self.all.len();
         self.by_id.insert(entry.id.clone(), at);
         if let Some(class) = &entry.startup_wm_class {
-            self.by_class.entry(class.to_ascii_lowercase()).or_insert(at);
+            self.by_class
+                .entry(class.to_ascii_lowercase())
+                .or_insert(at);
         }
         self.all.push(entry);
     }
