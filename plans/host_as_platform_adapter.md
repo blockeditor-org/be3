@@ -2518,7 +2518,32 @@ Each step lands on its own.
                `a_root_with_something_to_step_between_frames_wakes_its_page`.
              - 4g7g2c4. be-host's web build runs `RootShell` (`?root=`), its native-only parts
                (the desktop, program windows, the login session) left out, with a web
-               counterpart of the root's host tests where one exists.
+               counterpart of the root's host tests where one exists. In parts:
+               - 4g7g2c4a. Built: `?root=APP` on be-host's page runs the staged root `APP` in
+                 place of its own UI, as `--root` does natively: one `RootShell` for both
+                 (src/root.rs, with what it serves in `root/serving.rs`), whose frames show
+                 natively on the window's device (`root/window.rs`) and on the web in canvases
+                 of the page's (`root/page.rs`): each layer of the root's frame a canvas in
+                 `#layers` above the host's canvas, placed and stacked by be-host-runtime's
+                 `canvas_style`, the root's own surfaces drawn on the page's gpu shim and its
+                 apps' screens and anchored views by their workers. The root loads
+                 asynchronously and a frame it answers after its children shows from the next
+                 host frame. be-host's `:web` stages be-root as `:native` does, and the host's
+                 worker finds its glue's inline snippets (be-worker.js). The sandbox API's
+                 `instance.started` answers once an instance's module is loaded and linked,
+                 and be-sdk-root starts an app's session, with its while to say hello, from
+                 then, as be-host-runtime does from its backend being ready: on the web
+                 linking an app in its worker takes longer than that while.
+                 `//crates/be-host:root-web-host-test` signs in, opens `?root=be3.root`, finds
+                 the workspace's files in the root's tree and reads the root's canvas and an
+                 app's screen.
+               - 4g7g2c4b. Web counterparts of the root's host tests where one exists, as
+                 `web-test/` scripts, with what they need. Left from 4g7g2c4a: a canvas whose
+                 layer leaves the list is removed, not kept hidden for a surface its app still
+                 retains, as be-host-runtime's `Canvases` keeps it (so a tab shown again shows
+                 nothing until its app draws it anew); drive's `paint` reads nothing of the
+                 root on the web; the root's canvases follow its frames, not the host's
+                 present.
            With counterparts whose paintings match be-host's: the desktop shell, F6 between
            views, the lock screen on Super+L (4g7g1), the groups 4g7g2a and 4g7g2b built, and the
            palette. The test

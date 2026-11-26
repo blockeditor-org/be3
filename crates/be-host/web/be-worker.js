@@ -11,7 +11,7 @@
 // are its own, and its file calls wait for files.js rather than spin.
 //
 // A worker sees no import map, so the glue is loaded from a copy whose bare
-// specifiers are rewritten to the shims' addresses.
+// specifiers, and the relative ones of its snippets, are rewritten to their addresses.
 
 import * as wasi from "./wasi.js";
 import * as environment from "./env.js";
@@ -31,6 +31,9 @@ async function glue() {
     ]) {
         source = source.replaceAll(`from "${bare}"`, `from "${new URL(file, base)}"`);
     }
+    // The snippets a crate's inline JavaScript becomes (be-wasm-root-host's), which a copy
+    // loaded from a blob cannot find relative to itself.
+    source = source.replace(/from (["'])\.\/snippets\//g, `from $1${new URL("./snippets/", base)}`);
     const url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
     try {
         return await import(url);

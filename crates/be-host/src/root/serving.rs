@@ -1,7 +1,9 @@
-//! What be-host serves the root under `--root` (`RootShell`) each frame, beside drawing it: the
+//! What be-host serves the root under `--root` and `?root=` (`RootShell`) each frame, beside drawing it: the
 //! host's catalog, notices and statistics, and the editors the root's apps open, their blocks,
 //! children, quick open and the windows they show, which do not depend on where the root's
 //! frames are drawn.
+
+use beui::Clip;
 
 use super::*;
 

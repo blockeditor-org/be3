@@ -160,7 +160,7 @@ pub(crate) trait PendingCreation {
 pub(crate) struct TemplateEntry {
     pub(crate) target: app::CreationTarget,
     /// The app whose editor makes it.
-    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+    #[cfg(not(target_os = "android"))]
     app: Arc<AppManifest>,
     pub(crate) icon: &'static str,
     pub(crate) category: TemplateCategory,
@@ -313,7 +313,7 @@ impl EditorRegistry {
             let app = Arc::clone(manifest);
             self.templates.push(TemplateEntry {
                 target,
-                #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+                #[cfg(not(target_os = "android"))]
                 app: Arc::clone(&app),
                 icon: Box::leak(template.icon.clone().into_boxed_str()),
                 category: template.category,
@@ -440,7 +440,7 @@ impl EditorRegistry {
 
     /// The app whose editor `editor` makes a block from its template `template`, and what it
     /// makes: what a root's creation child opens in that app (`InstanceRole::Creation`).
-    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+    #[cfg(not(target_os = "android"))]
     pub(crate) fn creation_app(
         &self,
         editor: Uuid,
@@ -478,7 +478,7 @@ impl EditorRegistry {
             .find(|registered| registered.id == editor && registered.edits(opened))
     }
 
-    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+    #[cfg(not(target_os = "android"))]
     /// The app and editor that `open_with` opens `opened` in, given the editor asked for:
     /// that one if it edits it, else its type's default. None when no app edits it.
     pub(crate) fn editor_app(

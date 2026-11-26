@@ -34,8 +34,8 @@ cargo_test(
 
 cargo_binary()
 
-# The roots :native stages beside its apps, so `--root` finds be-root, which no
-# shipped host holds until it becomes the default
+# The roots :native and :web stage beside their apps, so `--root` and `?root=` find
+# be-root, which no shipped host holds until it becomes the default
 # (plans/host_as_platform_adapter.md, 4g7g). :dev opens the dev workspace,
 # which a root replaces, so it stages none.
 dev_roots = ["crates/be-root"]
@@ -120,13 +120,13 @@ web_files = glob(["web/*.js"]) + ["//crates/be-tool-local:host-index"] + ["//buc
 
 program(
     name = "web",
-    app_types = ["//{}:types".format(package) for package in app_packages()],
+    app_types = ["//{}:types".format(package) for package in app_packages() + dev_roots],
     bindgen = [":web-module", "//crates/be-wasm-gpu-shim:module"],
-    data = ["//{}:data".format(package) for package in app_packages()],
+    data = ["//{}:data".format(package) for package in app_packages() + dev_roots],
     files = web_files + [":app-hashes"],
     index = True,
-    manifests = ["//{}:manifest".format(package) for package in app_packages()],
-    modules = ["//{}:module".format(package) for package in app_packages()],
+    manifests = ["//{}:manifest".format(package) for package in app_packages() + dev_roots],
+    modules = ["//{}:module".format(package) for package in app_packages() + dev_roots],
     run_with = [
         "sh",
         "$(location :serve.sh)",
@@ -341,6 +341,16 @@ web_host_test(
     caddyfile = ":Caddyfile",
     server = "//crates/be-server-bin:bin",
     test = "web-test/a_grown_page_shows_the_workspaces_backdrop_beyond_its_last_frame.mjs",
+)
+
+# be-root in place of the host's own UI on the page (`?root=be3.root`): its canvas and its
+# apps' screens show the workspace (plans/host_as_platform_adapter.md, 4g7g2c4).
+web_host_test(
+    name = "root-web-host-test",
+    bundle = ":web",
+    caddyfile = ":Caddyfile",
+    server = "//crates/be-server-bin:bin",
+    test = "web-test/be_root_shows_the_workspace_in_place_of_the_hosts_ui.mjs",
 )
 
 web_host_test(

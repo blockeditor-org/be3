@@ -292,7 +292,7 @@ fn with_hits(
     blocks
 }
 
-#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+#[cfg(not(target_os = "android"))]
 /// The search index's ask for what is `typed` into quick open, none for nothing typed.
 pub(crate) fn search_ask(typed: &str) -> Option<be_host_stack::SearchAsk> {
     let text = typed.trim();
@@ -302,21 +302,21 @@ pub(crate) fn search_ask(typed: &str) -> Option<be_host_stack::SearchAsk> {
     })
 }
 
-#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+#[cfg(not(target_os = "android"))]
 /// Whether quick open can answer what is `typed` now, as `quick_open` would: at once for
 /// nothing typed, else once the search index answered it.
 pub(crate) fn quick_open_ready(typed: &str) -> bool {
     search_ask(typed).is_none_or(|ask| be_host_stack::searched(&ask).is_some())
 }
 
-#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+#[cfg(not(target_os = "android"))]
 /// The blocks quick open offers by name before anything is typed (`graph_blocks`), those `open`
 /// in an editor first.
 pub(crate) fn quick_open_blocks(open: &[Uuid]) -> Vec<OpenableBlock> {
     graph_blocks_open(open)
 }
 
-#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+#[cfg(not(target_os = "android"))]
 /// Quick open's blocks for what is `typed`, as be-host's own palette finds them (`found_blocks`),
 /// for an ask that cannot watch them (a root's `host.find-blocks`): those of `blocks` whose names
 /// match, then the search index's hits once it answered (`quick_open_ready`).

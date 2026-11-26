@@ -18,13 +18,13 @@ use be_host_runtime::EditorAction;
 pub(crate) use anchored::AnchoredViews;
 pub(crate) use app_view::{AppView, ChildView, ViewEditor};
 pub(crate) use desktop::DesktopPlace;
-#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+#[cfg(not(target_os = "android"))]
 pub(crate) use editors::with_window;
 pub(crate) use editors::{
     ConflictSurface, OwnedEditors, PanelReport, PresentingSurface, ShellDisplay, ShellSurface,
 };
 pub(crate) use palette::HostPalette;
-#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+#[cfg(not(target_os = "android"))]
 pub(crate) use palette::{
     OpenableBlock, quick_open, quick_open_blocks, quick_open_ready, search_ask,
 };
