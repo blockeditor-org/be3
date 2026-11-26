@@ -168,7 +168,7 @@ struct Root {
     /// says nothing of an app it killed.
     killed: Rc<RefCell<Vec<u64>>>,
     /// Its own toasts, which say an app it runs stopped, beside its host's notices.
-    own_toasts: Rc<Cell<Option<Signal<Vec<Toast>>>>>,
+    own_toasts: Rc<Cell<Option<Signal<Vec<OwnToast>>>>>,
     /// How many performance panels watch the host's statistics: the host keeps them while any
     /// does.
     statistics_watchers: Rc<Cell<u32>>,
@@ -518,7 +518,7 @@ impl Root {
                 toast_area.set(Some(area));
                 let toasts = create_signal(Vec::<Toast>::new());
                 shown.set(Some(toasts));
-                let own = create_signal(Vec::<Toast>::new());
+                let own = create_signal(Vec::<OwnToast>::new());
                 own_toasts.set(Some(own));
                 let saving = create_signal(SavingState {
                     generation: 0,
