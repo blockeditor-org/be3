@@ -201,6 +201,8 @@ pub struct Document {
     fonts_generation: u64,
     painting: Vec<(Rc<Display>, Vec2)>,
     pub paint_cache: RefCell<PaintCache>,
+    /// The lent node a `Replica` is painting now, which `paint::paint` lets through.
+    pub(crate) replicating: std::cell::Cell<Option<NodeId>>,
     pub(crate) canvas_moves: Vec<NodeId>,
     pub(crate) canvas_moves_from: u64,
     pub copied: Option<crate::clipboard::Clip>,
@@ -463,6 +465,7 @@ impl Document {
             fonts_generation: 0,
             painting: Vec::new(),
             paint_cache: RefCell::new(PaintCache::default()),
+            replicating: std::cell::Cell::new(None),
             canvas_moves: Vec::new(),
             canvas_moves_from: 0,
             copied: None,
@@ -2043,6 +2046,7 @@ impl Document {
             self.work.replayed_nodes.get(),
         );
         let retained = self.paint_cache.replace(PaintCache::default());
+        self.paint_cache.get_mut().lend_as(&retained);
         let painting = std::mem::take(&mut self.painting);
         let windows = std::mem::take(&mut self.windows.paintings);
         let escaped = std::mem::take(&mut self.escapes.paintings);

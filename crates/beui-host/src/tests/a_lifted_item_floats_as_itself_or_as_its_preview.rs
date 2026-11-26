@@ -22,7 +22,7 @@ fn a_lifted_item_floats_as_itself_or_as_its_preview() {
                         })
                     })}
                 >
-                    <Frame @test_id="item" width=100.0 height=40.0 />
+                    <Frame @test_id="item" width=100.0 height=40.0 fill=Color32::from_rgb(200, 30, 30) />
                 </Interactive>
                 <Frame @test_id="sibling" width=100.0 height=40.0 />
             </List>
@@ -41,11 +41,28 @@ fn a_lifted_item_floats_as_itself_or_as_its_preview() {
     };
 
     carry_to(&mut harness, vec2(30.0, 60.0));
-    let floating = harness.rect(harness.find("item"));
     assert_eq!(
-        floating.min,
-        home.min + vec2(30.0, 60.0),
-        "with no preview, the item itself is drawn where it floats, held where it was pressed"
+        harness.rect(harness.find("item")),
+        home,
+        "with no preview, the item keeps its place"
+    );
+    let drawn: Vec<Rect> = harness
+        .frame(Vec::new())
+        .main()
+        .shapes()
+        .iter()
+        .filter_map(|shape| match shape {
+            crate::painter::Shape::Rect { rect, .. } => Some(*rect),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        drawn,
+        vec![Rect::from_min_size(
+            home.min + vec2(30.0, 60.0),
+            vec2(100.0, 40.0)
+        )],
+        "and is drawn only where it floats, held where it was pressed"
     );
     harness.up(grab + vec2(30.0, 60.0), PointerButton::Primary);
     harness.settle();

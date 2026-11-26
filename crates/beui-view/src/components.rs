@@ -9,6 +9,7 @@ pub mod list;
 pub mod offset;
 pub mod overlay;
 pub mod portal;
+pub mod replica;
 pub mod root;
 pub mod selectable;
 pub mod text;

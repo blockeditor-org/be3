@@ -9,5 +9,6 @@ pub mod list;
 pub mod offset;
 pub mod overlay;
 pub mod portal;
+pub mod replica;
 pub mod text;
 pub mod virtual_list;

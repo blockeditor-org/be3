@@ -41,6 +41,7 @@ pub(crate) mod painter {
     }
 }
 pub(crate) mod portal;
+pub(crate) mod replica;
 pub(crate) mod reactive;
 pub(crate) mod root;
 pub(crate) mod selectable;
@@ -62,6 +63,7 @@ pub(crate) use list::spacer;
 pub(crate) use offset::offset;
 pub(crate) use overlay::overlay;
 pub(crate) use portal::portal;
+pub(crate) use replica::replica;
 pub(crate) use root::root;
 pub(crate) use text::text;
 pub(crate) use text::text_item;
