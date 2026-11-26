@@ -1318,6 +1318,25 @@ impl KeyBook {
             .filter(|checked| checked.root == root)
     }
 
+    /// The lowerings this device appended in an earlier run that no log it checked held
+    /// (`appended`), from the refs.
+    pub fn set_awaited(&self, awaited: impl IntoIterator<Item = (Uuid, EntryHash)>) {
+        self.roots.lock().unwrap().awaited.extend(awaited);
+    }
+
+    /// The lowering this device appended to `log` that no log checked here holds yet, to keep
+    /// with the refs (`appended`).
+    pub fn awaited(&self, log: Uuid) -> Option<EntryHash> {
+        self.roots.lock().unwrap().awaited.get(&log).copied()
+    }
+
+    /// Whether `log` (a block's, or the organization's by its id) falls short of a lowering this
+    /// device appended to it (`appended`): until a log read shows it, every epoch that log
+    /// judges is outdated, and one served without it is withheld.
+    pub fn awaiting(&self, log: Uuid) -> bool {
+        self.roots.lock().unwrap().behind(log)
+    }
+
     /// How far this device checked logs in an earlier run (`note_log`), from the refs.
     pub fn set_kept_logs(&self, kept: impl IntoIterator<Item = (Uuid, crate::refs::KeptLog)>) {
         self.roots.lock().unwrap().kept.extend(kept);
@@ -1624,6 +1643,23 @@ impl KeyBook {
         Some(log)
     }
 
+    /// Notes `signed`, an access log entry this device signed whose append the server may or may
+    /// not have taken (the connection dropped before it answered): one that lowered anyone drops
+    /// the log this run checked of it, so the next seal reads it again and, until then, judges by
+    /// what was kept. Answers the log, when it lowered. Nothing is awaited: an append that never
+    /// landed would leave the log withheld here for good.
+    pub fn unsure(&self, signed: &[u8]) -> Option<Uuid> {
+        let entry = be_block_keys::Entry::decode(signed).ok()?;
+        if !entry.lowers {
+            return None;
+        }
+        let log = Uuid::from_bytes(entry.log);
+        let mut roots = self.roots.lock().unwrap();
+        roots.logs.remove(&log);
+        roots.entries.remove(&log);
+        Some(log)
+    }
+
     /// The scopes whose logs `outdated` judges `key`, of `block`'s scope, by, that this device
     /// has not checked, or whose log does not reach the head the key there names: what
     /// `Peer::outdated` reads first. The organization's among them, by its id, when it has a log
@@ -1638,7 +1674,7 @@ impl KeyBook {
                 !self.owner_only_covers(*key)
                     && (roots.behind(self.organization)
                         || match roots.logs.get(&self.organization) {
-                        None => true,
+                            None => true,
                             Some(log) => head.is_some_and(|head| !log.holds(&head)),
                         })
             });

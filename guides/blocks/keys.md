@@ -585,9 +585,18 @@ names the organization's head in its signed record (`EscrowKey::head`).
   itself (a revocation, a downgrade, a closing, a sign-out: `Peer::appended`,
   `KeyBook::appended`) outdates the epochs before it here at once: until a log
   checked here holds it, every epoch that log judges is outdated, the log is
-  read again before the next seal, and one served short of it is withheld. So a
+  read again before each seal, and one served short of it is withheld. So a
   manager never seals on by the log it read before signing the lowering, even if
-  key work leaves the rotation out. How far it checked each scope's
+  key work leaves the rotation out. What it awaits is kept with the refs
+  (`refs::Table::Awaited`, `Peer::keep_awaited`), so a restart withholds the
+  short log too. While a log is withheld so, a seal under its scope is refused as
+  `Locked` and nothing is rotated (`Peer::awaiting`, `rotate`): an epoch minted
+  then would be outdated at once. A lost append (an honest server restored from
+  a backup made before it) leaves the block withheld on this device, its
+  saves there refused, until a log holding the lowering is served: it fails
+  closed. An append whose answer never
+  came (the connection dropped) drops the log this run checked
+  (`KeyBook::unsure`), so the next seal reads it, without awaiting anything. How far it checked each scope's
   log is kept with the refs (`refs::KeptLog`, `KeyBook::note_log`;
   `refresh_keys` reads each scope's log once as its keys arrive, and a block
   made here is kept at its root, eight scopes read at a time): a log served
