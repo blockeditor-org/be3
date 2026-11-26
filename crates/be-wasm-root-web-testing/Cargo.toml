@@ -10,6 +10,8 @@ crate-type = ["cdylib", "rlib"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 be-lib-layers = { path = "../be-lib-layers" }
+be-sdk-api = { path = "../be-sdk-api" }
+beui-fonts = { path = "../beui-fonts" }
 be-wasm-guest-host = { path = "../be-wasm-guest-host" }
 be-wasm-ops = { path = "../be-wasm-ops" }
 be-wasm-pure-wasi = { path = "../be-wasm-pure-wasi" }
@@ -22,7 +24,15 @@ be-wasm-threads = { path = "../be-wasm-threads" }
 js-sys = "0.3"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-web-sys = { version = "0.3", features = ["Response", "Window"] }
+web-sys = { version = "0.3", features = [
+    "CanvasRenderingContext2d",
+    "ImageBitmap",
+    "ImageData",
+    "OffscreenCanvas",
+    "OffscreenCanvasRenderingContext2d",
+    "Response",
+    "Window",
+] }
 
 [lints]
 workspace = true
