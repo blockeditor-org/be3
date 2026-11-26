@@ -84,9 +84,7 @@ fn an_organization_log_served_for_a_new_phrase_is_refused_unless_its_path_proves
             .collect(),
     };
     let members = |answer: &RecoveryKey| crate::contacts::not_administered(deputy_id, answer);
-    let forged = |answer: &RecoveryKey| {
-        matches!(members(answer), Err(ClientError::Forged(forged)) if forged == organization)
-    };
+    let forged = |answer: &RecoveryKey| matches!(members(answer), Err(ClientError::Forged(forged)) if forged == organization);
 
     // An honest path proves the deputy a member at the head after the demotion, and an
     // administrator at the head after the promotion, where it says nothing.

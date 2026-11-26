@@ -97,7 +97,14 @@ fn authority_from_an_organization_path_that_hides_an_administrators_retirement_i
     );
     assert!(
         matches!(
-            proof_path(LogKind::Organization, &may_administer_log, [7; 16], [], false).last(),
+            proof_path(
+                LogKind::Organization,
+                &may_administer_log,
+                [7; 16],
+                [],
+                false
+            )
+            .last(),
             Some(Step::Entry(_))
         ),
         "an honest path keeps whole a retirement that says it may administer"
