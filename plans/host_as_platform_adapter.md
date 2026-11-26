@@ -2544,22 +2544,31 @@ Each step lands on its own.
                  shows another surface of the same app keeps its canvas, and a canvas whose layer
                  leaves the list stays hidden while its app holds its surface
                  (`Root::holds_app_surface`, from the surfaces an app's worker reports it let
-                 go of, app.js's `released`), as natively the sandbox keeps what an instance
-                 presented until it lets the surface go. Left from 4g7g2c4a: a view the root
-                 shows again comes back on a new surface, its app having let the old one go, so
-                 under the root a tab shown again still shows a fresh canvas until its app draws
-                 it (be-host's `shown-again` script fails under the root, with two fresh
-                 canvases), natively too: the root would tell the host the surfaces its views'
-                 kept frames retain (be-sdk-app-host's `Run::retained_surfaces`, which
-                 be-sdk-root's embedded editors hold), which the page keeps and the native
-                 sandbox keeps the textures of; drive's `paint` reads nothing of the root on the
-                 web, nor of be-host's own UI there (a browser does not answer `paint`,
-                 beui-host-window's web `automate`), so that waits for the page answering
-                 paintings at all; the root's canvases follow its frames, not the host's
-                 present; on the web be-host's `busy` does not say whether the root's apps
-                 are settled (the native `Root::apps_unsettled`), which the web `Root` does not
-                 answer yet. `web_host_test`'s `root` runs a page script under the root once each
-                 account signed in (`test.root` names it to the script).
+                 go of, app.js's `released`) or the list names it unshown. The root keeps the
+                 last frames of views it hides, as be-host does (guides/apps/runtime.md, Layout
+                 and present commits): be-sdk-root's `Embedded` keeps them through its `Run`'s
+                 `Shown`, names each its frame does not show as a layer that is not shown
+                 (`Embedded::kept_layers`), and shows a view shown again from it until its new
+                 frame is taken in; be-host keeps what a surface the root's list names showed
+                 (natively `Root::retain`, on the page a hidden canvas), so a tab shown again
+                 shows its last frame at once (`:root-shown-again-web-host-test`). be-root fills
+                 its own surface, under everything, with the backdrop of the view its session
+                 shows (`Embedded::backdrop`), drawn rather than cleared to
+                 (`:root-grown-web-host-test`); the grown script now has every clear the page
+                 makes clear to magenta, WebGPU's too, since the host's canvas clears to
+                 transparent, which fixed `:grown-web-host-test`. Left: drive's `paint` reads
+                 nothing of the root on the web, nor of be-host's own UI there (a browser does
+                 not answer `paint`, beui-host-window's web `automate`), so that waits for the
+                 page answering paintings at all; the root's canvases follow its frames, not the
+                 host's present; on the web be-host's `busy` does not say whether the root's
+                 apps are settled (the native `Root::apps_unsettled`), which the web `Root` does
+                 not answer yet; the page under a root never idles, drawing every frame with
+                 nothing to do, an empty workspace too (the root's frame wants its next at once),
+                 so the shown-again script skips its idle part under a root; the children a
+                 root places get no backdrop of their own (be-host fills each child's laid box
+                 with its backdrop under it), only the session's view does. `web_host_test`'s
+                 `root` runs a page script under the root once each account signed in
+                 (`test.root` names it to the script).
                  `a_child_placed_in_a_popover_shows_above_it` passes under the root
                  (`:root-popover-web-host-test`); left:
                  - `two_pages_write_in_one_chat_and_neither_makes_a_file_call_or_starts_a_thread`
@@ -2575,14 +2584,9 @@ Each step lands on its own.
                    then the host menu's Contacts, pressed, leaves the menu open with the row
                    focused and opens no dialog, on either page. Both pages hear the press and
                    release whole (no focus change or pointer cancel between), so the root
-                   does not dismiss a dialog for an unfocused window.
-                 - `a_grown_page_shows_the_workspaces_backdrop_beyond_its_last_frame` reads the
-                   root's canvas under the root (`test.root`), in the first frame it shows at
-                   the grown size, and fails there: beyond the workspace's old frame the root
-                   shows its own clear colour, since be-root draws no backdrop behind a child (be-host's
-                   `Backdrop`, from the child's reported backdrop), so its target is left out
-                   until it does. Its own target (`:grown-web-host-test`) fails on its base
-                   too: the host's renderer makes no opaque WebGL clear before the test reads it.
+                   does not dismiss a dialog for an unfocused window. The shown-again script
+                   under the root sees the same now and then: the picker's Text, pressed,
+                   makes no creation.
            With counterparts whose paintings match be-host's: the desktop shell, F6 between
            views, the lock screen on Super+L (4g7g1), the groups 4g7g2a and 4g7g2b built, and the
            palette. The test

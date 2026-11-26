@@ -79,8 +79,11 @@ struct Root {
     fonts: Rc<RefCell<Option<Rc<Fonts>>>>,
     /// What its surfaces drawn with beui share, made on its first frame.
     beui: Rc<RefCell<Option<BeuiRoot>>>,
-    /// Its own surface, filled with `ROOT_COLOR` on its first frame.
-    own: Rc<RefCell<Option<OwnSurface>>>,
+    /// Its own surface under everything, which beui fills with the backdrop of the view its
+    /// session shows (`settle_backdrop`), made on its first frame.
+    own: Rc<RefCell<Option<BeuiSurface>>>,
+    /// The color its own surface is filled with, which `settle_backdrop` sets.
+    backdrop: Rc<Cell<Option<Signal<beui::color::Color32>>>>,
     /// Its host's notices as toasts, which beui draws, made on its first frame.
     toasts: Rc<RefCell<Option<BeuiSurface>>>,
     /// Its menu, which beui draws, made on its first frame: what opens the block stack's
@@ -379,6 +382,7 @@ impl Root {
             fonts: Rc::default(),
             beui: Rc::default(),
             own: Rc::default(),
+            backdrop: Rc::default(),
             toasts: Rc::default(),
             menu: Rc::default(),
             menu_shows: Rc::default(),
@@ -459,12 +463,7 @@ impl Root {
             return;
         }
         let (whole, raster) = (window.whole(), window.pixels_per_point);
-        if let Some(own) = &mut *self.own.borrow_mut() {
-            own.resize(whole);
-            // A host that lost its device stops the root at its next frame.
-            let _ = own.fill(ROOT_COLOR);
-        }
-        let surfaces = [&self.toasts, &self.menu, &self.session_notice];
+        let surfaces = [&self.own, &self.toasts, &self.menu, &self.session_notice];
         for surface in surfaces {
             if let Some(surface) = &mut *surface.borrow_mut() {
                 surface.resize(whole, raster);
@@ -506,8 +505,6 @@ impl Root {
             return Ok(());
         }
         let window = self.window.get();
-        let own = OwnSurface::new(ROOT_SURFACE, window.whole());
-        own.fill(ROOT_COLOR)?;
         let fonts = host::fonts()
             .await
             .map_err(|error| format!("the host gave no fonts: {error:?}"))?;
@@ -516,6 +513,23 @@ impl Root {
         beui.set_paste_shortcut(host::paste_shortcut().await.unwrap_or(false));
         let fonts: Fonts = be_wasm_ops::decode(&fonts).ok_or("the host's fonts cannot be read")?;
         *self.fonts.borrow_mut() = Some(Rc::new(fonts));
+        let waker = self.waker.clone();
+        let backdrop = Rc::clone(&self.backdrop);
+        let own = BeuiSurface::new(
+            &beui,
+            OwnSurface::new(ROOT_SURFACE, window.whole()),
+            window.pixels_per_point,
+            move || waker.wake(),
+            move || {
+                let color = create_signal(root_color());
+                backdrop.set(Some(color));
+                view! {
+                    <Root clear_color=ColorRole::None>
+                        <Backdrop color={color} />
+                    </Root>
+                }
+            },
+        )?;
         let waker = self.waker.clone();
         let shown = Rc::clone(&self.shown);
         let saved = Rc::clone(&self.saving);
@@ -1402,6 +1416,24 @@ impl Presented {
 /// Escape while `escape` (its dialog is open but the keyboard is outside it). With the keyboard
 /// in the dialog, Escape is its document's, which closes it once nothing in it (a popup) took
 /// the key first.
+/// `ROOT_COLOR` as beui draws it: what the root's own surface shows while its session shows
+/// no view with a backdrop.
+fn root_color() -> beui::color::Color32 {
+    let [red, green, blue, alpha] = ROOT_COLOR.map(|channel| (channel * 255.0).round() as u8);
+    beui::color::Color32::from_rgba_unmultiplied(red, green, blue, alpha)
+}
+
+/// Fills the root's own surface with `color`, under everything it shows: drawn, not cleared to,
+/// as be-host's `Backdrop` is, so the room the session's view grew into before its app drew it
+/// there shows the view's backdrop rather than the surface's clear color.
+#[component]
+fn Backdrop(color: Signal<beui::color::Color32>) -> NodeId {
+    let fill = create_memo(move || ColorRole::Custom(beui::color::Color::literal(color.get())));
+    view! {
+        <Frame width=Length::FILL height=Length::FILL fill={fill} />
+    }
+}
+
 fn chords(escape: bool) -> Vec<KeyChord> {
     let mut chords = vec![
         palette_chord(),
@@ -1570,11 +1602,15 @@ impl frames::Guest for Root {
                 root.stop_app(&app, crash);
             }
             root.settle_session(time);
+            root.settle_backdrop();
             let own = root
                 .own
-                .borrow()
-                .as_ref()
-                .map(|own| own.layer(ROOT_LAYER, pos2(0.0, 0.0), 1.0))
+                .borrow_mut()
+                .as_mut()
+                .map(|own| {
+                    own.frame().expect("the root draws its own surface with beui");
+                    own.layer(ROOT_LAYER, pos2(0.0, 0.0))
+                })
                 .expect("the root made its own surface");
             if let Some(panel) = root.panel_asked.take() {
                 root.show_panel(panel);
@@ -1764,7 +1800,7 @@ impl frames::Guest for Root {
             let mut embedding = root.embedding.borrow_mut();
             let requests = embedding.requests(None);
             // Its documents want a frame at once (one heard input or was woken) or later.
-            let documents = [&root.toasts, &root.menu, &root.session_notice]
+            let documents = [&root.own, &root.toasts, &root.menu, &root.session_notice]
                 .into_iter()
                 .filter_map(|surface| surface.borrow().as_ref().and_then(BeuiSurface::next));
             let dialog = root
@@ -1897,17 +1933,22 @@ impl Root {
 }
 
 impl paintings::Guest for Root {
-    /// Its own surface's painting, all `ROOT_COLOR`, and what beui painted of each surface it
+    /// Its own surface's painting, all its backdrop (`settle_backdrop`), and what beui painted of
+    /// each surface it
     /// shows now: its toasts while one shows, its dialog and scrim, its onboarding, the host
     /// panels it draws and its lock screen.
     fn paintings(&self) -> LocalFuture<Vec<u8>> {
         let own = self.own.borrow().as_ref().map(|own| {
-            let (width, height) = own.size();
+            let ((width, height), raster) = own.size();
+            let backdrop = self
+                .backdrop
+                .get()
+                .map_or_else(root_color, |color| color.get_untracked());
             let painting = Painting {
                 frame: PaintFrame {
                     size: [width, height],
-                    pixels_per_point: 1.0,
-                    background: ROOT_COLOR.map(|channel| (channel * 255.0).round() as u8),
+                    pixels_per_point: raster,
+                    background: backdrop.to_array(),
                     primitives: Vec::new(),
                 },
                 textures: Default::default(),

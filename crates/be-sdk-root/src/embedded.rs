@@ -19,6 +19,7 @@ use be_sdk_api::{
     DockMessage, EditorInstanceId, Fonts, HostTransform, ImeArea, InputBatch, Insets, Opening,
     Pos2 as ViewPos2, Preferences, ScreenId, ScreenPlacement, ScreenRequest, SurfaceSpec,
     TimedInput, Vec2 as ViewVec2, ViewPlacement, ViewSize, ViewportMetrics, WindowRequests,
+    accessibility::Color,
     app::EditorEvent,
     embed::shell::Call as ShellCall,
     shell_types::{DragStart, ShellMessage},
@@ -213,6 +214,11 @@ struct State {
     /// Where each screen holds its editor's content, as its last layout's frame report said:
     /// none for a view that holds none (a dock bar of its tools).
     contents: HashMap<ScreenId, Option<Insets>>,
+    /// The opaque color each screen's view is cleared to, as its last report said
+    /// (`frame-report.backdrop`), and that of the last report of a view it does not anchor, which
+    /// backs a screen not reported yet (`Embedded::backdrop`), as be-host backs it.
+    backdrops: HashMap<ScreenId, Option<Color>>,
+    last_backdrop: Option<Color>,
     /// The room each screen asked for to fit its content (`screen-request.fit`) used, in its
     /// points, as its layouts said (`layout-commit.sizes`).
     used: HashMap<ScreenId, Vec2>,
@@ -567,6 +573,8 @@ impl Embedded {
             restyled: false,
             intrinsics: HashMap::default(),
             contents: HashMap::default(),
+            backdrops: HashMap::default(),
+            last_backdrop: None,
             used: HashMap::default(),
             anchored: HashMap::default(),
             asked: Vec::new(),
@@ -815,24 +823,39 @@ impl Embedded {
     /// the app painted it: the surface it painted, by handle, scaled from its pixels to the
     /// screen's points. Its id is the same every frame for the same instance and screen.
     pub fn layer(&self, screen: ScreenId, origin: Pos2) -> Option<Layer> {
+        self.state.borrow().layer(self.instance, screen, origin)
+    }
+
+    /// The opaque color the view on `screen` is cleared to, which the root fills the view's laid
+    /// box with under it (be-host's `Backdrop`), so the room it grew into shows that color, not
+    /// what is behind it, until the app draws there: as its last report said, or before it
+    /// reported, as the app's last report of a view it does not anchor said. None for a view
+    /// that shows what is behind it.
+    pub fn backdrop(&self, screen: ScreenId) -> Option<Color> {
         let state = self.state.borrow();
-        let placement = state.painted.get(&screen)?;
-        let points = 1.0 / raster(placement);
-        let size = (placement.width, placement.height);
-        Some(Layer {
-            id: screen_layer(self.instance, screen),
-            surface: Surface::Screen {
-                instance: self.instance,
-                surface: placement.surface,
-            },
-            size,
-            transform: Affine::from_axes(vec2(points, 0.0), vec2(0.0, points), origin),
-            clip: Rect::from_min_max(pos2(0.0, 0.0), pos2(size.0 as f32, size.1 as f32)),
-            corner_radius: 0.0,
-            opacity: 1.0,
-            shown: true,
-            input: LayerInput::default(),
-        })
+        match state.backdrops.get(&screen) {
+            Some(backdrop) => backdrop.clone(),
+            None => state.last_backdrop.clone(),
+        }
+    }
+
+    /// The layers of the last frames it keeps of views its layout left out that the root may
+    /// show again (`State::keeps`), not shown: the root names them in its layer list, so its
+    /// host keeps what their surfaces show after the app let them go, and a view shown again
+    /// shows its last frame at once (`layer`) until the app draws it anew.
+    pub fn kept_layers(&self) -> Vec<Layer> {
+        let state = self.state.borrow();
+        state
+            .run
+            .shown
+            .kept_placements()
+            .iter()
+            .filter_map(|placement| {
+                let mut layer = state.layer(self.instance, placement.screen, Pos2::ZERO)?;
+                layer.shown = false;
+                Some(layer)
+            })
+            .collect()
     }
 
     /// The views its editors anchored (menus, popovers, sheets), each once painted: the layer
@@ -1411,6 +1434,78 @@ pub(crate) fn wants(
 }
 
 impl State {
+    /// The layer showing `screen` of the app `instance` with its top left at `origin`
+    /// (`Embedded::layer`): the last frame kept of it while the app draws it anew, else what the
+    /// app last painted of it.
+    fn layer(&self, instance: u64, screen: ScreenId, origin: Pos2) -> Option<Layer> {
+        let placement = match self.run.shown.keeps(screen) {
+            true => self.run.placement(screen)?,
+            false => self.painted.get(&screen)?,
+        };
+        let points = 1.0 / raster(placement);
+        let size = (placement.width, placement.height);
+        Some(Layer {
+            id: screen_layer(instance, screen),
+            surface: Surface::Screen {
+                instance,
+                surface: placement.surface,
+            },
+            size,
+            transform: Affine::from_axes(vec2(points, 0.0), vec2(0.0, points), origin),
+            clip: Rect::from_min_max(pos2(0.0, 0.0), pos2(size.0 as f32, size.1 as f32)),
+            corner_radius: 0.0,
+            opacity: 1.0,
+            shown: true,
+            input: LayerInput::default(),
+        })
+    }
+
+    /// The screens whose last frame stays once the app's layout leaves them out, as be-host
+    /// keeps them (be-sdk-app-host's `Shown::keep_left_out`): those it painted as it laid them
+    /// out last, of an editor the root still asks a screen of (a dock tab or bar hidden with its
+    /// tab, whose editor its dock keeps open), but no view it anchored or window it opened,
+    /// which close for good once it leaves them out.
+    fn keeps(&self) -> HashSet<ScreenId> {
+        self.run
+            .layout()
+            .screens
+            .iter()
+            .filter(|placement| {
+                self.painted
+                    .get(&placement.screen)
+                    .is_some_and(|painted| painted.surface == placement.surface)
+                    && !self.anchored.contains_key(&placement.screen)
+                    && !self
+                        .floating
+                        .iter()
+                        .any(|window| window.screen == placement.screen)
+                    && self.asks_editor(placement.instance)
+            })
+            .map(|placement| placement.screen)
+            .collect()
+    }
+
+    /// Whether the root asks the app for a screen of its editor `editor`: once it closes the
+    /// editor it asks for none (`Embedded::close_editor`).
+    fn asks_editor(&self, editor: EditorInstanceId) -> bool {
+        self.run
+            .screens
+            .iter()
+            .any(|request| request.instance == editor)
+    }
+
+    /// Lets go of each kept frame whose editor the root no longer asks a screen of or whose
+    /// view's new frame it has taken in (`Shown::release_kept`).
+    fn release_kept(&mut self) {
+        let editors: HashSet<EditorInstanceId> =
+            self.run.screens.iter().map(|request| request.instance).collect();
+        let kept = self.run.shown.kept_placements();
+        self.run.shown.release_kept(0, |screen| {
+            kept.iter()
+                .any(|placement| placement.screen == screen && editors.contains(&placement.instance))
+        });
+    }
+
     /// Asks the app for the screens the root asks for and the windows it floats, unless it was
     /// asked for those already.
     fn ask_screens(&mut self) {
@@ -1578,6 +1673,9 @@ impl State {
             }
             Heard::Layout(layout) => {
                 let layout = self.run.place(layout, |_| false);
+                // The views it leaves out that the root may show again keep their last frame
+                // (`keeps`), read before what it painted of them goes.
+                let keeps = self.keeps();
                 let laid_out = |screen: &ScreenId| {
                     layout
                         .screens
@@ -1587,6 +1685,7 @@ impl State {
                 self.painted.retain(|screen, _| laid_out(screen));
                 self.windows.retain(|screen, _| laid_out(screen));
                 self.contents.retain(|screen, _| laid_out(screen));
+                self.backdrops.retain(|screen, _| laid_out(screen));
                 self.actions.retain(|screen, _| laid_out(screen));
                 self.described.retain(|screen, _| laid_out(screen));
                 self.used.retain(|screen, _| laid_out(screen));
@@ -1606,7 +1705,9 @@ impl State {
                 if self.placed.len() != before {
                     self.placing = true;
                 }
-                self.run.lay_out(layout, |_| false);
+                self.run
+                    .lay_out(layout, |placement| keeps.contains(&placement.screen));
+                self.release_kept();
                 if unfloated {
                     self.ask_screens();
                 }
@@ -1650,6 +1751,10 @@ impl State {
                 let mut rekept = false;
                 for report in &commit.reports {
                     self.contents.insert(report.screen, report.content);
+                    self.backdrops.insert(report.screen, report.backdrop.clone());
+                    if report.anchored.is_none() && report.backdrop.is_some() {
+                        self.last_backdrop.clone_from(&report.backdrop);
+                    }
                     let kept = match report.work_area {
                         Some(area) => self.work_areas.insert(report.screen, area) != Some(area),
                         None => self.work_areas.remove(&report.screen).is_some(),
@@ -1710,12 +1815,21 @@ impl State {
                         self.hear_docks(laid.docks);
                     }
                 }
+                // The root shows a present once it is taken in, so a kept frame whose view's
+                // new frame it brings goes now (`Run::new`'s `draws_presents`).
+                let release = self.run.shown.presented(
+                    commit.presented.as_ref().map(|presented| presented.sequence),
+                    0,
+                );
                 if let Some(presented) = commit.presented {
                     self.run.holds.heard_painted(presented.sequence);
                     for placement in presented.painted {
                         self.surfaces.insert(placement.surface, placement.clone());
                         self.painted.insert(placement.screen, placement);
                     }
+                }
+                if release.kept {
+                    self.release_kept();
                 }
                 self.run.pacing.presented(
                     self.now,

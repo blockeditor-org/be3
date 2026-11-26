@@ -550,6 +550,16 @@ impl Root {
     pub fn surface(&self, instance: u64, surface: u32) -> Option<&PresentedTexture> {
         self.core.sandbox.surface(instance, surface)
     }
+
+    /// Keeps what each surface an app the root spawned let go of showed while `keeps` holds it
+    /// (by the instance's op and the surface), and lets go of the rest: the host calls it after
+    /// each frame with the surfaces the frame's layer list names, shown or not, so a surface the
+    /// root still names (the last frame of a view hidden while its app draws it anew,
+    /// be-sdk-root's `Embedded::kept_layers`) still shows what it did (`surface`). Until then,
+    /// a surface let go of shows what it did.
+    pub fn retain(&mut self, keeps: impl Fn(u64, u32) -> bool) {
+        self.core.sandbox.retain(keeps);
+    }
 }
 
 impl Root {

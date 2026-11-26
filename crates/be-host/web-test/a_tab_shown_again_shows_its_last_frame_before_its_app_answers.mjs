@@ -3,7 +3,7 @@
 // commits): the page keeps a hidden view's canvas, with what the app's worker last drew into it,
 // and shows that canvas again, rather than a fresh one that stays empty until the app answers.
 //
-// Then, with nothing left to do, the page runs no frames (guides/apps/runtime.md, Late answers
+// Then, with nothing left to do, the page runs no frames (not yet under a root, `test.root`) (guides/apps/runtime.md, Late answers
 // and idle editors): over an idle spell it asks the browser for no animation frames and the
 // runner runs none but the few the drive commands that measure it take. A page that drew
 // nothing every frame would run hundreds.
@@ -18,20 +18,27 @@ const MEASURING_FRAMES = 8;
 
 export default async function (test) {
     const { drive, page } = test;
+    // Under a root on the page, a click settles before what the root's apps show for it does
+    // (be-host's `busy` does not yet say whether they settled there), so each press waits for
+    // its target first, as the popover script's do.
+    const press = async (target, ...rest) => {
+        if (test.root) await drive("wait", target);
+        await drive("click", target, ...rest);
+    };
     for (const name of ["One", "Two"]) {
-        await drive("click", "#file-tree.new");
-        await drive("click", 'MenuItem "New in My files…"');
+        await press("#file-tree.new");
+        await press('MenuItem "New in My files…"');
         await drive("wait", "#picker.more");
-        await drive("click", 'MenuItem "Text"');
+        await press('MenuItem "Text"');
         await drive("wait", 'TextInput "Name" value="Text"');
-        await drive("click", 'TextInput "Name" value="Text"');
+        await press('TextInput "Name" value="Text"');
         await drive("key", "ctrl+a");
         await drive("type", name);
         await drive("key", "Enter");
         await drive("wait", `TreeItem "${name}"`);
     }
     await drive("wait", 'Tab "Two" selected');
-    await drive("click", 'Tab "One"');
+    await press('Tab "One"');
     await drive("wait", 'Tab "One" selected');
     await drive("wait", "#text.surface");
     await drive("settle");
@@ -49,7 +56,7 @@ export default async function (test) {
     })()`);
     if (marked === 0) throw new Error("One's tab shows no app screen");
 
-    await drive("click", 'Tab "Two"');
+    await press('Tab "Two"');
     await drive("wait", 'Tab "Two" selected');
     await drive("settle");
     await drive("pause", "500");
@@ -74,7 +81,7 @@ export default async function (test) {
             });
         }
     })()`);
-    await drive("click", 'Tab "One"');
+    await press('Tab "One"');
     await drive("wait", 'Tab "One" selected');
     await drive("wait", "#text.surface");
     await drive("settle");
@@ -94,6 +101,11 @@ export default async function (test) {
     if (back !== marked) {
         throw new Error(`One's tab showed ${marked} screen(s) before the switch and ${back} of them after it`);
     }
+
+    // Under a root the page draws every frame while idle, an empty workspace's too: the root
+    // wants its next frame at once each frame (plans/host_as_platform_adapter.md, 4g7g2c4b), so
+    // the idle part waits for that.
+    if (test.root) return;
 
     // A focused caret blinks for ten seconds after it last moved, asking for frames as it should
     // (CARET_BLINKS_FOR, 10.6 s, which a page cannot read); the spell starts after that. The

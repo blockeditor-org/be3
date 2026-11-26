@@ -1,7 +1,11 @@
 //! What a root's frame shows natively: each surface its layer list names drawn on the window's
 //! device (`Surfaces`), the root started on that device (`start`).
 
-use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, HashSet},
+    rc::Rc,
+};
 
 use be_host_desktop::desktop_host::{DesktopHost, Host, PictureSurface, WindowPicture};
 use be_lib_layers::{Layer, LayerList, Surface};
@@ -82,6 +86,21 @@ impl Surfaces {
         list: LayerList,
         document: &mut beui::native::Document,
     ) {
+        // What a surface of an app the root embeds showed stays while the list names it, shown
+        // or not: the last frame the root keeps of a view hidden while its app draws it anew
+        // (be-sdk-root's `Embedded::kept_layers`), as be-host keeps its own views'.
+        let named: HashSet<(u64, u32)> = list
+            .windows
+            .iter()
+            .flat_map(|window| &window.layers)
+            .filter_map(|layer| match layer.surface {
+                Surface::Screen { instance, surface } | Surface::Anchored { instance, surface } => {
+                    Some((instance, surface))
+                }
+                Surface::Root(_) | Surface::Host(_) => None,
+            })
+            .collect();
+        root.retain(|instance, surface| named.contains(&(instance, surface)));
         let mut layers = Vec::new();
         let mut placed = Vec::new();
         for layer in list

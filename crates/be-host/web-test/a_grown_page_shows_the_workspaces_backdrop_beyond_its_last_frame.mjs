@@ -6,51 +6,60 @@
 // (`Backdrop` in be-host's app_view.rs, filling the view's laid box), not the host's own clear
 // colour and not a hole onto the page behind it.
 //
-// The workspace clears to the theme's background, as the host does, so the test tells the two
-// apart by having the page's WebGL clear to magenta wherever the host's renderer clears to an
-// opaque colour: without the backdrop, the gap would read magenta. The app canvases draw in
-// their workers, which the init script does not reach, so they are unchanged. This assumes the
-// host's only opaque clear is the one that starts its frame; a renderer that cleared to an opaque
-// colour anywhere else (a backdrop drawn as a clear, say) would read magenta there too.
+// The workspace clears to the theme's background, and the host's canvas clears to transparent
+// over the page's background of the same colour, so the test tells them apart by having every
+// colour clear the page makes, with WebGL or with WebGPU where the browser offers it, clear to
+// opaque magenta instead: without the backdrop, the gap reads magenta. The app canvases draw in
+// their workers, which the init script does not reach, so they are unchanged. The test reads the
+// one canvas the backdrop is drawn on, so what the others then show does not matter. This assumes
+// the backdrop is drawn, not cleared to: a backdrop drawn as a clear would read magenta too.
 //
 // Under a root on the page (`test.root`, be-host's `:root-grown-web-host-test`), the host's
 // canvas shows only the background, and the root draws its own surface in a canvas of #layers on
-// the page's gpu shim, whose WebGL the init script reaches, with the workspace's screen above it
-// in #layers too: the test reads the root's canvas instead, in the first frame it shows at the
-// grown size.
+// the page's gpu shim, which the init script reaches, under its other surfaces and with the
+// workspace's screen above it in #layers too: the test reads the root's own canvas instead, the
+// lowest of its canvases shown, in the first frame it shows at the grown size.
 
 const GROWN = { width: 1160, height: 700 };
 const CLEARED = [255, 0, 255];
 
 // Runs in the page before its scripts: keeps the host canvas's drawing buffer readable after the
-// frame that drew it, and has every opaque colour clear clear to magenta instead.
+// frame that drew it, and has every colour clear clear to opaque magenta instead.
 function readableAndMagenta() {
     const getContext = HTMLCanvasElement.prototype.getContext;
     HTMLCanvasElement.prototype.getContext = function (kind, options) {
         if (kind === "webgl2" || kind === "webgl") options = { ...options, preserveDrawingBuffer: true };
         return getContext.call(this, kind, options);
     };
-    window.opaqueClears = 0;
+    window.clears = 0;
     for (const Context of [window.WebGL2RenderingContext, window.WebGLRenderingContext]) {
         if (!Context) continue;
         const clearColor = Context.prototype.clearColor;
-        Context.prototype.clearColor = function (red, green, blue, alpha) {
-            if (alpha > 0) {
-                window.opaqueClears++;
-                return clearColor.call(this, 1, 0, 1, 1);
-            }
-            return clearColor.call(this, red, green, blue, alpha);
+        Context.prototype.clearColor = function () {
+            window.clears++;
+            return clearColor.call(this, 1, 0, 1, 1);
         };
         const clearBufferfv = Context.prototype.clearBufferfv;
         if (clearBufferfv) {
             Context.prototype.clearBufferfv = function (buffer, drawBuffer, values, ...rest) {
-                if (buffer === this.COLOR && values[3] > 0) {
-                    window.opaqueClears++;
+                if (buffer === this.COLOR) {
+                    window.clears++;
                     return clearBufferfv.call(this, buffer, drawBuffer, new Float32Array([1, 0, 1, 1]));
                 }
                 return clearBufferfv.call(this, buffer, drawBuffer, values, ...rest);
             };
         }
+    }
+    if (window.GPUCommandEncoder) {
+        const beginRenderPass = GPUCommandEncoder.prototype.beginRenderPass;
+        GPUCommandEncoder.prototype.beginRenderPass = function (descriptor) {
+            const colorAttachments = [...(descriptor.colorAttachments ?? [])].map((attachment) => {
+                if (attachment?.loadOp !== "clear") return attachment;
+                window.clears++;
+                return { ...attachment, clearValue: { r: 1, g: 0, b: 1, a: 1 } };
+            });
+            return beginRenderPass.call(this, { ...descriptor, colorAttachments });
+        };
     }
 }
 
@@ -81,11 +90,11 @@ export default async function (test) {
         if (screens.length === 0) return null;
         screens[0].canvas.isTheWorkspace = true;
         const { left, top, right, bottom } = screens[0].rect;
-        return { left, top, right, bottom, opaqueClears: window.opaqueClears };
+        return { left, top, right, bottom, clears: window.clears };
     }, where);
     if (before === null) throw new Error("the page shows no app screen");
-    if (before.opaqueClears === 0) {
-        throw new Error("the host's renderer made no opaque WebGL clear, so the test cannot tell its clear colour");
+    if (before.clears === 0) {
+        throw new Error("the page made no colour clear, so the test cannot tell its clear colour");
     }
     if (before.right > GROWN.width - 100 || before.bottom > GROWN.height - 50) {
         throw new Error(`the workspace's canvas, at ${JSON.stringify(before)}, leaves no room to grow into`);
@@ -125,11 +134,11 @@ export default async function (test) {
                     });
                 };
                 if (where.drawn === "root") {
-                    // The root's own canvas: the largest it shows, which fills the page.
+                    // The root's own canvas: the lowest it shows, under its other surfaces.
                     const look = () => {
                         const drawn = [...document.querySelectorAll("#layers canvas[data-kind=root]")]
                             .filter((canvas) => getComputedStyle(canvas).display !== "none")
-                            .sort((a, b) => b.width * b.height - a.width * a.height)[0];
+                            .sort((a, b) => Number(getComputedStyle(a).zIndex) - Number(getComputedStyle(b).zIndex))[0];
                         const scale = window.devicePixelRatio;
                         if (drawn?.width === Math.round(grown.width * scale) && drawn.height === Math.round(grown.height * scale)) {
                             read(drawn);

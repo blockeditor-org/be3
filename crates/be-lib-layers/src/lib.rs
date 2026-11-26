@@ -232,6 +232,9 @@ pub struct Layer {
     /// of the clip that meet the surface's edges.
     pub corner_radius: f32,
     pub opacity: f32,
+    /// Whether it shows. A layer not shown still names its surface, whose host keeps what it
+    /// shows (a root's last frame of a view it hid, which it shows again at once), and takes no
+    /// input.
     pub shown: bool,
     pub input: LayerInput,
 }

@@ -301,6 +301,34 @@ impl Root {
         self.waker.wake();
     }
 
+    /// Fills its own surface, under everything, with the backdrop of the session's view: the
+    /// color its app clears it to (`Embedded::backdrop`), which be-host fills a view's laid box
+    /// with under it (its `Backdrop`); the view fills the window, so the surface does. A view
+    /// that shows what is behind it, or none, shows `ROOT_COLOR`.
+    pub(super) fn settle_backdrop(&self) {
+        let backdrop = match &*self.session.borrow() {
+            Some(Session {
+                state: Showing::Running(hosted),
+                ..
+            }) => hosted.app.backdrop(SESSION_SCREEN).map(|color| {
+                beui::color::Color32::from_rgba_unmultiplied(
+                    color.red,
+                    color.green,
+                    color.blue,
+                    color.alpha,
+                )
+            }),
+            _ => None,
+        };
+        let color = backdrop.unwrap_or_else(super::root_color);
+        let (Some(signal), Some(own)) = (self.backdrop.get(), &mut *self.own.borrow_mut()) else {
+            return;
+        };
+        if signal.get_untracked() != color {
+            own.enter(|| signal.set(color));
+        }
+    }
+
     /// The session's editor's app and the apps of the children it places, while it runs: each
     /// asked for a frame for `time`, which waits for them until the frame's deadline at the
     /// latest. The layers showing its screen and its children where it placed them.

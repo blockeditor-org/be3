@@ -18,7 +18,7 @@
 //! it at exit.
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     sync::{Arc, Condvar, LazyLock, Mutex, Weak, atomic::AtomicBool},
     time::Duration,
 };
@@ -224,8 +224,11 @@ pub struct Instance {
     /// Why it stopped, once it did.
     failure: Option<String>,
     /// What each of its surfaces shows: the texture it presented last, until it lets the surface
-    /// go.
+    /// go and its host no longer keeps it (`retain`).
     presented: BTreeMap<u32, PresentedTexture>,
+    /// The surfaces it let go of whose texture stays until its host says whether it keeps them
+    /// (`retain`).
+    released: BTreeSet<u32>,
 }
 
 /// Starts an instance of `source`, which calls `wake` whenever it has sent frames or stopped. A
@@ -254,6 +257,7 @@ pub fn spawn(source: Source, config: Config, wake: Wake) -> Result<Instance, Str
         worker: Worker::new(channel, waiting),
         failure: None,
         presented: BTreeMap::new(),
+        released: BTreeSet::new(),
     })
 }
 
@@ -306,11 +310,15 @@ impl Instance {
         if self.failure.is_none() {
             self.failure = self.worker.poll();
         }
+        // What it let go of shows still until its host says whether it keeps it.
         for surface in self.worker.take_released() {
-            self.presented.remove(&surface);
+            if self.presented.contains_key(&surface) {
+                self.released.insert(surface);
+            }
         }
         if let Some((presented, _)) = self.worker.take_presented() {
             for presented in presented {
+                self.released.remove(&presented.surface);
                 self.presented.insert(presented.surface, presented);
             }
         }
@@ -321,8 +329,26 @@ impl Instance {
         }
     }
 
+    /// Keeps the textures of the surfaces it let go of that `keeps` holds, and lets go of the
+    /// rest: a host keeps what a surface its frame still names showed (a root's layer list, which
+    /// names the last frame of a view hidden while its app draws it anew), as be-host keeps the
+    /// last frames of its own views (guides/apps/runtime.md, Layout and present commits). Until it
+    /// is called, a surface let go of shows what it did, so a host calls it after each frame it
+    /// draws.
+    pub fn retain(&mut self, keeps: impl Fn(u32) -> bool) {
+        let presented = &mut self.presented;
+        self.released.retain(|surface| {
+            let kept = keeps(*surface);
+            if !kept {
+                presented.remove(surface);
+            }
+            kept
+        });
+    }
+
     /// What the instance's surface `surface` shows: the texture it presented last, on the device
-    /// its display gave it, or None if it never presented that surface.
+    /// its display gave it, or None if it never presented that surface, or let it go and its
+    /// host no longer keeps it (`retain`).
     pub fn surface(&self, surface: u32) -> Option<&PresentedTexture> {
         self.presented.get(&surface)
     }

@@ -73,6 +73,7 @@ pub use windows::{Delivery, Windows};
 use be_lib_geometry::{Pos2, Rect, Vec2, pos2};
 use be_lib_input_router::Drag;
 use be_lib_layers::{Area, Layer, LayerId, LayerList, Surface};
+use be_lib_stable_hash::HashSet;
 use be_lib_ui_types::{CursorIcon, ImeArea, KeyChord, WindowRequests, input};
 use be_sdk_api::{
     DropAction, EditorInstanceId, Pos2 as ViewPos2,
@@ -1004,7 +1005,7 @@ impl Embedding {
     /// the focus loses it. An app focused in a window the list leaves out hears it lost the
     /// focus; the root's own surfaces are answered what they hear of these.
     pub fn drew(&mut self, list: LayerList) -> Drawn {
-        let layers = list.encode();
+        let layers = self.encode_with_kept(list.clone());
         let mut told = self.windows.drew(list);
         // A drag an app began since the last input is lifted as soon as it is heard, over the
         // layers just drawn.
@@ -1026,6 +1027,29 @@ impl Embedding {
             layers,
             own: self.forward(told),
         }
+    }
+
+    /// `list` as `frame-done` carries it, naming besides, not shown, the last frame each app keeps of a view it left out
+    /// that the list does not show (`Embedded::kept_layers`): its host keeps what a surface the
+    /// list names shows, so the view shows its last frame at once when it is shown again, as
+    /// be-host's own UI does (guides/apps/runtime.md, Layout and present commits). They go in
+    /// the first window, which is as good as any: hidden, they show in none.
+    fn encode_with_kept(&self, mut list: LayerList) -> Vec<u8> {
+        let named: HashSet<LayerId> = list
+            .windows
+            .iter()
+            .flat_map(|window| window.layers.iter().map(|layer| layer.id))
+            .collect();
+        let kept: Vec<Layer> = self
+            .apps
+            .iter()
+            .flat_map(Embedded::kept_layers)
+            .filter(|layer| !named.contains(&layer.id))
+            .collect();
+        if let Some(window) = list.windows.first_mut() {
+            window.layers.extend(kept);
+        }
+        list.encode()
     }
 
     /// Sends each app what is for its screens, and answers the rest.

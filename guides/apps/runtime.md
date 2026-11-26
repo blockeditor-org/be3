@@ -650,6 +650,16 @@ canvases as it makes it, the kept frame goes once the present that draws the
 view anew is taken in (`Shown::draws_presents`), and the canvas moves to the
 new surface, which its worker then draws into it.
 
+A root keeps the same frames (be-sdk-root's `Embedded`, through its `Run`'s `Shown`): the
+screens it painted of an editor it still asks a screen of, but no view the app anchored or window
+it opened, and lists each kept frame its frame does not show as a layer that is not shown
+(`Embedded::kept_layers`, added by `Embedding::drew`), and a screen shown again from the kept
+frame (`Embedded::layer`) until the present that draws it anew is taken in. A layer list names a
+surface whether it shows it or not, and the host keeps what a surface it names showed after its
+app let it go: natively be-host hands the root host the surfaces its frame's list names
+(`Root::retain` in be-wasm-root-host, be-wasm-host's `Instance::retain`, which holds a texture
+an app let go of until then), and on the page a canvas the list names unshown stays hidden.
+
 An anchored view the app closes leaves the same way (`Runtime::place`, `Shown::place`): the app sends
 its screens ahead of the frame's commits, and the host keeps the closed view, showing its last
 frame, until the present that follows and, where it composites the app's surfaces, that present's

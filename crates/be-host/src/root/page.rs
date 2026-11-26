@@ -205,12 +205,26 @@ impl Surfaces {
         // CSS pixels a point, as be-host places its apps' screens.
         let scale = context.pixels_per_point() / context.native_pixels_per_point();
         let mut refused = HashSet::new();
-        let layers = list
+        let layers: Vec<_> = list
             .windows
             .into_iter()
             .filter(|window| window.window.is_none())
             .flat_map(|window| window.layers)
-            .filter(|layer| layer.shown);
+            .collect();
+        // The surfaces of its apps the list names though it shows them not: the last frames the
+        // root keeps of views hidden while their apps draw them anew (be-sdk-root's
+        // `Embedded::kept_layers`), whose canvases stay hidden, as natively their textures stay.
+        let kept: HashSet<(u64, u32)> = layers
+            .iter()
+            .filter(|layer| !layer.shown)
+            .filter_map(|layer| match layer.surface {
+                Surface::Screen { instance, surface } | Surface::Anchored { instance, surface } => {
+                    Some((instance, surface))
+                }
+                Surface::Root(_) | Surface::Host(_) => None,
+            })
+            .collect();
+        let layers = layers.into_iter().filter(|layer| layer.shown);
         let mut placements = Vec::new();
         for (order, layer) in layers.enumerate() {
             let key = match layer.surface {
@@ -245,7 +259,7 @@ impl Surfaces {
         let retained = |key| match key {
             Key::App {
                 instance, surface, ..
-            } => root.holds_app_surface(instance, surface),
+            } => kept.contains(&(instance, surface)) || root.holds_app_surface(instance, surface),
             // The root's own surfaces draw on the page's gpu shim, which paints a canvas made anew
             // with what its surface last showed before the page shows again (`paint`, below),
             // where an app's worker paints its canvas only once it is handed it.

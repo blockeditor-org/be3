@@ -116,11 +116,15 @@ a canvas of its own in `#layers` above the host's canvas (`data-kind="root"` for
 `"screen"` for an app's, which that app's worker draws), placed by the layer's CSS as an app's
 screen is, in be-host-runtime's `Canvases` (`root/page.rs`): a canvas whose layer leaves the
 list stays hidden while its app holds the surface, until its worker reports letting it go
-(app.js's `released`). The host's canvas shows only the background. Open it on a page with
+(app.js's `released`), or while the list names it in a layer it does not show (the last frame
+the root keeps of a hidden view, guides/apps/runtime.md, Layout and present commits). The
+host's canvas shows only the background; the root fills its own surface, under everything, with
+the backdrop of the view its session shows. The page draws a frame every frame under a root,
+idle or not: the root wants its next frame at once each frame. Open it on a page with
 no other tab of the host open, since one tab holds the files. A root that fails to start or
 stops ends the host, as natively: the page is left without it, and the console (`browser.log`)
 says why (`be-host: the root APP stopped: ...`). `//crates/be-host:root-web-host-test`
-runs it.
+runs it, and the `root-*-web-host-test` targets run other scripts under it (`test.root`).
 
 ## Files and offline
 
@@ -251,9 +255,11 @@ frame that drew it unless its WebGL context keeps its drawing buffer, so the tes
 it with `drawImage` in the frame it wants. After a resize, the window's `resize` animation frame
 draws the host at the new size before a ResizeObserver reports in the same rendering update, so
 the observer's report of the new size holds the first frame of it; a new observer reports its
-starting size first, so pick reports by size. The workspace clears to the theme's background as
-the host does, so to tell them apart the test has the page's opaque WebGL clears clear to a
-colour of its own (`grown-web-host-test`).
+starting size first, so pick reports by size. The workspace clears to the theme's background and
+the host's canvas clears to transparent over the page's background of the same colour, so to
+tell them apart the test has every colour clear the page makes, WebGL's and WebGPU's render
+passes', clear to an opaque colour of its own and reads only the canvas the backdrop is drawn on
+(`grown-web-host-test`).
 
 Typing offline then reloading is checked by hand: open a text block, `kill -STOP` the
 instance's be-server (or Playwright's `context.setOffline(true)`), type with

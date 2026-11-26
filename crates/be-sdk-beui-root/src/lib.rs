@@ -350,6 +350,11 @@ impl BeuiSurface {
         self.drawn.surface.borrow().id()
     }
 
+    /// The surface's size, in pixels, and its pixels a point.
+    pub fn size(&self) -> ((u32, u32), f32) {
+        (self.drawn.surface.borrow().size(), self.raster)
+    }
+
     /// Makes the surface `size` pixels at `raster` pixels a point: it is configured afresh now,
     /// showing its last frame until the document draws it anew at its next frame, which is due
     /// at once.

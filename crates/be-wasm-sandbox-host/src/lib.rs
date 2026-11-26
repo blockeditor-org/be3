@@ -177,6 +177,18 @@ impl Server {
             .surface(surface)
     }
 
+    /// Keeps the textures of the surfaces the instances the guest spawned let go of that
+    /// `keeps` holds (by the instance's op and the surface), and lets go of the rest
+    /// (be-wasm-host's `Instance::retain`).
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn retain(&mut self, keeps: impl Fn(OpId, u32) -> bool) {
+        for (op, served) in &mut self.instances {
+            if let Ok(instance) = &mut served.instance {
+                instance.retain(|surface| keeps(*op, surface));
+            }
+        }
+    }
+
     /// The id of the staged app the instance the guest spawned with the op `instance` runs,
     /// while it runs: none for one spawned from a module the guest compiled, one that could not
     /// start or stopped, or one the guest let go of.
