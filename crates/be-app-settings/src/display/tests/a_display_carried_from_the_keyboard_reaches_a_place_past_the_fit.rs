@@ -20,8 +20,20 @@ fn a_display_carried_from_the_keyboard_reaches_a_place_past_the_fit() {
     let tile = settings.editor.rect_of("display.arrangement.eDP-1").center();
     let fill = tile_fill(&settings.editor, "display.arrangement.eDP-1");
     settings.editor.click(tile);
+    let lifted = settings.editor.rect_of("display.arrangement.eDP-1");
     settings.editor.key(Key::Space, Modifiers::NONE);
     settings.run();
+    // The refit lays the laptop out smaller after the lift, with no point to move it: a
+    // keyboard carry has no pointer to send one, so the board chooses again as the laptop
+    // is laid out anew, and draws it where it now stands, at that size.
+    let refit = drawn_tile(&settings.editor, fill);
+    let home = settings.editor.rect_of("display.arrangement.eDP-1");
+    assert!(
+        refit.width() < lifted.width() - 1.0
+            && (refit.min - home.min).length() < 1.0
+            && (refit.max - home.max).length() < 1.0,
+        "held still, the refit laptop is drawn where it is laid out, {home:?}, not {refit:?}"
+    );
     settings.editor.key(Key::ArrowDown, Modifiers::NONE);
     settings.run();
     let carried = drawn_tile(&settings.editor, fill);

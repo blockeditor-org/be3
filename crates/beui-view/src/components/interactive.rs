@@ -450,9 +450,9 @@ fn carrying(
             .map_or(Vec2::ZERO, |measured| measured.rect.size())
     });
     // A source that is its carry's face and is laid out at another size while carried (a
-    // canvas refitting under it at the lift) is placed again at once, though the pointer
-    // has not moved: the board measures it at each point (`Carry::lifted_from`), so its
-    // frame holds it as it is drawn now. Only a source that lifts by keys is measured.
+    // canvas refitting under it at the lift) is placed again at once: the board measures it
+    // at each point (`Carry::lifted_from`), and a keyboard carry has no next point (the core
+    // sends a pressing pointer's each frame). Only a source that lifts by keys is measured.
     if lifts_by_keys {
         crate::reactive::create_effect_on_change(
             move || replicated.get().then(|| size.get()),
