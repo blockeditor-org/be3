@@ -30,17 +30,45 @@ pub(super) fn answer(id: u64, action: Option<String>) {
     });
 }
 
+/// The ids of the root's own toasts start here, past any its host numbers its notices with,
+/// below `SLOW_SAVE_TOAST`.
+const OWN_TOASTS: u64 = 1 << 63;
+
+/// The key of a toast's action that copies its report.
+const COPY_REPORT: &str = "copy-report";
+
+/// A toast of the root's own saying the app `name` stopped for `why`, as be-host says one of
+/// its own did: its first line, and Copy report, which copies all of it. Each is numbered
+/// after those in `own`.
+pub(super) fn stopped_toast(own: &[Toast], name: &str, why: &str) -> Toast {
+    let first = why.lines().next().unwrap_or_default();
+    let id = own.iter().map(|toast| toast.id + 1).max().unwrap_or(OWN_TOASTS);
+    Toast {
+        id,
+        message: format!("{name} stopped: {first}"),
+        danger: true,
+        actions: vec![ToastAction {
+            key: format!("{COPY_REPORT}:{why}"),
+            label: "Copy report".to_owned(),
+        }],
+        ..Toast::default()
+    }
+}
+
 /// Its host's notices as toasts at the top right of `area`, its whole surface, each gone at once from here
-/// when dismissed, as its host lets go of it.
+/// when dismissed, as its host lets go of it; and its `own`, which say an app it runs stopped,
+/// gone when dismissed.
 #[component]
 pub(super) fn Notices(
     toasts: Signal<Vec<Toast>>,
+    own: Signal<Vec<Toast>>,
     saving: Signal<SavingState>,
     area: Signal<Rect>,
 ) -> NodeId {
     let slow = slow_save(saving);
     let shown = create_memo(move || {
         let mut shown = toasts.get();
+        shown.extend(own.get());
         if slow.shown.get() {
             shown.insert(
                 0,
@@ -67,10 +95,27 @@ pub(super) fn Notices(
                     slow.dismissed.set(true);
                     return;
                 }
+                if id >= OWN_TOASTS {
+                    own.update(|own| own.retain(|toast| toast.id != id));
+                    return;
+                }
                 toasts.update(|toasts| toasts.retain(|toast| toast.id != id));
                 answer(id, None);
             }}
-            on_action={move |(id, key): (u64, String)| answer(id, Some(key))}
+            on_action={move |(id, key): (u64, String)| {
+                if id < OWN_TOASTS {
+                    answer(id, Some(key));
+                    return;
+                }
+                if let Some(report) = key.strip_prefix(COPY_REPORT).and_then(|key| key.strip_prefix(':')) {
+                    let item = be_lib_ui_types::ClipItem::text(report.to_owned());
+                    be_wasm_ops::guest::spawn(async move {
+                        // A host that cannot hear it has stopped, which the root hears from its
+                        // frames.
+                        let _ = host::copy(vec![be_wasm_ops::encode(&item)]).await;
+                    });
+                }
+            }}
         />
     }
 }
