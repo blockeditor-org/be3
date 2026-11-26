@@ -344,11 +344,6 @@ Fixed items are removed as they land.
 
 ## 17. Dragging
 
-- **A carried item's own face, unclipped.** A carry with no `preview` floats as
-  its source drawn displaced and raised, which a scroll around the source still
-  clips (guides/beui/components.md, Carries and drop sites). Done: the source's face
-  captured as a texture on both cores floats in a top layer like a preview,
-  so no carry needs `preview` just to leave its scroll.
 - **A floating row's announcements.** The live region that says a carry's
   places (`Interactive`'s `CarryStatus`) is inside the source, so a `Reorder`
   row carried off its list, collapsed, says nothing more until it lands, when

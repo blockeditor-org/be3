@@ -850,7 +850,8 @@ fn FruitBins() -> NodeId {
 }
 
 /// A bin as a drop site: the whole bin is its one place for a fruit from the other bin, its
-/// edge lit while one is carried over it. A chip floats as a preview, so it leaves its bin.
+/// edge lit while one is carried over it. Its fruit scrolls inside it, and a chip carried out
+/// floats as its own face, which the bin's scroll does not clip.
 #[sample]
 #[component]
 fn FruitBin(bin: usize, bins: Signal<Vec<usize>>) -> NodeId {
@@ -877,25 +878,25 @@ fn FruitBin(bin: usize, bins: Signal<Vec<usize>>) -> NodeId {
             height=BIN_HEIGHT
             border={move || Some(Border::new(edge.get()).width(Stroke::Focus))}
             radius=Radius::Lg
-            padding=Space::Lg
         >
-            <List spacing=Space::Md>
-                <Text color=TextColor::Muted>{BINS[bin].to_owned()}</Text>
-                <ForEach value={fruits}>|fruit: usize| {
-                    let lifted = unstyled::is_carried(fruit);
-                    view! {
-                        <Interactive
-                            drag={Func::new(move |_: PointerPress| {
-                                Some(drag::Carry::new(fruit).preview(move || view! {
-                                    <FruitChip fruit lifted=true />
-                                }))
-                            })}
-                        >
-                            <FruitChip fruit lifted />
-                        </Interactive>
-                    }
-                }</ForEach>
-            </List>
+            <Scroll>
+                <Frame padding=Space::Lg>
+                    <List spacing=Space::Md>
+                        <Text color=TextColor::Muted>{BINS[bin].to_owned()}</Text>
+                        <ForEach value={fruits}>|fruit: usize| {
+                            let lifted = unstyled::is_carried(fruit);
+                            view! {
+                                <Interactive
+                                    @test_id={format!("demo.bin.{fruit}")}
+                                    drag={Func::new(move |_: PointerPress| Some(drag::Carry::new(fruit)))}
+                                >
+                                    <FruitChip fruit lifted />
+                                </Interactive>
+                            }
+                        }</ForEach>
+                    </List>
+                </Frame>
+            </Scroll>
         </Frame>
     }
 }
