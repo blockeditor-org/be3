@@ -297,38 +297,42 @@ host owes a replica (the WIT documents each call):
 
 An operation can carry a part by its ref instead of its bytes: the search index's
 writer adding one, an edit too large to relay.
-The sender makes a `part-writer` under its replica and writes the bytes to it
-a piece at a time: be-block-type-host serves each writer with a task of its own
+The sender makes a `part-writer` under its replica and writes the bytes to it a
+piece at a time: be-block-type-host serves each writer with a task of its own
 holding a `Peer::part_writer`, which seals each chunk under the block's current
 key as the bytes end it, so neither side holds the whole part. `finish` seals
 the rest, has the server hold the part for the block (`Peer::hold_part`:
-`hold-objects` with `hold.until-committed`) and answers the `part-ref` once
-the upload is done; a write that failed fails `finish`, and a writer dropped
-before `finish` lets go of the writer. What a writer sealed is pinned while it
-is open and, once finished, in the replica's reach until a publish reusing the
-part is sealed or the replica goes; after that, or once dropped, it is left to
-the vault's collection (guides/blocks/client.md, "Unnamed parts"), which removes
-it here unless something on the device names it, and leaves it while the block
-keeps edits that may. A writer takes its block's sealing key once, as it starts, so a
-key that rotates mid-write seals the whole part under the old key, as a whole
-put begun just before the rotation would; a commit that reuses it seals it again
-under its own key (`Peer::write_content_under` fetches and rewrites a stale
-part), and until one does, the part is readable with the old key, which a member
-the rotation removed still holds. Nothing handles that yet: a module's writes are
-short-lived and the server's access checks stand. A writer may hold at most `UNSEALED_WRITES`
+`hold-objects` with `hold.until-committed`) and answers the `part-ref` once the
+upload is done; a write that failed fails `finish`, and a writer dropped before
+`finish` lets go of the writer. What a writer sealed is pinned while it is open
+and, once finished, in the replica's reach until a commit reusing the part is
+sealed here (a publish of the replica's, or a merge of the block by
+`merge_diverged`) or the replica goes; a part a long-lived replica writes and
+never seals into a commit here stays pinned that long. After that, or once
+dropped, it is left to the vault's collection (guides/blocks/client.md, "Unnamed
+parts"), which removes it here unless something on the device names it, and
+leaves it while the block keeps edits that may. A writer takes its block's
+sealing key once, as it starts, so a key that rotates mid-write seals the whole
+part under the old key, as a whole put begun just before the rotation would; a
+commit that reuses it seals it again under its own key
+(`Peer::write_content_under` fetches and rewrites a stale part), and until one
+does, the part is readable with the old key, which a member the rotation removed
+still holds. Nothing handles that yet: a module's writes are short-lived and the
+server's access checks stand. A writer may hold at most `UNSEALED_WRITES`
 (8 MiB) unsealed in the host: a write past it, made before earlier ones were
-answered, is refused and the writer let go of. Only then does it send the operation, with that ref
-(a `be_block_content::PartRef`) in its own payload. The hold ends when a commit of the
-block that uses the part publishes, or once `upload_grace` passed, the
-block's journal holds no entries (an uncommitted operation may still name the
-part) and its base names none of the part's objects (`journal-base.parts`). A type's part is put by an editor: `EditorMirror::put_part`
-(`FromEditor::PutPart`, answered `ToEditor::PartPut` under its token), which
-the replica turns into its `Effect::PutPart`, which the module's runner feeds
-to a writer as one write (an app frame carries the bytes whole anyway). `LiveEdit` has no hook for a
-replica to put a part of its own; the replica puts only an oversized operation's
-bytes. The
-block must be on the server: a block made offline, or one whose replica has
-not joined yet, is refused.
+answered, is refused and the writer let go of. Only then does it send the
+operation, with that ref (a `be_block_content::PartRef`) in its own payload. The
+hold ends when a commit of the block that uses the part publishes, or once
+`upload_grace` passed, the block's journal holds no entries (an uncommitted
+operation may still name the part) and its base names none of the part's objects
+(`journal-base.parts`). A type's part is put by an editor:
+`EditorMirror::put_part` (`FromEditor::PutPart`, answered `ToEditor::PartPut`
+under its token), which the replica turns into its `Effect::PutPart`, which the
+module's runner feeds to a writer as one write (an app frame carries the bytes
+whole anyway). `LiveEdit` has no hook for a replica to put a part of its own;
+the replica puts only an oversized operation's bytes. The block must be on the
+server: a block made offline, or one whose replica has not joined yet, is
+refused.
 
 Each replica that applies the operation keeps the part in its parts as
 `Part::Reused`, so whoever commits next saves a manifest reusing it, uploading

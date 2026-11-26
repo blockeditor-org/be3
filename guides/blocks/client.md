@@ -149,34 +149,50 @@ to name. The vault keeps track of these and a collection removes them.
   `Written` borrows nothing, so a holder keeps it until the part is named:
   be-host-stack's `Saving` until the compaction's commit is in the outbox (in
   `write_at` and `compact_past` alike), and a module's replica, in its reach
-  (`Reach::hand_written`), until one of its publishes that reuses the part is
-  sealed (`Reach::named`) or the replica goes. Until then only the module's
-  edits name it.
+  (`Reach::hand_written`), until a commit reusing the part is sealed here (one of
+  its publishes, or `merge_diverged`'s merge: `Reach::named`) or the replica
+  goes. Until then only the module's edits name it. A merge written elsewhere (a
+  version-control merge's `write_content`) releases nothing: the pin stays until
+  the replica goes.
 - **Noting.** An object the store lacked when its writer sealed it is noted, with
-  its block, in the vault's `Ledger` before it is put: the peer's refs
-  (`Table::Unnamed`), so a writer stopped by a restart is still found. Only
-  noted objects are ever removed; one the store held already was put by
-  something else, which names it. A noted object put any other way through the
-  vault (a write's own parts, a value) or looked for by its presence walks
-  (`holds_all`, `missing_objects`) is claimed: no longer noted, since whoever
-  put or looked for it may name it now. While it is pinned, a lookup leaves it
-  noted (its own writer reads it back as it works, a merge reading what it
-  merged), and a put marks it to be forgotten once its pins go.
+  its block and its owner, before it is put. Only noted objects are ever
+  removed; one the store held already was put by something else, which names
+  it. A noted object put any other way through the vault (a write's own parts, a
+  value, a fetch) or looked for by its presence walks (`holds_all`,
+  `missing_objects`) is claimed: no longer noted, since whoever put or looked for
+  it may name it now. While it is pinned, its owner's lookup leaves it noted (its
+  own writer reads it back as it works, a merge reading what it merged), and a
+  put marks it to be forgotten once its pins go. A claim forgets for good, which
+  is a deliberate leak: an object forgotten after a lookup saw it, or claimed by
+  a put whose commit was later withdrawn, is never collected.
+- **Scopes.** Every scope's peer on a device has its own refs but shares the one
+  object store (`be-objects`), so what one scope's writer let go of another's
+  commits may name: sealing is convergent under a block's key, and two accounts
+  that both edit a block seal its chunks alike. The vaults over the store share
+  one `Unnamed` (`RefsDb::unnamed`, a device-wide `Ledger` in the refs under
+  `RefsDb::DEVICE`), each as its scope's owner (`Scope::owner`), so pins and
+  claims hold across them all. A collection looks only at its own owner's
+  notes. Every access through another vault's store (`VaultStore`: a put, a
+  presence check, a read, its part writer sealing the same object) claims what
+  it reaches of another owner's, as a put does; and each access counts as under
+  way while it runs, so no collection removes what it found before it claims.
 - **Edits.** Between a part's `Written` going and a commit naming it, an edit
   may be all that names it: kept on the device (`OpenEdits`), set aside, or in
-  the block's journal, all opaque to the peer. A block that keeps any
-  (`Refs::keeps_edits`) is left out of a collection, its objects still noted:
-  after a crash or offline, the edit replays and seals a commit reusing the
-  part, which the server, never having journaled the edit, may no longer hold.
+  the block's journal past its base, all opaque to the peer. A block that keeps
+  any (`Refs::keeps_edits`) is left out of a collection, its objects still
+  noted: after a crash or offline, the edit replays and seals a commit reusing
+  the part, which the server, never having journaled the edit, may no longer
+  hold.
 - **Collecting.** `Peer::collect_unnamed` runs `Vault::collect` without
-  awaiting, under the lock writers pin under. Its candidates are the noted
-  objects no pin holds, by block, less the blocks that keep edits. Sealing is convergent only under one key, and
-  a key is one block's, so only that block's objects can share a candidate's: a
-  candidate is kept when an outbox or unsent entry lists it (a publish's
-  objects and journal seal, a hold's objects), its block's journal base names
-  it, or it is under a commit of its block this device holds, walked from the
-  block's heads (its own, the server's, its summary's, the one read whole) and
-  pending commits through their parents as far as they are held
+  awaiting, under the lock writers pin under. Its candidates are its owner's
+  noted objects no pin holds, by block, less the blocks that keep edits and those
+  the caller names as possibly sealing. Sealing is convergent only under one
+  key, and a key is one block's, so only that block's objects can share a
+  candidate's: a candidate is kept when an outbox or unsent entry lists it (a
+  publish's objects and journal seal, a hold's objects), its block's journal
+  base names it, or it is under a commit of its block this device holds, walked
+  from the block's heads (its own, the server's, its summary's, the one read
+  whole) and pending commits through their parents as far as they are held
   (`Vault::mark`), stopping once every candidate is found. The rest are removed;
   those found are forgotten, held from then on as any commit's objects are.
   Naming can cross blocks (a repository's snapshot trees name its members'
@@ -184,11 +200,13 @@ to name. The vault keeps track of these and a collection removes them.
   because a commit of the block itself names the object first, and the first
   collection after that commit forgets it, so no later one looks at it again.
 - **Racing.** A writer pins before it checks the store, so a collection never
-  removes what an open writer or a held `Written` names. What it cannot see is an
-  operation that has put or found an object and not yet recorded what names it
-  (a seal awaiting its key, a fetch before `read_whole`): a host runs it only
-  while quiet (be-host-stack's search loop, guides/blocks/host.md,
-  "Compaction": no command, seal, import or unsealed edit under way).
+  removes what an open writer or a held `Written` names, and none removes
+  anything while another scope's access is under way. What it cannot see is its
+  own scope's operation that has put or found an object and not yet recorded
+  what names it (a seal awaiting its key, a fetch before `read_whole`): a host
+  runs it only while quiet (be-host-stack's search loop, guides/blocks/host.md,
+  "Compaction": no command or import under way), passing over each open block
+  that owes a seal (`Owing`), whose seal may be under way.
 
 A reference count kept per object would need every commit, outbox entry and
 fetch to count what it names; a sweep of the whole vault would need the roots of

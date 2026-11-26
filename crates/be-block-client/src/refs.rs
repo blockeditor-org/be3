@@ -31,6 +31,18 @@ pub struct Scope {
     pub organization: Uuid,
 }
 
+impl Scope {
+    /// Who this scope's vault is among the owners of the device's unnamed objects
+    /// (`be_block_store::Noted::owner`).
+    pub(crate) fn owner(&self) -> Hash {
+        Hash::of_parts(&[
+            self.account.as_bytes(),
+            self.organization.as_bytes(),
+            self.server.as_bytes(),
+        ])
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub(crate) enum Table {
     Session,
@@ -85,7 +97,9 @@ pub(crate) enum Table {
     /// and place: an append writes only the places it adds.
     LogPlace,
     /// The objects this device's part writers sealed that nothing named yet, by hash, each
-    /// with the block whose key sealed it (`be_block_store::Ledger`, `Vault::collect`).
+    /// with the block whose key sealed it and the scope whose writer did
+    /// (`be_block_store::Ledger`, `Vault::collect`): one ledger for every scope, kept under
+    /// `RefsDb::DEVICE`.
     Unnamed,
 }
 
@@ -181,6 +195,9 @@ pub(crate) struct Row {
 #[derive(Clone)]
 pub struct RefsDb {
     backend: Arc<Backend>,
+    /// What this device's part writers sealed unnamed, for every scope's vault over the
+    /// device's one store (`unnamed`), made once read.
+    unnamed: Arc<Mutex<Option<be_block_store::Unnamed>>>,
 }
 
 impl Default for RefsDb {
@@ -193,13 +210,37 @@ impl RefsDb {
     pub fn memory() -> Self {
         Self {
             backend: Arc::new(Backend::in_memory().expect("an in-memory database always opens")),
+            unnamed: Arc::default(),
         }
     }
 
     pub fn open(path: impl AsRef<std::path::Path>) -> Result<Self, StoreError> {
         Ok(Self {
             backend: Arc::new(Backend::open(path)?),
+            unnamed: Arc::default(),
         })
+    }
+
+    /// Where the rows of no one scope are kept: `Table::Unnamed`.
+    const DEVICE: Scope = Scope {
+        server: String::new(),
+        account: Uuid::nil(),
+        organization: Uuid::nil(),
+    };
+
+    /// What the part writers of every scope's vault sealed that nothing named yet: the vaults
+    /// share the device's one object store, so they share this too, each as its scope
+    /// (`Scope::owner`), and a collection of one scope's never removes an object another's
+    /// reached (guides/blocks/client.md, "Unnamed parts").
+    pub(crate) fn unnamed(&self) -> Result<be_block_store::Unnamed, StoreError> {
+        let mut unnamed = self.unnamed.lock().unwrap();
+        if let Some(unnamed) = &*unnamed {
+            return Ok(unnamed.clone());
+        }
+        let ledger = Arc::new(DeviceLedger(Arc::clone(&self.backend)));
+        let made = be_block_store::Unnamed::with_ledger(ledger)?;
+        *unnamed = Some(made.clone());
+        Ok(made)
     }
 
     /// How many bytes of rows this database has written since it opened, for tests that
@@ -267,6 +308,47 @@ impl RefsDb {
             scope,
             state: Mutex::new(state),
         })
+    }
+}
+
+/// The device's ledger of unnamed objects (`RefsDb::unnamed`).
+struct DeviceLedger(Arc<Backend>);
+
+impl be_block_store::Ledger for DeviceLedger {
+    fn noted(&self) -> Result<Vec<(Hash, be_block_store::Noted)>, StoreError> {
+        self.0
+            .load(&RefsDb::DEVICE)?
+            .into_iter()
+            .filter(|row| row.table == Table::Unnamed)
+            .map(|row| {
+                let object: [u8; 32] = row
+                    .key
+                    .as_slice()
+                    .try_into()
+                    .map_err(|_| StoreError::Corrupt)?;
+                let noted = decode(row.value.as_deref().unwrap_or_default())?;
+                Ok((Hash::from_bytes(object), noted))
+            })
+            .collect()
+    }
+
+    fn note(&self, object: Hash, noted: be_block_store::Noted) -> Result<(), StoreError> {
+        self.0.write(
+            &RefsDb::DEVICE,
+            &[row(Table::Unnamed, object.as_bytes().to_vec(), &noted)],
+        )
+    }
+
+    fn forget(&self, objects: &[Hash]) -> Result<(), StoreError> {
+        let rows: Vec<Row> = objects
+            .iter()
+            .map(|object| Row {
+                table: Table::Unnamed,
+                key: object.as_bytes().to_vec(),
+                value: None,
+            })
+            .collect();
+        self.0.write(&RefsDb::DEVICE, &rows)
     }
 }
 
@@ -546,8 +628,6 @@ struct State {
     /// The distinct objects each of a local account's blocks holds, which its `size` counts
     /// (`grow`).
     objects: HashMap<Uuid, HashSet<Hash>>,
-    /// What this device's part writers sealed that nothing named yet (`Table::Unnamed`).
-    unnamed: HashMap<Hash, Uuid>,
     open_edits: HashMap<Uuid, OpenEdits>,
     set_aside: HashMap<Uuid, Vec<SetAside>>,
     /// Blocks whose local edits were discarded with their unsent edits (`discard_unsent`):
@@ -907,15 +987,8 @@ impl State {
             Table::LetGo => {
                 self.let_go.insert(uuid_key(&row.key)?, decode(value)?);
             }
-            Table::Unnamed => {
-                let object: [u8; 32] = row
-                    .key
-                    .as_slice()
-                    .try_into()
-                    .map_err(|_| StoreError::Corrupt)?;
-                self.unnamed
-                    .insert(Hash::from_bytes(object), decode(value)?);
-            }
+            // Device-wide, read by `RefsDb::unnamed`.
+            Table::Unnamed => {}
             Table::LogRedactions => {
                 self.log_redactions
                     .insert(uuid_key(&row.key)?, decode(value)?);
@@ -1006,20 +1079,6 @@ pub(crate) struct Refs {
     backend: Arc<Backend>,
     scope: Scope,
     state: Mutex<State>,
-}
-
-impl be_block_store::Ledger for Refs {
-    fn noted(&self) -> Result<Vec<(Hash, Uuid)>, StoreError> {
-        Ok(self.unnamed())
-    }
-
-    fn note(&self, object: Hash, block: Uuid) -> Result<(), StoreError> {
-        self.note_unnamed(object, block)
-    }
-
-    fn forget(&self, objects: &[Hash]) -> Result<(), StoreError> {
-        self.forget_unnamed(objects)
-    }
 }
 
 impl Refs {
@@ -2348,44 +2407,6 @@ impl Refs {
             key: block.as_bytes().to_vec(),
             value: None,
         }])
-    }
-
-    /// The objects part writers sealed that nothing named yet, kept for `Vault::collect`
-    /// across restarts.
-    pub fn unnamed(&self) -> Vec<(Hash, Uuid)> {
-        let state = self.state.lock().unwrap();
-        state
-            .unnamed
-            .iter()
-            .map(|(object, block)| (*object, *block))
-            .collect()
-    }
-
-    pub fn note_unnamed(&self, object: Hash, block: Uuid) -> Result<(), StoreError> {
-        if self.state.lock().unwrap().unnamed.insert(object, block) == Some(block) {
-            return Ok(());
-        }
-        self.write(vec![row(
-            Table::Unnamed,
-            object.as_bytes().to_vec(),
-            &block,
-        )])
-    }
-
-    pub fn forget_unnamed(&self, objects: &[Hash]) -> Result<(), StoreError> {
-        let rows = {
-            let mut state = self.state.lock().unwrap();
-            objects
-                .iter()
-                .filter(|object| state.unnamed.remove(object).is_some())
-                .map(|object| Row {
-                    table: Table::Unnamed,
-                    key: object.as_bytes().to_vec(),
-                    value: None,
-                })
-                .collect()
-        };
-        self.write(rows)
     }
 
     pub fn push(&self, op: Op) -> Result<u64, StoreError> {

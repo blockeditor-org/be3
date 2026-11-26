@@ -54,11 +54,7 @@ async fn a_part_only_an_older_commit_names_survives_a_collection() {
         "noted until a collection"
     );
 
-    assert_eq!(
-        owner.collect_unnamed().unwrap(),
-        0,
-        "the older commit names it"
-    );
+    assert_eq!(owner.collect_unnamed(&Default::default()).unwrap(), 0, "the older commit names it");
     assert_eq!(vault.unnamed_count(), 0, "found named, no longer noted");
     for object in &objects {
         assert!(vault.store().has(*object).unwrap(), "{object} stays");

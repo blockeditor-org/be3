@@ -46,7 +46,7 @@ async fn an_outbox_entrys_parts_survive_a_collection_until_and_after_it_publishe
         .unwrap();
     assert!(matches!(saved, Saved::Kept(_)), "{saved:?}");
 
-    assert_eq!(offline.collect_unnamed().unwrap(), 0);
+    assert_eq!(offline.collect_unnamed(&Default::default()).unwrap(), 0);
     for object in &objects {
         assert!(
             store.has(*object).unwrap(),
@@ -57,7 +57,7 @@ async fn an_outbox_entrys_parts_survive_a_collection_until_and_after_it_publishe
     harness.reconnect(&offline, owner.token()).await;
     offline.drain(|_| false).await.unwrap();
     assert_eq!(offline.pending().commits, 0, "the commit published");
-    assert_eq!(offline.collect_unnamed().unwrap(), 0);
+    assert_eq!(offline.collect_unnamed(&Default::default()).unwrap(), 0);
     assert_eq!(
         offline
             .commits()

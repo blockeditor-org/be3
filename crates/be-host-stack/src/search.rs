@@ -1119,18 +1119,28 @@ fn compact_idle_indexes(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, ta
     let quiet = |held: &Shared| {
         held.waiting == 0
             && held.pending() == 0
-            && held.unsealed() == 0
-            && held.importing == 0
             && held.typing.is_empty()
             && !held.arriving
             && !held.draining
             && held.search.busy_with(wants_index(held)).is_none()
     };
-    if !quiet(&shared.lock().unwrap_or_else(PoisonError::into_inner)) {
-        return;
-    }
+    let sealing = {
+        let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        if !quiet(&held) {
+            return;
+        }
+        // An import may have put or found what it has not yet recorded; an unsealed block's
+        // seal may be under way, so only its parts are passed over.
+        (held.importing == 0).then(|| {
+            held.seen
+                .unsealed_blocks
+                .iter()
+                .map(|owing| owing.block)
+                .collect::<HashSet<Uuid>>()
+        })
+    };
     // Collected without `shared` held, which only the count a test reads needs.
-    let _collected = collect_unnamed(peer);
+    let _collected = sealing.map_or(0, |sealing| collect_unnamed(peer, &sealing));
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     #[cfg(test)]
     {
@@ -1206,16 +1216,17 @@ fn compact_idle_indexes(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, ta
     });
 }
 
-/// While the host is quiet as `compact_idle_indexes` needs it (nothing written, sealed, sent,
-/// imported, read for search or waiting, no module working and no edit unsealed), removes what
-/// part writers sealed that nothing names (`Peer::collect_unnamed`): a compaction let go of, a
-/// module's writer dropped. It runs in the loop, holding no await, and only while something is
-/// noted. Answers how many objects it removed.
-fn collect_unnamed(peer: &Peer<Store>) -> usize {
+/// While the host is quiet as `compact_idle_indexes` needs it (nothing written, sent, read for
+/// search or waiting, no module working) and nothing is being imported, removes what part
+/// writers sealed that nothing names (`Peer::collect_unnamed`): a compaction let go of, a
+/// module's writer dropped. The parts of `sealing`, the open blocks owing a seal, are left for
+/// a later round. It runs in the loop, holding no await, and only while something is noted.
+/// Answers how many objects it removed.
+fn collect_unnamed(peer: &Peer<Store>, sealing: &HashSet<Uuid>) -> usize {
     if peer.commits().vault().unnamed_count() == 0 {
         return 0;
     }
-    match peer.collect_unnamed() {
+    match peer.collect_unnamed(sealing) {
         Ok(removed) => removed,
         Err(error) => {
             eprintln!("be-host: collecting unnamed parts failed: {error}");

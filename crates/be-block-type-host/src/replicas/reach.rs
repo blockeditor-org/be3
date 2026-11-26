@@ -30,8 +30,9 @@ pub struct Reach {
     /// The blocks of the keys handed parts are sealed under.
     sources: HashSet<Uuid>,
     /// The parts its module's part writers finished, each pinned from the vault's collection
-    /// (`Peer::collect_unnamed`) until a commit of the block that names it is sealed (`named`)
-    /// or the replica goes: until then only the module's edits name it.
+    /// (`Peer::collect_unnamed`) until a commit of the block that names it is sealed here (a
+    /// publish of the replica's, or a merge, `named`) or the replica goes: until then only the
+    /// module's edits name it.
     written: HashMap<PartRef, Vec<Written>>,
 }
 
@@ -50,7 +51,8 @@ impl Reach {
         self.written.entry(part).or_default().push(written);
     }
 
-    /// A commit of the block sealed here names `parts`: what pinned them can go.
+    /// A commit of the block sealed here (a publish or a merge) names `parts`: what pinned them
+    /// can go.
     pub fn named(&mut self, parts: impl IntoIterator<Item = PartRef>) {
         if self.written.is_empty() {
             return;
@@ -65,6 +67,16 @@ impl Reach {
     pub fn pinned(&self) -> usize {
         self.written.len()
     }
+}
+
+/// The parts `parts` reuse by their refs: what a commit written of them names.
+pub fn reused(
+    parts: &[be_sdk_type_api::WrittenPart],
+) -> impl Iterator<Item = PartRef> + '_ {
+    parts.iter().filter_map(|part| match part {
+        be_sdk_type_api::WrittenPart::Reused(part) => Some(PartRef::from(*part)),
+        _ => None,
+    })
 }
 
 /// Whether `part` is within the reach of `block`'s replica.
