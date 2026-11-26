@@ -740,14 +740,22 @@ pub(crate) fn bridge_child_dock(
         });
     }
     let paths = Rc::new(RefCell::new(Paths::default()));
-    let declared = Rc::new(Cell::new(false));
     let hosted = link.hosted();
     {
         let link = Rc::clone(&link);
         let host = host.clone();
         let paths = Rc::clone(&paths);
+        let declared = RefCell::new(None::<(ChildId, DockDeclaration)>);
+        // Declares what the child declares to the dock, then takes its requests, in one effect
+        // so that the dock hears a declaration before the requests heard with it: effects woken
+        // by one change run in no set order (guides/reactive.md, "When things run"). It tracks
+        // `pushed` for requests and declarations heard, `hosted` for what the root hosts, since
+        // a descendant's restore waits until the root hosts the group it replaces, and `child`
+        // for the child placed. It declares only a declaration that changed, so what the root
+        // hosts changing does not declare it again.
         create_effect(move || {
             pushed.track();
+            hosted.track();
             let Some(child) = child.get() else {
                 return;
             };
@@ -758,33 +766,17 @@ pub(crate) fn bridge_child_dock(
                 });
                 match converted {
                     Some(converted) => {
-                        link.declare(converted);
-                        declared.set(true);
+                        let fresh = declared.borrow().as_ref().is_none_or(|(held, last)| {
+                            *held != child || *last != converted
+                        });
+                        if fresh {
+                            declared.replace(Some((child, converted.clone())));
+                            link.declare(converted);
+                        }
                     }
-                    None if declared.replace(false) => link.withdraw(),
+                    None if declared.take().is_some() => link.withdraw(),
                     None => {}
                 }
-            });
-        });
-    }
-    {
-        let link = Rc::clone(&link);
-        let host = host.clone();
-        let paths = Rc::clone(&paths);
-        // A descendant's restore waits until the root hosts the group it replaces, so this
-        // runs again as what the root hosts changes. It tracks `pushed` for requests and
-        // declarations heard, `hosted` for what the root hosts, and `child` for the child placed,
-        // on purpose. It is made after the declare effect above so that, run by the same change,
-        // it runs second: the declaration it reads has been declared to the dock and its tabs
-        // given ids in `paths` first, which the requests it converts name.
-        create_effect(move || {
-            pushed.track();
-            hosted.track();
-            let Some(child) = child.get() else {
-                return;
-            };
-            untrack(|| {
-                let declaration = host.child_dock(child);
                 host.take_child_dock_requests(child, |owner, request| {
                     let request = match (owner.is_empty(), &declaration) {
                         (true, _) => Ok(request_from_api(request, &mut paths.borrow_mut())),

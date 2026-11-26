@@ -135,6 +135,14 @@ once, so a burst asks for one frame; beui's `Context::set_waker` sets it.
 So code outside a beui event that writes and then expects an effect's result
 without a `flush()` sees the old state.
 
+Effects run for the first time in the order they were made. Effects woken by
+one change run in no set order: a signal wakes its subscribers in slot order,
+and a slot a gone subscriber freed is reused, so a newer effect can wake before
+an older one, and wakes through a memo interleave with the signal's own. So
+an effect never relies on another woken by the same change having run first;
+work that must happen in order goes in one effect, or the later step reads
+what it needs through a memo, which is recomputed when read.
+
 ## Zones
 
 `enter_zone(zone)` enters a zone until its guard drops (zone 0 when none is).
