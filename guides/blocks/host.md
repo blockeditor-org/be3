@@ -314,8 +314,12 @@ the connection a stopping stack closed.
   server too, late, from a connection of the process that crashed, the server's
   id check (`journal::submit`) answers it held rather than number the edit
   twice. It waits until every edit the kept submission holds is given again,
-  and goes under its id only if they encode to
-  its payload again; otherwise they go as a new submission. One the order
+  and goes under its id when its payload holds those edits inline under the
+  same `through`, shown from then on as the operation it holds: one carried
+  over a restart (`carry_pending`, each carried edit keeping the `through` it
+  had) holds them rewritten, which the edits given again as typed would not
+  encode to. By a part, it goes under its id only if they encode to its payload
+  again; otherwise they go as a new submission. One the order
   numbers meanwhile takes the edits it holds out of what waits. When the order
   restarts, the submissions made before it are passed over: the replica drops
   its kept submissions as it carries its edits over, and reports the restart

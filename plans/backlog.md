@@ -35,18 +35,6 @@ Fixed items are removed as they land.
   `close`: `Peer::local_head` does not move and nothing waits in the outbox, so
   first find what holds its seal back while the join is on its way.
 
-- **A kept submission carried over a restart that does not encode again.** A
-  replica opened again submits the edits a kept submission holds under its id
-  only if they go as its payload did (`Replica::flush`: the same inline bytes,
-  or the same part, which putting the same bytes under the same key makes
-  again); otherwise they go as a new submission, and if the first copy reaches
-  the server late, from the process that crashed, the order takes them twice.
-  An edit carried over a restart of the order goes again from `replay` as typed
-  while its kept submission holds the operation carried over, which differs for
-  a type whose `carry_over` rewrites it (text's positions). Done: such a
-  submission matched by the edits it was carried from and sent again under its
-  id, with a guest test where its first copy lands after the one given again.
-
 - **Kept edits across two crashes, end to end.** The tests of kept submissions
   across a restart of the order (be-block-type-host's
   `an_edit_carried_over_a_restart_keeps_the_identity_it_goes_again_under_across_a_crash`
