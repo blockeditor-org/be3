@@ -591,6 +591,12 @@ view whose window its frame opened was taken in only after that frame
 (guides/apps/framework.md), and the host then counts the next frame, up to
 `INPUT_WAITING_FRAMES` in a row.
 
+A view placed to fit its content (`ScreenRequest::fit`) that measures new content in a frame is
+placed anew at its new size in that frame (`layout`, before the commit), but was run at the size
+it had: be-sdk presents none of that frame's painting at the old size (`Surfaces::lay_out`), so
+the surface stays fresh, and asks for the next frame (`frame-needed`), which draws it at its new
+size. A host need not know to lay such an app out again.
+
 Only what draws the frame (texture, layout, placements that move existing
 children while none comes or goes) is applied at once; the rest (children coming or going, window
 requests) waits for the next `be_host_runtime::poll`, where the browser takes

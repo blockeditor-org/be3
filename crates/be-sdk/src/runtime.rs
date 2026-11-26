@@ -86,6 +86,10 @@ impl Runtime {
                     be_sdk_api::guest::host::laid_out(commit).detach();
                     self.waker.wake();
                 }
+                if surfaces.take_owed() {
+                    self.asked = true;
+                    be_sdk_api::guest::host::frame_needed().detach();
+                }
             } else if (changed || replaced) && !self.asked {
                 self.asked = true;
                 be_sdk_api::guest::host::frame_needed().detach();
