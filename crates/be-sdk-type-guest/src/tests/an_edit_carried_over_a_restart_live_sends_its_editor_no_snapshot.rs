@@ -67,5 +67,13 @@ fn an_edit_carried_over_a_restart_live_sends_its_editor_no_snapshot() {
     }
     assert_eq!(texts(sim.mirror(1, 1)), revised, "the editor shows both");
     assert!(sim.devices[1].status.clean, "the edits settled");
-    assert!(sim.errors.is_empty(), "{:?}", sim.errors);
+    // The calls taken on their way are dropped unanswered, which is all that is told: the
+    // server numbers what they sent instead.
+    assert!(
+        sim.errors
+            .iter()
+            .all(|(_, error)| error.contains("dropped the operation without answering it")),
+        "{:?}",
+        sim.errors
+    );
 }

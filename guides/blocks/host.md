@@ -320,9 +320,9 @@ the connection a stopping stack closed.
   had) holds them rewritten, which the edits given again as typed would not
   encode to. The replica makes the submission of every edit it carries as it
   carries it, not only of the first, which goes at once, and has the host keep
-  them (`host.keep-carried`, `Replica::keep_carried`, under the restart they
-  were carried over, which the host takes as it would from a status), not as
-  sent: one waiting behind it was made on content the restart replaced, so
+  them (`host.keep-carried`, `Replica::keep_carried`, after reporting the
+  restart, and under it, which the host takes as it would from a status), not
+  as sent: one waiting behind it was made on content the restart replaced, so
   given again as typed it would apply nowhere. Carried live, what waits is the
   carried edit already, so what editors are shown stays; given again as typed,
   the replica rebuilds what it shows. A carried edit that goes by a part is not

@@ -5759,6 +5759,16 @@ where
         if kept.is_empty() {
             return;
         }
+        // The host drops what it keeps of before a restart once it is told of it: told first,
+        // it keeps these, and the submission that goes next is written ahead under it.
+        if self
+            .reported
+            .status
+            .as_ref()
+            .is_none_or(|status| status.restarts != self.restarts)
+        {
+            self.report();
+        }
         self.out.push(Effect::KeepCarried {
             replica: self.id,
             restarts: self.restarts,
