@@ -106,7 +106,7 @@ pub struct Searched {
     pub complete: bool,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 struct Found {
     block: Uuid,
     key: String,
@@ -122,6 +122,9 @@ struct Answer {
     shown: Option<Searched>,
     /// Whether `shown` is cut from `found`.
     cut: bool,
+    /// Which run of its search found it (`Searching::runs`), so snippets cut for one run are
+    /// never shown for a later one.
+    run: u64,
     /// An index it read changed (`forget_answers`): it runs again, `shown` kept until then.
     stale: bool,
     /// The graph's revision when it was shown: it is shown again once the graph moves.
@@ -277,6 +280,8 @@ pub struct Searching {
     /// Counts the changes to what `shown` answers, for the worker to make it again only then.
     shown_revision: u64,
     running: HashSet<SearchAsk>,
+    /// Counts the searches run, to number each answer (`Answer::run`).
+    runs: u64,
     /// Documents' text for snippets, by block, key and head.
     texts: HashMap<(Uuid, String, Option<CommitId>), Option<String>>,
     /// Blocks put by their name alone (`Put::partial`), by their type: queued again once its
@@ -2900,6 +2905,7 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
             held.search.running.remove(&asked);
             if held.search.wanted().any(|wanted| *wanted == asked) {
                 held.search.shown_revision += 1;
+                held.search.runs += 1;
                 // The answer before stays shown until this one's snippets are cut.
                 let shown = held
                     .search
@@ -2913,6 +2919,7 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
                         found,
                         shown,
                         cut: false,
+                        run: held.search.runs,
                         stale: false,
                         missing: None,
                         retry: (!exact).then_some(graph),
@@ -3005,22 +3012,21 @@ async fn show(
     shared: &Arc<Mutex<Shared>>,
     replicas: &mut Replicas,
 ) -> bool {
-    let unshown: Vec<(SearchAsk, Vec<Found>)> = {
+    let unshown: Vec<(SearchAsk, u64, Vec<Found>)> = {
         let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         held.search
             .answers
             .iter()
             .filter(|(_, answer)| !answer.cut)
-            .map(|(asked, answer)| (asked.clone(), answer.found.clone()))
+            .map(|(asked, answer)| (asked.clone(), answer.run, answer.found.clone()))
             .collect()
     };
     if unshown.is_empty() {
         return false;
     }
-    for (asked, found) in unshown {
+    for (asked, run, found) in unshown {
         let query = Query::parse(&asked.text);
         let mut hits = Vec::new();
-        let found_of_cut = found.clone();
         for found in found {
             let (content_type, head) = {
                 let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
@@ -3064,7 +3070,7 @@ async fn show(
             .search
             .answers
             .get_mut(&asked)
-            .filter(|answer| !answer.cut && answer.found == found_of_cut)
+            .filter(|answer| !answer.cut && answer.run == run)
         {
             answer.shown = Some(Searched {
                 hits,

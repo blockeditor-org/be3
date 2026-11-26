@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use be_block_commit::{CommitId, Descent, MergeBase, now_milliseconds};
@@ -84,6 +84,29 @@ impl<S: ObjectStore> Peer<S> {
                 _ => None,
             })
             .collect()
+    }
+
+    /// The newest commit in `head`'s history the server took, as far as this device knows:
+    /// `head` itself unless it waits in the outbox, else the head the waiting commits under it
+    /// were built on. None when they were built on no head.
+    pub fn left_head(&self, block: Uuid, head: CommitId) -> Option<CommitId> {
+        let waiting: HashMap<CommitId, Option<CommitId>> = self
+            .refs
+            .pending_for(block)
+            .into_iter()
+            .filter_map(|(_, op)| match op {
+                Op::Publish(pending) => Some((pending.commit, pending.expected)),
+                _ => None,
+            })
+            .collect();
+        let mut current = head;
+        for _ in 0..=waiting.len() {
+            match waiting.get(&current) {
+                None => return Some(current),
+                Some(expected) => current = (*expected)?,
+            }
+        }
+        None
     }
 
     pub(super) fn pending_publish(&self, block: Uuid, commit: CommitId) -> Option<(u64, Pending)> {

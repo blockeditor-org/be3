@@ -38,7 +38,15 @@ fn an_index_over_the_merge_cap_is_left_alone_on_battery() {
     wait_until("knew the workspace's type", |_| {
         is_known(WorkspaceContent::CONTENT_TYPE)
     });
-    for word in ["apples", "bananas", "cherries"] {
+    let words = [
+        "apples",
+        "bananas",
+        "cherries",
+        "damsons",
+        "elderberries",
+        "figs",
+    ];
+    for word in words {
         let block = Uuid::new_v4();
         create(
             block,
@@ -71,6 +79,20 @@ fn an_index_over_the_merge_cap_is_left_alone_on_battery() {
         crate::with_shared(|shared| shared.search.idle_compactions),
         Some(0),
         "the index was compacted on battery"
+    );
+    // A merge is due all the same: each batch left a segment the cap kept it from merging.
+    let index = crate::wait_until("named the workspace's search index", |shared| {
+        shared
+            .graph
+            .get(workspace)?
+            .metadata
+            .get(&be_block_content::SEARCH_INDEX)
+            .map(|be_block_content::be_block_model::BlockRef(index)| index)
+    });
+    let written = runtime().block_on(crate::search::segment_count(&peer, index));
+    assert!(
+        written >= words.len(),
+        "no batch's compaction merged over the cap: {written} segments"
     );
 
     // On mains power again, the idle pass merges what the cap left.

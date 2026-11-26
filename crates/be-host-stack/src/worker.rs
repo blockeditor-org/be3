@@ -4615,6 +4615,14 @@ async fn apply(
             {
                 record(shared, error);
             }
+            // Made here, its name and first content are an edit of this device's that its root's
+            // index has yet to take, as one an open block seals is: until then a search here is
+            // not complete.
+            shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .search
+                .sealed(block);
             remember_head(peer, shared, block);
             tasks.sync(peer, shared);
             true

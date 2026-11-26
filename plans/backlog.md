@@ -136,6 +136,15 @@ Depends on #686 (session catch-ups replaced by server ordering).
   a clock two hours fast sends them once it connects, and a host test with the
   block open shows its text once.
 
+## 11. Search
+
+- **Idle compaction merges larger tiers.** The idle pass waits for the device to
+  be at rest (`be_host_stack::Rest`), but is still capped at `IDLE_MERGE_BYTES`
+  (128 MiB), as a merge reads its segments whole into memory. Done: a merge
+  streams its segments, and the idle pass at rest merges tiers past that cap,
+  shown by a be-block-search-index test merging segments larger than the memory
+  it may hold.
+
 ## 12. Large folders
 
 - **The rest of a large folder's change.** Summaries no longer carry references

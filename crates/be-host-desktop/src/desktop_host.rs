@@ -113,6 +113,11 @@ pub trait DesktopHost {
         false
     }
 
+    /// Whether the person has left the session alone past its blank time (the screens off).
+    fn idle() -> bool {
+        false
+    }
+
     fn set_locked(_locked: bool) {}
 
     fn revision() -> u64 {
