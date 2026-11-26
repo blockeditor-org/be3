@@ -10,6 +10,7 @@ fn bar(bar: u64, owner: Option<u64>) -> DockSpecBar {
         placement: BOTTOM,
         hidden: false,
         pane: None,
+        slot: None,
     }
 }
 
@@ -101,6 +102,7 @@ fn a_dock_bar_belongs_to_the_dock_and_shows_with_every_tab() {
         tab: &|tab| (tab.value() >= 10).then(|| TabId::new(tab.value() - 10)),
         key: &|key| key.strip_prefix("joined:2/").map(str::to_owned),
         group: &|_| None,
+        pane: None,
     };
     let mut joined = root.subtree(group, &out);
     joined.set_bar_placement(
@@ -117,6 +119,7 @@ fn a_dock_bar_belongs_to_the_dock_and_shows_with_every_tab() {
         tab: &|tab| Some(TabId::new(tab.value() + 10)),
         key: &|key| Some(format!("joined:2/{key}")),
         group: &|_| None,
+        pane: None,
     };
     root.graft(group, &joined, &back);
     assert_eq!(

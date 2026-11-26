@@ -45,7 +45,8 @@ impl DockState {
                 owner: bar.owner,
                 placement: bar.placement,
                 hidden: bar.hidden,
-                pane: bar.pane,
+                pane: bar.pane.clone(),
+                slot: bar.slot,
             })
             .collect();
         spec.outside = self.outside.clone();
@@ -156,7 +157,8 @@ impl DockState {
                 owner: bar.owner,
                 placement: bar.placement,
                 hidden: bar.hidden,
-                pane: bar.pane,
+                pane: bar.pane.clone(),
+                slot: bar.slot,
             })
             .collect();
         state.outside = spec.outside.clone();

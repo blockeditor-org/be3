@@ -100,7 +100,9 @@ changes.
 
 **Saving.** `DockingSnapshot` has no serialized form of its own. To save one, use be-sdk-beui's
 `SavedDockLayout::of(snapshot)`, which is the app protocol's `DockLayout`. Saved: the tree, the
-order tabs were shown, history, homes and unlocked places, bars and compact sizes. Not saved: a
+order tabs were shown, history, homes and unlocked places, bars (with what `DockLayout` cannot
+say of them, `SavedBarPlace`: a pane of a dock joined below and the bar's slot) and compact
+sizes. Not saved: a
 switch in progress, fullscreen, window snaps, hidden windows and dock dialogs.
 
 **Documents.** A tab's key names the tab, not what it shows. Lists that open what they name into
@@ -352,11 +354,20 @@ alone even inside another dock's tab.
   A bar of a tab that hosts a joined dock (its dock's own bars, which the joined dock lends that
   tab) shows on the joined dock's first pane until it is dropped on any edge of another of its
   panes, those of docks joined inside it included (`DockState::bar_panes`, `place_bar_on`, saved
-  with the layout, and kept while a frame child parks it). Only a pane of the bar's own layer is
-  saved: each layer's snapshot drops the docks joined inside it, so a bar left on a deeper
-  layer's pane comes back on its joined dock's first pane. A bar stays with its pane, not with a tab: when the tab that names its pane leaves
+  with the layout, and kept while a frame child parks it). Every joined dock, however deep, joins
+  the outermost dock (the one that places the tab bodies), so its registry's foreign ids name
+  each layer's tabs. A bar's pane (`DockBarPane`) is a tab, or, for a pane of a dock joined below
+  the bar's own layer, the hosting tabs leading to it (`via`) and that dock's own id for the tab:
+  each layer's snapshot drops the docks joined inside it, which save their tabs themselves, so a
+  joined layer's state names such a pane by that path (`Registry::path_of`), and the outermost
+  dock resolves it once every dock on it has joined (`Registry::resolve`, when a graft or a
+  `mirror` can). A bar stays with its pane, not with a tab: when the tab that names its pane leaves
   that pane (moved or closed), another tab still there names it; on one pane, bars of outer
   layers start nearer the edge, and a bar dropped among another layer's lands where it was dropped.
+  The outermost dock numbers each bar's place among its pane's bars across layers as bars move
+  (`DockSpecBar::slot`), and every layer's snapshot keeps its bars' numbers, so bars of layers
+  saved and restored apart come back in that order whichever layer restores first
+  (`DockState::place_by_slot`).
   Dragged by its grip (`unstyled/bars.rs`), a bar is a carry on the drag board, lifted by the
   grip's `Interactive` (`DockBarControl::carry`), and `DockTiles` is its drop site (`State::bar_spec`):
   `closest(band slots, sticky).when_far(float.thrown())`. Each band of each pane the bar may land

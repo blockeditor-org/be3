@@ -8,6 +8,7 @@ fn bar(bar: u64, owner: Option<u64>, placement: DockBarPlacement) -> DockSpecBar
         placement,
         hidden: false,
         pane: None,
+        slot: None,
     }
 }
 
