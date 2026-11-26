@@ -777,7 +777,9 @@ clock, and a peer stamps its commits no later than that plus
 `COMMIT_CLOCK_SLACK` (`Peer::commit_time`), so a device whose clock runs fast is
 not refused: it keeps the measurement by its monotonic clock, and the offset in
 its refs for offline use after a restart, and ignores one that would pull its
-stamps back more than a day (`MAX_CLOCK_PULLBACK`). The index cap sums the base
+stamps back more than a day (`MAX_CLOCK_PULLBACK`). One that stamped offline by a
+clock running fast before it measured stamps those commits again once refused
+(`Peer::restamp`, guides/blocks/client.md). The index cap sums the base
 commit's objects in one query and adds and removes only what the publish
 changes. A relay is shared by every
 participant's queue (`Push::Relayed` holds an `Arc`). A relay named for one
