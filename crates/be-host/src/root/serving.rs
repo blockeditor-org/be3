@@ -150,6 +150,13 @@ pub(super) fn statistic_row(row: be_host_base::performance::PerformanceRow) -> S
 pub(super) fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Editors) {
     let opens = std::mem::take(&mut core.root_opens);
     let served = &mut editors.served;
+    // What editors asked the shell to show, which the session's editor the root embeds shows
+    // as be-host's own shell does; with no shell open yet, nothing shows it.
+    for (block, dialog) in std::mem::take(&mut core.root_dialogs) {
+        served
+            .values_mut()
+            .any(|forwarded| forwarded.show_dialog(block, dialog.clone()));
+    }
     let asks: Vec<_> = std::mem::take(&mut editors.asks)
         .into_iter()
         .chain(root.take_editor_asks())
