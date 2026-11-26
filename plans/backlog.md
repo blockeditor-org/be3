@@ -443,29 +443,6 @@ Fixed items are removed as they land.
 
 ## 24. Build tooling
 
-- **Restarting buck2's daemon after a lost blob.** buck2 keeps a 12-hour record
-  of what `FindMissingBlobs` answered (its gRPC client's `FindMissingCache`,
-  which no buckconfig option bounds) and never forgets an entry when an
-  `Execute` is refused, so after the server loses a blob every retry against
-  the same daemon fails with "Action ... is missing from CAS" until someone runs
-  `./scripts/buck kill` (guides/build_server.md). re-relay already forgets such
-  blobs. buck2's restarter (`[buck2] restarter`, on in .buckconfig) does not
-  help: it restarts only on errors buck2 marks as corrupting its state. Fixing that
-  in buck2 (mark the refusal as corrupt state, or forget the named digests in
-  `FindMissingCache`) would replace this item. buck2 exits 3 on the refusal, not 2,
-  so `retrying` in crates/be-tool-bootstrap/src/buck.rs, which retries only 2, never
-  sees it: the pinned buck2 (2026-09-15) tags it `ReFailedPrecondition`, which
-  app/buck2_error/src/classify.rs ranks an input error, and a daemon started with
-  `BUCK2_TEST_FAIL_RE_EXECUTE=true` (which makes every `Execute` fail that way)
-  builds a target with `--no-remote-cache` to exit 3, `Internal error (stage:
-  remote_call_error)`. Exit 3 is also every failed action's, so the code cannot be
-  the sign. What can: a `forgot` line re-relay writes to `target/re-relay.log` during
-  the attempt (it logs one for each refused `Execute`, whether or not buck2's output
-  was captured; a `forgot` from another command of the checkout running at the same
-  time would only cost a spare retry). Done: when an attempt exits 3 and the relay's log
-  gained a `forgot` line during it, `retrying` runs `buck2 kill` and tries again (within
-  `BE3_BUCK_ATTEMPTS`), and the guide's first step goes; a test drives `retrying` with
-  a stand-in buck2 and log.
 - **CI still installs Python Playwright for old pull requests.** ci.yml's
   "Install the browser preview runtime" step serves only checkouts from before
   the browser rasterizer ran `render.mjs` (those with
