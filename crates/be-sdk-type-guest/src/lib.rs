@@ -1000,8 +1000,9 @@ impl Module {
             }
             Effect::KeepCarried {
                 replica,
+                restarts,
                 submissions,
-            } => ops::with_parent(replica, || host::keep_carried(submissions)).detach(),
+            } => ops::with_parent(replica, || host::keep_carried(restarts, submissions)).detach(),
             Effect::Rebase {
                 replica,
                 base,

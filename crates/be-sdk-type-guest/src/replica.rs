@@ -4200,14 +4200,16 @@ where
         // One carried over a restart of the order holds the edits it was carried from, rewritten
         // (`carry_pending`): given again as typed, they do not make it again, so they go as
         // what it holds, under its id, as the first copy may reach the server yet.
-        if let Some((kept, operation)) = kept.as_ref().and_then(|kept| {
-            let operation = carried_operation::<C>(&kept.payload, kept.through)?;
-            Some((kept.clone(), operation))
+        // Carried live, what waits already is what it holds, and what is shown stays.
+        if let Some((kept, carried)) = kept.as_ref().and_then(|kept| {
+            let carried = carried_operation::<C>(&kept.payload, kept.through)?;
+            Some((kept.clone(), carried))
         }) {
+            let shown = C::encode_operation(&carried) == C::encode_operation(operation);
             let Some((_, _, weight, through, _)) = self.unsent.pop_front() else {
                 return;
             };
-            self.send_kept(kept, operation, weight, through);
+            self.send_kept(kept, carried, weight, through, shown);
             return;
         }
         let payload = match self.payload_of(C::encode_operation(operation)) {
@@ -4272,8 +4274,16 @@ where
     }
 
     /// Submits again, as it was and under its id, an earlier opening's submission of the local
-    /// edits through `through`, shown as what it holds (`operation`) from now on.
-    fn send_kept(&mut self, kept: KeptSubmission, operation: C::Op, weight: u64, through: u64) {
+    /// edits through `through`, shown as what it holds (`operation`) from now on: rebuilt unless
+    /// it is `shown` already.
+    fn send_kept(
+        &mut self,
+        kept: KeptSubmission,
+        operation: C::Op,
+        weight: u64,
+        through: u64,
+        shown: bool,
+    ) {
         if self
             .reported
             .status
@@ -4302,8 +4312,10 @@ where
             entry,
             reply: None,
         });
-        // What it shows was made of the edits as typed.
-        self.rebuild_visible();
+        // What it shows was made of the edits as typed, after a reopen.
+        if !shown {
+            self.rebuild_visible();
+        }
         self.out.push(Effect::Submit {
             replica: self.id,
             submission: Submission {
@@ -5747,23 +5759,13 @@ where
         if kept.is_empty() {
             return;
         }
-        // The host drops what it keeps of before a restart once it is told of it: told first,
-        // it keeps these.
-        if self
-            .reported
-            .status
-            .as_ref()
-            .is_none_or(|status| status.restarts != self.restarts)
-        {
-            self.report();
-        }
         self.out.push(Effect::KeepCarried {
             replica: self.id,
+            restarts: self.restarts,
             submissions: kept,
         });
     }
 }
-
 
 /// Whether every replica passes `op` over for being based before the order's floor (made
 /// before a restart): it puts none of the local edits it holds in the order, which the origin's
