@@ -250,7 +250,9 @@ test the accepted paintings (`hidden`), which it compares in-process to pass or 
 - **Browser tests** (`web_drive_test` and `page_test` in buck/program/drive.bzl) run on a worker like any
   test, with Node, Playwright and Playwright's headless Chromium as pinned downloads (buck/tools) and the
   libraries Chromium and Node load from `buck/sysroot:amd64-browser`
-  (guides/testing_a_gui.md, 7). Nothing is installed on the machine that builds.
+  (guides/testing_a_gui.md, 7). Nothing is installed on the machine that builds. The previews'
+  browser rasterizer (`browser_program`) runs that Chromium and those libraries without Node or
+  Playwright, here rather than on a worker.
 - **Compile-fail tests** live in `compile_fail/`, outside `crates/` so `build //crates/...` does not
   fail on them: `compile_fail(name, deps)` passes when every line marked
   `//~ ERROR <part of message>` has that error and no other line has one. `//~ NOTE <part of a

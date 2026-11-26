@@ -236,9 +236,12 @@ A page rendered as HTML (crates/be-server-portal-ui's portal) is snapshotted wit
 The `.browser` name makes the painting a text file of the viewport, the document and every
 resource it loads (beui's fonts excepted), one token per JSON line so Git diffs read well. Tests
 compare them without a browser; crates/be-tool-browser-rasterizer renders them for review
-(the previews, and `be-tool-local rasterize`) in the browser tests' pinned Node Playwright and
-Chromium, which its `:browser-rasterizer` lays out beside it, so it needs nothing installed. Fix
-dynamic ids, form tokens and times in fixtures.
+(the previews, and `be-tool-local rasterize`) in the browser tests' pinned headless Chromium,
+which it starts and drives itself over the DevTools protocol on `--remote-debugging-pipe`, with
+the launch switches and page settings Playwright uses. Its `:browser-rasterizer` lays Chromium
+and its libraries out beside it, so it needs nothing installed. A few pages with rounded cards
+draw one of two images a run, a step apart in a colour at the corners. Fix dynamic ids, form
+tokens and times in fixtures.
 
 Whatever reads a painting file (the comparison, `rasterize`, the pull request's previews)
 decodes it as beui-paint-snapshot's `Painting`, `Native` or `Browser`, whose `frames` and
