@@ -1,6 +1,7 @@
 use super::*;
 use uuid::Uuid;
 
+mod a_blob_decoded_without_its_payload_keeps_its_payloads_range_as_its_header_grows;
 mod a_blob_puts_its_header_before_its_payload;
 mod a_blob_saves_its_header_and_payload_as_separate_parts;
 mod a_block_link_is_found_by_its_fragment_whatever_its_host;
