@@ -13,13 +13,15 @@ fn raising_a_window_puts_it_on_top() {
     );
     let views = |windows: &[Floating]| windows.iter().map(|window| window.view).collect::<Vec<_>>();
     assert_eq!(views(&windows), [ViewId(7), ViewId(8)]);
-    assert!(hear(
-        &mut windows,
-        &[main_screen(true)],
-        vec![WindowRequest::Raise(ViewId(7))],
-        None,
-        Pos2::ZERO,
-    )
-    .0);
+    assert!(
+        hear(
+            &mut windows,
+            &[main_screen(true)],
+            vec![WindowRequest::Raise(ViewId(7))],
+            None,
+            Pos2::ZERO,
+        )
+        .0
+    );
     assert_eq!(views(&windows), [ViewId(8), ViewId(7)]);
 }

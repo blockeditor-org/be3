@@ -15,7 +15,11 @@ fn a_window_pressed_and_asked_to_move_follows_the_pointer_from_the_press() {
     let pressed = press(&mut windows, ScreenId::opened(1), pos2(50.0, 35.0));
     assert!(pressed.is_some());
     let views = |windows: &[Floating]| windows.iter().map(|window| window.view).collect::<Vec<_>>();
-    assert_eq!(views(&windows), [ViewId(8), ViewId(7)], "the pressed window comes in front");
+    assert_eq!(
+        views(&windows),
+        [ViewId(8), ViewId(7)],
+        "the pressed window comes in front"
+    );
     let (_, held) = hear(
         &mut windows,
         &[main_screen(true)],
@@ -41,7 +45,9 @@ fn a_window_pressed_and_asked_to_move_follows_the_pointer_from_the_press() {
         .find(|window| window.view == ViewId(7))
         .map(Floating::request);
     assert_eq!(
-        moved.and_then(|request| request.anchor_space).map(|space| space.to_host.origin),
+        moved
+            .and_then(|request| request.anchor_space)
+            .map(|space| space.to_host.origin),
         Some(pos2(140.0, 130.0))
     );
     let pressed = press(&mut windows, ScreenId::opened(1), pos2(70.0, 45.0));

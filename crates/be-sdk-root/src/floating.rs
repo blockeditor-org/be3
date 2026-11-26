@@ -250,9 +250,7 @@ pub(crate) fn hear(
             let window = &windows[index];
             let (start, from) = pressed
                 .filter(|pressed| pressed.view == window.view)
-                .map_or((pointer, window.rect), |pressed| {
-                    (pressed.at, pressed.rect)
-                });
+                .map_or((pointer, window.rect), |pressed| (pressed.at, pressed.rect));
             held = Some(Held {
                 view: window.view,
                 gesture,
@@ -270,7 +268,11 @@ pub(crate) fn hear(
 /// A press on the window showing `screen`, if one does: it comes in front, with the windows
 /// opened over it, as be-host's desktop raises one pressed; a move or resize it asks for next
 /// starts from where the pointer is now, at `pointer`.
-pub(crate) fn press(windows: &mut Vec<Floating>, screen: ScreenId, pointer: Pos2) -> Option<Pressed> {
+pub(crate) fn press(
+    windows: &mut Vec<Floating>,
+    screen: ScreenId,
+    pointer: Pos2,
+) -> Option<Pressed> {
     let index = windows.iter().position(|window| window.screen == screen)?;
     let pressed = Pressed {
         view: windows[index].view,

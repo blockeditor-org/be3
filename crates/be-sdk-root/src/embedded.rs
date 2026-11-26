@@ -446,7 +446,12 @@ impl Embedded {
         let floating = self.state.borrow().floating.clone();
         floating
             .iter()
-            .filter_map(|window| Some((window.request(), self.layer(window.screen, window.rect.min)?)))
+            .filter_map(|window| {
+                Some((
+                    window.request(),
+                    self.layer(window.screen, window.rect.min)?,
+                ))
+            })
             .collect()
     }
 
@@ -1344,11 +1349,9 @@ impl State {
         floating::follow_openers(&mut self.floating, &self.asked);
         let windows: Vec<ScreenRequest> = self.floating.iter().map(Floating::request).collect();
         let work = |opener: be_sdk_api::ViewRef| {
-            let request = self
-                .asked
-                .iter()
-                .chain(&windows)
-                .find(|request| (request.instance, request.view) == (opener.instance, opener.view))?;
+            let request = self.asked.iter().chain(&windows).find(|request| {
+                (request.instance, request.view) == (opener.instance, opener.view)
+            })?;
             let insets = self.work_areas.get(&request.screen)?;
             let origin = request.anchor_space?.to_host.origin;
             let size = request.metrics.logical;

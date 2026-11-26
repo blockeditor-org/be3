@@ -17,7 +17,10 @@ fn a_window_opened_at_the_pointer_opens_under_it() {
         pos2(300.0, 200.0),
     );
     assert_eq!(
-        windows.iter().map(|window| window.rect.min).collect::<Vec<_>>(),
+        windows
+            .iter()
+            .map(|window| window.rect.min)
+            .collect::<Vec<_>>(),
         [pos2(300.0, 200.0) - be_sdk_window_stack::OPEN_GRAB]
     );
 }
