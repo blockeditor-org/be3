@@ -11,8 +11,8 @@ to be left with if the gesture stops halfway (a crash, the instance closing, Esc
   rotating, scrubbing a value and dragging through a colour area.
 
 A tentative edit is applied to the local replica at once, so every view on this device previews
-it from the block itself, and is shown to peers through presence; it is sent and saved only when
-it commits. Cancelling it, a crash, or the instance closing leaves no trace. A tentative edit only
+it from the block itself, and is previewed by peers' replicas as a layer of their own; it is sent
+and saved only when it commits. Cancelling it, a crash, or the instance closing leaves no trace. A tentative edit only
 moves or changes what already exists; anything a drop creates is created on commit.
 
 Concurrent tentative edits in one block (two fingers, two controllers, two windows) join one
@@ -24,6 +24,34 @@ The invariant on order: a tentative edit is never sent ahead of a tentative edit
 Other edits (typing during a drag, a peer's) may be sent ahead of held ones. That is safe because
 operations name items by id and a tentative edit creates nothing, so nothing sent can refer to
 something peers have not received.
+
+## Peers' previews
+
+A replica relays its tentative layer as it grows (`SessionMessage::Held`; guides/type_modules.md,
+Peers preview held layers), and each peer shows it on top of what it holds, never writing it:
+
+- **Where it shows.** A peer's layer shows above the device's own unconfirmed edits and beneath
+  its own tentative layer, peers' layers ordered by client id. So each device sees its own drag
+  on top: two people dragging one item each see their own, and presence draws both cursors.
+- **An edit to a previewed item** needs nothing of the app: it is made, sent and goes beneath
+  the layer, which shows what the commit, ordered after it, will leave. Presence already says
+  who holds what.
+- **Leaving.** `commits_through` names the last local edit the layer goes out as, not the first:
+  a long layer may go as several submissions, and the layer leaves only once the order holds
+  all of it, in the landing of the entry that does, so no frame shows the edit twice or not at
+  all. A cancel, the holder leaving or losing edit access, a reload, or a newer layer drops it.
+- **Cost.** One `Held` a frame of a drag, appending that frame's edit: measured on the canvas
+  (`a_held_resize_relays_one_small_message_a_frame`), about 70 bytes a frame against about 125
+  for the same frame's presence, and one landing at each peer. Input comes a frame at a time,
+  so held layers relay no faster than presence and are not throttled. Only a layer told whole
+  (a late joiner, a peer that missed a frame, a cancel of one of several gestures) is absorbed
+  and sent at once.
+- **The canvas's carry** goes through the hold like any other gesture, so its presence
+  (`CanvasCursor::carried`, `carry_for_peers`) went: bound lines follow it from the block.
+- **Types that rebase.** No type opts out. A held edit only moves or changes what exists, by id,
+  so it applies beneath a peer's own edits like any peer entry; a type whose held edits were
+  positional would preview them where they land on the peer until the commit, which is what
+  the commit does too.
 
 This is about block content: what a block is, which peers receive as edits. View state (a scroll
 position, the caret, open folders, the shell's dock layout) is the viewer's own and is written on
@@ -47,6 +75,14 @@ not mean saving often.
   effects with them.
 - Previewing drags only outside the block, drawn by the site: every derived view would have to
   learn about previews, or preview through speculative layout.
+- Showing peers held edits through each app's presence (the canvas's carried move did): each
+  app redraws only what it thought to, and bound lines, z-order and layout jump at release.
+- Showing peers' layers above the device's own: a person dragging an item someone else drags
+  would see it jump to the other's pointer.
+- Throttling held layers below the frame rate: they cost less than presence, which is not
+  throttled, and a coarser preview would jump.
+- Sending the layer whole every frame: a drag's edits absorb into a few, but an append is the
+  frame's edit alone, and a peer that misses one asks for the whole (`HeldAgain`).
 - Writing a typed or drawn gesture once, on release: a crash would lose what the person made.
 - Holding view state back until release as well: it is not an edit peers receive, and a crash
   that keeps a half-dragged split costs nothing a person cannot drag back.

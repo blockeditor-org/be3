@@ -377,13 +377,6 @@ Fixed items are removed as they land.
   crates/be-tool-browser-rasterizer/requirements.txt); a newer checkout skips
   it. Done: no open pull request has that file, and the step is deleted.
 
-## 25. Tentative gestures
-
-What the tentative layer (guides/blocks/host.md, Undo;
-decisions/tentative_edits_wait_for_release.md) left as it was.
-
-Peers' derived views of a held edit: plans/peers_preview_held_edits.md.
-
 ## 26. Server protocol
 
 - **Authority names a head of its signer's choosing.** A record on authority from

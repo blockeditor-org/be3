@@ -546,7 +546,7 @@ each edit with the host's `submit`: a `be_block_session::Submission` (its id,
 local edits of the replica it holds. Every replica hears the order through
 `replica.sequenced` and applies each entry in order, its own included; what it
 hears early waits in `ahead`. Peers also exchange `SessionMessage`s outside the
-order: presence and channel messages. The rules an agent most needs:
+order: presence, channel messages and held layers. The rules an agent most needs:
 
 - **Entries** (`wire::Entry`): `Operation`, an operation's bytes or the part they
   were put as; `Reload`, the content becomes a commit at that place (`head`: the
@@ -598,6 +598,35 @@ order: presence and channel messages. The rules an agent most needs:
   restart rebuilds the layer and a crash loses it; at the layer's commit it moves
   the operations that count to the end of `replay` as ordinary ones, and drops
   the rest.
+- **Peers preview held layers** (`replica/held.rs`). A replica tells its peers its
+  layer as it grows (`SessionMessage::Held { layer, origin, from, to, operations,
+  commits_through }`, at the same rate as presence: one per frame of a drag, the
+  frame's edit alone): each edit held on top goes as an append (`from`, how many
+  edits the peer holds already, `to` after); any other change (a gesture of it
+  cancelled or voided, a restart carrying it) sends it whole after the job, its
+  edits absorbed (`from` zero), and so does a participant joining or asking
+  (`SessionMessage::HeldAgain`, sent once a layer by a peer that holds another
+  count than an append starts from). A layer past `LARGEST_RELAYED_OPERATION`
+  whole is not previewed. Its commit sends `commits_through`, the last local edit
+  the layer goes out as; one that commits nothing, or a cancel, drops it (empty,
+  with nothing to commit). Each layer has a number (`layer`), and one about a
+  newer layer replaces the older. A peer drops a `Held` from a participant that
+  may not edit, keeps each peer's layer (`peer_layers`, by client) and shows it
+  above its own unconfirmed edits and beneath its own tentative layer, so each
+  device sees its own drag on top. Peer layers count in `unsettled()`: a frame
+  lands on editors as `Landed::On`, or `Under` its own layer; a local edit goes
+  `Under` every layer, and another's entry `Beneath` them. The entry that brings
+  the holder's origin to `commits_through` (`origins`) lands as `Beneath` with
+  `local` no longer holding the layer, so no frame shows both or neither; a
+  layer that leaves with no entry (a cancel, a holder leaving the session or
+  losing edit access, a newer layer told whole) lands as `Landed::Relaid`, which
+  only lays what is unsettled again (`EditorOperation` with no `operation`). A
+  reload or replacement drops every peer layer, and the holder, reloaded too,
+  tells its own whole again. Peer layers are never written, sealed, stashed,
+  described or in `unheld()`/`content`, and touch no `History` or `Holds`: this
+  replica's own edits record undo against what it shows without them
+  (`own_visible`). A peer's edit to an item a layer moves goes beneath it, the
+  layer showing what the commit will make it.
 - **Arrival time.** The server stamps each entry with when it took it
   (`received`); an entry a device numbered offline has none. Content never
   holds an arrival: records that need the server's time are a signed log's
@@ -708,8 +737,9 @@ order: presence and channel messages. The rules an agent most needs:
   answered once the server holds the reload, not when the order brings it back:
   a host that waits on the answer may be what would hand the replica the order.
 - **Who sends what.** The server takes submissions and claims only from editors,
-  submissions of the session's build alone. Relayed messages are presence and
-  channel messages, which any participant sends; which head
+  submissions of the session's build alone. Relayed messages are presence,
+  channel messages and held layers, which any participant sends (held layers
+  only count from one that may edit); which head
   holds which number comes from the server (`replica.sealed`), never a peer.
   Editors are trusted with the block's content and session; only viewers are
   kept out. The server holds a part for the whole

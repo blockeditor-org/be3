@@ -136,8 +136,11 @@ gesture that chooses one result (`Gesture::chooses`: moving, resizing, rotating,
 dragging a line's end or bend, the eraser's dimming) holds its writes in a
 tentative gesture (`open_hold`), as do the sidebar's value controls while one is
 dragged or typed into (`drag_value` follows their `ValueDrag`, `type_value`): every view of the block on
-this device previews them, and peers see nothing of them but a carried move
-(below) until the release writes them as one undo step. `commit_writes` commits both; Escape, a second finger or
+this device previews them, and so does every peer, whose replica shows the
+holder's layer on top of what it holds (guides/type_modules.md, Peers preview
+held layers): a move, a resize, a rotation, a line's end or bend and a scrubbed
+value all reach peers frame by frame, with bound lines, z-order and layout
+following, until the release writes them as one undo step. `commit_writes` commits both; Escape, a second finger or
 another tool calls it off with `cancel_writes`, leaving nothing written or to
 undo. The eraser drops its held dimming on release and writes the removal alone.
 When the replica ends the hold (an undo mid-drag), `gesture_ended` lets go of
@@ -158,11 +161,8 @@ pointer, applied to the move through the hold; the board's drop commits it, and
 a put-down (Escape, a cancelled press) drops it. While the board carries a move
 the release leaves it to the board, and `gesture_ended` puts the carry down. The
 surface is an edge scroller: a carry held in its band pans the camera, and the
-site chooses again as the camera moves. A move held in the hold reaches peers as
-presence instead: `CanvasCursor::carried` gives the offset of the selection
-it carries (and whether it snaps), and a peer's `Entities` draws what of that
-selection is unlocked there (`carry_for_peers`, the `drawn` memo the stage
-reads; edits read `stored`), with lines bound to it following.
+site chooses again as the camera moves. The carried move goes through the hold
+like any other, so peers preview it from their replicas, as they do a resize.
 
 ## Input
 
@@ -205,7 +205,11 @@ samples bilinearly.
 - `crates/be-type-infinite-canvas/src/tests/`: merges and operations.
 - `crates/be-app-infinite-canvas/src/tests/`: the editor through be-sdk-test;
   `src/tests.rs` has the helpers that open an editor in each profile, drive it
-  and a peer, and build one of every shape. Paintings show raster layers
+  and a peer, and build one of every shape. `join_session` puts two editors'
+  stores in one session and `relay_session` hands one what the other relayed
+  and submitted (be-sdk-test's `ContentStore::join_peer`, `take_relayed`,
+  `receive_relayed`), so a peer previews held gestures as a device's replica
+  would; `sync` hands over written edits alone. Paintings show raster layers
   blurred, since beui-paint-raster draws a mesh's texture bilinearly.
 - Tests that a pan, zoom, drag or pen move repaints no other entity
   (`panning_and_zooming_paints_no_entity_again`,
