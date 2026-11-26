@@ -45,7 +45,7 @@ fn a_text_edit_waiting_behind_one_in_flight_over_a_restart_lands_after_a_crash()
 
         // Session state past what a seal restarts the order at: every other byte of a long run
         // deleted leaves a fragment for each.
-        let typed = 400_000;
+        let typed = 240_000;
         let kept = typed / 2;
         type_at(&mut replicas, &mut mirror, 0, &vec![b'x'; typed]);
         replicas.pump((&peer, &shared)).await;
@@ -54,12 +54,28 @@ fn a_text_edit_waiting_behind_one_in_flight_over_a_restart_lands_after_a_crash()
         let delete = |at: usize| {
             TextBlock::delete(shown, 2 * at + 1..2 * at + 2).expect("there is a byte to delete")
         };
-        let mut deleted = delete(0);
-        for at in 1..kept {
-            deleted.0.extend(delete(at).0);
+        // In edits of a size a submission takes.
+        let mut deletes = Vec::new();
+        for from in (0..kept).step_by(4000) {
+            let mut deleted = delete(from);
+            for at in from + 1..(from + 4000).min(kept) {
+                deleted.0.extend(delete(at).0);
+            }
+            deletes.push(deleted);
         }
-        let message = mirror.operate(None, deleted).expect("the editor has content");
-        replicas.relay_from_editor(block, editor, message.encode(), std::time::Instant::now());
+        let mut fragmented = shown.clone();
+        for deleted in &deletes {
+            fragmented.apply(deleted);
+        }
+        let state = fragmented.session_state().len();
+        assert!(
+            state > be_sdk_type_guest::RESTART_STATE_BYTES,
+            "the deletes leave {state} bytes of session state"
+        );
+        for deleted in deletes {
+            let message = mirror.operate(None, deleted).expect("the editor has content");
+            replicas.relay_from_editor(block, editor, message.encode(), std::time::Instant::now());
+        }
         replicas.pump((&peer, &shared)).await;
         step_until_replicas(
             &peer,
@@ -67,7 +83,7 @@ fn a_text_edit_waiting_behind_one_in_flight_over_a_restart_lands_after_a_crash()
             &mut replicas,
             "had the fragments ordered",
             |replicas, _| {
-                heard_entries_of(&peer, block) >= 2
+                replicas.status(block).is_some_and(|status| status.journaled)
                     && replicas
                         .submissions_of(block)
                         .is_some_and(|(submitting, ..)| submitting == 0)
