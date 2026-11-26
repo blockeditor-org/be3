@@ -3330,6 +3330,7 @@ dependencies = [
  "be-wasm-gpu-convert",
  "be-wasm-guest-abi",
  "be-wasm-ops",
+ "be-wasm-panic",
  "foldhash 0.2.0",
  "pollster",
  "wgpu",
