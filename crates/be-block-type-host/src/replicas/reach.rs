@@ -70,9 +70,7 @@ impl Reach {
 }
 
 /// The parts `parts` reuse by their refs: what a commit written of them names.
-pub fn reused(
-    parts: &[be_sdk_type_api::WrittenPart],
-) -> impl Iterator<Item = PartRef> + '_ {
+pub fn reused(parts: &[be_sdk_type_api::WrittenPart]) -> impl Iterator<Item = PartRef> + '_ {
     parts.iter().filter_map(|part| match part {
         be_sdk_type_api::WrittenPart::Reused(part) => Some(PartRef::from(*part)),
         _ => None,

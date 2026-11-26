@@ -255,7 +255,10 @@ impl RefsDb {
             return Ok(be_block_store::Unnamed::default());
         };
         let mut unnamed = self.unnamed.lock().unwrap();
-        if let Some(held) = unnamed.get(&store).and_then(be_block_store::WeakUnnamed::upgrade) {
+        if let Some(held) = unnamed
+            .get(&store)
+            .and_then(be_block_store::WeakUnnamed::upgrade)
+        {
             return Ok(held);
         }
         unnamed.retain(|_, held| held.upgrade().is_some());

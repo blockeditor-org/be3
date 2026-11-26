@@ -34,7 +34,11 @@ fn a_ledger_keeps_an_objects_first_note() {
     let db = RefsDb::open(&path).unwrap();
     assert_eq!(ledger(&db).noted().unwrap(), vec![(object, first)]);
     ledger(&db).forget(&[object]).unwrap();
-    assert_eq!(ledger(&db).note(object, second).unwrap(), None, "noted anew");
+    assert_eq!(
+        ledger(&db).note(object, second).unwrap(),
+        None,
+        "noted anew"
+    );
 
     drop(db);
     let _ = std::fs::remove_file(&path);

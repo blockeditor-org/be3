@@ -52,7 +52,11 @@ fn a_collection_removes_nothing_while_another_owners_access_is_under_way() {
         assert!(second.store().has(*object).unwrap(), "{object} found");
     }
     *interrupting.during.lock().unwrap() = None;
-    assert_eq!(removed.load(Ordering::Relaxed), 0, "nothing removed mid-look");
+    assert_eq!(
+        removed.load(Ordering::Relaxed),
+        0,
+        "nothing removed mid-look"
+    );
 
     assert_eq!(first.unnamed_count(), 0, "claimed once found");
     assert_eq!(first.collect(|_| Ok(HashSet::new())).unwrap(), 0);

@@ -141,7 +141,11 @@ impl SqliteRefs {
 
 impl SqliteRefs {
     /// Writes `row` unless one with its key is there, and answers the value of the one there.
-    pub(crate) fn insert_new(&self, scope: &Scope, row: &Row) -> Result<Option<Vec<u8>>, StoreError> {
+    pub(crate) fn insert_new(
+        &self,
+        scope: &Scope,
+        row: &Row,
+    ) -> Result<Option<Vec<u8>>, StoreError> {
         let Some(value) = &row.value else {
             return Err(StoreError::Corrupt);
         };
@@ -156,7 +160,14 @@ impl SqliteRefs {
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             )
             .map_err(failed)?
-            .execute(params![scope.server, account, organization, kind, row.key, value])
+            .execute(params![
+                scope.server,
+                account,
+                organization,
+                kind,
+                row.key,
+                value
+            ])
             .map_err(failed)?;
         let held = if inserted == 0 {
             let held: Vec<u8> = transaction
@@ -166,9 +177,10 @@ impl SqliteRefs {
                        AND key = ?5",
                 )
                 .map_err(failed)?
-                .query_row(params![scope.server, account, organization, kind, row.key], |row| {
-                    row.get(0)
-                })
+                .query_row(
+                    params![scope.server, account, organization, kind, row.key],
+                    |row| row.get(0),
+                )
                 .map_err(failed)?;
             Some(held)
         } else {

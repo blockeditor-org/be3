@@ -27,12 +27,18 @@ fn a_part_a_merge_reuses_is_let_go_of_by_its_replicas_reach() {
         }
 
         let mut writer = peer.part_writer(block).await.expect("a writer");
-        writer.write(b"a section written as a part").expect("written");
+        writer
+            .write(b"a section written as a part")
+            .expect("written");
         let written = writer.finish().expect("sealed");
         let part = written.part().expect("a byte was written");
         let reach = replicas.reach(block).expect("the block is open");
         reach.lock().unwrap().hand_written(part, written);
-        assert_eq!(reach.lock().unwrap().pinned(), 1, "only the replica holds it");
+        assert_eq!(
+            reach.lock().unwrap().pinned(),
+            1,
+            "only the replica holds it"
+        );
 
         let mut theirs = base();
         theirs.set(5, "FIVE");
@@ -79,13 +85,21 @@ fn a_part_a_merge_reuses_is_let_go_of_by_its_replicas_reach() {
             }
         }
         assert!(merged, "the edit diverged from the other device's head");
-        assert_eq!(reach.lock().unwrap().pinned(), 0, "the merge let the pin go");
+        assert_eq!(
+            reach.lock().unwrap().pinned(),
+            0,
+            "the merge let the pin go"
+        );
         let head = peer
             .remote_head(block)
             .await
             .expect("the head is read")
             .expect("the block has a head");
-        let manifest = peer.load_reached(head).await.expect("the head is read").manifest;
+        let manifest = peer
+            .load_reached(head)
+            .await
+            .expect("the head is read")
+            .manifest;
         assert!(
             section_parts(&peer, &manifest).await.contains(&part),
             "the merge reuses the part"

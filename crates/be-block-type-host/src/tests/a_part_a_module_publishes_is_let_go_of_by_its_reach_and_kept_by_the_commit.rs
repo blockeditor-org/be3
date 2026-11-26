@@ -72,7 +72,11 @@ fn a_part_a_module_publishes_is_let_go_of_by_its_reach_and_kept_by_the_commit() 
             }
             step(&peer, &shared, &mut replicas).await;
         }
-        assert_eq!(reach.lock().unwrap().pinned(), 0, "the publish let the pin go");
+        assert_eq!(
+            reach.lock().unwrap().pinned(),
+            0,
+            "the publish let the pin go"
+        );
 
         assert_eq!(peer.collect_unnamed(&Default::default()).unwrap(), 0);
         assert_eq!(vault.unnamed_count(), 0, "found named, so no longer noted");
@@ -86,7 +90,11 @@ fn a_part_a_module_publishes_is_let_go_of_by_its_reach_and_kept_by_the_commit() 
             .status(block)
             .and_then(|status| status.head)
             .expect("sealed");
-        let manifest = peer.load_reached(head).await.expect("the head is read").manifest;
+        let manifest = peer
+            .load_reached(head)
+            .await
+            .expect("the head is read")
+            .manifest;
         assert!(
             vault.objects(&manifest).unwrap().contains(&part.hash()),
             "the head reuses the part"

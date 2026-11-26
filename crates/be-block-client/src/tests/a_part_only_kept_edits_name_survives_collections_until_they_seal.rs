@@ -53,14 +53,22 @@ async fn a_part_only_kept_edits_name_survives_collections_until_they_seal() {
 
     let offline = harness.offline(&owner, &refs, &store);
     let vault = offline.commits().vault();
-    assert_eq!(vault.unnamed_count(), objects.len(), "still noted after the restart");
+    assert_eq!(
+        vault.unnamed_count(),
+        objects.len(),
+        "still noted after the restart"
+    );
     assert_eq!(
         offline.collect_unnamed(&Default::default()).unwrap(),
         0,
         "kept edits may name them"
     );
     offline.set_aside_open_edits(block).unwrap();
-    assert_eq!(offline.collect_unnamed(&Default::default()).unwrap(), 0, "set aside, they may yet");
+    assert_eq!(
+        offline.collect_unnamed(&Default::default()).unwrap(),
+        0,
+        "set aside, they may yet"
+    );
     for object in &objects {
         assert!(store.has(*object).unwrap(), "{object} stays");
     }

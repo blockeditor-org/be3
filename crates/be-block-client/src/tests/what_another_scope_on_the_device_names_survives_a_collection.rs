@@ -44,7 +44,11 @@ async fn what_another_scope_on_the_device_names_survives_a_collection() {
         let_go.extend(mine.part_objects(&[written.part().unwrap()]).unwrap());
     }
     assert_eq!(mine.commits().vault().unnamed_count(), let_go.len());
-    assert_eq!(theirs.commits().vault().unnamed_count(), 0, "noted as the owner's");
+    assert_eq!(
+        theirs.commits().vault().unnamed_count(),
+        0,
+        "noted as the owner's"
+    );
     drop(theirs);
 
     let offline = harness.offline(&member, &refs, &store);

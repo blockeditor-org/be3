@@ -69,7 +69,14 @@ fn a_collection_passes_over_what_was_claimed_or_pinned_while_it_walked() {
     for object in &objects {
         assert!(store.has(*object).unwrap(), "{object} stays");
     }
-    assert_eq!(first.unnamed_count(), objects.len(), "still noted while held");
+    assert_eq!(
+        first.unnamed_count(),
+        objects.len(),
+        "still noted while held"
+    );
     drop(held);
-    assert_eq!(first.collect(|_| Ok(HashSet::new())).unwrap(), objects.len());
+    assert_eq!(
+        first.collect(|_| Ok(HashSet::new())).unwrap(),
+        objects.len()
+    );
 }

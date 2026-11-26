@@ -10,8 +10,8 @@ use uuid::Uuid;
 
 mod unnamed;
 
-pub use unnamed::{Ledger, Noted, Pins, Unnamed, VaultStore, WeakUnnamed, Written};
 use unnamed::Claim;
+pub use unnamed::{Ledger, Noted, Pins, Unnamed, VaultStore, WeakUnnamed, Written};
 
 use crate::{
     StoreError,

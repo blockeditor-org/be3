@@ -64,7 +64,10 @@ async fn a_chunk_a_named_part_shares_survives_a_collection() {
         0,
         "a block whose seal may be under way is passed over"
     );
-    assert_eq!(owner.collect_unnamed(&HashSet::new()).unwrap(), unnamed.len());
+    assert_eq!(
+        owner.collect_unnamed(&HashSet::new()).unwrap(),
+        unnamed.len()
+    );
     let store = owner.commits().vault().store();
     for object in &unnamed {
         assert!(

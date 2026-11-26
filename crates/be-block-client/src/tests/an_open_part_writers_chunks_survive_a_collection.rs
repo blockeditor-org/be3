@@ -57,7 +57,10 @@ async fn an_open_part_writers_chunks_survive_a_collection() {
 
     drop(written);
     let objects = sealed(&store);
-    assert_eq!(owner.collect_unnamed(&Default::default()).unwrap(), objects.len());
+    assert_eq!(
+        owner.collect_unnamed(&Default::default()).unwrap(),
+        objects.len()
+    );
     for object in &objects {
         assert!(
             !store.has(*object).unwrap(),

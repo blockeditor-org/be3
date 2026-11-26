@@ -8,7 +8,13 @@ struct Kept(Mutex<HashMap<Hash, Noted>>);
 
 impl Ledger for Kept {
     fn noted(&self) -> Result<Vec<(Hash, Noted)>, StoreError> {
-        Ok(self.0.lock().unwrap().iter().map(|(k, v)| (*k, *v)).collect())
+        Ok(self
+            .0
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(k, v)| (*k, *v))
+            .collect())
     }
 
     fn note(&self, object: Hash, noted: Noted) -> Result<Option<Noted>, StoreError> {
@@ -74,8 +80,10 @@ fn a_writer_that_finds_another_owners_note_in_the_ledger_leaves_it_to_that_owner
             .all(|(_, noted)| noted.owner != Hash::of(b"second")),
         "never noted as the second owner's in the ledger"
     );
-    let restarted = Vault::new(store.clone(), keys(1))
-        .with_unnamed(Unnamed::with_ledger(ledger.clone()).unwrap(), Hash::of(b"first"));
+    let restarted = Vault::new(store.clone(), keys(1)).with_unnamed(
+        Unnamed::with_ledger(ledger.clone()).unwrap(),
+        Hash::of(b"first"),
+    );
     assert_eq!(
         restarted.collect(|_| Ok(HashSet::new())).unwrap(),
         0,
