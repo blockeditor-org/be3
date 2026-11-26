@@ -2494,7 +2494,9 @@ Each step lands on its own.
                be3:gpu: the real root) as an app is linked in its worker, through the app.js
                beside it (`link_root`): its gpu shim answers the root's be3:gpu on a device of
                the page's own, and the root's own surfaces show on canvases the page names
-               (`Root::show_surface`, `forget_surface`, `paint`). Its WASI is the page's
+               (`Root::show_surface`, `forget_surface`, `paint`), one linked root a page at a time, since
+               the gpu shim is one per page (`stop` lets it go when the root is dropped). It has a
+               WASI of its own on the page
                (be-wasm-pure-wasi seeded from the browser's randomness, the page's clocks), since
                the page's module keeps wasi.js bound to its own memory; app.js takes a WASI of its
                own for it (`link`'s `wasi`). dylink.js and app.js instantiate asynchronously, as

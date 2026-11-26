@@ -72,6 +72,15 @@ fn wake() {
     });
 }
 
+/// Lets go of what the shim holds for the guest it served: its device, its canvases, the memory
+/// it reads and the wake it calls, which may outlive that guest (a root linked on the page that
+/// stopped). A guest linked after starts it afresh.
+#[wasm_bindgen]
+pub fn stop() {
+    SHIM.with(|shim| shim.borrow_mut().take());
+    WAKE.with(|wake| wake.borrow_mut().take());
+}
+
 #[wasm_bindgen]
 pub fn bind_wake(wake: js_sys::Function) {
     WAKE.with(|held| *held.borrow_mut() = Some(wake));

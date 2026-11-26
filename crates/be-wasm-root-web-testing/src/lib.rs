@@ -76,6 +76,18 @@ fn staged(app: &str, module: &str) -> Result<Staged, String> {
     Ok(Staged::new(CHILD_ENTRY.to_owned()))
 }
 
+/// be-sdk-root-testing's app, the triangle, staged in the bundle with the base library it links.
+const TRIANGLE: &str = "be3.triangle";
+const TRIANGLE_ENTRY: &str = "triangle.wasm";
+
+/// Finds the triangle, the one app the linked root spawns.
+fn triangle(app: &str, module: &str) -> Result<Staged, String> {
+    if app != TRIANGLE || module != TRIANGLE_ENTRY {
+        return Err(format!("{app} stages no module named {module:?}"));
+    }
+    Ok(Staged::new(TRIANGLE_ENTRY.to_owned()))
+}
+
 async fn root() -> Result<Root, String> {
     // A page delivers Ctrl+V as a paste from the browser's paste event, as every page that runs
     // a root does.
@@ -178,13 +190,17 @@ async fn a_linked_root_draws_its_own_surface_on_the_page() -> Result<String, JsV
     const ROOT_SURFACE: u32 = 0;
     const ROOT_COLOR: [f64; 4] = [0.3, 0.1, 0.4, 1.0];
     const SIZE: (u32, u32) = (400, 240);
-    // Its child, the triangle, is not staged: the frame ends at its deadline without it.
     let root = Rc::new(
-        Root::load(EMBEDDING_ROOT, Box::new(staged))
+        Root::load(EMBEDDING_ROOT, Box::new(triangle))
             .await?
             .with_fonts(fonts())
             .with_patience(PATIENT),
     );
+    // The gpu shim serves one linked root a page: a second waits for the first to go.
+    let second = Root::load(EMBEDDING_ROOT, Box::new(triangle)).await;
+    check(second.is_err(), || {
+        "a second linked root started on a page whose first still runs".to_owned()
+    })?;
     let canvas = web_sys::OffscreenCanvas::new(SIZE.0, SIZE.1)?;
     root.show_surface(1, &canvas, ROOT_SURFACE);
     let done = frame(&root, 1, Duration::from_secs(2)).await??;
@@ -210,7 +226,14 @@ async fn a_linked_root_draws_its_own_surface_on_the_page() -> Result<String, JsV
     check(close, || {
         format!("the canvas showing the root's surface shows {shown:?}, not {wanted:?}")
     })?;
-    Ok("a linked root drew its own surface on the page's device, which a canvas showed".to_owned())
+    drop(root);
+    let again = Root::load(EMBEDDING_ROOT, Box::new(triangle)).await;
+    check(again.is_ok(), || {
+        format!("a linked root could not start once the first was dropped: {:?}", again.err())
+    })?;
+    Ok("a linked root drew its own surface on the page's device, which a canvas showed; a \
+        second waited for it to go"
+        .to_owned())
 }
 
 async fn a_frame_waits_for_its_child_and_shows_it() -> Result<String, JsValue> {

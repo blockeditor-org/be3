@@ -121,6 +121,13 @@ thread_local! {
     static NEXT: Cell<u64> = const { Cell::new(0) };
 }
 
+thread_local! {
+    /// Whether a linked root runs on the page: the gpu shim that serves one holds what it serves
+    /// for the page (be-wasm-gpu-shim's state is one per page), so a second waits for the first
+    /// to stop.
+    static LINKED: Cell<bool> = const { Cell::new(false) };
+}
+
 fn root(id: u64) -> Option<Rc<Shared>> {
     ROOTS.with(|roots| roots.borrow().get(&id).and_then(Weak::upgrade))
 }
@@ -157,7 +164,10 @@ impl Root {
     /// the page. The staged apps it spawns by id are found by `apps`. A root that imports more
     /// than a pure guest (the app libraries, be3:gpu: the real root) is linked as an app is
     /// (`link_root`), through the app.js beside it, and draws its own surfaces on a device of
-    /// the page's own, which canvases show (`show_surface`, `paint`).
+    /// the page's own, which canvases show (`show_surface`, `paint`): one at a time on a page,
+    /// since the gpu shim that serves it is one per page, so another is refused until it is
+    /// dropped. A pure root that imports anything else (a malformed one) is linked too, and fails
+    /// with what app.js says of it.
     pub async fn load(url: &str, apps: Loader) -> Result<Self, String> {
         let window = web_sys::window().ok_or("the root runs only on a page")?;
         let fetched = JsFuture::from(window.fetch_with_str(url))
@@ -909,6 +919,24 @@ impl PageGuest {
             .map_err(|error| format!("the root's page drew no randomness: {}", describe(&error)))?;
         let mut seed = [0; 32];
         drawn.copy_to(&mut seed);
+        if LINKED.replace(true) {
+            return Err("a linked root already runs on this page".to_owned());
+        }
+        let linked = Self::linked(module, bytes, app_js, wake, seed).await;
+        if linked.is_err() {
+            LINKED.set(false);
+        }
+        linked
+    }
+
+    /// `link`, once the page has no other linked root.
+    async fn linked(
+        module: &WebAssembly::Module,
+        bytes: &JsValue,
+        app_js: &str,
+        wake: Wake,
+        seed: [u8; 32],
+    ) -> Result<Self, String> {
         let (transport, host, mut held) = Self::transport(wake, Some(seed));
         let wasi = Object::new();
         let calls = wasi_calls(&transport);
@@ -1092,6 +1120,12 @@ impl PageGuest {
             let _ = self.call("app_shutdown");
         }
         self.stopped = true;
+        // The shim lets go of its device, canvases, memory and wake, and the page may link
+        // another root.
+        if let Some(shim) = self.shim.take() {
+            call_shim(&shim, "stop", &[]);
+            LINKED.set(false);
+        }
     }
 }
 
