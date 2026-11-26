@@ -13,7 +13,8 @@ fn a_symlinked_folder_is_not_followed_but_a_symlinked_entry_is_read() {
         .expect("the entry is linked");
     std::os::unix::fs::symlink(&applications, applications.join("loop"))
         .expect("the loop is linked");
-    let programs = environment(&scratch, &["data"]).programs();
+    let environment = environment(&scratch, &["data"]);
+    let programs = environment.programs_among(&environment.entries());
     assert_eq!(
         ids(&programs),
         ["editor.desktop"],

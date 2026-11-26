@@ -93,7 +93,8 @@ name). Without one, be-host-desktop's `linux.rs` uses the desktop entry the wind
 from, else the one its app id or `WM_CLASS` names (`Entries::of_window`, also matching
 `StartupWMClass`), among the entries the programs' list read last: `LinuxPrograms::adopted` sets
 them in a signal `known` reads, so each scan (at start, and as the Apps panel opens) renames a
-window whose entry was installed or renamed since. An X11 `_NET_WM_ICON` is not read (smithay does not expose it).
+window whose entry was installed or renamed since. A window that opens before the first scan lands is
+named from its app id until then. An X11 `_NET_WM_ICON` is not read (smithay does not expose it).
 
 **Kept across restarts.** `host-window.origin` is the `.desktop` entry and `launch` number when the
 compositor launched the program or an ancestor, else the executable from `/proc` (X11:
