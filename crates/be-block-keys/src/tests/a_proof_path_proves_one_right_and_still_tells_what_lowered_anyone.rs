@@ -66,7 +66,7 @@ fn a_proof_path_proves_one_right_and_still_tells_what_lowered_anyone() {
     assert!(log.last().unwrap().lowers, "a revocation says it lowers");
 
     let whole = check_log(LogKind::Block, block, root.hash(), &log, &none).unwrap();
-    let path = proof_path(LogKind::Block, &log, reader_id, []);
+    let path = proof_path(LogKind::Block, &log, reader_id, [], false);
     let checked = check_log(LogKind::Block, block, root.hash(), &path, &none).unwrap();
     assert!(checked.partial && !whole.partial && checked.hides_lowering);
     assert_eq!(checked.head, whole.head, "the path reaches the same head");

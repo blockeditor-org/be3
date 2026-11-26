@@ -93,6 +93,7 @@ impl SqliteRefs {
     }
 
     /// The bytes of the keys and values this has written so far.
+    #[cfg(test)]
     pub(crate) fn written(&self) -> u64 {
         self.written.load(Ordering::Relaxed)
     }
