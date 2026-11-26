@@ -16,8 +16,8 @@ fn guest(body: &str) -> String {
     format!(
         r#"(module
             (import "env" "memory" (memory 1 4))
-            (import "wasi:webgpu/webgpu@0.3.0-rc.2" "get-gpu" (func $get_gpu (result i32)))
-            (import "wasi:webgpu/webgpu@0.3.0-rc.2" "[method]gpu.request-adapter" (func $request_adapter (param i32 i32 i32) (result i32)))
+            (import "{webgpu}" "get-gpu" (func $get_gpu (result i32)))
+            (import "{webgpu}" "[method]gpu.request-adapter" (func $request_adapter (param i32 i32 i32) (result i32)))
             (import "be3_host" "host_send" (func $host_send (param i32 i32)))
             (import "be3_host" "host_receive" (func $host_receive (param i32 i32) (result i64)))
             (data (i32.const 0) "{options}")
@@ -30,6 +30,7 @@ fn guest(body: &str) -> String {
         )"#,
         options = escaped(&options),
         length = options.len(),
+        webgpu = be_wasm_gpu_abi::embed::webgpu::MODULE,
     )
 }
 

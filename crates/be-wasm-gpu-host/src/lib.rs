@@ -8,7 +8,7 @@ mod webgpu;
 #[cfg(test)]
 mod tests;
 
-use std::collections::{HashMap, HashSet};
+use tables::{HashMap, HashSet};
 use std::future::Future;
 use std::pin::pin;
 use std::sync::{Arc, Mutex};
@@ -141,7 +141,7 @@ impl Gpu {
             queue,
             buffers: Table::new(),
             textures: Table::new(),
-            made_textures: HashSet::new(),
+            made_textures: HashSet::default(),
             views: Table::new(),
             samplers: Table::new(),
             group_layouts: Table::new(),
@@ -159,10 +159,10 @@ impl Gpu {
             coarsening: None,
             bundle_encoders: Table::new(),
             bundles: Table::new(),
-            surfaces: HashMap::new(),
+            surfaces: HashMap::default(),
             imports: Imports::default(),
             presented: Vec::new(),
-            last_presented: HashMap::new(),
+            last_presented: HashMap::default(),
             released: Vec::new(),
             error: None,
             web: webgpu::Web::default(),

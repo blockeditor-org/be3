@@ -15,7 +15,9 @@ mod objects;
 mod passes;
 mod surfaces;
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::BTreeMap;
+
+use crate::tables::{HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -210,8 +212,8 @@ pub(crate) struct Web {
     events: Table<u32>,
     constants: Table<BTreeMap<String, f64>>,
     sizes: Table<BTreeMap<String, Option<u64>>>,
-    labels: HashMap<(Kind, u32), String, foldhash::fast::FixedState>,
-    owners: HashMap<(Kind, u32), u32, foldhash::fast::FixedState>,
+    labels: HashMap<(Kind, u32), String>,
+    owners: HashMap<(Kind, u32), u32>,
     buffers: HashMap<u32, web::GpuBufferUsage>,
     query_sets: HashMap<u32, (web::GpuQueryType, u32)>,
     maps: HashMap<u64, (u32, Promise<Result<(), web::MapAsyncError>>)>,
@@ -227,6 +229,8 @@ pub(crate) struct Web {
     logged: Vec<String>,
     /// Textures the host shares between apps (`import-texture`), which an app only samples.
     imported: HashSet<u32>,
+    /// Textures the app destroyed, whose views are still made (`create-view`).
+    destroyed: HashSet<u32>,
     /// The app device the call being answered is made on, whose objects alone it may use.
     acting: Option<u32>,
 }
@@ -771,6 +775,7 @@ impl Gpu {
                 Kind::Texture if self.made_textures.contains(&handle) => {
                     if let Ok(texture) = self.textures.get(handle, "texture") {
                         texture.destroy();
+                        self.web.destroyed.insert(handle);
                     }
                 }
                 _ => {}

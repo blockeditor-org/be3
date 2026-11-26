@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use crate::tables::HashMap;
 use std::ops::Range;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::task::Waker;
