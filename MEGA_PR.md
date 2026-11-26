@@ -187,6 +187,7 @@ Landed on 2026-11-24:
 - `unnamed-parts`: a part's chunks are kept by name across collections (open writers, outbox entries, older commits, unsealed edits), and a part written in pieces seals as a whole write does.
 - `restart-limit-tests`: host tests can lower a block's replica restart limit at open (tests only), so the slowest restart test drops from 28 s to 0.3 s of CPU.
 - `backlog-17-refit`: the display settings' camera fits the displays, and from a carried display's lift on, every place it can go; a carried source is measured at each point and held where it was grabbed (`Carry::lifted_from`), and keyboard carries retrack when it is laid out again; Canvas consumers use `local_view`.
+- `owner-lowering-rereads`: an owner lowering writes and persists its unsure mark ahead of the send, generations tell a stale reread from a fresh one, withheld drains are capped, and a failed read rereads rather than guessing.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
