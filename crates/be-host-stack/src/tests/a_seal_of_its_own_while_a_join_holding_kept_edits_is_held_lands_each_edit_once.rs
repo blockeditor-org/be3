@@ -11,7 +11,7 @@ fn kept_edits(shared: &Shared, block: Uuid) -> usize {
 
 /// A block reopened after a crash with edits kept on the device joins its session holding
 /// them. While the join's answer is held (`be_block_type_host::JOIN_PAUSE`), its made-up session
-/// takes another edit and seals on its own: that commit waits in the outbox as the replica takes
+/// takes another edit and seals it as it closes: that commit waits in the outbox as the replica takes
 /// the server's journal, and once a drain sends it the replica merges it, each edit landing once.
 #[test]
 fn a_seal_of_its_own_while_a_join_holding_kept_edits_is_held_lands_each_edit_once() {
@@ -47,20 +47,25 @@ fn a_seal_of_its_own_while_a_join_holding_kept_edits_is_held_lands_each_edit_onc
         key,
         1,
     ));
-    // The made-up session takes an edit and seals it on its own, the join still held.
+    // The made-up session takes an edit and seals it as the block closes, the join still held.
+    let joined_at = crate::with_shared(|shared| {
+        shared.peer.as_ref().and_then(|peer| peer.local_head(block))
+    })
+    .flatten();
     add(block, 8);
     wait_for_count(block, 15);
-    harness
-        .clock
-        .advance(Duration::from_millis(be_sdk_type_guest::QUIET_INTERVAL));
+    close(block);
     wait_until("sealed in the made-up session while the join was held", |shared| {
         shared.owing == 0
             && shared
                 .peer
                 .as_ref()
-                .is_some_and(|peer| !peer.pending_commits(block).is_empty())
+                .is_some_and(|peer| peer.local_head(block) != joined_at)
     });
     be_lib_test_pause::release(be_block_type_host::JOIN_PAUSE, key);
+    wait_until("closed the counter", |shared| !shared.blocks.contains_key(&block));
+    open(block, CounterContent::CONTENT_TYPE);
+    wait_for_count(block, 15);
 
     wait_until("rejoined and sent what this device kept", |shared| {
         shared.connected && shared.waiting == 0 && !shared.draining
