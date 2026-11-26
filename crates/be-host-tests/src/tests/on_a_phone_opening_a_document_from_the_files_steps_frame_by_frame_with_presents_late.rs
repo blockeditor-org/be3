@@ -7,9 +7,9 @@ const FRAMES: usize = 16;
 /// With each app's present taken in only at the next frame (`present late`), a frame is drawn
 /// between an app's layout and its present; with the clock stopped and `step on`, each drive
 /// command steps one frame. Each frame's tree and state are read: an app's present is held for
-/// the next frame, and no frame lists the document and the files at once. Not recorded yet: in
-/// a few runs in a hundred the text's view is still undrawn a frame after the others
-/// (plans/backlog.md, "A stacked dock's old bar over the child that replaced it").
+/// the next frame, and no frame lists the document and the files at once. Which frame ends the
+/// loop varies with load, so a recording of the frames is a test of its own
+/// (`on_a_phone_each_frame_of_opening_a_document_is_the_same_every_run_under_step_on`).
 #[test]
 fn on_a_phone_opening_a_document_from_the_files_steps_frame_by_frame_with_presents_late() {
     let mut host = HostTest::start(Options::default());

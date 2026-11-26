@@ -5,25 +5,6 @@ Depends on: none.
 The running to-do list, grouped. Every item says what "done" looks like.
 Fixed items are removed as they land.
 
-## 2. Docking
-
-- **A stacked dock's old bar over the child that replaced it.** On a phone, with presents
-  late (`drive present late`), the frame after a document is opened from the files sometimes
-  showed the files' bar over the document's undrawn view. It came from timing, not from the
-  holds: with the clock stopped, frames still ran between drive commands, and what apps and the
-  block store sent landed at whichever poll followed. Built: a stopped clock's frame waits for
-  every app to be idle (`finish_steps`, `Worker::idle`) and for the block store's commands and
-  type modules (`be_host_stack::finish_commands`); `drive step on` runs no frame between
-  commands; `--no-settle paint` paints the next frame. With those, the frame between is the
-  files under their own bar in every stress run seen, and
-  `on_a_phone_opening_a_document_from_the_files_steps_frame_by_frame_with_presents_late` steps
-  it under `step on`. Left: recording it (`HostTest::record_frame`) in a painting, which still
-  differs in about 3 runs in 50: the text's views are undrawn one frame later than in the others
-  (its first present of the reopened view, or a kept frame of it, lands a frame later). Answering
-  a non-animating app's zero-delay repaint in the next frame on a stopped clock
-  (`Pacing::asked_by`) raised that to about 9 in 50. Done: the painting accepted, and `stress`
-  at 100 runs or more shows no variant.
-
 ## 3. beui platforms
 
 - **A live resize on macOS.** `CAMetalLayer`'s default `contentsGravity` (resize) may stretch

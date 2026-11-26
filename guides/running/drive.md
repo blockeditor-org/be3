@@ -231,17 +231,19 @@ for, such as an app's answer to the one before, so what apps report across threa
 does not depend on how fast they are. `drive clock run` restarts it.
 
 With the clock stopped, be-host starts each frame only once, within `STOPPED_CLOCK_FRAME_BUDGET`
-(10 s), the block store has run every command sent to it and its type modules have settled, and
-every app is idle, steps it woke itself for included (guides/apps/runtime.md, Settling); it never
-waits for the server. Frames the program asks for still run between commands, so which command's
-frame takes in what a thread did meanwhile depends on how soon that command came. `drive step on`
-stops that: with the clock stopped, no frame runs between commands (the drive layer holds them,
-`Layer::holds_frames`), and a command that does not settle (`--no-settle`, `state`) runs one
-frame. Then which frame takes in what the program's threads did no longer depends on how soon
-a command came, though not every frame is the same every run yet: an app's view can still be
-drawn a frame later in a few runs in a hundred (plans/backlog.md, "A stacked dock's old bar
-over the child that replaced it"), and what comes from outside the process (the server's
-answers, another device, a program in the desktop's compositor) lands when it lands. Leave it off
+(10 s), the block store has run every command sent to it that it does not hold for the server,
+its type modules have settled, and every app is idle, steps it woke itself for included
+(guides/apps/runtime.md, Settling). Frames the program asks for still run between commands,
+so which command's frame takes in what a thread did meanwhile depends on how soon that command
+came. `drive step on` stops that: with the clock stopped, no frame runs between commands (the
+drive layer holds them, `Layer::holds_frames`), and a command that does not settle
+(`--no-settle`, `state`) runs one frame. What comes from outside the process (the server's
+answers, another device, a program in the desktop's compositor) still lands when it lands.
+Measured by recording each frame of opening a document on a phone under `present late`
+(`stress --apart`, 6 at a time on 4 cores): without `step on`, about 1 run in 5 recorded
+different frames (13 in 50 without the waits above, 9 in 50 with them); with it, all 200 runs
+did the same, 50 of them without the waits
+(`on_a_phone_each_frame_of_opening_a_document_is_the_same_every_run_under_step_on`). Leave it off
 where another device in the test needs this one between commands: a held device serves no
 hosted block, so a wait on the other device's side times out. `drive step off` lets frames run
 again. With the clock stopped:

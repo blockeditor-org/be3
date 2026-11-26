@@ -556,9 +556,10 @@ the server and its type modules have settled (`be_host_stack::finish_commands`, 
 `begin_host_frame`), and the poll first waits for every app's steps to finish, those it woke
 itself for included (`finish_steps`, `Worker::idle`); each logs what it waited on when it gives
 up. So what an app or the block store sends between frames (a dock request from a tap, a layout
-or present the host did not ask a frame for, a block's content) usually lands in the frame
-after the one that set it off, however fast their threads ran; it is not yet the same frame in
-every run (plans/backlog.md, "A stacked dock's old bar over the child that replaced it"). A
+or present the host did not ask a frame for, a block's content) lands in the frame after the
+one that set it off, however fast their threads ran, as long as no frame runs between the
+driver's commands (`drive step on`; guides/running/drive.md, The clock, has the measured
+rates). A
 command the block store holds for the server (a version sealed behind the server's order, one
 behind an upload or the lane, one waiting for the outbox to drain) is not waited for, so a
 device offline or with a silent server still steps.
