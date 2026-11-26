@@ -21,6 +21,7 @@ pub(crate) fn canvas(
     width: Prop<f32>,
     height: Prop<f32>,
     scrolls_across: bool,
+    local_view: bool,
     arrangement: Prop<Option<CanvasArrangement>>,
     on_reveal: Callback<Vec2>,
     children: Children<CanvasItem>,
@@ -52,6 +53,7 @@ pub(crate) fn canvas(
         );
     });
     let state = beui_core_html::canvas::canvas(canvas, shown, on_reveal);
+    state.set_local_view(local_view);
     let arranging = std::rc::Rc::clone(&state);
     bind(view, move |view| state.set_view(view));
     bind(arrangement, move |arrangement| {
