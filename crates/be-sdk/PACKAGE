@@ -159,6 +159,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-sdk-app-host:be-sdk-app-host",
                 "//crates/be-type-checklist:be-type-checklist",
             ],
             "test_features": [],

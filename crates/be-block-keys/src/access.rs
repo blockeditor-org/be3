@@ -849,7 +849,7 @@ impl StepRef<'_> {
 /// administrator (`hides_retirement`) and an honest organization path reduces no entry that
 /// lowered anyone. In a block's log that bit means nothing (`check_log` takes any reduced
 /// retirement there as hiding one), so a block's path keeps a retirement whole only for the
-/// accounts it names; and the invitation records of each invitation that signed in a member the
+/// accounts it names, or with `lowerings` (every retirement in a block's log is whole then); and the invitation records of each invitation that signed in a member the
 /// path proves, so that member checks. Every other invitation record is reduced, opened or ended
 /// alike, so a path grows with the invitations its members came by, not every one the
 /// organization made.
