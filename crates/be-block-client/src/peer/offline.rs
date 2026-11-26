@@ -1128,27 +1128,27 @@ impl<S: ObjectStore> Peer<S> {
             // show now, or no such epoch can be made; tried again at the next drain while a log
             // is short of a lowering this device appended, or unsure of one (`Peer::reseal`).
             // A block tried again that often while the log stays withheld or unreadable is set
-            // aside too, never sent (`WITHHELD_DRAINS`).
+            // aside too, never sent (`WITHHELD_DRAINS`), to be restored once the log is served
+            // (`Aside::Withheld`).
             Err(ClientError::Outdated(_)) => {
                 let resealed = match reseal {
                     true => self.reseal(block).await,
                     false => Ok(false),
                 };
-                match resealed {
+                let why = match resealed {
                     Ok(true) => {
                         self.withheld_drains.lock().unwrap().remove(&block);
                         return Ok(Drained::Resealed { block });
                     }
-                    Ok(false) => {}
-                    Err(ClientError::Withheld(_)) if self.withheld_again(block) => {}
+                    Ok(false) => crate::refs::Aside::KeyOutdated,
+                    Err(ClientError::Withheld(_)) if self.withheld_again(block) => {
+                        crate::refs::Aside::Withheld
+                    }
                     Err(error) => return Err(error),
-                }
+                };
                 self.withheld_drains.lock().unwrap().remove(&block);
-                self.move_to_unsent(block, Some(crate::refs::Aside::KeyOutdated))?;
-                Ok(Drained::SetAside {
-                    block,
-                    why: crate::refs::Aside::KeyOutdated,
-                })
+                self.move_to_unsent(block, Some(why))?;
+                Ok(Drained::SetAside { block, why })
             }
             Err(error) => Err(error),
         }

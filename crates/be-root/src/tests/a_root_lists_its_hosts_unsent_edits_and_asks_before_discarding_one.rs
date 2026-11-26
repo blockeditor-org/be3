@@ -6,6 +6,7 @@ use super::*;
 
 const NOTES: [u8; 16] = [1; 16];
 const PLAN: [u8; 16] = [2; 16];
+const DRAFT: [u8; 16] = [3; 16];
 
 /// The block stack's view with `unsent` set aside.
 fn view(unsent: Vec<UnsentEdit>) -> CoreView {
@@ -34,6 +35,18 @@ fn plan() -> UnsentEdit {
         offerable: false,
         aside: Some(SetAside::Refused(Refusal::OverQuota)),
         kept_edits: 0,
+    }
+}
+
+/// A block whose edits could not be locked again while the server kept its access log back,
+/// to restore later.
+fn draft() -> UnsentEdit {
+    UnsentEdit {
+        block: DRAFT,
+        name: Some("Draft".to_owned()),
+        offerable: true,
+        aside: Some(SetAside::Withheld),
+        kept_edits: 1,
     }
 }
 
@@ -68,7 +81,7 @@ fn a_root_lists_its_hosts_unsent_edits_and_asks_before_discarding_one() {
     let mut root = embedding();
     let mut time = 1;
     step(&mut root, time);
-    show_core(&mut root, view(vec![notes(), plan()]));
+    show_core(&mut root, view(vec![notes(), plan(), draft()]));
 
     // The menu's Unsent edits opens the list, over its scrim, taking the focus.
     let opened = menu(&mut root, &mut time, Entry::Unsent);

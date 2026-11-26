@@ -221,6 +221,13 @@ impl RefsDb {
         self.backend.written()
     }
 
+    /// Makes every write of `table`'s rows fail while `refused`, for tests of a refs write
+    /// that fails.
+    #[cfg(test)]
+    pub(crate) fn refuse(&self, table: Table, refused: bool) {
+        self.backend.refuse(table, refused);
+    }
+
     fn account_scope(server: &str, account: Uuid) -> Scope {
         Scope {
             server: server.to_owned(),
@@ -447,10 +454,14 @@ pub enum Aside {
     Refused(ErrorCode),
     /// It was sealed offline under a key epoch its block's access log shows outdated, which
     /// someone who lost access may hold, and could not be sealed again under a new epoch
-    /// (`Peer::reseal`: this account may no longer write the block, or no epoch could be made,
-    /// or a log it is judged by stayed withheld or unreadable through `peer::WITHHELD_DRAINS`
-    /// drains), so this device never sent it (guides/blocks/keys.md, "Epochs name their heads").
+    /// (`Peer::reseal`: this account may no longer write the block, or no epoch could be made),
+    /// so this device never sent it (guides/blocks/keys.md, "Epochs name their heads").
     KeyOutdated,
+    /// It was sealed offline under a key epoch that may be outdated, and a log it is judged by
+    /// stayed withheld or unreadable through `peer::WITHHELD_DRAINS` drains (short of a
+    /// lowering this device sent, or unsure of one), so it could be neither sent nor sealed
+    /// again: restored once the server serves the log, it is sealed again then.
+    Withheld,
     /// It was made offline under a scope the server's tree named, which the signed parent
     /// records do not place its parent under, so its keys were never sent wrapped there
     /// (guides/blocks/keys.md, "Parent records").

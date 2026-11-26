@@ -536,6 +536,7 @@ fn set_aside(aside: be_block_client::Aside) -> SetAside {
             _ => Refusal::Unexplained,
         }),
         be_block_client::Aside::KeyOutdated => SetAside::KeyOutdated,
+        be_block_client::Aside::Withheld => SetAside::Withheld,
         be_block_client::Aside::Misplaced => SetAside::Misplaced,
     }
 }

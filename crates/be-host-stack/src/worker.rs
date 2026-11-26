@@ -2627,6 +2627,18 @@ async fn drain_outbox(
                             "An edit to {named} was locked offline with a key someone who lost access may hold, so it was not sent. It waits among the unsent edits: discard it to go on editing {named}."
                         ));
                     }
+                    be_block_client::Drained::SetAside {
+                        block,
+                        why: be_block_client::Aside::Withheld,
+                    } => {
+                        let named = named_block(peer, block);
+                        shared
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .sync_error = Some(format!(
+                            "An edit to {named} could not be locked again, as the server did not show who may see {named} now, so it was not sent. It waits among the unsent edits: restore it later to send it."
+                        ));
+                    }
                     be_block_client::Drained::Refused { block, code, .. } => {
                         let named = named_block(peer, block);
                         record_sync(

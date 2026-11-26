@@ -337,6 +337,10 @@ interface host {
         /// They were locked offline with a key someone who lost access to the
         /// block may hold: only discarding them lets the person edit it again.
         key-outdated,
+        /// They may have been locked with such a key, and the server kept back
+        /// who may see the block now, so they could not be locked again:
+        /// restoring them once it serves that sends them.
+        withheld,
         /// They were locked offline under a folder the block is not really
         /// in: only discarding them lets the person edit it again.
         misplaced,

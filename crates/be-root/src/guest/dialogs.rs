@@ -1334,6 +1334,9 @@ pub(super) fn edit_detail(edit: &UnsentEdit) -> String {
         (Some(SetAside::KeyOutdated), _) => {
             "It was locked offline with a key someone who lost access may hold: discard it to go on editing".to_owned()
         }
+        (Some(SetAside::Withheld), _) => {
+            "The server did not show who may see it now, so it could not be locked again: restore it later to send it".to_owned()
+        }
         (Some(SetAside::Misplaced), _) => {
             "It was locked offline under a folder it is not really in: discard it to go on editing".to_owned()
         }
