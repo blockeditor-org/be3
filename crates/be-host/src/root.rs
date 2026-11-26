@@ -735,10 +735,7 @@ impl beui::native::Program for RootShell {
     }
 
     fn holdable(&self) -> Vec<String> {
-        be_host_runtime::running()
-            .into_iter()
-            .map(|status| status.app_id)
-            .collect()
+        be_host_runtime::app_ids()
     }
 
     fn exiting(&mut self) {

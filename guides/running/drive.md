@@ -262,7 +262,7 @@ the app whose present is held. `drive present now` takes them in as they come ag
 `drive hold APP` has be-host hold back what the app `APP` (its id, such as `be3.text`) sends,
 as though it were slow to answer: its layouts, presents and calls wait, its last frame stays
 shown, and it counts as settled. Its hello, its stopping and a crash are still heard at once.
-A name that is not a running app's id is an error that lists the ids it could be. The host goes
+A name that is not a running app's id is an error that lists the ids it could be, so `hold` can't hold an app before it starts. The host goes
 on without it, sending it input and views. `drive hold off` hands over what it held, in order (guides/apps/runtime.md).
 
 A driven program takes shortcuts a person never sees so that it settles sooner: be-host seals

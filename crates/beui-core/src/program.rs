@@ -105,8 +105,8 @@ pub trait Program: std::any::Any {
         Vec::new()
     }
 
-    /// The names of the programs it runs whose sending drive's `hold` can hold back (be-host's
-    /// running apps, by id); drive refuses `hold` with any other name.
+    /// The ids of the apps it runs that `drive hold` can hold back (be-host's running apps);
+    /// drive refuses `hold` with any other name.
     fn holdable(&self) -> Vec<String> {
         Vec::new()
     }
