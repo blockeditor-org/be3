@@ -521,16 +521,16 @@ pub(super) fn MembersDialog(core: Signal<CoreView>, done: Callback<Closed>) -> N
     view! {
         <Frame width=Length::FILL>
             <List spacing=Space::None>
-                    <DialogBody
-                        title=MEMBERS_TITLE
-                        id="host.members"
-                        actions={vec![
-                            DialogAction::primary("Invite member", move || done.call(Closed::Invite))
-                                .named("invite"),
-                        ]}
-                        on_dismiss={move || done.call(Closed::Dismissed)}
-                    >
-                        <List spacing=Space::Md>
+                <DialogBody
+                    title=MEMBERS_TITLE
+                    id="host.members"
+                    actions={vec![
+                        DialogAction::primary("Invite member", move || done.call(Closed::Invite))
+                            .named("invite"),
+                    ]}
+                    on_dismiss={move || done.call(Closed::Dismissed)}
+                >
+                    <List spacing=Space::Md>
                         <Text style=TextStyle::CAPTION>
                             "Administrators can open every block in this organization. Removing someone takes away what was shared with them here, and gives new keys to everything they could open."
                         </Text>
@@ -608,8 +608,8 @@ pub(super) fn MembersDialog(core: Signal<CoreView>, done: Callback<Closed>) -> N
                         >
                             <Text style=TextStyle::PARAGRAPH>{question}</Text>
                         </beui::styled::Dialog>
-                        </List>
-                    </DialogBody>
+                    </List>
+                </DialogBody>
             </List>
         </Frame>
     }
@@ -762,18 +762,18 @@ pub(super) fn ContactsDialog(
     view! {
         <Frame width=Length::FILL>
             <List spacing=Space::None>
-                    <DialogBody
-                        title=CONTACTS_TITLE
-                        id="host.contacts"
-                        actions={vec![
-                            DialogAction::primary("New contact link", move || ask.call(SecretCommand::ContactLink))
-                                .busy(busy)
-                                .disabled(move || pending.get())
-                                .named("new-link"),
-                        ]}
-                        on_dismiss={move || if !pending.get_untracked() { done.call(Closed::Dismissed) }}
-                    >
-                        <List spacing=Space::Md>
+                <DialogBody
+                    title=CONTACTS_TITLE
+                    id="host.contacts"
+                    actions={vec![
+                        DialogAction::primary("New contact link", move || ask.call(SecretCommand::ContactLink))
+                            .busy(busy)
+                            .disabled(move || pending.get())
+                            .named("new-link"),
+                    ]}
+                    on_dismiss={move || if !pending.get_untracked() { done.call(Closed::Dismissed) }}
+                >
+                    <List spacing=Space::Md>
                         <Text style=TextStyle::CAPTION>
                             "You can share only with your contacts. Someone becomes one when you send them a contact link yourself, through an app you trust, and they open it, or when they send you theirs."
                         </Text>
@@ -828,7 +828,10 @@ pub(super) fn ContactsDialog(
                         </beui::styled::Dialog>
                         <Show value={made}>|made: ReadSignal<String>|
                             <List spacing=Space::Sm>
-                                <Text style=TextStyle::PARAGRAPH @test_id={"host.contacts.link-help"}>
+                                <Text
+                                    style=TextStyle::PARAGRAPH
+                                    @test_id={"host.contacts.link-help"}
+                                >
                                     "Send this link yourself, through an app you trust, to the one person you want to connect with. It works once, and it is shown only once."
                                 </Text>
                                 <TextInput
@@ -878,8 +881,8 @@ pub(super) fn ContactsDialog(
                             <Text style=TextStyle::PARAGRAPH>{connected}</Text>
                         </Show>
                         <be_root_accounts_ui::ErrorText text={error} />
-                        </List>
-                    </DialogBody>
+                    </List>
+                </DialogBody>
             </List>
         </Frame>
     }
@@ -992,53 +995,53 @@ pub(super) fn ShareLinkDialog(core: Signal<CoreView>, done: Callback<Closed>) ->
                 on_dismiss={move || done.call(Closed::Dismissed)}
             >
                 <List spacing=Space::Md>
-                <Text style=TextStyle::CAPTION>
-                    "Someone shared a block with you by a link. Opening it gives your account what the link grants, and makes no one your contact."
-                </Text>
-                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <ListItem grow=1.0>
-                        <TextInput
-                            value={pasted}
-                            label="Share link"
-                            focused=true
-                            @test_id={"host.share-link.paste"}
-                            on_submit={move |_: String| open_link()}
+                    <Text style=TextStyle::CAPTION>
+                        "Someone shared a block with you by a link. Opening it gives your account what the link grants, and makes no one your contact."
+                    </Text>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                        <ListItem grow=1.0>
+                            <TextInput
+                                value={pasted}
+                                label="Share link"
+                                focused=true
+                                @test_id={"host.share-link.paste"}
+                                on_submit={move |_: String| open_link()}
+                            />
+                        </ListItem>
+                        <Button
+                            label="Open"
+                            variant=ButtonVariant::Secondary
+                            disabled={cannot_open}
+                            @test_id={"host.share-link.open"}
+                            on_click={open_link}
                         />
-                    </ListItem>
-                    <Button
-                        label="Open"
-                        variant=ButtonVariant::Secondary
-                        disabled={cannot_open}
-                        @test_id={"host.share-link.open"}
-                        on_click={open_link}
-                    />
-                </List>
-                <Show value={busy}>
-                    <Progress width=INLINE_PROGRESS_WIDTH />
-                </Show>
-                <beui::styled::Dialog
-                    open={offered}
-                    kind=DialogKind::Alert
-                    title="Open this block?"
-                    id="host.share-link.offered"
-                    actions={vec![
-                        DialogAction::primary("Open", || ask_core(CoreCommand::AcceptShareLink))
-                            .busy(busy)
-                            .named("accept"),
-                        DialogAction::cancel("Cancel"),
-                    ]}
-                    on_dismiss={|| ask_core(CoreCommand::ForgetShareLink)}
-                >
-                    <Text style=TextStyle::PARAGRAPH @test_id={"host.share-link.offer"}>
-                        {offer}
-                    </Text>
-                </beui::styled::Dialog>
-                <Show value={opened}>|opened: ReadSignal<String>|
-                    <Text style=TextStyle::PARAGRAPH @test_id={"host.share-link.opened"}>
-                        {opened}
-                    </Text>
-                </Show>
-                <be_root_accounts_ui::ErrorText text={error} />
+                    </List>
+                    <Show value={busy}>
+                        <Progress width=INLINE_PROGRESS_WIDTH />
+                    </Show>
+                    <beui::styled::Dialog
+                        open={offered}
+                        kind=DialogKind::Alert
+                        title="Open this block?"
+                        id="host.share-link.offered"
+                        actions={vec![
+                            DialogAction::primary("Open", || ask_core(CoreCommand::AcceptShareLink))
+                                .busy(busy)
+                                .named("accept"),
+                            DialogAction::cancel("Cancel"),
+                        ]}
+                        on_dismiss={|| ask_core(CoreCommand::ForgetShareLink)}
+                    >
+                        <Text style=TextStyle::PARAGRAPH @test_id={"host.share-link.offer"}>
+                            {offer}
+                        </Text>
+                    </beui::styled::Dialog>
+                    <Show value={opened}>|opened: ReadSignal<String>|
+                        <Text style=TextStyle::PARAGRAPH @test_id={"host.share-link.opened"}>
+                            {opened}
+                        </Text>
+                    </Show>
+                    <be_root_accounts_ui::ErrorText text={error} />
                 </List>
             </DialogBody>
         </Frame>
