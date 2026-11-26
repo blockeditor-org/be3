@@ -37,20 +37,29 @@ the format changing.
 Compressing before sealing makes a sealed part's size depend on how well its content
 compresses (the CRIME and BREACH attacks). An attacker who can put chosen text into the same
 compressed unit as a secret, and see the sealed size each time, can confirm guesses about the
-secret a piece at a time.
+secret: a guess that matches the secret compresses better.
 
 Anyone who can read the block gains nothing: a compressed unit lies within one part, a part is
-sealed under one key, and whoever holds the key already reads all of it. A viewer who changes a
-block only through a service that writes into it for them is in that position too. What matters
-is a party without the key that sees sealed sizes (the server operator, or the network, which
-sees the connection's) and also has a way to put text into a block holding secrets:
+sealed under one key, and whoever holds the key already reads all of it. What matters is
+someone who can put text into a block without reading it, together with someone who sees sealed
+sizes without holding the key.
 
-- a service or agent that writes outside input (submitted forms, fetched web pages, mail
-  received for someone) into a block beside things the sender should not learn;
-- the connection's stream compressor, if one stream carries both such input and secrets.
+**Hosted blocks are that shape** (guides/blocks/hosted.md). A Join member holds no key, but acts
+by asking the host, which writes the effects into the block it seals. The member alone sees no
+sealed sizes (no objects, no journal), but be-server sees every one, and a share link grants
+Join, so an operator can join, or work with someone who did. An exam that hides its answers:
+a student's answer is stored in the part beside the right one, and the part shrinking when it
+matches says the guess was right. Answers, cards and poll results have few possible values, so
+few guesses are needed. A service that writes outside input (submitted forms, fetched pages)
+beside secrets into an ordinary block is the same shape.
 
-Each guess costs a fresh seal the attacker sees, so the attack is slow, but such a service
-makes it automatic. Before compressing either, decide among: rounding sealed sizes up to
-buckets (as padding, cheap); keeping outside input in parts or blocks of its own; or not
-compressing what a service writes for others. The connection's compressor can reset its
-context between messages from different senders.
+Rounding sealed sizes up to buckets does not stop it: an attacker who chooses the input's length
+pads it until the part sits at a bucket's edge, where a byte saved changes the bucket. So:
+
+- **Nothing that holds input from someone who cannot read it is compressed with what they
+  cannot read.** Hosted blocks' content is not compressed at all, in parts or in the journal,
+  and a type cannot opt back in; they are small (games, exams, polls, bot chats), so little is
+  lost. A block type that writes outside input keeps it in parts or blocks of its own, or is
+  not compressed either.
+- **A connection's stream compressor shares no context across a hosted block's traffic**, nor
+  across messages of different blocks or senders.
