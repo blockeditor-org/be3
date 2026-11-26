@@ -38,6 +38,11 @@ Nothing uses them yet.
 
 ## Steps
 
+0. **Fast one-copy encoding.** Scalars in fields and in packed lists become fixed-width
+   little-endian (a `u64` is 8 bytes), so a field or a list of numbers decodes as a copy; ids
+   and lengths stay varints. Reading in place (aligned views, as rkyv or Cap'n Proto do) stays
+   possible later, since the format is ours. Size is won back by compression, a layer of its
+   own (plans/deferred/compression.md).
 1. **Decide the one definition language.** Rust (derives, and an attribute macro over traits
    for interfaces, with a WIT or other description generated for readers) or WIT for
    everything (which needs a dialect for document semantics and field annotations). Record it
