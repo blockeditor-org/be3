@@ -146,9 +146,9 @@ and wakes them; `waiting()` says whether any still waits, and a dropped one
 stops waiting. `[poll]` also passes the tickets dropped since the last poll
 before they settled (`Settling::take_dropped`), and `Host::settle` is handed
 them first: it settles none of them and lets go of what it held for them, so
-a waiting poll does not wait for them. With `wait`, a host that can block blocks until at least one
-thing settles, or until nothing pending could (no async func or future is
-unsettled: a stream alone never holds it). A poll the host cannot answer
+a waiting poll does not wait for them. With `wait`, a host that can block
+blocks until at least one thing settles, or until nothing pending could (no
+async func or future is unsettled: a stream alone never holds it). A poll the host cannot answer
 answers nothing. So `settle` and `waiting` are names an interface's own free
 funcs may not take. Waking the app when anything settles is the host's part,
 not the generated glue's. A `result` with nothing on success is called with
