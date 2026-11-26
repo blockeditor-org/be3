@@ -563,7 +563,8 @@ names the organization's head in its signed record (`EscrowKey::head`).
   gives now (a new epoch, which it makes first), each on the commits it went
   on as sealed again, in its place in the outbox, and sends it. A write on a
   commit sealed again goes on the one in its place (`Peer::resealed_as` names
-  what a commit replaced, for a replica that kept them). Only while this
+  what a commit replaced, for a replica that kept them). A commit refused for a
+  time too far ahead is stamped again through the same rewrite (`Peer::restamp`). Only while this
   account may still write the block as its signed logs show now (Edit or
   above in its log, administering, or from a block above), and only under an
   epoch the logs do not outdate; otherwise, or when no epoch can be made, the

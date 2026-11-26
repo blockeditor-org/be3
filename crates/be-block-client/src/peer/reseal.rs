@@ -1,10 +1,12 @@
-//! Sealing an edit made offline again under a new epoch of its scope, when the logs show the
+//! Sealing an edit made offline again: under a new epoch of its scope, when the logs show the
 //! one it was sealed under outdated by the time it is sent (guides/blocks/keys.md, "Outdated
-//! epochs").
+//! epochs"), or with a time the server takes, when it was stamped by a clock running fast
+//! before this device measured the server's (guides/blocks/client.md, "Saving and the
+//! outbox").
 
 use std::collections::HashMap;
 
-use be_block_commit::{Commit, CommitId};
+use be_block_commit::{COMMIT_CLOCK_SLACK, Commit, CommitId};
 use be_block_store::{ObjectStore, Part};
 use uuid::Uuid;
 
@@ -37,30 +39,107 @@ impl<S: ObjectStore> Peer<S> {
         if self.keys.outdated(key, scope_of(&summary)?) {
             return Ok(false);
         }
-        let waiting: Vec<(u64, Pending)> = self
-            .refs
+        self.seal_waiting_again(block, key, None).await?;
+        Ok(true)
+    }
+
+    /// Stamps the commits of `block` waiting in the outbox again, when the server refused one
+    /// for a time past its clock (`ErrorCode::CommitAhead`): sealed by a clock running fast
+    /// before this device measured the server's. Each one too late moves back by as much as
+    /// the newest must to be the latest the server takes, so they keep their order and
+    /// spacing, and is never before a commit it follows; their change ids stay. False with no
+    /// measurement of the server's clock, or none of them too late: sending again would be
+    /// refused again.
+    pub(super) async fn restamp(&self, block: Uuid) -> Result<bool, ClientError> {
+        let Some(server) = self.server_now() else {
+            return Ok(false);
+        };
+        let latest = server.saturating_add(COMMIT_CLOCK_SLACK);
+        let Some(newest) = self
+            .waiting_publishes(block)
+            .iter()
+            .map(|(_, pending)| pending.time)
+            .max()
+        else {
+            return Ok(false);
+        };
+        if newest <= latest {
+            return Ok(false);
+        }
+        let key = match self.sealing_key(block).await {
+            Ok(key) => key,
+            Err(error) if error.is_unreachable() => return Err(error),
+            Err(_) => return Ok(false),
+        };
+        self.seal_waiting_again(
+            block,
+            key,
+            Some(Retime {
+                latest,
+                back: newest - latest,
+            }),
+        )
+        .await?;
+        Ok(true)
+    }
+
+    fn waiting_publishes(&self, block: Uuid) -> Vec<(u64, Pending)> {
+        self.refs
             .pending_for(block)
             .into_iter()
             .filter_map(|(sequence, op)| match op {
                 Op::Publish(pending) => Some((sequence, pending)),
                 _ => None,
             })
-            .collect();
-        let mut moved: HashMap<CommitId, CommitId> = HashMap::new();
-        let mut rewritten = Vec::with_capacity(waiting.len());
-        for (sequence, pending) in waiting {
-            let again = self.reseal_pending(key, &pending, &moved).await?;
-            moved.insert(pending.commit, again.commit);
-            rewritten.push((sequence, again));
+            .collect()
+    }
+
+    /// Seals every commit of `block` waiting in the outbox again under `key`, each on the
+    /// commits it went on as sealed again and `retime` moving its time, and puts them in their
+    /// places in one refs write. A seal of the block that lands meanwhile is among them next
+    /// time round: the refs take the rewrite only while the outbox holds what it read
+    /// (`Refs::replace_publishes`).
+    async fn seal_waiting_again(
+        &self,
+        block: Uuid,
+        key: Uuid,
+        retime: Option<Retime>,
+    ) -> Result<(), ClientError> {
+        loop {
+            let waiting = self.waiting_publishes(block);
+            let mut moved: HashMap<CommitId, CommitId> = HashMap::new();
+            let mut times: HashMap<CommitId, i64> = HashMap::new();
+            let mut rewritten = Vec::with_capacity(waiting.len());
+            for (sequence, pending) in waiting {
+                let parents_at = pending
+                    .parents
+                    .iter()
+                    .filter_map(|parent| times.get(&moved.get(parent).copied().unwrap_or(*parent)))
+                    .copied()
+                    .max();
+                let time = match retime {
+                    Some(retime) if pending.time > retime.latest => {
+                        pending.time.saturating_sub(retime.back)
+                    }
+                    _ => pending.time,
+                };
+                let time = parents_at.map_or(time, |parent| time.max(parent));
+                let again = self.reseal_pending(key, &pending, &moved, time).await?;
+                moved.insert(pending.commit, again.commit);
+                times.insert(again.commit, time);
+                rewritten.push((sequence, pending.commit, again));
+            }
+            self.commits.vault().store().sync()?;
+            if !self.refs.replace_publishes(block, rewritten, &moved)? {
+                continue;
+            }
+            let mut resealed = self.resealed.lock().unwrap();
+            // A write a replica bases on a commit sealed again goes on the one in its place.
+            for (before, after) in &moved {
+                resealed.insert(*before, *after);
+            }
+            return Ok(());
         }
-        self.commits.vault().store().sync()?;
-        self.refs.replace_publishes(block, rewritten, &moved)?;
-        let mut resealed = self.resealed.lock().unwrap();
-        // A write a replica bases on a commit sealed again goes on the one in its place.
-        for (before, after) in &moved {
-            resealed.insert(*before, *after);
-        }
-        Ok(true)
     }
 
     /// The commits `commit` was sealed again in the place of in this run (`reseal`), for a
@@ -93,12 +172,13 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// `pending`, its content, commit, metadata and journal state sealed again under `key`, on
-    /// its parents as `moved` sealed them again.
+    /// its parents as `moved` sealed them again, stamped `time`.
     async fn reseal_pending(
         &self,
         key: Uuid,
         pending: &Pending,
         moved: &HashMap<CommitId, CommitId>,
+        time: i64,
     ) -> Result<Pending, ClientError> {
         let vault = self.commits.vault();
         let again = |commit: CommitId| moved.get(&commit).copied().unwrap_or(commit);
@@ -120,11 +200,15 @@ impl<S: ObjectStore> Peer<S> {
                     .await?,
             );
         }
+        // Its change stays the one it was, whatever its id becomes.
+        let change = before.change_id(pending.commit);
         let commit = Commit {
             manifest,
             parents,
+            time,
             ..before
-        };
+        }
+        .with_change(change);
         let id = self.commits.put(key, &commit)?;
         let journal = match &pending.journal {
             Some(seal) => {
@@ -144,9 +228,18 @@ impl<S: ObjectStore> Peer<S> {
             expected,
             parents: commit.parents,
             chunks,
+            time,
             metadata: vault.seal(key, &commit.metadata)?,
             journal,
             ..pending.clone()
         })
     }
+}
+
+/// How `Peer::restamp` moves the times of commits stamped too late: those past `latest` go
+/// back by `back`.
+#[derive(Clone, Copy)]
+struct Retime {
+    latest: i64,
+    back: i64,
 }

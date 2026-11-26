@@ -1102,6 +1102,14 @@ impl<S: ObjectStore> Peer<S> {
             Err(ClientError::Refused(code, _)) if lost_access(code) => {
                 self.refused(sequence, block, code).await
             }
+            // Stamped by a clock running fast before this device measured the server's: stamped
+            // again by the server's clock, with what waits on it, and sent once more as a reseal
+            // is. Set aside, as below, if that is refused too.
+            Err(ClientError::Refused(ErrorCode::CommitAhead, _))
+                if reseal && self.restamp(block).await? =>
+            {
+                Ok(Drained::Resealed { block })
+            }
             // The server will never take this commit as it is: what this device made of the
             // block is set aside with the reason, to be restored or discarded, rather than
             // sent again every round.
