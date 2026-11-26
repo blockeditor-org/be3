@@ -73,4 +73,17 @@ fn a_webgpu_canvas_has_textures_once_resized_and_configured() {
         pop(&mut gpu, device, 3).unwrap().is_some(),
         "a canvas is never an sRGB format"
     );
+
+    let largest = wgpu::Limits::default().max_texture_dimension_2d;
+    for (width, height) in [(0, 48), (largest + 1, 48)] {
+        gpu.resize(context, 64, 48);
+        assert!(Gpu::surface(&gpu, 7).is_some());
+        gpu.gpu_device_push_error_scope(device, GpuErrorFilter::Validation);
+        gpu.resize(context, width, height);
+        assert!(
+            pop(&mut gpu, device, 4).unwrap().is_some(),
+            "a {width} by {height} canvas is refused"
+        );
+        assert!(Gpu::surface(&gpu, 7).is_none(), "and has no textures");
+    }
 }

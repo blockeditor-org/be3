@@ -18,8 +18,16 @@ where it draws translucent surfaces.
 
 When upstream moves (a new release candidate or a release), change the `http_file`'s URL to
 the new commit and its `sha256` and `size_bytes` to the new file's, regenerate, and fix the
-host and guest; record the version in decisions/be3_gpu_is_wasi_webgpu.md. Nothing else in
-the repository names its version.
+host and guest; record the version in decisions/be3_gpu_is_wasi_webgpu.md. Rust that names
+the interface's module takes it from `be_wasm_gpu_abi::embed::webgpu::MODULE`; what cannot
+names the version itself, and changes with it:
+
+- the WIT that imports or uses it: be-wasm-gpu-abi's `wit/world.wit` and `wit/host.wit`, and
+  be-sdk-api's `wit/app.wit`;
+- the generator's lists, which are literals: `local` in be-wasm-gpu-abi's `src/lib.rs`, and
+  `uses` and `local` in be-sdk-api's `src/lib.rs`;
+- the raw apps, which are wat: be-wasm-host's `src/tests/standalone.wat` and
+  be-wasm-root-host's `src/tests/painter.wat`.
 
 ## 3. Asynchronous pipelines off the app's thread
 
@@ -36,6 +44,14 @@ poll as now.
 - A dropped `Ticket` or `Items` stops waiting on the guest, but the host keeps its `Promise` or
   `Sender` until it settles; listing dropped tickets in the next poll would let it let them
   go.
+
+## 5. Per-draw calls as cheap as before
+
+A per-draw call on wasi:webgpu costs about 135 ns in release (be-wasm-host's
+`example-gpu-calls`), about 12% more than `be3:gpu/device`'s did: each looks up the pass it
+records into and the app device that owns it (`Gpu::render`, `checked`, `device_lost`), and
+takes the pass out of its table and puts it back. Keeping each pass's device with the pass, and
+the pass borrowed in place rather than taken, would bring it back.
 
 ## Reading the pinned WIT
 

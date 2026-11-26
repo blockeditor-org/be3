@@ -1,6 +1,7 @@
-/// foldhash rather than SipHash: handles come from the app, but a table is looked up on every
-/// per-draw call.
-type HashMap<K, V> = std::collections::HashMap<K, V, foldhash::fast::FixedState>;
+/// The maps and sets of this crate: foldhash rather than SipHash, since handles come from the
+/// app but are looked up on every per-draw call.
+pub(crate) type HashMap<K, V> = std::collections::HashMap<K, V, foldhash::fast::FixedState>;
+pub(crate) type HashSet<T> = std::collections::HashSet<T, foldhash::fast::FixedState>;
 
 type Handle = u32;
 
