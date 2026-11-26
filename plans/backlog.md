@@ -317,16 +317,6 @@ Fixed items are removed as they land.
   (`commit` in reorder.rs). Needs a speaker that outlives the source (the
   board's `said` read by a region outside every source, or the receiving site
   announcing an arrival), which beui has no place for yet.
-- **The display arrangement refits for a carried display.** The area's view
-  fits the arrangement at the lift and clips what it draws, so a display
-  carried to a place beyond that fit (below a display beside it) is cut off at
-  the area's edge. Done: the area refits to the arrangement the chosen place
-  makes, with places read relative to the refit, shown by a painting of a
-  display carried below another. The places' rests are in area points of the view (`arrangement_spec`
-  in be-app-settings display/arrangement.rs), so a refit that follows the
-  chosen place moves the rests the choice is made among: the refit needs the
-  rests in desktop pixels mapped through the view at each point (a `free`-like
-  spec of its own), or a view that only grows while a carry lasts.
 
 ## 19. Local accounts
 

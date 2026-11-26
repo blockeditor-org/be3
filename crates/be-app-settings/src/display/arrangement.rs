@@ -4,7 +4,7 @@ use be_sdk_beui::be_block::display_settings::{Arrangement, ScreenPlace};
 use be_sdk_beui::beui::drag::{self, DragSpec};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::{NodeId, PointerPress, Pos2, Rect, Vec2, pos2, vec2};
+use be_sdk_beui::beui::{CanvasView, NodeId, PointerPress, Pos2, Rect, Vec2, pos2, vec2};
 use beui::geometry::Side;
 use beui::geometry::touching;
 use beui::{Align, Align2, TextAlign};
@@ -53,6 +53,28 @@ impl View {
     fn to_desktop(self, point: Pos2) -> Pos2 {
         self.origin + (point - self.corner) / self.fit
     }
+
+    /// The view as the area's canvas camera: desktop pixels are its world.
+    fn canvas(self) -> CanvasView {
+        CanvasView::new(self.corner - self.origin.to_vec2() * self.fit, self.fit)
+    }
+}
+
+/// The desktop rect the places' rests are relative to: every tile and, a tile's size beyond
+/// them on each side, every place one can be carried to (each touches another). Fixed while
+/// a carry lasts, as the tiles are, so rests read from it at the lift stay right however the
+/// view refits.
+fn reach(tiles: &[Tile]) -> Rect {
+    let largest = tiles
+        .iter()
+        .map(|tile| tile.rect.size())
+        .fold(Vec2::ZERO, |a, b| a.max(b));
+    tiles
+        .iter()
+        .map(|tile| tile.rect)
+        .reduce(|a, b| a.union(b))
+        .unwrap_or(Rect::ZERO)
+        .expand2(largest)
 }
 
 pub(super) fn tiles(displays: &[HostDisplay], arrangement: &Arrangement) -> Vec<Tile> {
@@ -81,7 +103,8 @@ pub(super) fn tiles(displays: &[HostDisplay], arrangement: &Arrangement) -> Vec<
         .collect()
 }
 
-pub(super) fn dropped(tiles: &[Tile], id: &str, rect: Rect, main: Option<String>) -> Arrangement {
+/// Where `id` rests let go at `rect`: rounded to whole pixels and settled against the others.
+fn settled(tiles: &[Tile], id: &str, rect: Rect) -> Rect {
     let others: Vec<Rect> = tiles
         .iter()
         .filter(|tile| tile.id != id)
@@ -89,7 +112,11 @@ pub(super) fn dropped(tiles: &[Tile], id: &str, rect: Rect, main: Option<String>
         .collect();
     let at = rect.min;
     let rounded = Rect::from_min_size(pos2(at.x.round(), at.y.round()), rect.size());
-    let settled = touching::settle(rounded, &others);
+    touching::settle(rounded, &others)
+}
+
+pub(super) fn dropped(tiles: &[Tile], id: &str, rect: Rect, main: Option<String>) -> Arrangement {
+    let settled = settled(tiles, id, rect);
     let placing: Vec<(Vec2, Option<Pos2>)> = tiles
         .iter()
         .map(|tile| match tile.id == id {
@@ -119,9 +146,18 @@ struct Carried(String);
 const SNAP: f32 = 12.0;
 
 /// The places a carried display can be let go: every place it lines up touching another
-/// display (`touching::places`), and within `SNAP` of none, anywhere in the area. Rests are
-/// in the area's points; what a place means is the display's rect on the desktop.
-fn arrangement_spec(tiles: &[Tile], id: &str, view: View, area: NodeRef) -> DragSpec<Rect> {
+/// display (`touching::places`), and within `SNAP` of none, anywhere in the area. What a
+/// place means is the display's rect on the desktop. The view refits while the carry lasts,
+/// so rests are in desktop pixels, relative to `desktop`, a node drawn through the view at
+/// `reach`, and the board reads them through the view at each point; a place anywhere else
+/// maps the item through the view at that point.
+fn arrangement_spec(
+    tiles: &[Tile],
+    id: &str,
+    view: Memo<View>,
+    area: NodeRef,
+    desktop: NodeRef,
+) -> DragSpec<Rect> {
     let Some(size) = tiles
         .iter()
         .find(|tile| tile.id == id)
@@ -131,9 +167,9 @@ fn arrangement_spec(tiles: &[Tile], id: &str, view: View, area: NodeRef) -> Drag
     };
     let others: Vec<&Tile> = tiles.iter().filter(|tile| tile.id != id).collect();
     let rects: Vec<Rect> = others.iter().map(|tile| tile.rect).collect();
-    let in_area = |rect: Rect| Rect::from_min_size(view.to_area(rect.min), rect.size() * view.fit);
+    let corner = reach(tiles).min.to_vec2();
     let places = touching::places(size, &rects).into_iter().map(|place| {
-        drag::Candidate::new(place.rect, in_area(place.rect), area).labelled(place_label(
+        drag::Candidate::new(place.rect, place.rect.translate(-corner), desktop).labelled(place_label(
             &others[place.beside].name,
             place.side,
             place.line,
@@ -141,7 +177,7 @@ fn arrangement_spec(tiles: &[Tile], id: &str, view: View, area: NodeRef) -> Drag
     });
     drag::closest(places)
         .when_far(drag::free(area, move |rect: Rect| {
-            Rect::from_min_size(view.to_desktop(rect.min), size)
+            Rect::from_min_size(view.get_untracked().to_desktop(rect.min), size)
         }))
         .with_distance(SNAP)
 }
@@ -176,19 +212,29 @@ pub(super) fn ArrangementRow(
         let arrangement = merged.with(DisplaySettings::arrangement);
         displays.with(|displays| tiles(displays, &arrangement))
     });
+    // While a display is carried, the view also fits each place it has been over, and only
+    // grows: a place chosen stays in sight, and the view settles rather than swinging
+    // between two places that each refit it away from the other.
+    let grown = create_signal(None::<Rect>);
     let view = create_memo(move || {
-        laid.with(|tiles| View::of(&tiles.iter().map(|tile| tile.rect).collect::<Vec<_>>()))
+        laid.with(|tiles| {
+            let mut rects: Vec<Rect> = tiles.iter().map(|tile| tile.rect).collect();
+            rects.extend(grown.get());
+            View::of(&rects)
+        })
     });
+    let reach = create_memo(move || laid.with(|tiles| reach(tiles)));
     let keys = create_memo(move || {
         laid.with(|tiles| tiles.iter().map(|tile| tile.id.clone()).collect::<Vec<_>>())
     });
     let main = create_memo(move || laid.with(|tiles| tiles.first().map(|tile| tile.id.clone())));
     let save = settings.setter(&DisplaySettings::arrangement_setting());
     let area = NodeRef::new();
-    use_drop_site(
+    let desktop = NodeRef::new();
+    let site = use_drop_site(
         Func::new(|_: Carried| true),
         Func::new(move |Carried(id): Carried| {
-            laid.with_untracked(|tiles| arrangement_spec(tiles, &id, view.get_untracked(), area))
+            laid.with_untracked(|tiles| arrangement_spec(tiles, &id, view, area, desktop))
         }),
         Callback::new(move |(Carried(id), rect): (Carried, Rect)| {
             let arrangement = laid.with_untracked(|tiles| {
@@ -202,6 +248,25 @@ pub(super) fn ArrangementRow(
             save.call(Some(arrangement));
         }),
     );
+    create_effect(move || {
+        let Some(Carried(id)) = carrying::<Carried>().into_iter().next() else {
+            if grown.get_untracked().is_some() {
+                grown.set(None);
+            }
+            return;
+        };
+        let Some(rect) = site.over.get() else {
+            return;
+        };
+        let rest = laid.with_untracked(|tiles| settled(tiles, &id, rect));
+        let wider = grown
+            .get_untracked()
+            .map_or(rest, |grown| grown.union(rest));
+        if grown.get_untracked() != Some(wider) {
+            grown.set(Some(wider));
+        }
+    });
+    let canvas = create_memo(move || Some(view.get().canvas()));
     view! {
         <SettingsRow
             label="Arrangement"
@@ -216,16 +281,20 @@ pub(super) fn ArrangementRow(
                 border={Border::DEFAULT}
                 radius=Radius::Sm
             >
-                <Canvas width={AREA.x} height={AREA.y}>
-                    <CanvasItem x=0.0 y=0.0 width={AREA.x} height={AREA.y}>
-                        <Layers>
-                            <ForEach value={keys}>|id: String|
-                                <Frame align=Align2::START>
-                                    <ArrangedTile id shown={laid} view main read_only />
-                                </Frame>
-                            </ForEach>
-                        </Layers>
+                <Canvas view={canvas} local_view=true width={AREA.x} height={AREA.y}>
+                    <CanvasItem
+                        x={move || reach.get().min.x}
+                        y={move || reach.get().min.y}
+                        width={move || reach.get().width()}
+                        height={move || reach.get().height()}
+                        scales=true
+                        pointer=false
+                    >
+                        <Frame @node_ref=&desktop />
                     </CanvasItem>
+                    <ForEach value={keys}>|id: String|
+                        <ArrangedTile id shown={laid} view main read_only />
+                    </ForEach>
                 </Canvas>
             </Frame>
         </SettingsRow>
@@ -239,7 +308,7 @@ fn ArrangedTile(
     view: Memo<View>,
     main: Memo<Option<String>>,
     read_only: Memo<bool>,
-) -> NodeId {
+) -> CanvasItem {
     let key = id.clone();
     let carried = id.clone();
     let drag = Func::new(move |_: PointerPress| {
@@ -247,17 +316,10 @@ fn ArrangedTile(
     });
     let tile =
         create_memo(move || shown.with(|tiles| tiles.iter().find(|tile| tile.id == key).cloned()));
-    let area = create_memo(move || {
-        let view = view.get();
-        tile.with(|tile| {
-            tile.as_ref().map_or(Rect::ZERO, |tile| {
-                Rect::from_min_size(view.to_area(tile.rect.min), tile.rect.size() * view.fit)
-            })
-        })
-    });
-    let width = create_memo(move || Length::Size(Size::Custom(area.get().width())));
-    let height = create_memo(move || Length::Size(Size::Custom(area.get().height())));
-    let translate = create_memo(move || area.get().min.to_vec2());
+    let rect = create_memo(move || tile.with(|tile| tile.as_ref().map_or(Rect::ZERO, |tile| tile.rect)));
+    let shown_size = create_memo(move || rect.get().size() * view.get().fit);
+    let width = create_memo(move || Length::Size(Size::Custom(shown_size.get().x)));
+    let height = create_memo(move || Length::Size(Size::Custom(shown_size.get().y)));
     let name = create_memo(move || {
         tile.with(|tile| {
             tile.as_ref()
@@ -272,7 +334,12 @@ fn ArrangedTile(
     });
     let is_main = create_memo(move || main.get().as_deref() == Some(id.as_str()));
     view! {
-        <Frame translate={translate}>
+        <CanvasItem
+            x={move || rect.get().min.x}
+            y={move || rect.get().min.y}
+            width={move || rect.get().width()}
+            height={move || rect.get().height()}
+        >
             <Interactive drag={drag} focusable=true>
                 <Frame
                     @test_id={format!("display.arrangement.{connector}")}
@@ -295,6 +362,6 @@ fn ArrangedTile(
                     </List>
                 </Frame>
             </Interactive>
-        </Frame>
+        </CanvasItem>
     }
 }
