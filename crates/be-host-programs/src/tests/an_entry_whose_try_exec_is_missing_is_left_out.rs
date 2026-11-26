@@ -17,6 +17,7 @@ fn an_entry_whose_try_exec_is_missing_is_left_out() {
         "data/applications/tool.desktop",
         application("Tool", "tool", &format!("TryExec={}", absolute.display())).as_bytes(),
     );
-    let programs = environment(&scratch, &["data"]).programs();
+    let environment = environment(&scratch, &["data"]);
+    let programs = environment.programs_among(&environment.entries());
     assert_eq!(ids(&programs), ["present.desktop", "tool.desktop"]);
 }

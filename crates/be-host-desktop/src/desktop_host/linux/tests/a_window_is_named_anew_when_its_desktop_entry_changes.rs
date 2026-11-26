@@ -13,6 +13,7 @@ use super::*;
 fn a_window_is_named_anew_when_its_desktop_entry_changes() {
     let root = std::env::temp_dir().join(format!("be-host-desktop-named-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
+    let _removed = Removed(root.clone());
     let entry = root.join("applications/org.example.Notes.desktop");
     std::fs::create_dir_all(entry.parent().expect("an entry has a folder"))
         .expect("the folder is made");
@@ -87,6 +88,13 @@ fn a_window_is_named_anew_when_its_desktop_entry_changes() {
     read();
     flush();
     assert_eq!(names().len(), 3, "reading the same entries again changes nothing");
+}
 
-    let _ = std::fs::remove_dir_all(&root);
+/// Removes its folder as it drops, so a test that fails leaves nothing behind either.
+struct Removed(std::path::PathBuf);
+
+impl Drop for Removed {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
 }

@@ -145,10 +145,6 @@ impl Environment {
         out
     }
 
-    pub fn programs(&self) -> Vec<DesktopEntry> {
-        self.programs_among(&self.entries())
-    }
-
     fn runs(&self, entry: &DesktopEntry) -> bool {
         entry
             .try_exec
@@ -231,12 +227,8 @@ impl Entries {
         self.all.push(entry);
     }
 
-    pub fn all(&self) -> &[DesktopEntry] {
-        &self.all
-    }
-
     /// The entry with `id` (`org.example.App.desktop`; a subfolder's `kde-kate.desktop`).
-    pub fn get(&self, id: &str) -> Option<&DesktopEntry> {
+    fn get(&self, id: &str) -> Option<&DesktopEntry> {
         self.by_id.get(id).map(|at| &self.all[*at])
     }
 

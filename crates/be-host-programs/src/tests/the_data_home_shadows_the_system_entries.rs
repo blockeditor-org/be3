@@ -28,7 +28,8 @@ fn the_data_home_shadows_the_system_entries() {
         application("browser", "browser", "").as_bytes(),
     );
     scratch.write("system/applications/notes.txt", b"not an entry");
-    let programs = environment(&scratch, &["home", "system"]).programs();
+    let environment = environment(&scratch, &["home", "system"]);
+    let programs = environment.programs_among(&environment.entries());
     assert_eq!(
         ids(&programs),
         ["browser.desktop", "kde-konsole.desktop", "editor.desktop"],
