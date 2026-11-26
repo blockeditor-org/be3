@@ -3754,18 +3754,24 @@ where
         let leaving = self.reached_layers();
         if !self.covered {
             self.confirmed.apply(&operation);
-            self.peer_layers.retain(|client, _| !leaving.contains(client));
+            self.peer_layers
+                .retain(|client, _| !leaving.contains(client));
             self.rebuild_visible();
             return self.take_heard_seal();
         }
-        self.peer_layers.retain(|client, _| !leaving.contains(client));
+        self.peer_layers
+            .retain(|client, _| !leaving.contains(client));
         // The layers stay on top.
         let local = self.unsettled_edits();
         self.beneath = None;
         match leaving.is_empty() {
             true => {
-                self.visible
-                    .apply_beneath(&mut self.confirmed, &operation, &local, &mut Vec::new());
+                self.visible.apply_beneath(
+                    &mut self.confirmed,
+                    &operation,
+                    &local,
+                    &mut Vec::new(),
+                );
             }
             false => {
                 self.confirmed.apply(&operation);

@@ -49,7 +49,10 @@ fn a_carried_shape_shows_here_and_to_a_peer_and_is_written_once_dropped() {
     watcher.snapshot("a_carried_shape_shows_to_a_peer_mid_move");
 
     mover.pen(PenPhase::Up(PointerButton::Primary), from + by, 0.0);
-    assert!(relay_session(&mut mover, &mut watcher, FIRST_PEER) > 0, "the drop is sent");
+    assert!(
+        relay_session(&mut mover, &mut watcher, FIRST_PEER) > 0,
+        "the drop is sent"
+    );
     forward_presence(&mut mover, &mut watcher, &mut shown);
     assert_eq!(entities(&watcher), entities(&mover), "the drop is written");
     assert_eq!(watcher.rect_of(&item).center(), resting.center() + by);

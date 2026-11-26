@@ -59,7 +59,10 @@ fn a_peer_draws_a_bound_line_following_each_frame_of_a_held_resize() {
             watcher.snapshot("a_peer_draws_a_bound_line_following_each_frame_of_a_held_resize");
         }
     }
-    assert_eq!(submitted, 0, "nothing of the held resize is sent to the order");
+    assert_eq!(
+        submitted, 0,
+        "nothing of the held resize is sent to the order"
+    );
     assert!(
         shown(&watcher, target.id).height() > before.height() + 40.0,
         "the peer shows the shape resized"
@@ -71,8 +74,15 @@ fn a_peer_draws_a_bound_line_following_each_frame_of_a_held_resize() {
     );
 
     mover.up(from + Vec2::new(48.0, 72.0), PointerButton::Primary);
-    assert!(relay_session(&mut mover, &mut watcher, FIRST_PEER) > 0, "the release sends the resize");
-    assert_eq!(entities(&watcher), entities(&mover), "the resize is written");
+    assert!(
+        relay_session(&mut mover, &mut watcher, FIRST_PEER) > 0,
+        "the release sends the resize"
+    );
+    assert_eq!(
+        entities(&watcher),
+        entities(&mover),
+        "the resize is written"
+    );
     assert_ne!(entities(&watcher), written);
     assert_same(&mover, &watcher, target.id, "after the release");
     assert_same(&mover, &watcher, arrow.id, "after the release");

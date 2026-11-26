@@ -1,5 +1,5 @@
 use be_block_commit::MergeResult;
-use be_block_model::{Change, Document, ObjectId, Edit, Model, Step, Touched};
+use be_block_model::{Change, Document, Edit, Model, ObjectId, Step, Touched};
 use uuid::Uuid;
 
 use crate::{BlockContent, ChildChange, ContentError, LiveEdit, Merge, Undo};
@@ -318,17 +318,61 @@ fn reads_field(change: &Change, object: ObjectId, field: u16) -> bool {
     match change {
         Change::Set { .. } => false,
         Change::Remove { object: o } | Change::RemoveIf { object: o, .. } => *o == object,
-        Change::SetIf { object: o, field: f, .. }
-        | Change::Add { object: o, field: f, .. }
-        | Change::Put { object: o, field: f, .. }
-        | Change::PutIf { object: o, field: f, .. }
-        | Change::Paint { object: o, field: f, .. }
-        | Change::Reshape { object: o, field: f, .. }
-        | Change::Stamp { object: o, field: f, .. }
-        | Change::Text { object: o, field: f, .. }
-        | Change::Mark { object: o, field: f, .. }
-        | Change::Unmark { object: o, field: f, .. }
-        | Change::Series { object: o, field: f, .. } => *o == object && *f == field,
+        Change::SetIf {
+            object: o,
+            field: f,
+            ..
+        }
+        | Change::Add {
+            object: o,
+            field: f,
+            ..
+        }
+        | Change::Put {
+            object: o,
+            field: f,
+            ..
+        }
+        | Change::PutIf {
+            object: o,
+            field: f,
+            ..
+        }
+        | Change::Paint {
+            object: o,
+            field: f,
+            ..
+        }
+        | Change::Reshape {
+            object: o,
+            field: f,
+            ..
+        }
+        | Change::Stamp {
+            object: o,
+            field: f,
+            ..
+        }
+        | Change::Text {
+            object: o,
+            field: f,
+            ..
+        }
+        | Change::Mark {
+            object: o,
+            field: f,
+            ..
+        }
+        | Change::Unmark {
+            object: o,
+            field: f,
+            ..
+        }
+        | Change::Series {
+            object: o,
+            field: f,
+            ..
+        } => *o == object && *f == field,
         Change::Insert { place, .. }
         | Change::Move { place, .. }
         | Change::MoveRange { place, .. } => place.object == object && place.field == field,

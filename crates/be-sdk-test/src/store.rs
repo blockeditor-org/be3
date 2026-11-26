@@ -1703,12 +1703,14 @@ impl ContentStore {
         let mut state = session(TAG);
         for peer in &held.peers {
             state.index += 1;
-            state.participants.push(be_sdk_type_guest::api::Participant {
-                client: *peer,
-                tag: Hash::from_bytes(TAG.0),
-                may_edit: true,
-                claimed: None,
-            });
+            state
+                .participants
+                .push(be_sdk_type_guest::api::Participant {
+                    client: *peer,
+                    tag: Hash::from_bytes(TAG.0),
+                    may_edit: true,
+                    claimed: None,
+                });
         }
         if let Some(replica) = held.replica {
             inner.on_replica(replica, |replica, host| {

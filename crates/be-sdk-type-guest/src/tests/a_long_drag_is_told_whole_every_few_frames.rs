@@ -16,7 +16,11 @@ fn a_long_drag_is_told_whole_every_few_frames() {
     let told = super::tentative::told_held(&mut sim, 0);
     assert_eq!(told.len(), 60, "one Held a frame");
     let whole: Vec<_> = told.iter().filter(|(from, ..)| *from == 0).collect();
-    assert!(whole.len() >= 3, "told whole every few frames: {}", whole.len());
+    assert!(
+        whole.len() >= 3,
+        "told whole every few frames: {}",
+        whole.len()
+    );
     for (_, to, operations, _) in &whole {
         assert_eq!(operations.len(), 1, "the {to} edits absorbed into one");
     }

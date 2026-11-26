@@ -23,7 +23,10 @@ fn a_peer_still_loading_as_it_joins_mid_drag_previews_it_once_loaded() {
     sim.attach(1, 1, true);
     sim.settle();
     assert!(!sim.held.is_empty(), "its load waits");
-    assert!(sim.editors[&(1, 1)].content().is_none(), "it shows nothing yet");
+    assert!(
+        sim.editors[&(1, 1)].content().is_none(),
+        "it shows nothing yet"
+    );
     sim.unstall();
     assert_eq!(texts(sim.mirror(1, 1)), ["held"]);
 }

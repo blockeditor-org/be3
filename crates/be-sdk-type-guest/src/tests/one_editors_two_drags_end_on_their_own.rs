@@ -15,8 +15,16 @@ fn one_editors_two_drags_end_on_their_own() {
     assert!(sim.operate_in(0, 1, Some(8), second.clone()));
     sim.settle();
     assert_eq!(texts(sim.mirror(0, 2)), ["first", "second"]);
-    assert_eq!(texts(sim.mirror(1, 1)), ["first", "second"], "previewed by peers");
-    assert_eq!(texts(&sim.content(1)), ["a", "b"], "held from peers' content");
+    assert_eq!(
+        texts(sim.mirror(1, 1)),
+        ["first", "second"],
+        "previewed by peers"
+    );
+    assert_eq!(
+        texts(&sim.content(1)),
+        ["a", "b"],
+        "held from peers' content"
+    );
 
     sim.gesture_in(0, 1, 8, Gesture::Cancel);
     sim.settle();

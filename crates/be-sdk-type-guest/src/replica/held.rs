@@ -119,21 +119,28 @@ where
     /// The layer is committing as the local edits through `through`, or none of it could go:
     /// the peers drop it once the order holds those edits, or at once. A layer that changed
     /// during the job goes whole with it.
-    pub(super) fn tell_layer_committed(&mut self, whole: Option<SessionMessage>, through: Option<u64>) {
+    pub(super) fn tell_layer_committed(
+        &mut self,
+        whole: Option<SessionMessage>,
+        through: Option<u64>,
+    ) {
         let Some(edits) = self.told.edits.take() else {
             return;
         };
         self.told.changed = false;
         let message = match (through, whole) {
             (None, _) => self.dropped_layer(),
-            (Some(through), Some(SessionMessage::Held {
-                layer,
-                origin,
-                from,
-                to,
-                operations,
-                ..
-            })) => SessionMessage::Held {
+            (
+                Some(through),
+                Some(SessionMessage::Held {
+                    layer,
+                    origin,
+                    from,
+                    to,
+                    operations,
+                    ..
+                }),
+            ) => SessionMessage::Held {
                 layer,
                 origin,
                 from,
@@ -392,7 +399,9 @@ where
             return;
         }
         // An earlier layer than one shown, or one too large to show.
-        if self.newest_layer(from).is_some_and(|layer| layer > told.layer)
+        if self
+            .newest_layer(from)
+            .is_some_and(|layer| layer > told.layer)
             || self
                 .unpreviewed
                 .get(&from)
@@ -409,7 +418,11 @@ where
             self.incompatible = true;
             return self.drop_peer_layer(from);
         };
-        let bytes: usize = told.operations.iter().map(|operation| operation.len()).sum();
+        let bytes: usize = told
+            .operations
+            .iter()
+            .map(|operation| operation.len())
+            .sum();
         let key = (from, told.layer);
         let appends = told.from > 0
             && self
@@ -421,8 +434,7 @@ where
             // a frame): it shows none of it, nor what the layer replaces, and asks for the
             // whole, once.
             self.drop_layers(|(client, layer), held| {
-                *client == from
-                    && (*layer == told.layer || held.commits_through.is_none())
+                *client == from && (*layer == told.layer || held.commits_through.is_none())
             });
             if self.asked_layers.get(&from) != Some(&told.layer) {
                 self.asked_layers.insert(from, told.layer);

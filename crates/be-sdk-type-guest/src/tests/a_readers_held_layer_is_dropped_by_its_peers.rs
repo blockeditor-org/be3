@@ -19,7 +19,9 @@ fn a_readers_held_layer_is_dropped_by_its_peers() {
         origin: sim.devices[1].origin,
         from: 0,
         to: 1,
-        operations: vec![ChecklistContent::encode_operation(&Checklist::set_text(a, "read")).into()],
+        operations: vec![
+            ChecklistContent::encode_operation(&Checklist::set_text(a, "read")).into(),
+        ],
         commits_through: None,
     };
     let reader = sim.devices[1].client;

@@ -6,6 +6,13 @@ use super::*;
 fn a_held_layer_the_order_already_holds_is_not_shown() {
     let (mut sim, a, _) = super::tentative::dragging(2);
     let through = super::tentative::journaled_through(&sim, 0);
-    super::tentative::relay_held(&mut sim, 1, 0, 1, &[Checklist::set_text(a, "late")], Some(through));
+    super::tentative::relay_held(
+        &mut sim,
+        1,
+        0,
+        1,
+        &[Checklist::set_text(a, "late")],
+        Some(through),
+    );
     assert_eq!(texts(sim.mirror(1, 1)), ["a", "b"]);
 }

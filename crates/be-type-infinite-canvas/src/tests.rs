@@ -8,11 +8,11 @@ use crate::{
     CanvasShape, CanvasTransform, InfiniteCanvasOperation,
 };
 
-mod a_drags_frames_absorbed_are_one_write_of_the_last;
 mod a_canvas_answers_the_text_of_its_items_as_one_document;
 mod a_canvas_entity_removed_on_one_side_and_moved_on_the_other_stays_removed;
 mod a_canvas_profile_is_kept_but_never_undone;
 mod a_component_added_to_one_entity_on_both_sides_is_kept_once;
+mod a_drags_frames_absorbed_are_one_write_of_the_last;
 mod a_pixel_painted_outside_the_other_sides_crop_counts_as_a_conflict;
 mod a_raster_layer_added_with_its_pixels_keeps_them_and_its_scale;
 mod a_raster_layer_starts_at_its_natural_size_and_scales_freely;
