@@ -12,6 +12,7 @@
 //   await test.account(name)   another account, `name` (its address is name@localhost), signed
 //                               in on a page of its own browser context, so of its own storage
 //   test.serverLog             the server's log file
+//   test.root                  the staged root in place of the host's own UI (--root), if any
 //   await test.endpoints()      the push endpoints the server holds, [{ account, address }]
 //   await test.until(check, what)   check()'s first truthy answer, asked again until one comes:
 //                               for state nothing announces, such as the server's database
@@ -394,6 +395,7 @@ try {
     Object.assign(test, {
         account: (name) => account({ name, email: `${name.toLowerCase()}@localhost` }),
         serverLog,
+        root,
         endpoints: async () => {
             const database = new DatabaseSync(join(serverData, "metadata.sqlite"), { readOnly: true });
             try {

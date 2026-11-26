@@ -142,7 +142,9 @@ struct State {
     fonts: Rc<Fonts>,
     /// The generation of the host's catalog it was told last (`tell_types`): 0 for none.
     told_types: u64,
-    /// The frames that open the editors its root's host opened, relayed once the app says hello.
+    /// The frames that open the editors its root's host opened, and whatever else the host sent
+    /// it after them, relayed in order once the app says hello: what follows an opening (a
+    /// creation's commit) must not reach the app ahead of it.
     opening: Vec<Vec<u8>>,
     /// Whether the app said hello: one that stops after it stopped, one that stops before it
     /// could not start.
@@ -348,10 +350,7 @@ impl Embedded {
         }
         state.name = Some(opened.name);
         // Before the hello the frames wait with the rest that open its editors.
-        match state.started {
-            true => state.relay(opened.frames),
-            false => state.opening.extend(opened.frames),
-        }
+        state.relay(opened.frames);
         Ok(EditorInstanceId(opened.editor))
     }
 
@@ -1915,9 +1914,14 @@ impl State {
         });
     }
 
-    /// Relays the app what its root's host sent it (`host.forwarded`).
+    /// Relays the app what its root's host sent it (`host.forwarded`), after the frames that
+    /// open its editors: before its hello, held with them.
     fn relay(&mut self, frames: Vec<Vec<u8>>) {
         if self.failure.is_some() {
+            return;
+        }
+        if !self.started {
+            self.opening.extend(frames);
             return;
         }
         if let Err(failure) = self.wire.relay_forwarded(frames) {
