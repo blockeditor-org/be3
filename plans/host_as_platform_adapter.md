@@ -2334,8 +2334,8 @@ Each step lands on its own.
              `..._warns_of_a_member_no_invitation_signed_in`,
              `..._shows_the_link_to_send_the_invited_person` and
              `..._creates_an_agent_in_a_personal_organization`. be-root's menu entries, Members,
-             Invite member and Agents carry be-host's test ids and layout (Members' Remove asks over
-             the list): Members' Invite member
+             Invite member and Agents carry be-host's test ids and layout (Members' and Contacts'
+             Remove ask over the list): Members' Invite member
              closes it for a new link, Invite member is its own dialog with the link's QR code
              (`be-lib-qr`, which be-host's draws with too), and Agents' credentials copy from
              their fields and Done closes it. Their paintings match be-host's but for the agents'
@@ -2343,13 +2343,27 @@ Each step lands on its own.
              service.
              - Left: Invite member offers no Share, as the root's host has no share sheet to
                ask for.
-           - Contacts and share links: `a_contact_link_asks_before_connecting_two_accounts`,
-             `a_contact_the_server_rolls_back_keeps_the_key_this_device_saw`,
-             `leaving_a_workspace_someone_shared_asks_first`,
-             `keep_hosting_outlives_the_editor_until_stop`,
-             `a_share_link_asks_before_opening_a_block_someone_shared`,
-             `an_outsider_opens_a_share_link_as_a_guest`,
-             `a_player_digs_through_the_editor_that_hosts_the_hunt`.
+           - Built (4g7g2b): contacts and share links. Counterparts
+             `be_root_in_place_of_the_hosts_ui_asks_before_connecting_two_accounts_by_a_contact_link`,
+             `..._keeps_the_key_it_saw_of_a_contact_the_server_rolls_back`,
+             `..._asks_before_leaving_a_workspace_someone_shared`,
+             `..._asks_before_opening_a_block_someone_shared_by_a_link`,
+             `..._opens_a_share_link_for_an_outsider_as_a_guest` and
+             `..._lets_a_player_dig_through_the_editor_that_hosts_the_hunt`. be-root's Contacts
+             and Open a share link are be-host's: the contact link shows in the list, and
+             Connect? and Open this block? ask over it, Escape going back to the link; the
+             contacts' rows and the offer are worded as be-host's, and the root's alerts are
+             beui's dialog width as be-host's. Under the root be-host now hands an editor's
+             Leave to the root's question (`instance_heard`), and opens a block the person may
+             only join as a Join member (`editor_of`), as its own UI does. Their paintings match
+             be-host's but for the gem hunt's whole window: the root's menu button covers the
+             workspace's Close pane button, and the files' row of the open hunt is not
+             focused.
+             - Left: `keep_hosting_outlives_the_editor_until_stop`, a known flake. Under the root
+               be-host still drops an editor's other block commands (Share, Export, Keep
+               hosting and the rest, `instance_heard`), and the workspace's dock names no panes
+               (be-host's `Pane "Files"`), so the guest's files are cropped by
+               `#workspace.files`.
            - The palette (`src/compositor`): `quick_open_finds_a_word_typed_in_a_text_and_opens_it`,
              `quick_open_goes_to_a_file_and_the_palette_offers_the_workspaces_and_hosts_actions`
              (the host's own actions, which be-root's palette does not list),

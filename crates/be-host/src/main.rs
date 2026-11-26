@@ -23,7 +23,6 @@ mod members;
 mod memory;
 #[cfg(any(target_arch = "wasm32", target_os = "android"))]
 mod pressed_notifications;
-mod qr;
 mod reveals;
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 mod root;
@@ -2915,7 +2914,8 @@ impl HostCore {
     /// The app and editor that show `shown`'s block in a root, and the block as it is opened:
     /// the editor and view block its placement names, else the session's own editor for the
     /// session's block, which it views (`view_block`), else its type's default editor. Why
-    /// not, when the block is not listed, the person may not view it, or no app edits its type.
+    /// not, when the block is not listed, the person may neither view nor join it, or no app
+    /// edits its type.
     fn editor_of(
         &self,
         shown: &be_wasm_root_api::ShownBlock,
@@ -2929,7 +2929,9 @@ impl HostCore {
     > {
         let block = Uuid::from_bytes(shown.block);
         let node = be_host_stack::node(block).ok_or("no block of that id is listed")?;
-        if !be_host_stack::access(block).can_view() {
+        // A block this account may only join opens its editor as a Join member, with no
+        // content, as under be-host's own UI (guides/blocks/hosted.md).
+        if !be_host_stack::access(block).can_join() {
             return Err("the person may not view the block".to_owned());
         }
         let shell = match self.root_session == Some(block) {
@@ -3849,6 +3851,18 @@ impl HostCore {
         {
             self.root_opens
                 .push((heard.app_id.clone(), heard.instance, open.clone()));
+            return;
+        }
+        // Leaving a block the root asks about in its own dialog (`core-view`'s `leaving`), as
+        // be-host's asks in its own.
+        #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+        if self.under_root
+            && let be_host_runtime::InstanceEvent::Action(EditorAction::Command {
+                id,
+                command: BlockCommand::Leave,
+            }) = &heard.event
+        {
+            ask_to_leave(&mut self.leaving, *id);
             return;
         }
         if matches!(
