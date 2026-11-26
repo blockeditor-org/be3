@@ -282,6 +282,8 @@ enum Closed {
     Added,
     /// The host's question was answered yes (discarding unsaved changes).
     Confirmed,
+    /// Members' Invite member: a new invite link shows in its place, as be-host's does.
+    Invite,
 }
 
 /// A question of the host's that the root asks in its dialog's place while the host asks it.
@@ -953,7 +955,7 @@ impl Root {
                 }
             }
             Some(Closed::Confirmed) => ask_core(CoreCommand::ConfirmDiscard),
-            Some(Closed::Added) | None => {}
+            Some(Closed::Added | Closed::Invite) | None => {}
         }
         // Escape or a press on the scrim closes it, which for the question reverts at once.
         if closed.is_none()
@@ -1043,6 +1045,11 @@ impl Root {
         }
         if closing {
             self.close_dialog();
+        }
+        // Members' Invite member opens the invite in its place, unless a question took it.
+        if matches!(closed, Some(Closed::Invite)) && opening.is_none() && !locked {
+            *self.wanted.borrow_mut() = Some(Asking::Invite);
+            self.waker.wake();
         }
         match opening {
             Some(opening) => self.open_dialog(opening),
@@ -1237,6 +1244,7 @@ impl Root {
                                 link={link}
                                 pending={pending}
                                 ask={ask}
+                                invite={invite}
                                 done={done}
                             />
                         }

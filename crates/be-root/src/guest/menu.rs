@@ -151,18 +151,21 @@ pub(super) fn HostMenu(
         <MenuItem
             label="Contacts"
             glyph=ICON_CONTACT
+            @test_id={"host.menu.contacts"}
             separated=true
             on_click={move || want.call(Asking::Contacts)}
         />
         <MenuItem
             label="Open a share link"
             glyph=ICON_LINK
+            @test_id={"host.menu.share-link"}
             on_click={move || want.call(Asking::ShareLinks)}
         />
         <Show value={company}>
             <MenuItem
                 label="Invite member"
                 glyph=ICON_USER_PLUS
+                @test_id={"host.menu.invite"}
                 detail={organization}
                 on_click={move || want.call(Asking::Invite)}
             />
@@ -171,15 +174,22 @@ pub(super) fn HostMenu(
             <MenuItem
                 label="Members"
                 glyph=ICON_USERS
+                @test_id={"host.menu.members"}
                 on_click={move || want.call(Asking::Members)}
             />
             <MenuItem
                 label="Invitations"
                 glyph=ICON_MAIL
+                @test_id={"host.menu.invitations"}
                 on_click={move || want.call(Asking::Invitations)}
             />
         </Show>
-        <MenuItem label="Agents" glyph=ICON_BOT on_click={move || want.call(Asking::Agents)} />
+        <MenuItem
+            label="Agents"
+            glyph=ICON_BOT
+            @test_id={"host.menu.agents"}
+            on_click={move || want.call(Asking::Agents)}
+        />
         <MenuItem
             label="Sessions and profiles"
             glyph=ICON_LAYOUT_PANEL_LEFT
