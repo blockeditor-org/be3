@@ -654,6 +654,12 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
 
 ## 26. Server protocol
 
+- **A partial upper log as authority.** `be_block_keys::answer` still accepts
+  a partial upper log as authority within a single check; only the kept
+  states as of a head (`Logs::checked_as_of`) refuse partial results. Done:
+  `answer` refuses authority from a partial log too, with a be-block-keys test
+  where a record whose authority rests on a partial upper log is refused.
+
 - **Access logs: `Checked::positions` keeps every entry's hash.** A device and
   the server check each entry of a log once, but the state they keep of a
   checked log (`Checked::positions`, and `KeptLog::checked` with it) grows by
