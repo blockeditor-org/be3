@@ -23,6 +23,9 @@ fn resolve_leaves_out_a_package_and_what_only_it_needs() {
     assert_eq!(names(&["gbm"]), ["drm", "gallium", "gbm", "llvm"]);
     assert_eq!(names(&["gbm", "-gallium"]), ["drm", "gbm"]);
     // What another package needs is still kept.
-    assert_eq!(names(&["gbm", "nss", "-gallium"]), ["drm", "gbm", "llvm", "nss"]);
+    assert_eq!(
+        names(&["gbm", "nss", "-gallium"]),
+        ["drm", "gbm", "llvm", "nss"]
+    );
     assert!(resolve(&packages, &["gbm", "-mesa"]).is_err());
 }

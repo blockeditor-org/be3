@@ -116,8 +116,10 @@ pub(crate) fn resolve<'a>(
     packages: &'a BTreeMap<String, Fields>,
     wanted: &[&str],
 ) -> Result<BTreeMap<&'a str, &'a Fields>, String> {
-    let (left_out, wanted): (Vec<&str>, Vec<&str>) =
-        wanted.iter().copied().partition(|name| name.starts_with('-'));
+    let (left_out, wanted): (Vec<&str>, Vec<&str>) = wanted
+        .iter()
+        .copied()
+        .partition(|name| name.starts_with('-'));
     let left_out: Vec<&str> = left_out.iter().map(|name| &name[1..]).collect();
     for name in &left_out {
         if !packages.contains_key(*name) {
