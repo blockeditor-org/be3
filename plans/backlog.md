@@ -186,19 +186,6 @@ Fixed items are removed as they land.
   draining. Whether it counted 1 (the edit lost) or 21 (ordered twice) was not recorded;
   `wait_for_count` now says what it last counted. Done: the cause found from that output and
   fixed at its source, with a test that shows it.
-- **A restarted app's editor that is never sent its snapshot.** When an app restarts,
-  be-host-runtime marks each content link undelivered (`instances.rs`, where it reopens), but
-  if the host attaches the editor again (`attaching`) it does not forward the app's `Resend`
-  (`!(resend && attaching)`), and the replica's `attach` returns early for an editor it has
-  already. Then nothing sends the snapshot, and what waits for the content waits for good. Done: a restarted app's editor is sent its snapshot in every
-  case, shown by a be-host-runtime test that restarts an app with an editor attached and checks
-  the content counts as delivered. Not found yet: `Instances::reopen` keeps each link's
-  `attached`, so a restarted app's `Resend` is forwarded and the replica sends the snapshot
-  (`a_restarted_app_is_sent_its_content_and_blocks_again`), and a link that goes calls
-  `detach`, which takes the editor off the replica too, so a later `attaching` meets a replica
-  without it, whose `attach` sends the snapshot. What leaves a link unattached while the
-  replica still holds its editor is the thing to find first.
-
 - **Edits typed after a demotion, once under load.**
   be-host-stack's `edits_typed_after_a_demotion_stay_discarded_once_the_block_is_editable_again`
   failed once in a whole-crate run (its `count_of` was not `Some(11)` after the flush, line 114)

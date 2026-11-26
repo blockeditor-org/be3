@@ -215,6 +215,15 @@ impl Forwarded {
         }
     }
 
+    /// Closes every editor it serves, before it is let go of (the root let go of its instance,
+    /// or it broke the protocol): each lets go of its blocks as `close` has it, and the app is
+    /// told nothing more.
+    pub fn close_all(&mut self) {
+        self.shell = None;
+        self.instances.set_shell(None);
+        self.instances.close_all();
+    }
+
     /// Tells the editor `instance` the size it is laid out at as a child placed with an
     /// intrinsic size (`editor-event.resized`), as be-host tells a child it lays out so, sent
     /// with the next `step` once it changed.

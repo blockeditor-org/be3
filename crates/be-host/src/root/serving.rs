@@ -233,12 +233,20 @@ pub(super) fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors
             Ok(frames) => root.relay(instance, frames),
             Err(why) => {
                 // Stopped toward the root too, which shows that it stopped.
-                served.remove(&instance);
+                if let Some(mut forwarded) = served.remove(&instance) {
+                    forwarded.close_all();
+                }
                 root.stop_instance(instance, &format!("it broke the app protocol: {why}"));
             }
         }
     }
-    served.retain(|instance, _| root.app_of(*instance).is_some());
+    served.retain(|instance, forwarded| {
+        let kept = root.app_of(*instance).is_some();
+        if !kept {
+            forwarded.close_all();
+        }
+        kept
+    });
     editors.opened.retain(|(instance, editor), opened| {
         let kept = served.contains_key(instance);
         if !kept {

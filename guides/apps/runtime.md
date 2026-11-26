@@ -396,6 +396,10 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
     for the editor, the host tells the editor (`host.show-children`, `host.tell-placer`,
     `host.dock`; guides/apps/children.md, Under a root).
 
+  An instance the root lets go of, or one that broke the protocol, the host stops serving
+  after closing its editors (`Forwarded::close_all`), which detach from their blocks'
+  replicas as a closed editor does.
+
   What else an app asks of a host the root refuses (`Wire::refuse_unserved`: block calls,
   host services, the network, the shell but `tell`), and it restarts nothing.
   Once an app runs it is told the fonts `Spawn::fonts` carries, those
@@ -827,7 +831,10 @@ failed with the panic); the host shows the error in its place with a restart.
 A restart (the Reload button, `restart_app`, or a new gpu) stops the app and
 starts its module afresh in the same `Runtime` (`Runtime::restart`): its
 instances and their views stay, and the new run is sent their content, blocks,
-keyboard focus and children's statuses again (`Instances::reopen`). The host
+keyboard focus and children's statuses again (`Instances::reopen`). Each content link stays
+attached to its replica across it, so the new run's `Resend` reaches the replica, which
+answers it with a snapshot; a link is unattached only once it detached, so the replica never
+holds an editor whose link would attach it again and send nothing. The host
 keeps what one run said and was told in a `Run` (be-sdk-app-host) per app, and
 `Run::restart` says what goes: the old run's session, queued calls, held
 answers, its layout and kept frames, presents and frames in flight, what its
