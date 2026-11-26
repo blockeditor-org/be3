@@ -1648,7 +1648,6 @@ impl ServerStore {
         changes: Vec<KeyChange>,
         retirements: Vec<be_block_protocol::Retirement>,
     ) -> Result<(), ServerError> {
-        let (_, held) = self.recovery_key(account).await?;
         let by = encode_wrapped_by(WrappedBy::Account(account));
         self.with_database(move |store, database| {
             refuse_agent(database, account)?;
@@ -1660,20 +1659,6 @@ impl ServerStore {
                 .iter()
                 .map(|key| ((key.organization, key.key), key))
                 .collect();
-            // What the account sealed for itself. What its contacts sealed to it the device
-            // reseals as far as its records of them in the account's block reach, which the
-            // server cannot read.
-            let needed: Vec<&SealedKey> =
-                held.iter().filter(|held| held.sender == account).collect();
-            if let Some(missing) = needed
-                .iter()
-                .find(|held| !resealed.contains_key(&(held.organization, held.key)))
-            {
-                return Err(refused(format!(
-                    "a new recovery key must seal every key the old one did, and {} is missing",
-                    missing.key
-                )));
-            }
             for change in &changes {
                 if !crate::contacts::is_contact(database, account, change.contact)? {
                     return Err(ServerError::Refused(
@@ -1682,7 +1667,39 @@ impl ServerStore {
                     ));
                 }
             }
+            // The rows sealed to the account are read in the transaction that changes them, so
+            // a row revoked since the device read them (an unshare, a pruned viewer, a removed
+            // member) stays gone.
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
+            let held: Vec<(Uuid, Uuid, Uuid)> = {
+                let mut statement = transaction.prepare(
+                    "SELECT organization_id, key_id, sender FROM wrapped_keys
+                     WHERE wrapped_by = ?1",
+                )?;
+                let rows = statement.query_map([&by], |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
+                })?;
+                let mut held = Vec::new();
+                for row in rows {
+                    let (organization, key, sender) = row?;
+                    held.push((parse_uuid(&organization)?, parse_uuid(&key)?, parse_uuid(&sender)?));
+                }
+                held
+            };
+            // What the account sealed for itself must all be sealed again. What its contacts
+            // sealed to it the device reseals as far as its records of them in the account's
+            // block reach, which the server cannot read.
+            if let Some((_, missing, _)) = held.iter().find(|(organization, key, sender)| {
+                *sender == account && !resealed.contains_key(&(*organization, *key))
+            }) {
+                return Err(refused(format!(
+                    "a new recovery key must seal every key the old one did, and {missing} is missing"
+                )));
+            }
             for change in changes {
                 crate::store::mailbox::leave(
                     &transaction,
@@ -1714,41 +1731,30 @@ impl ServerStore {
                     [account.to_string()],
                 )?;
             }
-            transaction.execute("DELETE FROM wrapped_keys WHERE wrapped_by = ?1", [&by])?;
-            for held in &held {
-                let Some(key) = resealed.get(&(held.organization, held.key)) else {
-                    // A contact's row the device did not seal again (it could not follow the
-                    // contact's key change) stays as it was, sealed to the retired key: once the
-                    // device follows the contact, it opens with the retired secret.
-                    transaction.execute(
-                        "INSERT INTO wrapped_keys (organization_id, key_id, wrapped_by, sender, sealed)
-                         VALUES (?1, ?2, ?3, ?4, ?5)",
-                        params![
-                            held.organization.to_string(),
-                            held.key.to_string(),
-                            by,
-                            held.sender.to_string(),
-                            held.sealed
-                        ],
-                    )?;
+            // Each row sealed again is updated in place; a contact's row the device did not seal
+            // again (it could not follow the contact's key change) stays as it was, sealed to
+            // the retired key, which opens it once the device follows the contact. A key sealed
+            // again that no row holds any more (revoked meanwhile) is not brought back.
+            for (organization, key_id, sender) in &held {
+                let Some(key) = resealed.get(&(*organization, *key_id)) else {
                     continue;
                 };
                 // A contact's key sealed again stays the contact's, as the device sealed it
                 // (`RecoverySecret::seal_as_from`), so its devices still check who sent it;
                 // anything else is the account's own.
-                let sender = match key.sender == held.sender {
-                    true => held.sender,
+                let sender = match key.sender == *sender {
+                    true => *sender,
                     false => account,
                 };
                 transaction.execute(
-                    "INSERT INTO wrapped_keys (organization_id, key_id, wrapped_by, sender, sealed)
-                     VALUES (?1, ?2, ?3, ?4, ?5)",
+                    "UPDATE wrapped_keys SET sealed = ?4, sender = ?5
+                     WHERE organization_id = ?1 AND key_id = ?2 AND wrapped_by = ?3",
                     params![
-                        key.organization.to_string(),
-                        key.key.to_string(),
+                        organization.to_string(),
+                        key_id.to_string(),
                         by,
-                        sender.to_string(),
-                        key.sealed
+                        key.sealed,
+                        sender.to_string()
                     ],
                 )?;
             }
