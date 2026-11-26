@@ -44,8 +44,12 @@ fn found(text: &str) -> usize {
 fn a_compaction_let_go_leaves_nothing_once_the_idle_host_collects() {
     let harness = Harness::start();
     harness.connect();
-    // Each batch leaves its segment unmerged, so there is something for a compaction to merge.
-    crate::with_shared_mut(|shared| shared.search.merge_bytes = Some(1));
+    // Each batch leaves its segment unmerged and no idle pass merges them, so there is
+    // something for the compaction below to merge. The collection runs all the same.
+    crate::with_shared_mut(|shared| {
+        shared.search.merge_bytes = Some(1);
+        shared.search.hold_idle = true;
+    });
     let workspace = Uuid::new_v4();
     create(
         workspace,
@@ -58,9 +62,11 @@ fn a_compaction_let_go_leaves_nothing_once_the_idle_host_collects() {
     wait_until("knew the workspace's type", |_| {
         is_known(WorkspaceContent::CONTENT_TYPE)
     });
-    let words = ["apples", "bananas", "cherries", "damsons"];
+    let words = [
+        "apples", "bananas", "cherries", "damsons", "elderberries", "figs", "grapes", "hazelnuts",
+    ];
     for word in words {
-        note(workspace, &format!("{word} and figs"));
+        note(workspace, &format!("{word} and kiwis"));
         assert_eq!(found(word), 1);
     }
     let index = crate::wait_until("named the workspace's search index", |shared| {
@@ -86,8 +92,10 @@ fn a_compaction_let_go_leaves_nothing_once_the_idle_host_collects() {
 
     // A compaction seals its merged parts into the vault, and is let go of before any commit
     // names them, as one whose head moved is.
-    let sealed = runtime.block_on(crate::search::compact_and_let_go(&peer, index));
     let vault = peer.commits().vault();
+    let held: std::collections::HashSet<_> =
+        vault.store().hashes().unwrap().into_iter().collect();
+    let sealed = runtime.block_on(crate::search::compact_and_let_go(&peer, index));
     let head = peer.local_head(index).expect("the index has a head here");
     let manifest = peer.commits().get(head).expect("the head is held").manifest;
     let named: std::collections::HashSet<_> = vault
@@ -97,11 +105,12 @@ fn a_compaction_let_go_leaves_nothing_once_the_idle_host_collects() {
         .collect();
     let unnamed: Vec<_> = sealed
         .iter()
-        .filter(|object| !named.contains(object))
+        .filter(|object| !named.contains(object) && !held.contains(object))
         .copied()
         .collect();
-    assert!(!unnamed.is_empty(), "the merge sealed parts the head does not name");
-    eprintln!("DEBUG unnamed {} noted {} collected {:?}", unnamed.len(), vault.unnamed_count(), crate::with_shared(|s| s.search.collected));
+    assert!(!unnamed.is_empty(), "the merge sealed parts nothing held names");
+    // What the store held already is named by a commit of the index's history, so it stays.
+    let shared: Vec<_> = sealed.iter().filter(|object| held.contains(object)).collect();
 
     // The host, idle, collects them; the head keeps every part.
     send(Command::Sync);
@@ -114,6 +123,9 @@ fn a_compaction_let_go_leaves_nothing_once_the_idle_host_collects() {
             !vault.store().has(*object).unwrap(),
             "{object}, which nothing names, was collected"
         );
+    }
+    for object in shared {
+        assert!(vault.store().has(*object).unwrap(), "{object}, held before, stays");
     }
     assert_eq!(vault.unnamed_count(), 0, "nothing is left noted");
     assert!(vault.holds_all(&manifest).unwrap(), "the head is whole");

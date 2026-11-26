@@ -1123,10 +1123,6 @@ fn compact_idle_indexes(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, ta
         && !held.arriving
         && !held.draining
         && held.search.busy_with(wants_index(&held)).is_none();
-    #[cfg(test)]
-    if peer.commits().vault().unnamed_count() > 0 {
-        eprintln!("DEBUG quiet {quiet}: waiting {} pending {} typing {} arriving {} draining {} busy {:?}", held.waiting, held.pending(), held.typing.len(), held.arriving, held.draining, held.search.busy_with(wants_index(&held)));
-    }
     if !quiet {
         return;
     }
@@ -2596,7 +2592,10 @@ pub(crate) async fn compact_and_let_go<S: ObjectStore>(
         .values()
         .filter_map(Written::part)
         .collect();
-    let objects = peer.part_objects(&saved).expect("the merged parts are held");
+    let mut objects = peer.part_objects(&saved).expect("the merged parts are held");
+    // Two parts can share a chunk.
+    objects.sort();
+    objects.dedup();
     // Pinned until `out` goes, so no collection has run on them yet.
     let store = peer.commits().vault().store();
     for object in &objects {
