@@ -1,16 +1,18 @@
 use super::*;
 
 use be_block_keys::{
-    Administrator, CarriedKey, Entry, Heads, LogKind, Party, Record, RecoveryPhrase, Step,
+    Administrator, CarriedKey, Entry, Heads, LogKind, Member, Party, Record, RecoveryPhrase, Step,
 };
 use be_block_protocol::{KeyKind, KeyRow, KeySet, WrappedBy, WrappedKey};
 use be_block_store::Keyring;
 
-/// An honest proof path of an organization's log keeps every administrator record whole
-/// (guides/blocks/keys.md, "Proof paths"), so one that reduces an entry that lowered anyone hides a
-/// demotion. A reader served such a path names no administrator by it: a key the demoted
-/// administrator seals it as one is not taken, though the same seal is taken by a path that
-/// shows them administering still, at the head before the demotion.
+/// An honest proof path of an organization's log keeps every administrator record whole, and
+/// every record about one who administered it (guides/blocks/keys.md, "Proof paths"): a path
+/// that reduces an administrator record is refused (`Reduced::administers`), and one that reduces
+/// an entry that lowered anyone may hide an administrator's removal. A reader served such a path
+/// names no administrator by it: a key the removed administrator seals it as one is not taken,
+/// though the same seal is taken by a path that shows them administering still, at the head
+/// before the removal.
 #[test]
 fn a_demotion_hidden_from_an_organization_path_names_no_administrator() {
     let creator = RecoveryPhrase::generate().secret();
@@ -32,36 +34,54 @@ fn a_demotion_hidden_from_an_organization_path_names_no_administrator() {
             steps,
             &|_| None,
         )
-        .unwrap()
     };
-    let make = |steps: &[Step], administrator| {
+    let next = |steps: &[Step], record| {
         check(steps)
+            .unwrap()
             .next(
                 &creator,
                 creator_id.into_bytes(),
                 organization.into_bytes(),
-                Record::Administrator(Administrator {
-                    account: deputy_id.into_bytes(),
-                    identity: deputy.identity(),
-                    administrator,
-                }),
+                record,
             )
             .unwrap()
     };
+    let administrator = |administrator| {
+        Record::Administrator(Administrator {
+            account: deputy_id.into_bytes(),
+            identity: deputy.identity(),
+            administrator,
+        })
+    };
     let mut steps: Vec<Step> = vec![root.clone().into()];
-    steps.push(make(&steps, true).into());
+    steps.push(next(&steps, administrator(true)).into());
     let promoted = steps.last().unwrap().hash();
-    let demotion = make(&steps, false);
+    let demotion = next(&steps, administrator(false));
     assert!(demotion.lowers);
-    let hidden = [steps.clone(), vec![Step::Reduced(demotion.reduced())]].concat();
-    let checked = check(&hidden);
+    assert!(
+        check(&[steps.clone(), vec![Step::Reduced(demotion.reduced())]].concat()).is_err(),
+        "a path that reduces a demotion is refused"
+    );
+    let removal = next(
+        &steps,
+        Record::Member(Member {
+            account: deputy_id.into_bytes(),
+            identity: None,
+            member: false,
+            agent: false,
+            invitation: None,
+        }),
+    );
+    assert!(removal.lowers);
+    let hidden = [steps.clone(), vec![Step::Reduced(removal.reduced())]].concat();
+    let checked = check(&hidden).unwrap();
     assert!(checked.hides_lowering);
     assert!(
         checked.administrators.is_empty()
             && checked
                 .level_as_of(deputy_id.into_bytes(), &promoted)
                 .is_none(),
-        "a path hiding a demotion names no administrator, as of no entry"
+        "a path hiding a removal names no administrator, as of no entry"
     );
 
     // The deputy seals the reader a data key, as it would the settings' to an administrator.
@@ -109,7 +129,7 @@ fn a_demotion_hidden_from_an_organization_path_names_no_administrator() {
         book
     };
 
-    let shown = book(&check(&steps));
+    let shown = book(&check(&steps).unwrap());
     let key = Uuid::new_v4();
     shown.absorb(seal(key));
     assert!(
@@ -122,6 +142,6 @@ fn a_demotion_hidden_from_an_organization_path_names_no_administrator() {
     fooled.absorb(seal(key));
     assert!(
         fooled.ring().get(key).is_none(),
-        "a seal from an administrator whose demotion the path hides is taken"
+        "a seal from an administrator whose removal the path hides is taken"
     );
 }
