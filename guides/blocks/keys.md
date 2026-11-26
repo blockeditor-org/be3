@@ -393,8 +393,9 @@ another log (`answer`) is checked once as of each head a record names
 (`CheckedAsOf`, kept by the device and the server across checks): a head's
 hash names every entry before it, so the log as of it checks the same
 whoever serves it later. A proof path is read and checked whole each time
-("Proof paths"). `Checked::positions` still keeps every entry's hash, since
-epochs name their heads by hash (plans/backlog.md, "Server protocol").
+("Proof paths"). `Checked::positions` and `levels` grow with the log, since
+epochs name their heads by hash and seals are judged by levels as of them; that
+is left unbounded (decisions/kept_access_log_state_grows_with_the_log.md).
 
 **Who is served what.** A sealer must see every entry up to the head, since
 an entry reduced to its hash could be the revocation of whom it seals to, or of
@@ -436,8 +437,15 @@ organization's log every administrator record and every record about anyone
 who ever administered it. A block above one the reader views, which it may not
 view itself, is served as a path proving too whoever signs below on authority
 from it, and whoever sealed the reader a key, so a grant from a manager above,
-or a seal from an editor above, checks for its reader.
-So a reader learns no other member's grant. Every entry says whether it
+or a seal from an editor above, checks for its reader. Any path of a block's
+log that records below rest their authority on (`access::inherited_signers`)
+keeps whole every entry that lowered anyone, and the accounts those name
+(`proof_path`'s `lowerings`), and `answer` takes no authority from a path that
+reduces one (`Checked::hides_lowering`), which could be the signer's own
+revocation (decisions/authority_rests_only_on_paths_that_hide_no_lowering.md).
+The price, accepted: a reader below learns every revocation and downgrade on
+such a block, and the level history of whom they lowered.
+Otherwise a reader learns no other member's grant. Every entry says whether it
 lowered anyone (`Entry::lowers`, covered by its hash outside the digest),
 which `check_log` refuses unless it is so and devices set by signing through
 `Checked::next`. `check_log` reads a path as a whole log (`Logged`) and marks

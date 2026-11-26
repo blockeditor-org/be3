@@ -43,6 +43,7 @@ fn a_share_link_grants_whoever_opens_it_until_it_is_revoked() {
         &[root.clone(), made.clone(), joined.clone()],
         opener_id,
         [],
+        false,
     );
     let partial = check_log(LogKind::Block, block, pinned, &path, &none).unwrap();
     assert_eq!(
@@ -187,6 +188,7 @@ fn a_share_link_grants_whoever_opens_it_until_it_is_revoked() {
         &[root.clone(), made.clone(), joined.clone(), revoked.clone()],
         viewer_id,
         [],
+        false,
     );
     let partial = check_log(LogKind::Block, block, pinned, &path, &none).unwrap();
     assert!(

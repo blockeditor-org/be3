@@ -374,7 +374,8 @@ pub(crate) fn log_of(
 /// the reader's own right, that of each account that sealed it a key of the block (or, in the
 /// organization's log, any key), which it judges a seal by, and that of each of `also` (for a
 /// block above the reader's, whoever signs below on authority from it), reducing every other
-/// entry. Served whole, a reader that holds the log up to `held` (its place and hash) is sent
+/// entry but, in a block's log that records below rest their authority on, those that lowered
+/// anyone, which `be_block_keys::answer` needs whole. Served whole, a reader that holds the log up to `held` (its place and hash) is sent
 /// only the entries after it, when the log holds that entry there; else the log from its root.
 pub(crate) fn served_log(
     connection: &Connection,
@@ -416,6 +417,7 @@ pub(crate) fn served_log(
                 .into_iter()
                 .chain(also)
                 .map(Uuid::into_bytes),
+            kind == LogKind::Block && !inherited_signers(connection, organization, log)?.is_empty(),
         ),
     };
     Ok(be_block_protocol::AccessLogPage {
