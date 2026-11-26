@@ -159,6 +159,7 @@ Landed on 2026-11-24:
 - `host-adapter-4g7g2c4b`: on the page, a host frame where the root is still drawing keeps the root's last accessibility tree; an app's module load is bounded at five minutes, for loads that never finish; the failing root counterparts (a picker's Canvas under the root makes no block, contacts on an unfocused page, grown) are recorded in the plan.
 - `root-picker-creation`: under the root, be-host does every block command the root's editors send (placing a picker's block, moving, deleting, undoing), not only leaving, so a canvas made from "New in My files…" lands there.
 - `backlog-21`: `view!` calls one children setter per shape, which asks the slot type for that shape's trait directly, so a children slot's error notes no longer name `ChildShape` or `TakesChildren`; compile-fail cases can pin those notes with `//~ NOTE`.
+- `backlog-17`: both cores drag a press only once it moves 4px (8px for touch), carried drags keep their window, a kept embed moved by a timer is told only where the frame leaves it. Behaviour change: a small vertical wobble on a number input or toast now starts a drag.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
