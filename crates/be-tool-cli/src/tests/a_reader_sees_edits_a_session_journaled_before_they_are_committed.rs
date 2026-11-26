@@ -30,7 +30,7 @@ async fn read() {
     let head = peer.remote_head(block).await.unwrap();
 
     let mut session =
-        Session::<MemoryStore, TextContent>::open(tracker.shared_peer(), block, sources()())
+        Session::<MemoryStore, TextContent>::open(tracker.shared_peer(), block, sources()(), Vec::new())
             .await
             .unwrap();
     let journaled = async {

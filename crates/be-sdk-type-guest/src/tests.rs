@@ -533,6 +533,7 @@ fn opening(
         server_head: None,
         sealed_head: None,
         epoch: 0,
+        shown: Default::default(),
     }
 }
 

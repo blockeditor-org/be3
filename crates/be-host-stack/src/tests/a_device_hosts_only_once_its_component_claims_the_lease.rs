@@ -83,7 +83,7 @@ fn a_device_hosts_only_once_its_component_claims_the_lease() {
     let Member { runtime, peer, .. } = other;
     let local = tokio::task::LocalSet::new();
     let session = local.block_on(&runtime, async move {
-        be_tool_cli::replica::Session::open(peer, block, super::types::sources().await)
+        be_tool_cli::replica::Session::open(peer, block, super::types::sources().await, Vec::new())
             .await
             .expect("the other editor opens the world")
     });

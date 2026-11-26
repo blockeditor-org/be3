@@ -309,7 +309,10 @@ others' by `ClientId` and kind, and on hearing of a new participant shows it
 what it is showing followed by `SessionMessage::Shown`, as a replica opening does to each
 participant already there, so a late joiner sees everyone at once and each side can tell a
 peer that shows nothing from one whose presence is late. `Shown` means everything shown as
-of then; later changes come as `Presence` broadcasts. Editors get
+of then; later changes come as `Presence` broadcasts. A replica opens showing what the
+device showed (`opening.shown`, which the host keeps from its editors' `ShowPresence`, and
+which `Replicas::show_on_opening` sets for a block not open yet), so its first `Shown`, and
+each one a reopened replica sends, already holds it. Editors get
 `ToEditor::Presence { peers, heard }`, `heard` listing the peers whose `Shown` arrived
 (`EditorMirror::heard`), and send `FromEditor::ShowPresence`; `editor.peers` and
 `editor.on_peer_message` send `Resend` once, so an editor that never reads its

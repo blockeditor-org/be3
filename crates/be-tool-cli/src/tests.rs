@@ -40,8 +40,12 @@ mod a_second_be_host_of_an_organization_is_refused;
 mod a_spreadsheet_escaped_cell_is_read_as_written;
 mod a_terminal_host_encodes_keys_for_the_mode_its_program_set;
 mod a_terminal_host_keeps_its_standing_in_its_status_file;
+mod a_terminal_host_leaves_the_lease_to_a_stuck_host_before_it_only_for_a_while;
 mod a_terminal_host_runs_only_on_the_sandbox_it_was_installed_for;
+mod a_terminal_host_shows_it_is_one_from_its_first_presence;
 mod a_terminal_host_stands_by_once_a_late_holders_presence_arrives;
+mod a_terminal_host_waits_on_each_member_before_it_not_heard_from;
+mod a_terminal_host_without_edit_access_holds_no_other_host_off;
 mod a_terminal_host_writes_its_shell_into_the_document_for_its_viewers;
 mod a_token_is_never_sent_unencrypted_to_another_machine;
 mod agent_credentials_are_read_as_one_json_bundle;
@@ -134,9 +138,10 @@ async fn agent(
     harness: &Harness,
     owner: &Tracker<MemoryStore>,
     bound_to: Option<Uuid>,
-) -> (Settings, Uuid, be_block_keys::RecoveryPublic) {
+) -> (Settings, Uuid, be_block_keys::PublicIdentity) {
     let phrase = be_block_keys::RecoveryPhrase::generate();
     let public = phrase.secret().public();
+    let identity = phrase.secret().identity();
     let peer = owner.peer();
     let organization = peer.organization();
     let account = Uuid::from_bytes(be_block_keys::agent_account(
@@ -207,7 +212,7 @@ async fn agent(
         _ => None,
     })
     .unwrap();
-    (settings, agent.account, public)
+    (settings, agent.account, identity)
 }
 
 async fn workspace(peer: &Peer<MemoryStore>, name: &str) -> Uuid {

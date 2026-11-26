@@ -10,7 +10,7 @@ interface replicas {
         account-id, block-id, block-place, change, client-id, commit-id, content-type-id, description, editor-id,
         endpoint, failure, journal, loaded, merged, merged-parts, organization-id, part-ref, plain-file,
         journal-entry, log-item, log-search, refused-entry, search-document, session-state,
-        session-tag, type-info,
+        session-tag, type-info, entries,
     };
 
     record opening {
@@ -87,6 +87,11 @@ interface replicas {
         /// an earlier opening made that reaches the host after it reopened is
         /// told apart and ignored.
         epoch: u64,
+        /// What the device shows in the block's session, by kind, as its
+        /// editors last showed it (`FromEditor::ShowPresence`): the replica opens
+        /// showing it, so what it tells each client already present, before
+        /// `Shown`, holds it, as does what it tells each that joins.
+        shown: entries,
     }
 
     /// A submission an earlier opening of a replica made: its counter under
