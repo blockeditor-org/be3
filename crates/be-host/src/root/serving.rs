@@ -153,9 +153,12 @@ pub(super) fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors
     // What editors asked the shell to show, which the session's editor the root embeds shows
     // as be-host's own shell does; with no shell open yet, nothing shows it.
     for (block, dialog) in std::mem::take(&mut core.root_dialogs) {
-        served
+        let shown = served
             .values_mut()
             .any(|forwarded| forwarded.show_dialog(block, dialog.clone()));
+        if !shown {
+            eprintln!("be-host: no shell the root embeds is open to show {dialog:?} for block {block}");
+        }
     }
     let asks: Vec<_> = std::mem::take(&mut editors.asks)
         .into_iter()
