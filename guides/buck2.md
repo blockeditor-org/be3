@@ -177,7 +177,9 @@ Its corpus is kept in `target/fuzz/<crate>/<name>`.
 
 **A system library**: a line in `buck/sysroot/BUCK`, then `./scripts/verify --lint`, which
 resolves it into `buck/sysroot/packages.bzl` (any run of verify does; the build it runs still
-uses the old list, so run it again before relying on the package).
+uses the old list, so run it again before relying on the package). Each line is resolved with
+everything it depends on; `-PACKAGE` in a set leaves that package out, and what only it needs, when a
+library names a dependency the set never loads (the browser's leaves out Mesa, behind libgbm).
 A `-sys` crate's pkg-config is answered from the sysroot by the `_PKG_CONFIG` fixup.
 
 ## Tests
@@ -247,7 +249,7 @@ test the accepted paintings (`hidden`), which it compares in-process to pass or 
   test's `env` that names it reaches the test through the launcher's `--library-path`.
 - **Browser tests** (`web_drive_test` and `page_test` in buck/program/drive.bzl) run on a worker like any
   test, with Node, Playwright and Playwright's headless Chromium as pinned downloads (buck/tools) and the
-  libraries Chromium loads that the workers' image lacks from `buck/sysroot:amd64-browser`
+  libraries Chromium and Node load from `buck/sysroot:amd64-browser`
   (guides/testing_a_gui.md, 7). Nothing is installed on the machine that builds.
 - **Compile-fail tests** live in `compile_fail/`, outside `crates/` so `build //crates/...` does not
   fail on them: `compile_fail(name, deps)` passes when every line marked
