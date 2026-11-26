@@ -146,6 +146,7 @@ Landed on 2026-11-24:
 - `backlog-10-3`: be-host focuses a host panel its placer asks the keyboard for, as the root does.
 - `host-adapter-4g7g2-palette`: under the root, apps draw in the host's preferences, the session's editor takes the keys it intercepts over its children, and be-host's palette host tests run under the root.
 - `backlog-13-3`: organization policies select their own values; Android push notifications carry their own icon; a new phrase keeps a contact's row and reseals in one transaction; a local account offers no Share, Shared with me, contacts or share links, and the web asks to keep its storage; drive's present-late steps a frame between layout and present.
+- `gpu-wasi-webgpu-6`: async pipelines are made natively off the app's thread, on at most two contained worker threads per gpu, with error, out-of-memory and internal scopes; a waiting poll blocks on whichever pipeline is made next.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
