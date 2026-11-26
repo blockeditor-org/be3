@@ -90,8 +90,8 @@ fn convert(
     quote! { <_ as #conversion>::#method(#value) }
 }
 
-/// A prop's one setter. `view!` calls it by the prop's name, and the children slot's also as
-/// `__children`, with the children wrapped by the shape they are written in.
+/// A prop's one setter. `view!` calls it by the prop's name, and the children slot's also by
+/// one of `CHILD_SHAPES`' setters, by the shape the children are written in.
 fn prop_setter(prop: &Prop, method: Ident) -> Setter {
     let ty = &prop.ty;
     if prop.bare {
@@ -113,26 +113,45 @@ fn prop_setter(prop: &Prop, method: Ident) -> Setter {
     }
 }
 
+/// The shapes children are written in between a tag's tags: the setter `view!` calls for each,
+/// the wrapper it hands that setter (`ChildBlock` for tags, `ChildClosure` for `|value| { .. }`,
+/// `ChildUnitClosure` for `|| { .. }`, `ChildWith` for `|value| <Tag />`), and the slot type's
+/// trait for it and that trait's method. The setter asks the slot type (`prop_target`) for that
+/// trait itself, so a failure's notes name only the slot type and its trait.
+const CHILD_SHAPES: [(&str, &str, &str, &str); 4] = [
+    ("__children_block", "ChildBlock", "TakesBlock", "take_block"),
+    ("__children_closure", "ChildClosure", "TakesClosure", "take_closure"),
+    ("__children_unit_closure", "ChildUnitClosure", "TakesUnitClosure", "take_unit_closure"),
+    ("__children_with", "ChildWith", "TakesWith", "take_with"),
+];
+
 fn prop_setters(prop: &Prop, children_slot: bool) -> Vec<Setter> {
     let mut setters = vec![prop_setter(prop, prop.ident.clone())];
     if children_slot {
-        let mut children = prop_setter(prop, format_ident!("__children"));
-        if !prop.bare {
-            let target = prop_target(prop);
-            let ty = &prop.ty;
-            let kind = slot_kind(prop);
-            let takes = quote! { ::__beui_tree::reactive::macro_support::TakesChildren<#ty, __Passed, #kind> };
-            children.generics = vec![quote! { __Make }, quote! { __Passed }];
-            children.args = quote! { make: __Make };
-            children.where_clause = vec![
-                quote! { __Make: ::core::ops::FnOnce(::__beui_tree::reactive::macro_support::Slot<#target>) -> __Passed },
-                quote! { __Make: #takes },
-            ];
-            children.value = quote! {
-                <__Make as #takes>::take_children(make(::__beui_tree::reactive::macro_support::Slot::new()))
-            };
+        for (method, shape, takes, take) in CHILD_SHAPES {
+            let mut children = prop_setter(prop, format_ident!("{}", method));
+            if !prop.bare {
+                let target = prop_target(prop);
+                let shape = format_ident!("{}", shape);
+                let takes = format_ident!("{}", takes);
+                let take = format_ident!("{}", take);
+                let support = quote! { ::__beui_tree::reactive::macro_support };
+                children.generics = vec![quote! { __Make }, quote! { __F }];
+                children.args = quote! { make: __Make };
+                children.where_clause = vec![
+                    quote! { __Make: ::core::ops::FnOnce(#support::Slot<#target>) -> #support::#shape<__F> },
+                    quote! { #target: #support::#takes<__F> },
+                ];
+                let taken = quote! {
+                    <#target as #support::#takes<__F>>::#take(make(#support::Slot::new()).0)
+                };
+                children.value = match prop.exact || prop.within {
+                    true => quote! { #taken.0 },
+                    false => taken,
+                };
+            }
+            setters.push(children);
         }
-        setters.push(children);
     }
     setters
 }
@@ -1017,24 +1036,32 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         }
     });
 
+    let children_setters: Vec<Ident> = CHILD_SHAPES
+        .iter()
+        .map(|(method, ..)| format_ident!("{}", method))
+        .collect();
+    let children_setters = &children_setters;
+
     // Children written between the tags of a component with no slot for them.
     let no_children = children_slot.is_none().then(|| {
         quote! {
             impl #all_generics #builder_all {
-                #[doc(hidden)]
-                pub fn __children<__Make>(self, _make: __Make) -> Self
-                where
-                    __Make: ::__beui_tree::reactive::macro_support::TakesNoChildren,
-                {
-                    self
-                }
+                #(
+                    #[doc(hidden)]
+                    pub fn #children_setters<__Make>(self, _make: __Make) -> Self
+                    where
+                        __Make: ::__beui_tree::reactive::macro_support::TakesNoChildren,
+                    {
+                        self
+                    }
+                )*
             }
         }
     });
 
     // Children written between the tags of a tag that set the children slot as a prop too:
-    // `__children` on the state where the slot is set asks for a trait nothing implements, so
-    // it is reported with this message rather than as a missing method.
+    // the children setters on the state where the slot is set ask for a trait nothing implements, so
+    // they are reported with this message rather than as a missing method.
     let children_twice = children_slot.map(|slot| {
         let prop = props[slot].ident.to_string();
         let trait_ident = format_ident!("__{}_children_set_twice", base);
@@ -1076,13 +1103,15 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
             #vis trait #trait_ident {}
 
             impl #impl_generics #builder_ident #args {
-                #[doc(hidden)]
-                pub fn __children<__Make>(self, _make: __Make) -> Self
-                where
-                    __Make: #trait_ident,
-                {
-                    self
-                }
+                #(
+                    #[doc(hidden)]
+                    pub fn #children_setters<__Make>(self, _make: __Make) -> Self
+                    where
+                        __Make: #trait_ident,
+                    {
+                        self
+                    }
+                )*
             }
         }
     });
@@ -1631,8 +1660,8 @@ fn expand_view_node(node: &ViewNode) -> proc_macro2::TokenStream {
     apply_modifiers(expand_view_body(node, builder, build, tag), &node.modifiers)
 }
 
-/// A tag's children reach its children slot's one setter, `__children`, wrapped by the shape
-/// they are written in; the slot's type says which shapes it takes.
+/// A tag's children reach the children slot's setter for the shape they are written in
+/// (`CHILD_SHAPES`), wrapped by that shape; the slot's type says which shapes it takes.
 fn expand_view_body(
     node: &ViewNode,
     builder: proc_macro2::TokenStream,
@@ -1642,7 +1671,7 @@ fn expand_view_body(
     let Some(children) = &node.children else {
         return quote_spanned! { tag => #builder .#build() };
     };
-    let (span, wrapped) = match &node.head {
+    let (span, setter, wrapped) = match &node.head {
         Some(head) => {
             let span = head.span;
             let params = match &head.pattern {
@@ -1652,16 +1681,19 @@ fn expand_view_body(
             match (&head.block, &head.pattern) {
                 (Some(block), Some(_)) => (
                     span,
+                    "__children_closure",
                     quote_spanned! { span => __slot.closure(move #params #block) },
                 ),
                 (Some(block), None) => (
                     span,
+                    "__children_unit_closure",
                     quote_spanned! { span => ::__beui_tree::reactive::macro_support::ChildUnitClosure(move #params #block) },
                 ),
                 (None, Some(_)) => {
                     let items = expand_child_block(children);
                     (
                         span,
+                        "__children_with",
                         quote_spanned! { span => __slot.with(move #params #items) },
                     )
                 }
@@ -1669,6 +1701,7 @@ fn expand_view_body(
                     let items = expand_child_block(children);
                     (
                         tag,
+                        "__children_block",
                         quote_spanned! { tag => ::__beui_tree::reactive::macro_support::ChildBlock(move || #items) },
                     )
                 }
@@ -1678,11 +1711,12 @@ fn expand_view_body(
             let items = expand_child_block(children);
             (
                 tag,
+                "__children_block",
                 quote_spanned! { tag => ::__beui_tree::reactive::macro_support::ChildBlock(move || #items) },
             )
         }
     };
-    let set = format_ident!("__children", span = span);
+    let set = Ident::new(setter, span);
     quote_spanned! { span =>
         #builder .#set(|__slot| {
             #[allow(unused_imports)]

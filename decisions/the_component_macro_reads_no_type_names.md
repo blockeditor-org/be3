@@ -3,9 +3,9 @@
 `#[component]` and `view!` (crates/beui-macros) do not recognise prop types by name. Every
 setter is generic over what it is passed and asks for `IntoPropValue<P, M>` of the prop's
 declared type `P`; each prop type says in `beui-tree` (`prop_value.rs`) what it takes, with one
-impl keyed on the type. Children written between a tag's tags go to one hidden `__children`
-setter, wrapped by the syntax they are written in, and the slot type says which shapes it takes
-(`TakesChildren`, `TakesBlock`, `TakesClosure`, `TakesUnitClosure`, `TakesWith`). A prop is
+impl keyed on the type. Children written between a tag's tags go to a hidden setter for the
+syntax they are written in, wrapped by it, and the slot type says which shapes it takes
+(`TakesBlock`, `TakesClosure`, `TakesUnitClosure`, `TakesWith`), asked of it by that setter. A prop is
 required unless its type has an `AbsentProp` value or it has a `#[prop(default = ..)]`;
 `#[prop(required)]` is the one manual tag.
 

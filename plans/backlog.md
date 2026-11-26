@@ -448,24 +448,6 @@ Fixed items are removed as they land.
   focus is not already inside it) and be-app-text's `caret_when_given_the_keyboard`, which
   focuses the field only for an empty text.
 
-## 21. Component macro
-
-- **Internal trait names in a prop's error notes.** A value a children slot or
-  an exact prop does not take is reported with the right headline and label,
-  but rustc's "required for ..." notes under it name each blanket impl the
-  obligation passed through: `TakesOptionalBlock`, `TakesBlock`, `ChildShape`
-  and `TakesChildren` (`a_frame_takes_one_child`), `Exact`, `TakesWith`,
-  `ChildShape` and `TakesChildren` (`a_loading_hands_its_content_no_value`
-  in compile_fail/beui). rustc prints one such note per impl and has no stable
-  way to hide them while keeping the leaf trait's `on_unimplemented` headline:
-  `#[diagnostic::do_not_recommend]` on an impl drops the impl from the chain,
-  so the error is reported against the outer trait and its message instead.
-  Done: those notes name only the declared prop type and the slot's own trait,
-  or are suppressed, shown by the compile_fail pins' full text (the checker,
-  be-tool-buck's `compile-fail`, matches only part of the headline now). Left
-  until rustc can do it, or the slot's bound is restructured so the leaf trait
-  is asked directly by the builder.
-
 ## 22. Headless runtime
 
 - **be-host-runtime without its gpu and presenter.** `be` links

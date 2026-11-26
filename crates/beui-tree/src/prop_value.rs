@@ -13,11 +13,12 @@
 //! A prop whose type comes from what is passed asks for `IntoExactProp` instead, which takes
 //! only what decides that type (`ExactTakes`).
 //!
-//! Children written between a tag's tags reach the slot's hidden `__children` setter wrapped
-//! by `view!`, by the shape they are written in: `ChildBlock` (tags), `ChildClosure`
-//! (`|value| { .. }`), `ChildUnitClosure` (`|| { .. }`) and `ChildWith` (`|value| <Tag />`). It
-//! asks the slot type for `TakesChildren`, and so for the shapes it implements `TakesBlock`,
-//! `TakesClosure`, `TakesUnitClosure` or `TakesWith` for.
+//! Children written between a tag's tags reach one of the slot's hidden children setters,
+//! one per shape they are written in, wrapped by `view!` in that shape: `ChildBlock` (tags),
+//! `ChildClosure` (`|value| { .. }`), `ChildUnitClosure` (`|| { .. }`) and `ChildWith`
+//! (`|value| <Tag />`). Each setter asks the slot type itself for the shape's trait,
+//! `TakesBlock`, `TakesClosure`, `TakesUnitClosure` or `TakesWith`, so a failure's notes name
+//! only the slot type and that trait.
 
 use beui_reactive::{Memo, ReadSignal, Reader, Signal, Trackable, Trigger, create_signal};
 
@@ -539,8 +540,7 @@ impl Takes<Trigger, ByInto> for Trackable {
 /// so every message names it; `K` is `Exact<()>`, or `ExactWithin<()>` for an `Option<X>`
 /// whose `X`'s last type argument is the parameter (`Option<RenderFn<H, C>>`), which takes
 /// what an exact `X` takes as `Some`. Children written between the tags reach
-/// `TakesChildren` instead, which hands them to the slot traits of `Exact<P>` or
-/// `ExactWithin<P>`.
+/// the slot traits of `Exact<P>` or `ExactWithin<P>` instead.
 #[diagnostic::on_unimplemented(
     message = "a `{Self}` cannot be passed as a `{P}` prop",
     label = "this is a `{Self}`"
@@ -713,7 +713,8 @@ pub struct ChildUnitClosure<F>(pub F);
 /// `|value| <Tag />`: `move |value| <what the tags build>`.
 pub struct ChildWith<F>(pub F);
 
-/// The children slot of type `P`, as `view!` hands it to the closure it passes `__children`.
+/// The children slot of type `P`, as `view!` hands it to the closure it passes a children
+/// setter.
 /// A closure child is made through a method on it, `closure` or `with`, and which trait's
 /// method that is follows from `P`: `FnSlot` for a slot that calls its render again
 /// (`RenderFn`), `FnOnceSlot` for one that calls it once (`Render`). Its bound is an `Fn`
@@ -852,67 +853,6 @@ pub trait TakesUnitClosure<F> {
 pub trait TakesWith<F> {
     fn take_with(closure: F) -> Self;
 }
-
-/// What the children setter asks of the closure `view!` hands it (`Self`), which makes the
-/// children `S` written between a tag's tags, wrapped by their shape, for the slot type `P`:
-/// `P`'s `TakesBlock`, `TakesClosure`, `TakesUnitClosure` or `TakesWith`, through
-/// `ChildShape`, so their diagnostics are the ones shown. `K` is `()`, or for a slot whose type
-/// comes from what is passed `Exact<()>` or `ExactWithin<()>` (`IntoExactProp`), whose slot
-/// traits are those of `Exact<P>` or `ExactWithin<P>`. Its `Self` is neither the shape nor
-/// `P`: rustc reports a failure with the first trait's message when the trait that failed
-/// under it has the same `Self`, and names a concrete `Self`'s impls in the message. Its one
-/// impl keeps the shape from being inferred from `P` before the children are built.
-#[diagnostic::on_unimplemented(
-    message = "these children cannot fill this component's children slot",
-    label = "these children"
-)]
-pub trait TakesChildren<P, S, K> {
-    fn take_children(children: S) -> P;
-}
-
-impl<M, P, S: ChildShape<P, K>, K> TakesChildren<P, S, K> for M {
-    fn take_children(children: S) -> P {
-        children.into_slot()
-    }
-}
-
-/// How one shape of children fills a slot of type `P`, through the slot's own trait for it.
-pub trait ChildShape<P, K> {
-    fn into_slot(self) -> P;
-}
-
-macro_rules! slot_shape {
-    ($shape:ident, $takes:ident, $take:ident) => {
-        impl<P: $takes<F>, F> ChildShape<P, ()> for $shape<F> {
-            fn into_slot(self) -> P {
-                P::$take(self.0)
-            }
-        }
-
-        impl<P, F> ChildShape<P, Exact<()>> for $shape<F>
-        where
-            Exact<P>: $takes<F>,
-        {
-            fn into_slot(self) -> P {
-                <Exact<P> as $takes<F>>::$take(self.0).0
-            }
-        }
-
-        impl<P, F> ChildShape<P, ExactWithin<()>> for $shape<F>
-        where
-            ExactWithin<P>: $takes<F>,
-        {
-            fn into_slot(self) -> P {
-                <ExactWithin<P> as $takes<F>>::$take(self.0).0
-            }
-        }
-    };
-}
-
-slot_shape!(ChildBlock, TakesBlock, take_block);
-slot_shape!(ChildClosure, TakesClosure, take_closure);
-slot_shape!(ChildUnitClosure, TakesUnitClosure, take_unit_closure);
-slot_shape!(ChildWith, TakesWith, take_with);
 
 impl<C: SlotChild, F: FnOnce() -> B, B: IntoSegments<C>> TakesBlock<F> for Children<C> {
     fn take_block(block: F) -> Self {

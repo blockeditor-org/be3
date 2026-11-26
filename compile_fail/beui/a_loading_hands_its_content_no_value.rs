@@ -5,4 +5,5 @@ use beui::styled::*;
 #[component]
 fn Case() -> NodeId {
     view! { <List spacing=Space::None><Loading fallback={|_: Pending| view! { <Spacer /> }}>|value| <Spacer /></Loading></List> } //~ ERROR this component hands nothing to its children, so there is no value to name
+    //~ NOTE required for `Exact<Build<_>>` to implement `TakesWith<
 }
