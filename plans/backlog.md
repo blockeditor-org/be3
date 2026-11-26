@@ -63,7 +63,6 @@ Fixed items are removed as they land.
   counts exactly what was made through it, or the walk removed with a test that
   shows every seal on the journal's base trims it.
 
-
 ## 12. Large folders
 
 - **A listing read again is applied whole in memory.** A listing now writes only the
