@@ -82,13 +82,18 @@ mod an_offline_device_refuses_to_move_a_block_into_a_folder_it_never_opened;
 mod an_offline_device_says_a_block_it_never_opened_is_not_on_it_yet;
 mod an_offline_device_that_never_opened_my_files_is_told_it_cannot_add_to_it;
 mod an_outsider_opens_a_share_link_as_a_guest;
+mod be_root_in_place_of_the_hosts_ui_asks_before_connecting_two_accounts_by_a_contact_link;
+mod be_root_in_place_of_the_hosts_ui_asks_before_leaving_a_workspace_someone_shared;
+mod be_root_in_place_of_the_hosts_ui_asks_before_opening_a_block_someone_shared_by_a_link;
 mod be_root_in_place_of_the_hosts_ui_creates_an_agent_in_a_personal_organization;
 mod be_root_in_place_of_the_hosts_ui_draws_a_host_panel_the_workspace_places;
 mod be_root_in_place_of_the_hosts_ui_floats_a_window_the_desktop_opens;
 mod be_root_in_place_of_the_hosts_ui_hands_a_canvas_frame_to_the_editor_on_it;
 mod be_root_in_place_of_the_hosts_ui_hands_a_childs_keys_to_it;
 mod be_root_in_place_of_the_hosts_ui_hands_a_programs_window_its_input;
+mod be_root_in_place_of_the_hosts_ui_keeps_the_key_it_saw_of_a_contact_the_server_rolls_back;
 mod be_root_in_place_of_the_hosts_ui_lands_a_block_dragged_from_the_files_on_a_canvas;
+mod be_root_in_place_of_the_hosts_ui_lets_a_player_dig_through_the_editor_that_hosts_the_hunt;
 mod be_root_in_place_of_the_hosts_ui_lists_a_programs_window_on_the_desktop;
 mod be_root_in_place_of_the_hosts_ui_locks_the_screen_on_super_l;
 mod be_root_in_place_of_the_hosts_ui_lists_a_text_on_a_canvas_in_its_palette;
@@ -98,6 +103,7 @@ mod be_root_in_place_of_the_hosts_ui_moves_the_keyboard_between_views_with_f6;
 mod be_root_in_place_of_the_hosts_ui_names_what_it_shows_to_drive;
 mod be_root_in_place_of_the_hosts_ui_opens_a_block_its_files_open;
 mod be_root_in_place_of_the_hosts_ui_opens_a_picker_as_a_sheet_on_a_phone;
+mod be_root_in_place_of_the_hosts_ui_opens_a_share_link_for_an_outsider_as_a_guest;
 mod be_root_in_place_of_the_hosts_ui_opens_its_palette_from_a_frame_menu;
 mod be_root_in_place_of_the_hosts_ui_says_why_a_web_browser_tab_shows_no_page;
 mod be_root_in_place_of_the_hosts_ui_shows_a_block_placed_twice_with_an_editor_in_each;
@@ -315,3 +321,36 @@ fn create_organization(host: &mut HostTest, name: &str) {
     host.wait("#file-tree.host-menu");
 }
 
+/// Makes a contact link from the host menu's Contacts, and closes them: the link they showed.
+fn make_contact_link(host: &mut HostTest) -> String {
+    host.click("#file-tree.host-menu");
+    host.click("#host.menu.contacts");
+    host.click("#host.contacts.new-link");
+    host.wait("#host.contacts.link");
+    let link = host
+        .tree()
+        .lines()
+        .find_map(|line| {
+            let (_, value) = line.split_once("value=\"")?;
+            let value = value.split('"').next()?;
+            value.contains("#contact/").then(|| value.to_owned())
+        })
+        .expect("the dialog shows the link it made");
+    host.key("Escape");
+    host.pause(500);
+    host.gone("Dialog \"Contacts\"");
+    link
+}
+
+/// Opens `link`, made on `maker`, from the host menu's Contacts, up to the question of whether
+/// to connect.
+fn open_contact_link(host: &mut HostTest, maker: &HostTest, link: &str) {
+    // Made on another device, the link names the server as that device reaches it.
+    let link = link.replacen(&maker.server_url(), &host.server_url(), 1);
+    host.click("#file-tree.host-menu");
+    host.click("#host.menu.contacts");
+    host.click("#host.contacts.paste");
+    host.type_text(&link);
+    host.click("#host.contacts.open");
+    host.wait("#host.contacts.offer");
+}

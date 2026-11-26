@@ -656,6 +656,7 @@ pub(super) fn LeaveDialog(core: Signal<CoreView>, done: Callback<Closed>) -> Nod
             <DialogBody
                 kind=DialogKind::Alert
                 title={title}
+                id="host.leave"
                 actions={vec![
                     DialogAction::destructive("Leave", leave).busy(busy),
                     DialogAction::cancel("Stay"),
@@ -663,38 +664,28 @@ pub(super) fn LeaveDialog(core: Signal<CoreView>, done: Callback<Closed>) -> Nod
                 on_dismiss={move || done.call(Closed::Dismissed)}
             >
                 <Text style=TextStyle::PARAGRAPH>{question}</Text>
-                <be_root_accounts_ui::ErrorText text={refused} />
+                <Show value={refused}>|refused: ReadSignal<String>|
+                    <Text style=TextStyle::CAPTION @test_id="host.leave.refused">{refused}</Text>
+                </Show>
             </DialogBody>
         </Frame>
-    }
-}
-
-/// A line saying how something went, while there is one: unlike an error, in the text's own
-/// colour.
-#[component]
-pub(super) fn Note(text: Memo<Option<String>>) -> NodeId {
-    view! {
-        <List spacing=Space::None>
-            <Show value={text}>|text: ReadSignal<String>|
-                <Text style=TextStyle::PARAGRAPH>{text}</Text>
-            </Show>
-        </List>
     }
 }
 
 /// Who a card names, as be-host words it: their name and email, or what they gave.
 pub(super) fn card_named(card: &ContactCard) -> String {
     match (card.name.trim().is_empty(), card.email.is_empty()) {
-        (true, _) => card.email.clone(),
-        (false, true) => card.name.clone(),
+        (_, true) => card.name.clone(),
+        (true, false) => format!("{} ({})", card.email, card.email),
         (false, false) => format!("{} ({})", card.name, card.email),
     }
 }
 
-/// The person's contacts: each with Remove, which asks first in the list's place; a contact
-/// link to make, which comes back once as `make-secret`'s answer and shows with Copy and Done;
-/// and a pasted contact link to open, handed over as a secret and cleared, then who it is from,
-/// to connect with or not. While a contact link is being made it stays open, as the agents do.
+/// The person's contacts, as be-host's own dialog shows them: each with Remove, which asks
+/// first over the list; a contact link to make, which comes back once as `make-secret`'s
+/// answer and shows in the list, to copy; and a pasted contact link to open, handed over as a
+/// secret and cleared, then who it is from, asked over the list, to connect with or not. While a
+/// contact link is being made it stays open, as the agents do.
 #[component]
 pub(super) fn ContactsDialog(
     core: Signal<CoreView>,
@@ -723,47 +714,24 @@ pub(super) fn ContactsDialog(
                 .map(|card| format!("You and {} are now contacts.", card_named(card)))
         })
     });
-    let showing =
-        create_memo(move || link.with(|link| link.as_ref().and_then(Held::link).is_some()));
     let removing = create_signal(None::<[u8; 16]>);
     let asked = create_memo(move || {
         let account = removing.get()?;
         contacts.with(|contacts| contacts.iter().find(|it| it.account == account).cloned())
     });
     let asks = create_memo(move || asked.with(Option::is_some));
-    let listing = create_memo(move || !showing.get() && !asks.get());
     let question = create_memo(move || {
         asked.with(|asked| {
-            let name = asked
-                .as_ref()
-                .map(|contact| {
-                    card_named(&ContactCard {
-                        name: contact.name.clone(),
-                        email: contact.email.clone(),
-                    })
-                })
-                .unwrap_or_default();
+            let name = asked.as_ref().map(contact_named).unwrap_or_default();
             format!("Remove {name}? Whatever you and they have shared with each other is unshared.")
         })
     });
-    let shown = create_memo(move || {
-        link.with(|link| {
-            link.as_ref()
-                .and_then(Held::link)
-                .unwrap_or_default()
-                .to_owned()
-        })
+    // The link it made, while it shows: the one copy it keeps beside the link itself.
+    let made = create_memo(move || {
+        link.with(|link| link.as_ref().and_then(Held::link).map(str::to_owned))
     });
-    let copy = move || {
-        let text = shown.get_untracked();
-        if !text.is_empty() {
-            be_wasm_ops::guest::spawn(async move {
-                let item = be_lib_ui_types::ClipItem::text(text);
-                let _ = host::copy(vec![be_wasm_ops::encode(&item)]).await;
-            });
-        }
-    };
     let pasted = create_signal(String::new());
+    let cannot_open = create_memo(move || busy.get() || pasted.with(|it| it.trim().is_empty()));
     let open_link = move || {
         // The link is a bearer secret: shown as typed, it leaves the field as it is handed over.
         let typed = pasted.get_untracked();
@@ -794,44 +762,21 @@ pub(super) fn ContactsDialog(
     view! {
         <Frame width=Length::FILL>
             <List spacing=Space::None>
-                <Show value={listing}>
                     <DialogBody
                         title=CONTACTS_TITLE
+                        id="host.contacts"
                         actions={vec![
-                            DialogAction::cancel("Close").disabled(move || pending.get()),
                             DialogAction::primary("New contact link", move || ask.call(SecretCommand::ContactLink))
                                 .busy(busy)
-                                .disabled(move || pending.get()),
+                                .disabled(move || pending.get())
+                                .named("new-link"),
                         ]}
                         on_dismiss={move || if !pending.get_untracked() { done.call(Closed::Dismissed) }}
                     >
+                        <List spacing=Space::Md>
                         <Text style=TextStyle::CAPTION>
                             "You can share only with your contacts. Someone becomes one when you send them a contact link yourself, through an app you trust, and they open it, or when they send you theirs."
                         </Text>
-                        <be_root_accounts_ui::ErrorText text={error} />
-                        <Note text={connected} />
-                        <Show value={offered}>
-                            <List
-                                direction=Direction::Horizontal
-                                align=Align::Center
-                                spacing=Space::Sm
-                            >
-                                <ListItem grow=1.0>
-                                    <Text>{offer}</Text>
-                                </ListItem>
-                                <Button
-                                    label="Cancel"
-                                    variant=ButtonVariant::Secondary
-                                    on_click={|| ask_core(CoreCommand::ForgetContactLink)}
-                                />
-                                <Button
-                                    label="Connect"
-                                    variant=ButtonVariant::Primary
-                                    disabled={busy}
-                                    on_click={|| ask_core(CoreCommand::AcceptContact)}
-                                />
-                            </List>
-                        </Show>
                         <ForEach
                             value={contacts}
                             key={|contact: &ContactRow| contact.account}
@@ -840,13 +785,13 @@ pub(super) fn ContactsDialog(
                             }}
                         >|contact: ReadSignal<ContactRow>| {
                             let account = contact.with_untracked(|contact| contact.account);
-                            let name = create_memo(move || contact.with(|it| card_named(&ContactCard { name: it.name.clone(), email: it.email.clone() })));
+                            let name = create_memo(move || contact.with(|it| it.name.clone()));
                             let detail = create_memo(move || contact.with(contact_detail));
                             view! {
                                 <List
                                     direction=Direction::Horizontal
                                     align=Align::Center
-                                    spacing=Space::Sm
+                                    spacing=Space::Md
                                 >
                                     <ListItem grow=1.0>
                                         <List spacing=Space::Xs2>
@@ -863,78 +808,105 @@ pub(super) fn ContactsDialog(
                                 </List>
                             }
                         }</ForEach>
+                        <beui::styled::Dialog
+                            open={asks}
+                            kind=DialogKind::Alert
+                            title=REMOVE_CONTACT_TITLE
+                            id="host.contacts.remove"
+                            actions={vec![
+                                DialogAction::destructive("Remove", move || {
+                                    if let Some(contact) = asked.get_untracked() {
+                                        ask_core(CoreCommand::RemoveContact(contact.account));
+                                    }
+                                    removing.set(None);
+                                }),
+                                DialogAction::cancel("Keep"),
+                            ]}
+                            on_dismiss={move || removing.set(None)}
+                        >
+                            <Text style=TextStyle::PARAGRAPH>{question}</Text>
+                        </beui::styled::Dialog>
+                        <Show value={made}>|made: ReadSignal<String>|
+                            <List spacing=Space::Sm>
+                                <Text style=TextStyle::PARAGRAPH @test_id={"host.contacts.link-help"}>
+                                    "Send this link yourself, through an app you trust, to the one person you want to connect with. It works once, and it is shown only once."
+                                </Text>
+                                <TextInput
+                                    value={Binding::new(made, Callback::empty())}
+                                    label="Contact link"
+                                    copyable=true
+                                    @test_id={"host.contacts.link"}
+                                />
+                            </List>
+                        </Show>
                         <Text style=TextStyle::CAPTION>"Open a contact link someone sent you"</Text>
-                        <List direction=Direction::Horizontal align=Align::End spacing=Space::Md>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                             <ListItem grow=1.0>
                                 <TextInput
                                     value={pasted}
                                     label="Contact link"
+                                    @test_id={"host.contacts.paste"}
                                     on_submit={move |_: String| open_link()}
                                 />
                             </ListItem>
                             <Button
                                 label="Open"
                                 variant=ButtonVariant::Secondary
-                                disabled={busy}
+                                disabled={cannot_open}
+                                @test_id={"host.contacts.open"}
                                 on_click={open_link}
                             />
                         </List>
+                        <beui::styled::Dialog
+                            open={offered}
+                            kind=DialogKind::Alert
+                            title="Connect?"
+                            id="host.contacts.offered"
+                            actions={vec![
+                                DialogAction::primary("Connect", || ask_core(CoreCommand::AcceptContact))
+                                    .busy(busy)
+                                    .named("accept"),
+                                DialogAction::cancel("Cancel"),
+                            ]}
+                            on_dismiss={|| ask_core(CoreCommand::ForgetContactLink)}
+                        >
+                            <Text style=TextStyle::PARAGRAPH @test_id={"host.contacts.offer"}>
+                                {offer}
+                            </Text>
+                        </beui::styled::Dialog>
+                        <Show value={connected}>|connected: ReadSignal<String>|
+                            <Text style=TextStyle::PARAGRAPH>{connected}</Text>
+                        </Show>
+                        <be_root_accounts_ui::ErrorText text={error} />
+                        </List>
                     </DialogBody>
-                </Show>
-                <Show value={showing}>
-                    <DialogBody
-                        title="Contact link"
-                        actions={vec![
-                            DialogAction::primary("Copy link", copy),
-                            DialogAction::secondary("Done", move || link.set(None)),
-                        ]}
-                        on_dismiss={move || done.call(Closed::Dismissed)}
-                    >
-                        <Text style=TextStyle::PARAGRAPH>
-                            "Send this link yourself, through an app you trust, to the one person you want to connect with. It works once, and it is shown only once."
-                        </Text>
-                        <TextInput
-                            value={Binding::new(shown, Callback::empty())}
-                            label="Contact link"
-                        />
-                    </DialogBody>
-                </Show>
-                <Show value={asks}>
-                    <DialogBody
-                        kind=DialogKind::Alert
-                        title=REMOVE_CONTACT_TITLE
-                        actions={vec![
-                            DialogAction::destructive("Remove", move || {
-                                if let Some(contact) = asked.get_untracked() {
-                                    ask_core(CoreCommand::RemoveContact(contact.account));
-                                }
-                                removing.set(None);
-                            }),
-                            DialogAction::cancel("Keep"),
-                        ]}
-                        on_dismiss={move || removing.set(None)}
-                    >
-                        <Text style=TextStyle::PARAGRAPH>{question}</Text>
-                    </DialogBody>
-                </Show>
             </List>
         </Frame>
     }
 }
 
-/// Whether a contact's key is held, and how the server's record of it differed, in words.
+/// A contact's name, or their email if they gave none, as be-host names them.
+fn contact_named(contact: &ContactRow) -> String {
+    match contact.name.trim().is_empty() {
+        true => contact.email.clone(),
+        false => contact.name.clone(),
+    }
+}
+
+/// A contact's email, and whether their key is confirmed and how the server's record of it
+/// differed, in be-host's words.
 pub(super) fn contact_detail(contact: &ContactRow) -> String {
-    match (&contact.mismatch, contact.verified) {
-        (Some(ContactMismatch::Older), _) => {
-            "The server served an older record of this contact: this device keeps its own."
-                .to_owned()
-        }
-        (Some(ContactMismatch::Unreadable), _) => {
-            "The server's record of this contact can't be read here: this device keeps its own."
-                .to_owned()
-        }
-        (None, true) => "Verified".to_owned(),
-        (None, false) => "Not verified yet".to_owned(),
+    let email = &contact.email;
+    match (contact.verified, &contact.mismatch) {
+        (true, Some(ContactMismatch::Older)) => format!(
+            "{email}. The server sent an older key for them than this device has; it keeps the newer one."
+        ),
+        (true, Some(ContactMismatch::Unreadable)) => format!(
+            "{email}. The server's copy of this contact can't be read here, so this device keeps the one it had. If you took a new recovery phrase on another device, this one needs it too."
+        ),
+        (true, None) => email.clone(),
+        (false, _) if email.is_empty() => "Not confirmed yet".to_owned(),
+        (false, _) => format!("{email}, not confirmed yet"),
     }
 }
 
@@ -946,7 +918,6 @@ pub(super) fn share_offered(preview: &SharePreview) -> String {
         ShareAccess::Join => "join it while someone hosts it",
         ShareAccess::View => "view it",
     };
-    let named = share_named(preview);
     let organization = share_organization(preview);
     let guest = match preview.guest {
         true => format!(
@@ -954,7 +925,10 @@ pub(super) fn share_offered(preview: &SharePreview) -> String {
         ),
         false => String::new(),
     };
-    format!("{named}, in {organization}, is shared with you: you can {can}.{guest}")
+    format!(
+        "Open {} in {organization}? You can {can}.{guest}",
+        share_named(preview)
+    )
 }
 
 /// A shared block's name as one line, cut short, in quotes; its maker's words.
@@ -964,7 +938,10 @@ pub(super) fn share_named(preview: &SharePreview) -> String {
         .split(|character: char| character.is_whitespace() || character.is_control())
         .filter(|word| !word.is_empty())
         .collect::<Vec<_>>()
-        .join(" ");
+        .join(" ")
+        .chars()
+        .filter(|character| !character.is_control())
+        .collect();
     match name.chars().count() {
         0 => "The block".to_owned(),
         count if count > 60 => format!("“{}…”", name.chars().take(60).collect::<String>()),
@@ -979,8 +956,9 @@ pub(super) fn share_organization(preview: &SharePreview) -> String {
     }
 }
 
-/// Opening a share link someone sent: the pasted link, handed over as a secret and cleared;
-/// then what it shares, to open or not; then what it opened.
+/// Opening a share link someone sent, as be-host's own dialog does: the pasted link, handed
+/// over as a secret and cleared; then what it shares, asked over the dialog, to open or not
+/// (Cancel, or Escape, goes back to the link); then what it opened.
 #[component]
 pub(super) fn ShareLinkDialog(core: Signal<CoreView>, done: Callback<Closed>) -> NodeId {
     let area = create_memo(move || core.with(|view| view.share_links.clone()));
@@ -999,9 +977,9 @@ pub(super) fn ShareLinkDialog(core: Signal<CoreView>, done: Callback<Closed>) ->
             })
         })
     });
-    let pasting = create_memo(move || !offered.get());
     let offer = create_memo(move || offer.get().unwrap_or_default());
     let pasted = create_signal(String::new());
+    let cannot_open = create_memo(move || busy.get() || pasted.with(|it| it.trim().is_empty()));
     let open_link = move || {
         let typed = pasted.get_untracked();
         pasted.set(String::new());
@@ -1011,50 +989,61 @@ pub(super) fn ShareLinkDialog(core: Signal<CoreView>, done: Callback<Closed>) ->
     };
     view! {
         <Frame width=Length::FILL>
-            <List spacing=Space::None>
-                <Show value={pasting}>
-                    <DialogBody
-                        title=SHARE_LINK_TITLE
-                        on_dismiss={move || done.call(Closed::Dismissed)}
-                    >
-                        <Text style=TextStyle::CAPTION>
-                            "Someone shared a block with you by a link. Opening it gives your account what the link grants, and makes no one your contact."
-                        </Text>
-                        <List direction=Direction::Horizontal align=Align::End spacing=Space::Md>
-                            <ListItem grow=1.0>
-                                <TextInput
-                                    value={pasted}
-                                    label="Share link"
-                                    focused=true
-                                    on_submit={move |_: String| open_link()}
-                                />
-                            </ListItem>
-                            <Button
-                                label="Open"
-                                variant=ButtonVariant::Secondary
-                                disabled={busy}
-                                on_click={open_link}
-                            />
-                        </List>
-                        <Note text={opened} />
-                        <be_root_accounts_ui::ErrorText text={error} />
-                    </DialogBody>
+            <DialogBody
+                title=SHARE_LINK_TITLE
+                id="host.share-link"
+                on_dismiss={move || done.call(Closed::Dismissed)}
+            >
+                <List spacing=Space::Md>
+                <Text style=TextStyle::CAPTION>
+                    "Someone shared a block with you by a link. Opening it gives your account what the link grants, and makes no one your contact."
+                </Text>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                    <ListItem grow=1.0>
+                        <TextInput
+                            value={pasted}
+                            label="Share link"
+                            focused=true
+                            @test_id={"host.share-link.paste"}
+                            on_submit={move |_: String| open_link()}
+                        />
+                    </ListItem>
+                    <Button
+                        label="Open"
+                        variant=ButtonVariant::Secondary
+                        disabled={cannot_open}
+                        @test_id={"host.share-link.open"}
+                        on_click={open_link}
+                    />
+                </List>
+                <Show value={busy}>
+                    <Progress width=INLINE_PROGRESS_WIDTH />
                 </Show>
-                <Show value={offered}>
-                    <DialogBody
-                        kind=DialogKind::Alert
-                        title="Open this block?"
-                        actions={vec![
-                            DialogAction::primary("Open", || ask_core(CoreCommand::AcceptShareLink))
-                                .busy(busy),
-                            DialogAction::secondary("Cancel", || ask_core(CoreCommand::ForgetShareLink)),
-                        ]}
-                        on_dismiss={move || done.call(Closed::Dismissed)}
-                    >
-                        <Text style=TextStyle::PARAGRAPH>{offer}</Text>
-                    </DialogBody>
+                <beui::styled::Dialog
+                    open={offered}
+                    kind=DialogKind::Alert
+                    title="Open this block?"
+                    id="host.share-link.offered"
+                    actions={vec![
+                        DialogAction::primary("Open", || ask_core(CoreCommand::AcceptShareLink))
+                            .busy(busy)
+                            .named("accept"),
+                        DialogAction::cancel("Cancel"),
+                    ]}
+                    on_dismiss={|| ask_core(CoreCommand::ForgetShareLink)}
+                >
+                    <Text style=TextStyle::PARAGRAPH @test_id={"host.share-link.offer"}>
+                        {offer}
+                    </Text>
+                </beui::styled::Dialog>
+                <Show value={opened}>|opened: ReadSignal<String>|
+                    <Text style=TextStyle::PARAGRAPH @test_id={"host.share-link.opened"}>
+                        {opened}
+                    </Text>
                 </Show>
-            </List>
+                <be_root_accounts_ui::ErrorText text={error} />
+                </List>
+            </DialogBody>
         </Frame>
     }
 }
