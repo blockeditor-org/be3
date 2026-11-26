@@ -2932,7 +2932,7 @@ impl HostCore {
         // A block this account may only join opens its editor as a Join member, with no
         // content, as under be-host's own UI (guides/blocks/hosted.md).
         if !be_host_stack::access(block).can_join() {
-            return Err("the person may not view the block".to_owned());
+            return Err("the person may neither view nor join the block".to_owned());
         }
         let shell = match self.root_session == Some(block) {
             true => self.root_settings.session_editor(block),

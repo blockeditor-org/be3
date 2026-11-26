@@ -20,5 +20,9 @@ fn be_root_in_place_of_the_hosts_ui_lists_an_organizations_members_and_their_rol
     host.wait("Label value=\"dev@example.com, Administrator\"");
     host.crop("Dialog \"Members\"");
     host.snapshot("be_root_lists_an_organizations_members_and_their_roles");
+    // Its Invite member closes it for a new invite link, as be-host's does.
+    host.click("#host.members.invite");
+    host.wait("#host.invite.link");
+    host.gone("Dialog \"Members\"");
     host.close();
 }
