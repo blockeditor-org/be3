@@ -34,10 +34,11 @@ pub struct EmbedState {
     listener: RefCell<Option<PlaceListener>>,
     /// What the listener was last told.
     told: Cell<Option<EmbedPlacement>>,
-    /// While a frame runs (`Document::show_content`, from its input to its layout), going
-    /// unplaced is told only if the frame ends with it so: one moved between parents (a kept
-    /// panel shown in another pane, its old pane removed by the frame's input) is never heard
-    /// unplaced on the way. A placement is told at once.
+    /// While a frame runs (`Document::show_content`, from its input to its last layout, after
+    /// the timers due in it), going unplaced is told only if the frame ends with it so: one
+    /// moved between parents (a kept panel shown in another pane, its old pane removed by the
+    /// frame's input or by a timer that fires after its first layout) is never heard unplaced
+    /// on the way. A placement is told at once.
     holding: Cell<bool>,
     /// The layout pass that last placed it.
     placed_in: Cell<u64>,
