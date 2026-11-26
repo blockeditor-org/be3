@@ -178,17 +178,26 @@ pub(super) fn removed(block: Uuid, kept: &KeptLog) -> Vec<Row> {
 }
 
 /// Joins `kept`, as its own row read back, with `places`, its places read back: the log as it
-/// was kept.
-pub(super) fn join(kept: &mut KeptLog, places: BTreeMap<u64, KeptPlace>) {
-    let through = |from: u64| (from..=kept.place).map(|place| places.get(&place));
-    kept.current = through(kept.lowering_place)
-        .map(|place| place.map(|place| place.hash))
-        .collect::<Option<Vec<_>>>()
-        .unwrap_or_default();
-    kept.steps = through(0)
-        .map(|place| place.and_then(|place| place.step.clone()))
-        .collect::<Option<Vec<_>>>()
-        .unwrap_or_default();
+/// was kept. Answers false, joining nothing, when a place it keeps is missing (a write lost, or a
+/// row the database dropped), or holds a step where another holds none: a log joined from part
+/// of its places would be taken for one this device checked, so it is dropped instead and
+/// checked afresh. Places past its head are left out.
+pub(super) fn join(kept: &mut KeptLog, mut places: BTreeMap<u64, KeptPlace>) -> bool {
+    places.retain(|place, _| *place <= kept.place);
+    let stepped = places.values().filter(|place| place.step.is_some()).count();
+    let from = match kept.checked.is_some() || stepped > 0 {
+        true => 0,
+        false => kept.lowering_place,
+    };
+    places.retain(|place, _| *place >= from);
+    let whole = (from..=kept.place).all(|place| places.contains_key(&place));
+    if !whole || (stepped > 0 && stepped != places.len()) {
+        return false;
+    }
+    kept.current = (kept.lowering_place..=kept.place)
+        .filter_map(|place| places.get(&place).map(|place| place.hash))
+        .collect();
+    kept.steps = places.values().filter_map(|place| place.step.clone()).collect();
     if let Some(checked) = &mut kept.checked {
         for (place, held) in &places {
             let at = *place as usize;
@@ -201,4 +210,5 @@ pub(super) fn join(kept: &mut KeptLog, places: BTreeMap<u64, KeptPlace>) {
             }
         }
     }
+    true
 }

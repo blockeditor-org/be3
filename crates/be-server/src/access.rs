@@ -375,8 +375,9 @@ pub(crate) fn log_of(
 /// organization's log, any key), which it judges a seal by, and that of each of `also` (for a
 /// block above the reader's, whoever signs below on authority from it), reducing every other
 /// entry but, in a block's log that records below rest their authority on, those that lowered
-/// anyone, which `be_block_keys::answer` needs whole. Served whole, a reader that holds the log up to `held` (its place and hash) is sent
-/// only the entries after it, when the log holds that entry there; else the log from its root.
+/// anyone and the retirements, which `be_block_keys::answer` needs whole. Served whole, a
+/// reader that holds the log up to `held` (its place and hash) is sent only the entries after
+/// it, when the log holds that entry there; else the log from its root.
 pub(crate) fn served_log(
     connection: &Connection,
     kind: LogKind,
