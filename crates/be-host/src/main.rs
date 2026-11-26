@@ -1439,7 +1439,9 @@ impl HostCore {
     /// an account, crates/be-host-tests), and otherwise through the browser.
     #[cfg(not(target_os = "android"))]
     fn open_dev_workspace(&mut self, remote_url: Option<String>, token: Option<String>) {
-        self.dev_workspace = true;
+        // An organization resumed already is the one it asks for: an organization chosen
+        // later is the person's to choose, as on a host started without it.
+        self.dev_workspace = self.organization.is_none();
         if self.signed_in {
             return;
         }

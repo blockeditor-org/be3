@@ -124,6 +124,8 @@ pub struct Embedded {
 
 struct State {
     instance: Rc<Instance>,
+    /// The staged app it runs, by its id.
+    app: String,
     wire: Wire,
     /// The app's run: its session, pacing, holds and layout. The root holds no answers for a
     /// later poll, so its holds keep only layouts.
@@ -229,9 +231,11 @@ impl Embedded {
     /// Call it on the root's executor, from a frame or an input: the app is heard by a task of
     /// its own there.
     pub fn spawn(spawn: Spawn, now: Duration) -> Self {
+        let app = spawn.app.clone();
         let instance = instance(spawn.app, spawn.module);
         Self::start(
             instance,
+            app,
             Opened::Root(spawn.opening),
             spawn.screens,
             spawn.surface,
@@ -286,7 +290,8 @@ impl Embedded {
         now: Duration,
     ) -> Self {
         Self::start(
-            instance(app, module),
+            instance(app.clone(), module),
+            app,
             Opened::Host,
             Vec::new(),
             surface,
@@ -402,6 +407,7 @@ impl Embedded {
 
     fn start(
         instance: Rc<Instance>,
+        app: String,
         opened: Opened,
         screens: Vec<ScreenRequest>,
         surface: SurfaceSpec,
@@ -427,6 +433,7 @@ impl Embedded {
         let stop = Rc::new(Stop::default());
         let state = Rc::new(RefCell::new(State {
             instance: Rc::clone(&instance),
+            app,
             wire: Wire::default(),
             run,
             fonts,
@@ -578,6 +585,22 @@ impl Embedded {
     /// Why the app stopped, if it did.
     pub fn failure(&self) -> Option<String> {
         self.state.borrow().failure.clone()
+    }
+
+    /// The staged app it runs, by its id (`be3.workspace-ui`).
+    pub fn app(&self) -> String {
+        self.state.borrow().app.clone()
+    }
+
+    /// Stops the app, for `why`, as be-host's Running Apps panel kills or crashes one of its
+    /// own: it is let go of at once, and stopped for `why` from then on (`failure`).
+    pub fn stop(&self, why: String) {
+        let mut state = self.state.borrow_mut();
+        state.fail(why);
+        state.stop.stopped.set(true);
+        if let Some(waker) = state.stop.waker.take() {
+            waker.wake();
+        }
     }
 
     /// Asks the app for a frame for the frame clock's `now`, if its pacing says one is due, and

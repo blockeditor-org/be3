@@ -2,7 +2,9 @@
 //! session shows (core-view's `showing`), which the root's host opens and serves
 //! (`Embedded::spawn_block`), filling the window under the root's own UI. While its app loads,
 //! or once it stopped or could not start, a notice shows over it in be-host's own words
-//! (its `app_view`'s `Notices`); Reload starts an app that stopped again.
+//! (its `app_view`'s `Notices`); Reload starts an app that stopped again. An app that stopped
+//! once it ran asks for the session picker, as be-host does when its shell stops, and says so
+//! in a toast unless it was killed.
 
 use std::{cell::Cell, future::Future, pin::Pin, rc::Rc, task::Poll, time::Duration};
 
@@ -24,7 +26,7 @@ use beui::{Align, NodeId, TextAlign};
 
 use be_wasm_root_api::ShownBlock;
 
-use super::{Root, Window, host};
+use super::{CoreCommand, Root, Window, ask_core, host};
 use crate::{LOADING_APP, NOT_OPENED_TITLE, SESSION_NOTICE_LAYER};
 
 /// The screen the root asks of the editor of the block its session shows: the window, under
@@ -145,6 +147,19 @@ impl Root {
             let mut embedding = self.embedding.borrow_mut();
             match hosted.app.failure() {
                 Some(why) => {
+                    // An app that stopped once it ran ends the session, as be-host's own shell
+                    // does: it says so unless it was killed, and asks which session to show,
+                    // where keeping this one starts its app again.
+                    if hosted.app.started() {
+                        let killed = self
+                            .killed
+                            .borrow()
+                            .contains(&hosted.app.instance());
+                        if !killed {
+                            self.toast_stopped(&hosted.name, &why);
+                        }
+                        ask_core(CoreCommand::ChooseSession);
+                    }
                     let failure = Failure {
                         title: match hosted.app.started() {
                             true => format!("{} stopped", hosted.name),
@@ -175,6 +190,46 @@ impl Root {
         ) && shown.get_untracked() != notice
         {
             surface.enter(|| shown.set(notice));
+        }
+    }
+
+    /// Stops the app the Running Apps panel names, `app`, as be-host's panel stops one of its
+    /// own: crashed, which says it stopped, or killed, which does not.
+    pub(super) fn stop_app(&self, app: &str, crash: bool) {
+        let apps: Vec<Embedded> = self
+            .embedding
+            .borrow()
+            .apps()
+            .iter()
+            .filter(|embedded| embedded.app() == app && embedded.failure().is_none())
+            .cloned()
+            .collect();
+        for embedded in apps {
+            match crash {
+                true => {
+                    embedded.stop("It was crashed from be-host's Running Apps panel.".to_owned());
+                }
+                false => {
+                    self.killed.borrow_mut().push(embedded.instance());
+                    embedded.stop("It was killed.".to_owned());
+                }
+            }
+        }
+        self.waker.wake();
+    }
+
+    /// Says the app `name` stopped for `why` in a toast of its own, as be-host says one of its
+    /// own did.
+    fn toast_stopped(&self, name: &str, why: &str) {
+        if let (Some(surface), Some(own)) =
+            (&mut *self.toasts.borrow_mut(), self.own_toasts.get())
+        {
+            surface.enter(|| {
+                own.update(|own| {
+                    let toast = super::notices::stopped_toast(own, name, why);
+                    own.push(toast);
+                });
+            });
         }
     }
 
