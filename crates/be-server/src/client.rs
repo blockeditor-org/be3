@@ -1306,7 +1306,10 @@ impl Client {
                 // Followed before it is read, so no change during the read is missed. The read
                 // starts what the follow tells changes of, or lets it go when the caller may not
                 // know of the block, which tells it nothing of it (`answer`).
-                connection.hub.follow_known(connection.client, place).await?;
+                connection
+                    .hub
+                    .follow_known(connection.client, place)
+                    .await?;
                 let query = Query::Blocks {
                     blocks,
                     contents: false,
@@ -1315,7 +1318,10 @@ impl Client {
                 let page = self.answer(admitted, query).await;
                 if page.is_err() {
                     let connection = &self.connection;
-                    connection.hub.unfollow_known(connection.client, place).await;
+                    connection
+                        .hub
+                        .unfollow_known(connection.client, place)
+                        .await;
                 }
                 page
             }
@@ -1774,7 +1780,10 @@ impl Client {
                     organization: identity.organization,
                     block,
                 };
-                connection.hub.unfollow_known(connection.client, place).await;
+                connection
+                    .hub
+                    .unfollow_known(connection.client, place)
+                    .await;
             }
             Topic::Session(block) => {
                 let identity = admitted.identity()?;

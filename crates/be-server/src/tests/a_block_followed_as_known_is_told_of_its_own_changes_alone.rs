@@ -82,7 +82,10 @@ async fn a_block_followed_as_known_is_told_of_its_own_changes_alone() {
 
     describe(&mut owner, hidden, &[], b"renamed").await;
     describe(&mut owner, hidden, &[], b"renamed again").await;
-    assert!(viewer.told(known.clone()).await, "a change of its own is told");
+    assert!(
+        viewer.told(known.clone()).await,
+        "a change of its own is told"
+    );
     describe(&mut owner, hidden, &[], b"and again").await;
     assert!(
         !viewer.told(known.clone()).await,
@@ -98,7 +101,9 @@ async fn a_block_followed_as_known_is_told_of_its_own_changes_alone() {
 
     // The viewer's grant on the page that references it is revoked: its roots are told, and the
     // follow goes without a word, which would tell it when a block it may not know of changed.
-    viewer.notifications.retain(|notice| !matches!(notice, Notice::Roots));
+    viewer
+        .notifications
+        .retain(|notice| !matches!(notice, Notice::Roots));
     let revoked = owner.grant(page, account, Access::None).await;
     assert!(matches!(revoked, Ok(())), "{revoked:?}");
     describe(&mut owner, hidden, &[], b"out of reach").await;

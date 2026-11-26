@@ -910,18 +910,22 @@ impl<S: ObjectStore> Peer<S> {
             // naming the block it was written in, which it verifies against; the block's own
             // entries follow it (`transfer::decode`), so an import of the file shows the history
             // again, however many times it was exported.
-            exported.extend(read.entries.into_iter().map(|logged| match logged.imported {
-                Some(original) => original,
-                None => ExportedEntry {
-                    block,
-                    seq: logged.entry.seq,
-                    id: logged.entry.id,
-                    author: logged.entry.author,
-                    arrival: logged.entry.arrival,
-                    said: logged.opened,
-                    signature: logged.entry.signature,
-                },
-            }));
+            exported.extend(
+                read.entries
+                    .into_iter()
+                    .map(|logged| match logged.imported {
+                        Some(original) => original,
+                        None => ExportedEntry {
+                            block,
+                            seq: logged.entry.seq,
+                            id: logged.entry.id,
+                            author: logged.entry.author,
+                            arrival: logged.entry.arrival,
+                            said: logged.opened,
+                            signature: logged.entry.signature,
+                        },
+                    }),
+            );
             if from >= read.head.size {
                 return Ok(exported);
             }

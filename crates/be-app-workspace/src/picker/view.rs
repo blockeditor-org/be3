@@ -831,7 +831,10 @@ fn LinkRowFace(tree_key: TreeKey, row: Memo<Option<TreeRow>>) -> NodeId {
             </ListItem>
             <Text size=TextSize::Sm color=TextColor::Muted>{detail}</Text>
             <Show value={move || unread.get() > 0}>
-                <Tooltip label={move || format!("{} unread", unread.get())} @test_id={unread_test_id.clone()}>
+                <Tooltip
+                    label={move || format!("{} unread", unread.get())}
+                    @test_id={unread_test_id.clone()}
+                >
                     <CountBadge count={unread} />
                 </Tooltip>
             </Show>

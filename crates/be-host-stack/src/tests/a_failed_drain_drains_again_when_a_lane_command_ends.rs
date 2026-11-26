@@ -31,7 +31,10 @@ fn a_failed_drain_drains_again_when_a_lane_command_ends() {
     crate::list_access(block, move |list| {
         let _ = listed.send(list.is_ok());
     });
-    assert!(answer.recv().expect("the lane answers"), "the access was listed");
+    assert!(
+        answer.recv().expect("the lane answers"),
+        "the access was listed"
+    );
     wait_until("the edit reached the server", |shared| {
         shared
             .graph

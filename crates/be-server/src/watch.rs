@@ -190,7 +190,12 @@ impl Joined {
         for place in self.log_follows.remove(&client).unwrap_or_default() {
             unindex(&mut self.log_followers, place, client);
         }
-        for place in self.known_follows.remove(&client).unwrap_or_default().into_keys() {
+        for place in self
+            .known_follows
+            .remove(&client)
+            .unwrap_or_default()
+            .into_keys()
+        {
             unindex(&mut self.known_followers, place, client);
         }
     }
