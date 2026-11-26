@@ -244,7 +244,7 @@ struct Carrying {
     finish: Box<dyn FnOnce(NodeId, Callback<KeyPress, bool>) -> Callback<KeyPress, bool>>,
 }
 
-/// Wraps a press's callbacks so the first drag of each press past the threshold asks `drag`
+/// Wraps a press's callbacks so the first drag of each press (past the core's threshold) asks `drag`
 /// for a carry and lifts it onto the tree's drag driver; once lifted, the driver follows the pointer and the
 /// press hears no more drags. While the carry is held, the children are drawn where its frame
 /// puts the item, raised above their siblings (a scroll around them still clips them), unless
@@ -269,11 +269,8 @@ fn carrying(
     use std::cell::RefCell;
     use std::rc::Rc;
 
-    // Whether this press has passed the threshold and asked `drag` for a carry.
+    // Whether this press has dragged (or lifted at its press) and asked `drag` for a carry.
     let asked = Rc::new(Cell::new(false));
-    // The moves of this press short of the threshold, not yet a drag of either kind: the
-    // source's own once `drag` declines the press, or once it ends short of the threshold.
-    let held = Rc::new(RefCell::new(Vec::<PointerPress>::new()));
     // Whether this press lifted a carry: the board follows its drags from then on, so they
     // are not this node's to hear.
     let lifted = Rc::new(Cell::new(false));
@@ -352,16 +349,14 @@ fn carrying(
     // A press begins afresh; with `lifts_on_press`, a mouse's or pen's lifts the carry at
     // once, after the source hears the press.
     let pressed = {
-        let (asked, held, lifted, origin, lift) = (
+        let (asked, lifted, origin, lift) = (
             Rc::clone(&asked),
-            Rc::clone(&held),
             Rc::clone(&lifted),
             Rc::clone(&origin),
             Rc::clone(&lift),
         );
         Callback::new(move |press: PointerPress| {
             asked.set(false);
-            held.borrow_mut().clear();
             lifted.set(false);
             origin.set(Some(press));
             on_press.call(press);
@@ -373,44 +368,22 @@ fn carrying(
             }
         })
     };
-    // The first drag past the threshold asks for a carry; the moves before it are held. A
-    // press `drag` declines is the source's own: it hears the held moves, then every move on,
+    // A press's first drag (the core drags a press once it has moved the drag threshold) asks
+    // for a carry. A press `drag` declines is the source's own: it hears every move on,
     // however near its start the press comes back.
     let dragged = {
-        let (asked, held, lifted, origin, lift) = (
-            Rc::clone(&asked),
-            Rc::clone(&held),
-            Rc::clone(&lifted),
-            Rc::clone(&origin),
-            Rc::clone(&lift),
-        );
+        let (asked, lifted, lift) = (Rc::clone(&asked), Rc::clone(&lifted), Rc::clone(&lift));
         Callback::new(move |press: PointerPress| {
             if lifted.get() {
                 return;
             }
             if !asked.get() {
-                let threshold = match press.touch {
-                    true => crate::types::TOUCH_DRAG_THRESHOLD,
-                    false => crate::types::DRAG_THRESHOLD,
-                };
-                let past = origin
-                    .get()
-                    .is_none_or(|origin| (press.pos - origin.pos).length() >= threshold);
-                if !past {
-                    held.borrow_mut().push(press);
-                    return;
-                }
                 asked.set(true);
                 if let Some(carry) = ask(press) {
                     lift(carry, press);
                 }
                 if lifted.get() {
-                    held.borrow_mut().clear();
                     return;
-                }
-                let before = std::mem::take(&mut *held.borrow_mut());
-                for move_before in before {
-                    on_drag.call(move_before);
                 }
             }
             on_drag.call(press);
@@ -435,25 +408,8 @@ fn carrying(
         }
         false => on_long_press_drag,
     };
-    // A press that ends short of the threshold was the source's own: it hears the moves it
-    // made as it ends, after its click (which a source that pans on its drags, the game's
-    // stage, reads as a click only while it has not panned). One called off hears none.
-    let active = {
-        let held = Rc::clone(&held);
-        Callback::new(move |active: bool| {
-            if !active {
-                let before = std::mem::take(&mut *held.borrow_mut());
-                for move_before in before {
-                    on_drag.call(move_before);
-                }
-            }
-            on_active_change.call(active);
-        })
-    };
-    let cancelled = Callback::new(move |()| {
-        held.borrow_mut().clear();
-        on_cancel.call(());
-    });
+    let active = on_active_change;
+    let cancelled = on_cancel;
     on_cleanup(move || {
         let id = mine.is_alive().then(|| mine.get_untracked()).flatten();
         if let (Some(id), Some(driver)) = (id, crate::drag::driver()) {

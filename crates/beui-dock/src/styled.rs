@@ -79,13 +79,12 @@ pub fn DockBarGrip(
                 let Some(down) = pressed.get() else {
                     return;
                 };
-                if moved.get() {
-                    control.begin_move(press);
-                } else if (press.pos - down.pos).length() >= beui_view::types::DRAG_THRESHOLD {
-                    moved.set(true);
+                // The core drags a press only once it has moved the drag threshold: the
+                // move begins where it was pressed.
+                if !moved.replace(true) {
                     control.begin_move(down);
-                    control.begin_move(press);
                 }
+                control.begin_move(press);
             }}
             on_active_change={move |active: bool| {
                 if !active {

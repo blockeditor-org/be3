@@ -112,9 +112,21 @@ mod web {
         /// click: the pointer and where it went down. It captures once the press moves a
         /// drag's threshold.
         uncaptured: Cell<Option<(i32, Pos2)>>,
+        /// Where the press went down, and whether it has moved a drag's threshold from there:
+        /// `on_drag` hears it only from then, first at the move that crossed it.
+        origin: Cell<Option<Pos2>>,
+        dragging: Cell<bool>,
     }
 
     const CAPTURED: &str = "beuiCaptured";
+
+    /// How far a press moves before it drags: a click's or a tap's jitter is no drag.
+    fn threshold(at: &PointerPress) -> f32 {
+        match at.touch {
+            true => beui_types::input::TOUCH_DRAG_THRESHOLD,
+            false => beui_types::input::DRAG_THRESHOLD,
+        }
+    }
 
     fn captured(event: &web_sys::PointerEvent) -> bool {
         js_sys::Reflect::get(event, &CAPTURED.into()).is_ok_and(|held| held.is_truthy())
@@ -394,7 +406,10 @@ mod web {
         }
 
         fn repeat(&self) -> Option<std::time::Duration> {
-            if self.pressed.get().is_none() || !self.switches.repeat_drag.get() {
+            if self.pressed.get().is_none()
+                || !self.switches.repeat_drag.get()
+                || !self.dragging.get()
+            {
                 return None;
             }
             let press = self.last_press.borrow().clone()?;
@@ -419,6 +434,8 @@ mod web {
                 self.pressed.set(Some(event.pointer_id()));
                 let at = press(element, event);
                 *self.last_press.borrow_mut() = Some(at.clone());
+                self.origin.set(Some(at.pos));
+                self.dragging.set(false);
                 let drags = !self.handlers.on_drag.is_empty() || self.switches.grabs_pointer.get();
                 self.uncaptured.set(None);
                 if drags && !captured(event) {
@@ -518,7 +535,7 @@ mod web {
                         return;
                     }
                     let at = press(&element, &event);
-                    if held.capture_late(&element, &at) {
+                    if held.capture_late(&element, &at) && held.drags_at(&at) {
                         *held.last_press.borrow_mut() = Some(at.clone());
                         held.handlers.on_drag.call(at);
                         beui_reactive::flush();
@@ -528,17 +545,29 @@ mod web {
             self.release.borrow_mut().push(moved);
         }
 
+        /// Whether the press drags at `at`: it has moved a drag's threshold from where it
+        /// went down, now or before.
+        fn drags_at(&self, at: &PointerPress) -> bool {
+            // A node that keeps every sample (a pen's stroke) drags from the first move, so a
+            // short stroke keeps every point.
+            if self.dragging.get() || self.switches.every_sample.get() {
+                return true;
+            }
+            let past = self
+                .origin
+                .get()
+                .is_none_or(|origin| (at.pos - origin).length() >= threshold(at));
+            self.dragging.set(past);
+            past
+        }
+
         /// Captures the pointer of an uncaptured press once it has moved a drag's
         /// threshold, and says whether it did.
         fn capture_late(&self, element: &web_sys::Element, at: &PointerPress) -> bool {
             let Some((pointer, from)) = self.uncaptured.get() else {
                 return false;
             };
-            let threshold = match at.touch {
-                true => beui_types::input::TOUCH_DRAG_THRESHOLD,
-                false => beui_types::input::DRAG_THRESHOLD,
-            };
-            if (at.pos - from).length() < threshold {
+            if (at.pos - from).length() < threshold(at) {
                 return false;
             }
             self.uncaptured.set(None);
@@ -933,8 +962,10 @@ mod web {
                     match held.pressed.get() {
                         Some(pointer) if pointer == event.pointer_id() => {
                             held.capture_late(&element, &at);
-                            *held.last_press.borrow_mut() = Some(at.clone());
-                            held.handlers.on_drag.call(at);
+                            if held.drags_at(&at) {
+                                *held.last_press.borrow_mut() = Some(at.clone());
+                                held.handlers.on_drag.call(at);
+                            }
                         }
                         _ => held.handlers.on_hover_move.call(at),
                     }
@@ -1152,6 +1183,8 @@ mod web {
             repeating: Cell::new(None),
             release: RefCell::default(),
             uncaptured: Cell::new(None),
+            origin: Cell::new(None),
+            dragging: Cell::new(false),
         });
         let held = state.clone();
         state

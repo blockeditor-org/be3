@@ -23,7 +23,6 @@ use beui_view::types::KeyPhase;
 use beui_view::types::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_view::types::{Pos2, Rect};
 
-const ROW_DRAG_THRESHOLD: f32 = 6.0;
 const EDGE_BAND: f32 = 0.25;
 
 #[derive(Clone, Default, PartialEq)]
@@ -555,7 +554,6 @@ pub fn TreeRowArea(target: TreeRowTarget, children: Child) -> NodeId {
     let gesture = StoredCell::<Option<Gesture>>::default();
     let pressed = move |press: PointerPress| {
         gesture.set(Some(Gesture {
-            origin: press.pos,
             at: press.pos,
             started: false,
         }));
@@ -568,8 +566,9 @@ pub fn TreeRowArea(target: TreeRowTarget, children: Child) -> NodeId {
             return;
         };
         held.at = at.pos;
-        let starts = !held.started && (at.pos - held.origin).length() >= ROW_DRAG_THRESHOLD;
-        held.started |= starts;
+        // The core drags a press only once it has moved the drag threshold.
+        let starts = !held.started;
+        held.started = true;
         gesture.set(Some(held));
         if starts {
             drag_start.call(());
@@ -611,7 +610,6 @@ pub fn TreeRowArea(target: TreeRowTarget, children: Child) -> NodeId {
 
 #[derive(Clone, Copy)]
 struct Gesture {
-    origin: Pos2,
     at: Pos2,
     started: bool,
 }

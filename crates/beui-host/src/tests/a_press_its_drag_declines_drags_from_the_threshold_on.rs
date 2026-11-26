@@ -2,12 +2,12 @@ use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
 
-/// A press `drag` declines is the source's own drag once past the threshold: it hears the
-/// moves held short of it first (a stroke keeps its first points), and stays a drag however
-/// near its start it comes back, so a pan returned to its origin ends there. A press that
-/// ends short of the threshold hears its moves as it ends, after its click.
+/// A press `drag` declines is the source's own drag once it moves the drag threshold: its
+/// first drag is at the point that crossed it, a whole move from the press, and it stays a
+/// drag however near its start it comes back, so a pan returned to its origin ends there. A
+/// press that ends short of the threshold is a click and never drags.
 #[test]
-fn a_press_its_drag_declines_hears_every_move_it_made() {
+fn a_press_its_drag_declines_drags_from_the_threshold_on() {
     let _root = RootScope::new();
     let heard = create_signal(Vec::<f32>::new());
     let document = build_node(move || {
@@ -25,20 +25,18 @@ fn a_press_its_drag_declines_hears_every_move_it_made() {
     let mut harness = Harness::new(document);
     harness.settle();
     let grab = harness.center(harness.find("board"));
+    let start = grab.y - harness.rect(harness.find("board")).top();
     harness.down(grab, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(grab + vec2(0.0, 2.0))]);
     assert!(
         heard.get_untracked().is_empty(),
-        "a move short of the threshold is not yet a drag"
+        "a move short of the threshold is no drag"
     );
     harness.frame(vec![Input::PointerMoved(grab + vec2(0.0, 20.0))]);
-    let past = heard.get_untracked();
-    // The first heard is the press's own point.
-    let start = past[0];
     assert_eq!(
-        past[1..],
-        [start + 2.0, start + 20.0],
-        "past it, the move held short of it comes first: {past:?}"
+        heard.get_untracked(),
+        [start + 20.0],
+        "past it, the first drag is where the press crossed it"
     );
     harness.frame(vec![Input::PointerMoved(grab + vec2(0.0, 1.0))]);
     harness.up(grab + vec2(0.0, 1.0), PointerButton::Primary);
@@ -57,10 +55,9 @@ fn a_press_its_drag_declines_hears_every_move_it_made() {
     harness.down(grab, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(grab + vec2(0.0, 2.0))]);
     harness.up(grab + vec2(0.0, 2.0), PointerButton::Primary);
-    let short = heard.get_untracked();
     assert_eq!(
-        short,
-        [-1.0, start, start + 2.0],
-        "a press that ends short of the threshold hears its click, then its moves: {short:?}"
+        heard.get_untracked(),
+        [-1.0],
+        "a press that ends short of the threshold is only a click"
     );
 }

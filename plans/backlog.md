@@ -383,18 +383,6 @@ Fixed items are removed as they land.
   clips (guides/beui/components.md, Carries and drop sites). Done: the source's face
   captured as a texture on both cores floats in a top layer like a preview,
   so no carry needs `preview` just to leave its scroll.
-- **A drag threshold for every `on_drag`.** The native core calls `on_drag`
-  on any movement of a press; `Interactive`'s `drag` waits for
-  `DRAG_THRESHOLD` (or `TOUCH_DRAG_THRESHOLD`), but a plain `on_drag` user
-  (a slider, a pan, the dock's grips) applies its own or none. Done: the core
-  starts a press's drag at the threshold, and the components' own checks go.
-  The components' own checks today: toast.rs (`DRAG_THRESHOLD` on x),
-  number_input.rs (its own 2.0), tree.rs (`ROW_DRAG_THRESHOLD`, 6.0),
-  beui-dock styled.rs (`DRAG_THRESHOLD`), and the core's touch checks in
-  beui-core interact/pointer.rs. A slider must still land where it was pressed
-  and move by the whole distance once the threshold is passed, so the core
-  hands the first `on_drag` the movement from the press, not from the
-  threshold; expect paintings of slider and splitter drags to move.
 - **A floating row's announcements.** The live region that says a carry's
   places (`Interactive`'s `CarryStatus`) is inside the source, so a `Reorder`
   row carried off its list, collapsed, says nothing more until it lands, when
