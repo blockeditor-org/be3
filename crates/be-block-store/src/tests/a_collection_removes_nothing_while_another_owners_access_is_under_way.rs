@@ -2,36 +2,6 @@ use std::collections::HashSet;
 
 use super::*;
 
-/// A store whose `has` runs `during` in the middle of the call, after it found the object and
-/// before its vault claims it.
-#[derive(Clone)]
-struct Interrupting {
-    inner: MemoryStore,
-    during: Arc<Mutex<Option<Box<dyn Fn() + Send + Sync>>>>,
-}
-
-impl ObjectStore for Interrupting {
-    fn put(&self, bytes: &[u8]) -> Result<Hash, StoreError> {
-        self.inner.put(bytes)
-    }
-
-    fn get(&self, hash: Hash) -> Result<Option<Vec<u8>>, StoreError> {
-        self.inner.get(hash)
-    }
-
-    fn has(&self, hash: Hash) -> Result<bool, StoreError> {
-        let has = self.inner.has(hash)?;
-        if let Some(during) = &*self.during.lock().unwrap() {
-            during();
-        }
-        Ok(has)
-    }
-
-    fn remove(&self, hash: Hash) -> Result<(), StoreError> {
-        self.inner.remove(hash)
-    }
-}
-
 /// One owner's part writer leaves a part unnamed; another owner's vault over the same store
 /// finds the part's objects, and the first owner's collection, run on another thread while that
 /// look is under way and before it claims what it found, removes nothing. Once the look is done
