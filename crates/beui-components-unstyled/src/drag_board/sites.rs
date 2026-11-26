@@ -11,7 +11,7 @@ use beui_view::drag::{
 };
 use beui_view::reactive::{Get, NodeId, OwnedTrigger, Set, Trigger, now, on_cleanup, tracking};
 use beui_view::types::input::PointerId;
-use beui_view::types::{Rect, Velocity};
+use beui_view::types::{Rect, Velocity, WindowId};
 
 use super::{Board, Watch};
 
@@ -224,15 +224,19 @@ impl Board {
             return Vec::new();
         };
         let window = placing.last.map(|last| last.window);
-        let placed = |node: NodeId| {
-            let elsewhere = window
-                .is_some_and(|window| self.known_window(node).is_some_and(|known| known != window));
-            match elsewhere {
-                true => None,
-                false => self.space.placed(node),
-            }
-        };
+        let placed = |node: NodeId| self.placed_in(node, window);
         beui_view::drag::rests(&placing.spec, &placed)
+    }
+
+    /// Where `node` is placed for a pointer in `window`. A place in another window than the
+    /// pointer's is not there for it: its rect is in that window's points.
+    fn placed_in(&self, node: NodeId, window: Option<WindowId>) -> Option<(Rect, f32)> {
+        let elsewhere = window
+            .is_some_and(|window| self.known_window(node).is_some_and(|known| known != window));
+        match elsewhere {
+            true => None,
+            false => self.space.placed(node),
+        }
     }
 
     fn say(&self, id: CarryId, said: String) {
@@ -576,18 +580,7 @@ impl Board {
             }
             _ => (point, false),
         };
-        let space = Rc::clone(&self.space);
-        // A place in another window than the pointer's is not there for it: its rect is in
-        // that window's points.
-        let placed = move |node: NodeId| {
-            if self
-                .known_window(node)
-                .is_some_and(|window| window != point.window)
-            {
-                return None;
-            }
-            space.placed(node)
-        };
+        let placed = |node: NodeId| self.placed_in(node, Some(point.window));
         let (id, left, entered, frame) = {
             let mut placing = self.placing.borrow_mut();
             let Some(placing) = placing

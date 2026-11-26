@@ -2428,6 +2428,15 @@ pub fn editing_and_hosting() -> (Vec<EditorBlock>, Vec<(String, EditorInstanceId
     })
 }
 
+/// The ids of the running apps, sorted: `running` without a status built for each.
+pub fn app_ids() -> Vec<String> {
+    HOST.with(|host| {
+        let mut ids: Vec<_> = host.borrow().runtimes.keys().cloned().collect();
+        ids.sort();
+        ids
+    })
+}
+
 pub fn running() -> Vec<RuntimeStatus> {
     HOST.with(|host| {
         let host = host.borrow();
