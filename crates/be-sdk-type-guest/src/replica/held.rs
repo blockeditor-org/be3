@@ -162,7 +162,8 @@ where
         }
     }
 
-    /// The whole layer, its edits absorbed: none when it is empty, or too large to relay.
+    /// The whole layer, its edits absorbed: none when it is empty, or too large for a peer to
+    /// show (`LARGEST_PEER_LAYER` edits or `LARGEST_RELAYED_OPERATION` bytes).
     fn whole_layer(&self) -> Option<SessionMessage> {
         let mut absorbed: Vec<C::Op> = Vec::new();
         for held in &self.tentative {
@@ -172,7 +173,7 @@ where
             };
             absorbed.extend(leftover);
         }
-        if absorbed.is_empty() {
+        if absorbed.is_empty() || absorbed.len() > LARGEST_PEER_LAYER {
             return None;
         }
         let operations: Vec<Vec<u8>> = absorbed.iter().map(C::encode_operation).collect();
@@ -350,11 +351,13 @@ where
             .collect()
     }
 
+    /// Whether the order holds the edits `layer` goes out as, or passed over the entries that
+    /// held them (below a barrier), so they never will be.
     fn reached(&self, layer: &PeerLayer<C::Op>) -> bool {
         layer.commits_through.is_some_and(|through| {
-            self.origins
-                .get(&layer.origin)
-                .is_some_and(|(held, _)| *held >= through)
+            let held = self.origins.get(&layer.origin).map(|(held, _)| *held);
+            let passed = self.passed_origins.get(&layer.origin).copied();
+            held.max(passed).is_some_and(|reached| reached >= through)
         })
     }
 
@@ -365,11 +368,11 @@ where
     }
 
     /// The order passed over `origin`'s edits through `through` (below a barrier): a layer
-    /// that was to go out as them never will, and leaves.
-    pub(super) fn drop_passed_layers(&mut self, origin: u64, through: u64) {
-        self.drop_layers(|_, layer| {
-            layer.origin == origin && layer.commits_through.is_some_and(|last| last <= through)
-        });
+    /// that was to go out as them never will, and leaves, now or once it is told it commits.
+    pub(super) fn passed_over_origin(&mut self, origin: u64, through: u64) {
+        let passed = self.passed_origins.entry(origin).or_default();
+        *passed = (*passed).max(through);
+        self.drop_reached_layers();
     }
 
     /// `client`'s newest layer here.
@@ -445,7 +448,8 @@ where
             let replaced = self.take_layers(|(client, layer), held| {
                 *client == from && (*layer == told.layer || held.commits_through.is_none())
             });
-            if operations.is_empty() && told.commits_through.is_none() {
+            // Dropped, or committing with no edit: nothing to show.
+            if operations.is_empty() && (told.commits_through.is_none() || told.to == 0) {
                 if replaced {
                     self.relay(before);
                 }

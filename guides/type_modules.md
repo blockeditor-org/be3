@@ -606,11 +606,12 @@ order: presence, channel messages and held layers. The rules an agent most needs
   row; past that, and after any other change (a gesture of it cancelled or
   voided, a restart carrying it), the layer goes whole after the job, its edits
   absorbed (`from` zero), which a model document's absorb makes one write of each
-  field. A participant joining is told it whole too, and so is one asking
+  field that nothing else in it reads (a conditional set, an add, a removal that
+  compares every field keep the earlier write). A participant joining is told it whole too, and so is one asking
   (`SessionMessage::HeldAgain`, sent once a layer by a peer that holds another
   count than an append starts from), once for each state of the layer however
-  often it asks. A layer past `LARGEST_RELAYED_OPERATION` whole is not
-  previewed, and a peer stops showing one past that or `LARGEST_PEER_LAYER`
+  often it asks. A layer past `LARGEST_RELAYED_OPERATION` bytes or
+  `LARGEST_PEER_LAYER` edits whole, absorbed, is not previewed, and a peer stops showing one past that or `LARGEST_PEER_LAYER`
   edits until its holder's next layer. Peer messages wait for a replica's load
   like everything it hears, so a late joiner shows what it was told as it
   joined. Its commit sends `commits_through`, the last local edit
@@ -627,10 +628,12 @@ order: presence, channel messages and held layers. The rules an agent most needs
   `Under` every layer, and another's entry `Beneath` them. The entry that brings
   the holder's origin to `commits_through` (`origins`) lands as `Beneath` with
   `local` no longer holding the layer, so no frame shows both or neither, and one
-  the order passes over (below a barrier) takes the layer with it; a layer that
+  the order passes over (below a barrier) takes the layer with it, as does a
+  `commits_through` told after the order passed over those edits; a layer that
   leaves with no entry (a cancel, a holder leaving the session or
   losing edit access, a newer layer told whole) lands as `Landed::Relaid`, which
-  only lays what is unsettled again (`EditorOperation` with no `operation`). A
+  only lays what is unsettled again (`EditorOperation { landed: Landed::Relaid, .. }`,
+  with no edit of its own). A
   reload or replacement drops every peer layer, and the holder, reloaded too,
   tells its own whole again. Peer layers are never written, sealed, stashed,
   described or in `unheld()`/`content`, and touch no `History` or `Holds`: this

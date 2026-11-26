@@ -143,3 +143,42 @@ pub(super) fn asked_again(sim: &Sim<ChecklistContent>, device: usize) -> usize {
         })
         .count()
 }
+
+/// Numbers `entry` as `from`'s origin would submit it, holding its local edits through
+/// `through`, based at `base` (`barrier` raising the floor to it), with `from` itself not
+/// hearing it: the order as the server would have it, for a peer to apply.
+pub(super) fn number_as(
+    sim: &mut Sim<ChecklistContent>,
+    from: usize,
+    through: u64,
+    entry: Entry,
+    base: u64,
+    barrier: bool,
+) {
+    let submission = be_sdk_type_api::Submission {
+        origin: sim.devices[from].origin,
+        counter: 1_000_000 + sim.numbered as u64,
+        base,
+        barrier,
+        payload: Submitted { through, entry }.encode(),
+    };
+    sim.deaf.insert(from);
+    sim.number(from, submission);
+    sim.settle();
+    sim.deaf.remove(&from);
+}
+
+/// An operation entry carrying `operation` inline.
+pub(super) fn inline(operation: &Edit) -> Entry {
+    Entry::Operation(be_block_session::Payload::Inline(
+        ChecklistContent::encode_operation(operation),
+    ))
+}
+
+/// Numbers a barrier, as a reload that replaces would be: every entry based before it is
+/// passed over. Answers the base an entry made before it has.
+pub(super) fn barrier(sim: &mut Sim<ChecklistContent>, from: usize) -> u64 {
+    let base = sim.order.sequence;
+    number_as(sim, from, 0, inline(&add("barrier")), base, true);
+    base
+}
