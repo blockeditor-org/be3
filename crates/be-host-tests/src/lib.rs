@@ -579,19 +579,11 @@ impl HostTest {
         }
     }
 
-    /// Adds what the window shows now to the recording, without settling first: a frame of a
-    /// sequence stepped one at a time (`--no-settle settle`), which the next `snapshot` ends.
+    /// Adds what the window shows now to the recording, as it is: a frame of a sequence
+    /// stepped one at a time (each command a stopped clock waits on runs one frame), which the
+    /// next `snapshot` ends.
     pub fn record_frame(&mut self) {
-        let mut words = vec!["paint"];
-        words.extend(self.crop.as_deref());
-        self.steps
-            .push(line(&words).replacen("paint", "paint painted.paint", 1));
-        let painted = match self.driven().request(&words) {
-            Ok(Reply::Painting(bytes)) => Painting::decode(&bytes).and_then(Snapshot::of_painting),
-            Ok(_) => Err("paint answered with something other than a painting".to_owned()),
-            Err(error) => Err(error),
-        };
-        let painted = painted.unwrap_or_else(|error| self.fail(&error));
+        let painted = self.paint_as(false);
         match &mut self.recorded {
             Some(recorded) => recorded.append(painted),
             None => self.recorded = Some(painted),
@@ -664,7 +656,15 @@ impl HostTest {
     }
 
     fn paint(&mut self) -> Snapshot {
-        self.gone("#editor.loading");
+        self.paint_as(true)
+    }
+
+    /// Paints the window, `loaded` once no editor shows its loading placeholder, which takes
+    /// frames of its own.
+    fn paint_as(&mut self, loaded: bool) -> Snapshot {
+        if loaded {
+            self.gone("#editor.loading");
+        }
         let mut words = vec!["paint"];
         words.extend(self.crop.as_deref());
         if self.space {

@@ -3924,10 +3924,11 @@ impl HostCore {
         let ready = self.organization.as_ref().is_some_and(|organization| {
             be_host_stack::installed_for(self.account.id, organization.id)
         });
+        let local = self.account.server == ServerLocation::Local;
         self.contacts
-            .poll(&accounts::link_base(&self.server_url), ready);
+            .poll(&accounts::link_base(&self.server_url), ready, local);
         self.share_links
-            .poll(&accounts::link_base(&self.server_url), ready);
+            .poll(&accounts::link_base(&self.server_url), ready, local);
         let current = self
             .organization
             .as_ref()
@@ -4424,6 +4425,15 @@ impl HostCore {
                 }
             }
             UiCommand::StopHosting(block) => self.hosts.keep(block, false),
+            // A local account has no server, so no contacts and no share links.
+            UiCommand::OpenContacts
+            | UiCommand::OpenContactLink(_)
+            | UiCommand::OpenShareLinks
+            | UiCommand::OpenShareLink(_)
+                if self.account.server == ServerLocation::Local =>
+            {
+                notices::refuse(NO_SERVER.to_owned());
+            }
             UiCommand::OpenContacts => self.contacts.show(),
             UiCommand::OpenMembers => self.members.show(),
             UiCommand::CloseMembers => self.members.close(),
@@ -5030,3 +5040,8 @@ mod tests;
 #[cfg(target_arch = "wasm32")]
 const STORAGE_NOT_KEPT: &str = "This browser did not agree to keep this site's data, so it may \
     delete your local account and everything in it when it runs short of space.";
+
+/// What a local account says when asked for contacts or a share link, which need a server.
+pub(crate) const NO_SERVER: &str =
+    "This account is kept on this device only, with no server, so it has no contacts and opens \
+     no share links.";
