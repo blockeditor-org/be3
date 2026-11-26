@@ -849,10 +849,6 @@ fn MenuRow(
                                     on_select={state.on_select}
                                 />
                             };
-                            // Measured from the start, so the HTML core, which answers a
-                            // frame after the first ask, knows where it is by the time the
-                            // pointer heads for it.
-                            measure(list);
                             panel.call(list)
                         }}
                     />

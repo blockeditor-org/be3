@@ -2340,9 +2340,6 @@ fn DockTiles(dock: State) -> NodeId {
             <DockBarLifted dock />
         </List>
     };
-    // Measured from the start, so a lift reads where the tiles are at once, also on
-    // a core that measures a node only once asked (`State::spec`).
-    measure(built);
     built
 }
 
@@ -3071,7 +3068,6 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                 test_prefix: dock.pane_test_id("dock", leaf),
             });
             strip.fill(scroll);
-            // Measured from the start: a lift's places leave the strip to the bar.
             let laid = measure(scroll);
             // A strip laid shorter than before (its pane narrowed) keeps its shown tab in view.
             // Not when it grows, which hides nothing, so a scroll the person made stays; nor on
