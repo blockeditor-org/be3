@@ -133,6 +133,7 @@ Landed on 2026-11-24:
 - `backlog-9`: a stopped sandbox keeps saying why, the PDF renderer keeps its documents, children as an array, game layout indexes, a lift wakes only its own readers, a first measurement at once.
 - `one-way-in-the-host`: one grip rule in be-lib-geometry for the window stack, be-host and the dock; the host's windows and program editors are pushed, not polled; why the two shrink rules stay apart.
 - `gpu-wasi-webgpu-3a`: local interfaces take async funcs and streams; be-wasm-gpu-host answers wasi:webgpu; devices keep to their own objects and limits; apps draw through wasi:webgpu; shared textures stay read-only.
+- `host-adapter-4g7d1-rest`: the root's palette lists the host's own rows and names editors' rows after their blocks; Switch account waits for a session chosen.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
