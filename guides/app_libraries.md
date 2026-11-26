@@ -289,8 +289,10 @@ for none.
 Every compositor of the host shows premultiplied, sRGB-encoded values in
 [0, 1]. A canvas configured otherwise (`alpha-mode` opaque, which is WebGPU's
 default; `color-space` display-p3; an rgba16float format, whose extended range
-no display the host draws on shows) is drawn at each present into textures the
-host keeps beside it, which are what it shows (be-wasm-gpu-host's `looks.rs`):
+no display the host draws on shows) is drawn, for each present, into rgba8unorm
+textures the host keeps beside it, which are what it shows (be-wasm-gpu-host's
+`looks.rs`; every present's drawing goes in one submit when the host takes
+what was presented, `Gpu::take_presented`, so read a surface only after that):
 its alpha taken as 1, display-p3 clipped to sRGB, floats clamped, as browsers
 show them on an sRGB display. be-sdk and be-sdk-root ask for premultiplied, so
 their canvases are shown as they are.
