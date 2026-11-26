@@ -664,6 +664,7 @@ impl Entry {
             lowers: self.lowers,
             places: matches!(self.record, Record::Parent(_)),
             owns: matches!(self.record, Record::Owner(_)),
+            administers: matches!(self.record, Record::Administrator(_)),
             retires: matches!(self.record, Record::Retirement(_)),
             retires_administrator: matches!(
                 &self.record,
@@ -705,6 +706,12 @@ pub struct Reduced {
     /// to what a former owner keeps, so a server that hides a transfer leaves no one the old
     /// owner's Manage (`check_log`).
     pub owns: bool,
+    /// Whether it is an administrator record, which makes or unmakes one. An honest path never
+    /// reduces one (`proof_path`), so `check_log` refuses a path that does: hidden, a promotion
+    /// would let the server pass an administrator off as a member, whose retirement a path may
+    /// hide (`retires_administrator`), and so keep their retired key granting on the
+    /// organization's authority.
+    pub administers: bool,
     /// Whether it is a retirement: one reduced so may retire the key of an account the path
     /// proves, which then signs nothing after it, so no authority is taken from a block's path
     /// that hides one (`Checked::hides_retirement`, `answer`).
@@ -729,6 +736,7 @@ impl Reduced {
             u8::from(self.lowers),
             u8::from(self.places),
             u8::from(self.owns),
+            u8::from(self.administers),
             u8::from(self.retires),
             u8::from(self.retires_administrator),
         ])
@@ -1427,6 +1435,10 @@ impl Checked {
                 // the kind or lowered anyone the path names.
                 StepRef::Reduced(reduced) => {
                     state.partial = true;
+                    // No honest path reduces an administrator record (`Reduced::administers`).
+                    if reduced.administers {
+                        return Err(KeyError::Record);
+                    }
                     if reduced.places {
                         state.placements.push((place, None));
                     }
@@ -1471,6 +1483,9 @@ impl Checked {
                 Record::Root(_) => return Err(KeyError::Record),
                 Record::Retirement(retirement) => {
                     let current = own.ok_or(KeyError::Record)?;
+                    // After a reduced demotion `administrators` is stale, so an honest bit of
+                    // false is refused: fine, since `answer` takes no authority from a path that
+                    // hides a lowering.
                     let administers = kind == LogKind::Organization
                         && state.administrators.contains_key(&entry.signer);
                     if retirement.administrator != administers {

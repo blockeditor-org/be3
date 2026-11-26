@@ -17,7 +17,14 @@ already reduces no lowering and no administrator's retirement (every record
 about an administrator is whole), and one that hides a lowering names no
 administrator. A lying server that reduces an administrator's retirement on an
 organization path anyway is refused too: the reduced step says it retires an
-administrator (`Reduced::retires_administrator`), as the retirement signs it.
+administrator (`Reduced::retires_administrator`), as the retirement signs it,
+and no path may reduce an administrator record (`Reduced::administers`), so the
+device signing the retirement cannot be shown a log that hides its account's
+promotion. This holds for records naming a head at or after the lowering or
+retirement, in an organization's log and a block's: a record naming an earlier
+head is stale authority, which a revoked manager or a stolen retired key, with
+the server, can still sign (guides/blocks/keys.md, "Accepted limits", "Stale
+authority").
 
 ## Why
 

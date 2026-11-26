@@ -1691,11 +1691,12 @@ impl Client {
             Query::RecoveryKey => {
                 let account = admitted.account()?;
                 let (public, sealed) = store.recovery_key(account).await?;
-                let logs = store.signed_logs(account).await?;
+                let (logs, organization_logs) = store.recovery_logs(account).await?;
                 Page::RecoveryKey(RecoveryKey {
                     public,
                     sealed,
                     logs,
+                    organization_logs,
                 })
             }
             Query::SigningKeys(accounts) => {

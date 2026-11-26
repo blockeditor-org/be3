@@ -1537,6 +1537,45 @@ impl ServerStore {
             .await
     }
 
+    /// `signed_logs`, with each organization's log among them from its root as `account`'s
+    /// proof path (`recovery-key`'s `organization-logs`), read together so each reaches the head
+    /// named.
+    pub async fn recovery_logs(
+        &self,
+        account: Uuid,
+    ) -> Result<
+        (
+            Vec<be_block_protocol::SignedLog>,
+            Vec<be_block_protocol::OrganizationPath>,
+        ),
+        ServerError,
+    > {
+        self.with_database(move |_, database| {
+            let logs = crate::access::signed_logs(database, account)?;
+            let paths = logs
+                .iter()
+                .filter(|log| log.kind == be_block_protocol::LogKind::Organization)
+                .map(|log| {
+                    let page = crate::access::served_log(
+                        database,
+                        be_block_keys::LogKind::Organization,
+                        log.organization,
+                        log.organization,
+                        Some(account),
+                        Vec::new(),
+                        None,
+                    )?;
+                    Ok(be_block_protocol::OrganizationPath {
+                        organization: log.organization,
+                        steps: page.entries,
+                    })
+                })
+                .collect::<Result<_, ServerError>>()?;
+            Ok((logs, paths))
+        })
+        .await
+    }
+
     /// Holds `part` of `account`'s move to new keys for the `set-recovery-key` that names them
     /// (`stage-recovery-key`): parts staged for other keys go, and each key or log it names
     /// replaces what was staged for it. A part names only keys sealed to the account and logs
