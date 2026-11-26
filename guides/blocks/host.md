@@ -429,7 +429,13 @@ the connection a stopping stack closed.
   `Peer::reconcile`, then the module's three-way merge, published with the
   local commit as an extra parent), and only then rejoins open blocks. It
   drains again after restoring unsent edits, after keeping, and every
-  `OUTBOX_RETRY` while something waits.
+  `OUTBOX_RETRY` while something waits. A drain that kept a change it failed
+  to send, or that the server refused for now (`Drained::Failed`, `Refused`),
+  drains again on what may let it through (`Tasks::drain_missed`): keys
+  changing, a lane command ending (a revoke and its rotation), an open block's
+  key changing. After a revoke, a drain running beside the lane's rotation can
+  meet the old epoch shown outdated before the new one exists, and the timer
+  alone would hold the edit 30 s.
 - **Session calls off the loop.** Relays, claims, leaves, unwatches
   and resynchronizing joins are answered in tasks (`Io::*`). They are written
   the moment they are made, so a leave and the next join reach the server in

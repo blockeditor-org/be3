@@ -1842,6 +1842,13 @@ pub fn modules_due() -> Option<std::time::Instant> {
     with_seen(|shared| shared.modules_due).flatten()
 }
 
+/// Makes this stack's drains end as failed without reaching the server while `fail`; letting
+/// go starts no drain.
+#[cfg(test)]
+pub(crate) fn fail_drains(fail: bool) {
+    with_shared_mut(|shared| shared.fail_drains = fail);
+}
+
 /// Holds this stack's outbox from draining while `hold`; letting go starts a drain.
 #[cfg(test)]
 pub(crate) fn hold_drains(hold: bool) {
