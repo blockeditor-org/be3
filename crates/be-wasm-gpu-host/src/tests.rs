@@ -212,7 +212,12 @@ mod web {
 
     /// Configures `context` as a premultiplied rgba8unorm canvas of `device`, viewed also as
     /// `views`: one shown as it is, as be-sdk's are.
-    pub(super) fn configure(gpu: &mut Gpu, device: GpuDevice, context: GpuCanvasContext, views: Vec<GpuTextureFormat>) {
+    pub(super) fn configure(
+        gpu: &mut Gpu,
+        device: GpuDevice,
+        context: GpuCanvasContext,
+        views: Vec<GpuTextureFormat>,
+    ) {
         gpu.gpu_canvas_context_configure(
             context,
             GpuCanvasConfiguration {

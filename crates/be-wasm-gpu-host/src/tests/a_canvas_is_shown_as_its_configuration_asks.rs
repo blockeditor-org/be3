@@ -4,16 +4,21 @@ use super::*;
 /// A gpu on a real device, which draws what the host shows.
 fn drawing() -> Gpu {
     let instance = wgpu::Instance::default();
-    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
-        .expect("the test has lavapipe");
-    let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
-        .expect("lavapipe gives a device");
+    let adapter =
+        pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
+            .expect("the test has lavapipe");
+    let (device, queue) =
+        pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
+            .expect("lavapipe gives a device");
     Gpu::new(device, queue)
 }
 
 /// What surface 0 shows once its canvas, configured as `configuration` asks, is cleared to
 /// `clear` and presented: its first pixel, and whether it is the canvas's own texture.
-fn shown(configure: impl FnOnce(&mut GpuCanvasConfiguration), clear: wgpu::Color) -> ([u8; 4], bool) {
+fn shown(
+    configure: impl FnOnce(&mut GpuCanvasConfiguration),
+    clear: wgpu::Color,
+) -> ([u8; 4], bool) {
     let mut gpu = drawing();
     let device = device(&mut gpu, Vec::new()).unwrap();
     let context = be_wasm_gpu_abi::embed::host::Host::surface(&mut gpu, 0);
@@ -68,19 +73,31 @@ fn shown(configure: impl FnOnce(&mut GpuCanvasConfiguration), clear: wgpu::Color
     );
     gpu.queue().submit([encoder.finish()]);
     readable.slice(..).map_async(wgpu::MapMode::Read, |_| {});
-    gpu.device().poll(wgpu::PollType::wait_indefinitely()).unwrap();
-    let pixel: [u8; 4] = readable.slice(..4).get_mapped_range().unwrap()[..4].try_into().unwrap();
+    gpu.device()
+        .poll(wgpu::PollType::wait_indefinitely())
+        .unwrap();
+    let pixel: [u8; 4] = readable.slice(..4).get_mapped_range().unwrap()[..4]
+        .try_into()
+        .unwrap();
     assert!(gpu.take_logged().is_empty(), "{:?}", gpu.take_logged());
     (pixel, texture == canvas)
 }
 
 fn near(shown: [u8; 4], wanted: [u8; 4]) -> bool {
-    shown.iter().zip(wanted).all(|(shown, wanted)| shown.abs_diff(wanted) <= 2)
+    shown
+        .iter()
+        .zip(wanted)
+        .all(|(shown, wanted)| shown.abs_diff(wanted) <= 2)
 }
 
 #[test]
 fn a_canvas_is_shown_as_its_configuration_asks() {
-    let gray = wgpu::Color { r: 0.2, g: 0.2, b: 0.2, a: 0.5 };
+    let gray = wgpu::Color {
+        r: 0.2,
+        g: 0.2,
+        b: 0.2,
+        a: 0.5,
+    };
     let (pixel, own) = shown(
         |configuration| configuration.alpha_mode = Some(GpuCanvasAlphaMode::Premultiplied),
         gray,
@@ -89,10 +106,18 @@ fn a_canvas_is_shown_as_its_configuration_asks() {
     assert!(own, "a premultiplied sRGB canvas is shown as it is");
 
     let (pixel, own) = shown(|_| {}, gray);
-    assert!(near(pixel, [51, 51, 51, 255]), "an opaque canvas's alpha is ignored: {pixel:?}");
+    assert!(
+        near(pixel, [51, 51, 51, 255]),
+        "an opaque canvas's alpha is ignored: {pixel:?}"
+    );
     assert!(!own);
 
-    let red = wgpu::Color { r: 0.6, g: 0.3, b: 0.3, a: 1.0 };
+    let red = wgpu::Color {
+        r: 0.6,
+        g: 0.3,
+        b: 0.3,
+        a: 1.0,
+    };
     let (pixel, _) = shown(
         |configuration| {
             configuration.alpha_mode = Some(GpuCanvasAlphaMode::Premultiplied);

@@ -242,7 +242,8 @@ impl Gpu {
         let Some(target) = self.surfaces.get_mut(&surface) else {
             return;
         };
-        let kept = target.look == look && (look.plain() || target.shown.len() == target.textures.len());
+        let kept =
+            target.look == look && (look.plain() || target.shown.len() == target.textures.len());
         if kept {
             return;
         }
@@ -276,10 +277,12 @@ impl Gpu {
             return;
         };
         let last = (target.drawn + 1) % target.textures.len();
-        let (Some((shown, _)), (canvas, _)) = (target.shown.get(last), &target.textures[last]) else {
+        let (Some((shown, _)), (canvas, _)) = (target.shown.get(last), &target.textures[last])
+        else {
             return;
         };
-        self.looks.show(&self.device, &self.queue, target.look, canvas, shown);
+        self.looks
+            .show(&self.device, &self.queue, target.look, canvas, shown);
     }
 
     pub fn detach_surface(&mut self, surface: u32) {
