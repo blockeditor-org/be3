@@ -127,7 +127,7 @@ impl<S> Default for Canvases<S> {
 const HIDDEN: &str = "display: none";
 
 impl<S: Copy + PartialEq> Canvases<S> {
-    /// DrawsCanvases each of `placements` in a canvas, keeping hidden the canvases of the surfaces
+    /// Shows each of `placements` in a canvas, keeping hidden the canvases of the surfaces
     /// `retained` holds that no placement shows. A layer that shows another surface than it did
     /// keeps its canvas, which shows what it did until the new surface is drawn into it (a view
     /// shown again on a surface of its own), where its drawer can (`retarget`). Answers the
