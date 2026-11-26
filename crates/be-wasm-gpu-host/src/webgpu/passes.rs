@@ -10,6 +10,21 @@ use crate::tables::Table;
 
 type Recorded = Box<dyn FnOnce(&mut wgpu::CommandEncoder)>;
 
+/// A pass being recorded, with the app device it records for, borrowed in place by each call.
+pub(crate) struct Recording<P> {
+    pass: std::cell::RefCell<P>,
+    device: Option<u32>,
+}
+
+impl<P> Recording<P> {
+    fn new(pass: P, device: Option<u32>) -> Self {
+        Self {
+            pass: std::cell::RefCell::new(pass),
+            device,
+        }
+    }
+}
+
 impl Gpu {
     /// Records into an encoder. wgpu keeps what a command got wrong in the encoder and raises
     /// it at `finish`, so only a missing object is raised here.
@@ -27,19 +42,14 @@ impl Gpu {
     }
 
     /// A call made per draw on a render pass: not wrapped in scopes, since wgpu raises a pass's
-    /// errors when it ends. The pass is taken out of its table while `act` reads the others.
+    /// errors when it ends. It looks up only the pass, which keeps its device, and records in
+    /// place while `act` reads the other tables.
     pub(super) fn render(
         &mut self,
         pass: u32,
         act: impl FnOnce(&Self, &mut wgpu::RenderPass<'static>) -> Result<(), Failure>,
     ) {
-        let device = self.owner(Kind::RenderPass, pass);
-        self.checked(device, |gpu| {
-            let mut taken = found(gpu.passes.take(pass, "render pass"))?;
-            let result = act(gpu, &mut taken);
-            gpu.passes.put(pass, taken);
-            result
-        });
+        self.recorded(|gpu| &gpu.passes, Kind::RenderPass, pass, "render pass", act);
     }
 
     /// A call made per dispatch on a compute pass, as `render`.
@@ -48,13 +58,40 @@ impl Gpu {
         pass: u32,
         act: impl FnOnce(&Self, &mut wgpu::ComputePass<'static>) -> Result<(), Failure>,
     ) {
-        let device = self.owner(Kind::ComputePass, pass);
-        self.checked(device, |gpu| {
-            let mut taken = found(gpu.compute_passes.take(pass, "compute pass"))?;
-            let result = act(gpu, &mut taken);
-            gpu.compute_passes.put(pass, taken);
-            result
-        });
+        self.recorded(|gpu| &gpu.compute_passes, Kind::ComputePass, pass, "compute pass", act);
+    }
+
+    fn recorded<P>(
+        &mut self,
+        table: fn(&Self) -> &Table<Recording<P>>,
+        kind: Kind,
+        pass: u32,
+        name: &str,
+        act: impl FnOnce(&Self, &mut P) -> Result<(), Failure>,
+    ) {
+        let device = match table(self).get(pass, name) {
+            Ok(recording) => recording.device,
+            // A pass ended is still its device's until it is dropped, whose scopes hear why.
+            Err(message) => {
+                let device = self.owner(kind, pass);
+                if !device.is_some_and(|device| self.device_lost(device)) {
+                    self.raise(device, Failure::validation(message));
+                }
+                return;
+            }
+        };
+        if device.is_some_and(|device| self.device_lost(device)) {
+            return;
+        }
+        let outer = std::mem::replace(&mut self.web.acting, device);
+        let result = match table(self).get(pass, name) {
+            Ok(recording) => act(self, &mut recording.pass.borrow_mut()),
+            Err(message) => Err(Failure::validation(message)),
+        };
+        self.web.acting = outer;
+        if let Err(failure) = result {
+            self.raise(device, failure);
+        }
     }
 
     /// Records a command into a render bundle encoder, which replays them all at `finish`.
@@ -251,6 +288,7 @@ impl Gpu {
                         multiview_mask: None,
                     })
                     .forget_lifetime())
+                .map(|pass| Recording::new(pass, device))
             },
         )
     }
@@ -296,6 +334,7 @@ impl Gpu {
                         }),
                     })
                     .forget_lifetime())
+                .map(|pass| Recording::new(pass, device))
             },
         )
     }

@@ -13,6 +13,8 @@
 mod limits;
 mod objects;
 mod passes;
+
+pub(crate) use passes::Recording;
 mod surfaces;
 
 use std::collections::BTreeMap;
