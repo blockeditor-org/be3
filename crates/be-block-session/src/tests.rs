@@ -6,6 +6,7 @@ use super::*;
 
 mod replicas_fed_one_order_agree_on_the_holder_at_every_number;
 mod resuming_only_merges_when_history_actually_diverged;
+mod resuming_past_thinned_history_merges_on_the_head_it_was_on;
 mod the_first_participant_names_the_build_the_session_speaks;
 mod the_holder_is_the_last_claimant_with_edit_access_else_the_first_editor;
 mod the_order_numbers_each_submission_and_carries_its_floor;

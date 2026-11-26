@@ -54,7 +54,7 @@ use be_host_base::{host, host_state, notices, panic_guard, performance, platform
 use be_host_desktop::desktop_host::{DesktopHost, Host};
 use be_host_runtime::{BlockOpen, EditorAction};
 #[cfg(target_os = "linux")]
-use be_host_services::{media, notifications, screenshot, tray, wifi};
+use be_host_services::{battery, media, notifications, screenshot, tray, wifi};
 use be_host_stack::{accounts, invite_link, keys, offline_choice};
 use be_sdk_api::{
     AccessLevel, ArtifactAction, BlockCommand, BlockLocation, HostPanel, ShellDialog,
@@ -746,6 +746,12 @@ struct HostCore {
     tray: Option<tray::Tray>,
     #[cfg(target_os = "linux")]
     wifi: Option<wifi::Wifi>,
+    /// Whether the device runs on mains power, as UPower last said: a login session's, for the
+    /// stack's work that waits for the device to be at rest (`run_rest`).
+    #[cfg(target_os = "linux")]
+    battery: Option<battery::Battery>,
+    #[cfg(target_os = "linux")]
+    on_power: Rc<std::cell::Cell<bool>>,
 }
 
 type Account = SavedAccount;
@@ -1130,6 +1136,10 @@ impl HostCore {
             tray: None,
             #[cfg(target_os = "linux")]
             wifi: None,
+            #[cfg(target_os = "linux")]
+            battery: None,
+            #[cfg(target_os = "linux")]
+            on_power: Rc::new(std::cell::Cell::new(true)),
         };
         core.resume_organization();
         be_host_base::push_device::publish();
@@ -1317,10 +1327,32 @@ impl HostCore {
             login_session.frame(lock);
         }
         let locked = lock.locked();
+        self.run_rest(locked);
         Host::set_locked(locked);
         be_host_desktop::remap::set_locked(locked);
         be_host_base::watches::publish::<be_sdk_api::ScreenLockedWatch>(&locked);
         self.run_power(locked);
+    }
+
+    /// Tells the stack whether the device is at rest (`be_host_stack::Rest`): a login session's
+    /// person is away while its screen is locked, and its power is UPower's. A windowed host
+    /// tells nothing, so that work waits on the stack's own idleness there.
+    #[cfg(target_os = "linux")]
+    fn run_rest(&mut self, away: bool) {
+        if self.login_session.is_none() {
+            return;
+        }
+        if self.battery.is_none() {
+            let on_power = Rc::clone(&self.on_power);
+            self.battery = Some(battery::Battery::start(move |powered| {
+                on_power.set(powered);
+                host::request_repaint();
+            }));
+        }
+        be_host_stack::set_rest(be_host_stack::Rest {
+            away,
+            on_power: self.on_power.get(),
+        });
     }
 
     #[cfg(target_os = "linux")]

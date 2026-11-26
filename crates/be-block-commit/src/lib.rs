@@ -15,7 +15,7 @@ pub use merge::{
 #[cfg(feature = "store")]
 pub use retention::{CommitSummary, RetentionPlan, RetentionPolicy, plan as plan_retention};
 #[cfg(feature = "store")]
-pub use store::{CommitStore, MergeBase, MergeBaseWalk};
+pub use store::{CommitStore, Descent, MergeBase, MergeBaseWalk};
 
 /// Spans of commit time, in milliseconds.
 pub const MINUTE: i64 = 60 * 1000;

@@ -101,11 +101,12 @@ pub struct SearchHit {
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct Searched {
     pub hits: Vec<SearchHit>,
-    /// Every queued edit this device made is indexed.
+    /// Every queued edit this device made is indexed, and the hits answer what the indexes hold
+    /// now: an answer running again shows the one before it meanwhile, not complete.
     pub complete: bool,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 struct Found {
     block: Uuid,
     key: String,
@@ -116,7 +117,13 @@ struct Answer {
     /// The heads of the indexes it read (`heads`).
     read: u64,
     found: Vec<Found>,
+    /// What readers see: the snippets cut for `found`, or, until they are (`cut`), for the
+    /// answer before it, so a search running again never shows no hits meanwhile.
     shown: Option<Searched>,
+    /// Whether `shown` is cut from `found`.
+    cut: bool,
+    /// An index it read changed (`forget_answers`): it runs again, `shown` kept until then.
+    stale: bool,
     /// The graph's revision when it was shown: it is shown again once the graph moves.
     missing: Option<u64>,
     /// The graph's revision when it was found without reading every index at the head it is
@@ -294,6 +301,13 @@ pub struct Searching {
     pub off: bool,
 }
 
+impl Answer {
+    /// Whether what it shows answers what the indexes hold now.
+    fn current(&self) -> bool {
+        self.cut && !self.stale
+    }
+}
+
 impl Searching {
     /// The new connection lists nothing yet. Roots whose index could not be made are tried
     /// again: one that failed for want of a connection waits for no graph change.
@@ -460,20 +474,25 @@ impl Searching {
         true
     }
 
-    /// Each search's answer as shown so far, `complete` left for the reader to fill in from
-    /// `indexed` (`Seen::searched`).
+    /// Each search's answer as shown so far, `complete` while it is the answer for what the
+    /// indexes hold now, left for the reader to clear unless `indexed` (`Seen::searched`).
     pub(crate) fn shown(&self) -> HashMap<SearchAsk, Searched> {
         self.answers
             .iter()
-            .filter_map(|(asked, answer)| Some((asked.clone(), answer.shown.clone()?)))
+            .filter_map(|(asked, answer)| {
+                let mut shown = answer.shown.clone()?;
+                shown.complete = answer.current();
+                Some((asked.clone(), shown))
+            })
             .collect()
     }
 
     /// A search's answer as the page reads it (`crate::searched`).
     #[cfg(test)]
     pub(crate) fn answer(&self, asked: &SearchAsk) -> Option<Searched> {
-        let mut shown = self.answers.get(asked)?.shown.clone()?;
-        shown.complete = self.indexed();
+        let answer = self.answers.get(asked)?;
+        let mut shown = answer.shown.clone()?;
+        shown.complete = answer.current() && self.indexed();
         Some(shown)
     }
 
@@ -481,9 +500,12 @@ impl Searching {
         self.shown_revision
     }
 
-    /// Forgets every answer: an index they read changed.
+    /// Marks every answer to run again: an index they read changed. Each is still shown, not
+    /// complete, until the new one has its snippets.
     fn forget_answers(&mut self) {
-        self.answers.clear();
+        for answer in self.answers.values_mut() {
+            answer.stale = true;
+        }
         self.shown_revision += 1;
     }
 
@@ -976,6 +998,12 @@ fn place(graph: &Graph, block: Uuid) -> Place {
         let held_by_metadata = node.content_type == SEARCH_INDEX_TYPE
             || node.content_type == SETTINGS_TYPE
             || EDIT_KINDS.contains(&node.content_type);
+        // The account's view starts here, below a parent it may not view (`entry`): a block
+        // shared alone, which no root this account may read holds. The mirror never lists its
+        // parent, so waiting to place it would wait for nothing.
+        if node.entry == Some(current) && matches!(node.parent, Some(BlockParent::Block(_))) {
+            return Place::Skip;
+        }
         match node.parent {
             Some(BlockParent::Block(_)) if held_by_metadata => return Place::Skip,
             Some(BlockParent::Block(parent)) => current = parent,
@@ -1039,7 +1067,9 @@ pub(crate) async fn step(
 }
 
 /// While the host is idle (nothing queued, written, made or caught up for search, no search
-/// running, no command waiting, nothing in the outbox, no module working), compacts an index
+/// running, no command waiting, nothing in the outbox, no module working) and the device at
+/// rest (the person away and on mains power, as far as the host can tell: `Rest`), compacts an
+/// index
 /// whose compaction leaves a merge over `MERGE_BYTES`, with merges up to `IDLE_MERGE_BYTES`, in
 /// a task. Only an index whose newest head here is the one this device's last write left
 /// (`Searching::last_written`) is looked at: the device that wrote the last batch compacts, so
@@ -1053,7 +1083,10 @@ fn compact_idle_indexes(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, ta
     if held.search.hold_idle {
         return;
     }
+    let rest = crate::rest();
     let idle = !held.search.off
+        && rest.away
+        && rest.on_power
         && held.waiting == 0
         && held.pending() == 0
         && held.typing.is_empty()
@@ -2834,7 +2867,7 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
     let mut unshown = false;
     for answer in held.search.answers.values_mut() {
         if answer.missing.is_some_and(|at| at != graph) {
-            answer.shown = None;
+            answer.cut = false;
             answer.missing = None;
             unshown = true;
         }
@@ -2849,7 +2882,7 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
         let read = heads(peer, &held.graph, &indexes);
         if held.search.running.contains(&asked)
             || held.search.answers.get(&asked).is_some_and(|answer| {
-                answer.read == read && answer.retry.is_none_or(|at| at == graph)
+                answer.read == read && !answer.stale && answer.retry.is_none_or(|at| at == graph)
             })
         {
             continue;
@@ -2867,12 +2900,20 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
             held.search.running.remove(&asked);
             if held.search.wanted().any(|wanted| *wanted == asked) {
                 held.search.shown_revision += 1;
+                // The answer before stays shown until this one's snippets are cut.
+                let shown = held
+                    .search
+                    .answers
+                    .remove(&asked)
+                    .and_then(|before| before.shown);
                 held.search.answers.insert(
                     asked,
                     Answer {
                         read,
                         found,
-                        shown: None,
+                        shown,
+                        cut: false,
+                        stale: false,
                         missing: None,
                         retry: (!exact).then_some(graph),
                     },
@@ -2969,7 +3010,7 @@ async fn show(
         held.search
             .answers
             .iter()
-            .filter(|(_, answer)| answer.shown.is_none())
+            .filter(|(_, answer)| !answer.cut)
             .map(|(asked, answer)| (asked.clone(), answer.found.clone()))
             .collect()
     };
@@ -2979,6 +3020,7 @@ async fn show(
     for (asked, found) in unshown {
         let query = Query::parse(&asked.text);
         let mut hits = Vec::new();
+        let found_of_cut = found.clone();
         for found in found {
             let (content_type, head) = {
                 let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
@@ -3017,11 +3059,18 @@ async fn show(
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         let held = &mut *held;
         let graph = held.graph.revision;
-        if let Some(answer) = held.search.answers.get_mut(&asked) {
+        // Unless it ran again meanwhile: then the newer answer's hits are cut next.
+        if let Some(answer) = held
+            .search
+            .answers
+            .get_mut(&asked)
+            .filter(|answer| !answer.cut && answer.found == found_of_cut)
+        {
             answer.shown = Some(Searched {
                 hits,
                 complete: false,
             });
+            answer.cut = true;
             held.search.shown_revision += 1;
             // Shown again whenever the mirror moves: a hit may have left the tree, or been moved
             // out of what the search is within, or the mirror may now hold one it lacked.
