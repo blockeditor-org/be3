@@ -55,6 +55,11 @@ pub(crate) fn checked(
     Ok(checked)
 }
 
+/// Logs checked as of the heads records name their authority at, so a record resting on
+/// another log's authority checks that log once as of each head (`be_block_keys::CheckedAsOf`).
+static CHECKED_AS_OF: std::sync::LazyLock<be_block_keys::CheckedAsOf> =
+    std::sync::LazyLock::new(|| be_block_keys::CheckedAsOf::new(CHECKED_ENTRIES));
+
 /// Lets go of every log the server kept checked, so the next check of each is from its root.
 #[cfg(test)]
 pub(crate) fn forget_checked() {
@@ -708,7 +713,7 @@ pub(crate) fn checked_block_log(
         organization,
     )
     .and_then(|steps| steps.first().map(Step::hash));
-    let logs = Logs::new(organization.into_bytes(), organization_root, &log);
+    let logs = Logs::new(organization.into_bytes(), organization_root, &log).keeping(&CHECKED_AS_OF);
     let pinned = entries
         .first()
         .map(Entry::hash)

@@ -429,6 +429,9 @@ pub struct Peer<S: ObjectStore> {
     /// under its id): a read names the last entry held and is sent only the
     /// entries after it (`served_access`).
     served_logs: Mutex<ServedLogs>,
+    /// Logs checked as of the heads records name their authority at, so authority from another
+    /// log is checked once as of each (`be_block_keys::CheckedAsOf`).
+    checked_as_of: Arc<be_block_keys::CheckedAsOf>,
 }
 
 /// The access logs a peer holds for reading again (`Peer::served_access`), weighed by their
@@ -661,6 +664,7 @@ impl<S: ObjectStore> Peer<S> {
             trading_heads: std::sync::atomic::AtomicBool::new(false),
             unsigned: Mutex::new(Vec::new()),
             served_logs: Mutex::new(ServedLogs::new(SERVED_ENTRIES)),
+            checked_as_of: Arc::new(be_block_keys::CheckedAsOf::new(SERVED_ENTRIES)),
             pending_rotations: Mutex::new(HashMap::new()),
             keys_arrived: Arc::default(),
             moved_heads: Mutex::new(HashMap::new()),
@@ -2751,7 +2755,10 @@ impl<S: ObjectStore> Peer<S> {
         block: Uuid,
         entries: &[be_block_keys::Step],
     ) -> Result<Around, ClientError> {
-        let mut around = Around::default();
+        let mut around = Around {
+            kept: Some(Arc::clone(&self.checked_as_of)),
+            ..Around::default()
+        };
         if let Some(pinned) = self.keys.organization_root() {
             let entries = self.organization_log().await?;
             around.organization = Some((pinned, entries));
@@ -5059,6 +5066,8 @@ fn grant_level(access: Access) -> be_block_keys::Level {
 struct Around {
     organization: Option<(be_block_keys::EntryHash, Vec<be_block_keys::Step>)>,
     held: HashMap<Uuid, Vec<be_block_keys::Step>>,
+    /// The peer's logs checked as of a head, which the check takes and adds to.
+    kept: Option<Arc<be_block_keys::CheckedAsOf>>,
 }
 
 /// An access log as served (`Peer::served_access`): `sent`, the log from its root when `from` is
@@ -5135,11 +5144,14 @@ impl Around {
         entries: &[be_block_keys::Step],
     ) -> Option<be_block_keys::Checked> {
         let log = |kind, log| self.log(kind, log);
-        let logs = be_block_keys::Logs::new(
+        let mut logs = be_block_keys::Logs::new(
             organization.into_bytes(),
             self.organization.as_ref().map(|(root, _)| *root),
             &log,
         );
+        if let Some(kept) = &self.kept {
+            logs = logs.keeping(kept);
+        }
         let outside =
             |asked: &be_block_keys::Asked| be_block_keys::answer(&logs, block.into_bytes(), asked);
         kept.unwrap_or_else(|| be_block_keys::Checked::unchecked(pinned))

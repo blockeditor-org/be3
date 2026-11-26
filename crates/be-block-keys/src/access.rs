@@ -12,7 +12,7 @@ use sha2::{Digest, Sha256};
 
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 use crate::{
     InviteCode, KeyError, PublicIdentity, RecoverySecret, SigningPublic, verify_signature,
@@ -1936,12 +1936,48 @@ pub struct Logs<'a> {
     pub organization_root: Option<EntryHash>,
     /// A log's entries, root first, as far as the reader holds it.
     pub log: &'a dyn Fn(LogKind, [u8; 16]) -> Option<Vec<Step>>,
-    checked: RefCell<HashMap<Checking, Option<Rc<Checked>>>>,
+    checked: RefCell<HashMap<Checking, Option<Arc<Checked>>>>,
     checks: Cell<usize>,
+    kept: Option<&'a CheckedAsOf>,
 }
 
 /// A log checked from a root as of one of its entries, as `Logs` remembers it.
 type Checking = (LogKind, [u8; 16], EntryHash, EntryHash);
+
+/// A log checked as of a head, with the organization and the root pinned for its log that the
+/// records in it naming the organization's authority were answered from.
+type AsOf = (Checking, [u8; 16], Option<EntryHash>);
+
+/// Logs checked as of a head, kept by whoever checks logs again and again (a device, the
+/// server) across the `Logs` of each check (`Logs::keeping`), so authority from another log is
+/// checked once as of each head a record names, not on every check of a log that rests on it.
+/// Only what checked is kept: a head's hash names every entry up to it, so the log as of it
+/// checks the same whoever serves it later, while one that did not check may yet, once more of
+/// what it rests on is held. Bounded by the entries of the logs it holds.
+pub struct CheckedAsOf(Mutex<crate::lru::Lru<AsOf, Arc<Checked>>>);
+
+impl CheckedAsOf {
+    /// Holding at most `entries` entries of checked logs in all.
+    pub fn new(entries: usize) -> Self {
+        Self(Mutex::new(crate::lru::Lru::new(entries)))
+    }
+
+    fn get(&self, key: &AsOf) -> Option<Arc<Checked>> {
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(key)
+            .cloned()
+    }
+
+    fn insert(&self, key: AsOf, checked: Arc<Checked>) {
+        let weight = checked.positions.len();
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(key, checked, weight);
+    }
+}
 
 impl<'a> Logs<'a> {
     pub fn new(
@@ -1955,10 +1991,20 @@ impl<'a> Logs<'a> {
             log,
             checked: RefCell::new(HashMap::new()),
             checks: Cell::new(0),
+            kept: None,
         }
     }
 
-    /// How many logs `answer` checked through these (once each as of each head).
+    /// These logs, taking what `kept` holds checked as of a head and keeping what they check.
+    pub fn keeping(self, kept: &'a CheckedAsOf) -> Self {
+        Self {
+            kept: Some(kept),
+            ..self
+        }
+    }
+
+    /// How many logs `answer` checked through these (once each as of each head, and none kept
+    /// checked as of it by an earlier `Logs`).
     pub fn checks(&self) -> usize {
         self.checks.get()
     }
@@ -1972,10 +2018,15 @@ impl<'a> Logs<'a> {
         log: [u8; 16],
         root: EntryHash,
         head: EntryHash,
-    ) -> Option<Rc<Checked>> {
+    ) -> Option<Arc<Checked>> {
         let key = (kind, log, root, head);
         if let Some(found) = self.checked.borrow().get(&key) {
             return found.clone();
+        }
+        let kept = (key, self.organization, self.organization_root);
+        if let Some(found) = self.kept.and_then(|held| held.get(&kept)) {
+            self.checked.borrow_mut().insert(key, Some(found.clone()));
+            return Some(found);
         }
         self.checked.borrow_mut().insert(key, None);
         self.checks.set(self.checks.get() + 1);
@@ -1983,7 +2034,10 @@ impl<'a> Logs<'a> {
         let outside = |asked: &Asked| answer(self, log, asked);
         let found = entries
             .and_then(|entries| check_log_as_of(kind, log, root, &entries, head, &outside).ok())
-            .map(Rc::new);
+            .map(Arc::new);
+        if let (Some(held), Some(found)) = (self.kept, &found) {
+            held.insert(kept, found.clone());
+        }
         self.checked.borrow_mut().insert(key, found.clone());
         found
     }
