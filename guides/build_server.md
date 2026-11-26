@@ -134,10 +134,11 @@ Behind an HTTPS proxy, as in a cloud session, buck2 reaches nl.be3.pfg.pw throug
   with the digests and why. buck2's daemon does not: it keeps its own record of what `FindMissingBlobs` answered for
   12 hours (fixed in its gRPC client; no buckconfig option bounds it), never forgets on a refused `Execute`, and so
   never asks the relay again or uploads; buck2's restarter (on in .buckconfig) does not count that refusal as
-  corrupt state, so it does not restart for it. buck2 exits 3 for it, as for an action that failed (it ranks
-  FAILED_PRECONDITION an input error), so `./scripts/buck` does not retry it either. So `./scripts/buck kill`
-  and run the command again: the new daemon asks the relay, which has forgotten, and uploads. Fallbacks, in order,
-  if it survives that: kill this checkout's relays too (each checkout, a worktree included, runs its own pair,
+  corrupt state. buck2 exits 3 for it, as for an action that failed, so `./scripts/buck` tells the two apart by the
+  relay's log: when a run exits 3 and the log gained a `forgot` line during it, it runs `buck2 kill` and tries again,
+  and the new daemon asks the relay, which has forgotten, and uploads. With no proxy there is no relay to log it:
+  `./scripts/buck kill` and run the command again. If it keeps failing, in order:
+  kill this checkout's relays (each checkout, a worktree included, runs its own pair,
   `target/tools/re-relay-*/re-relay serve` under that checkout, and they outlive `./scripts/buck kill`;
   `pgrep -a re-relay` lists them; kill this checkout's two by PID, and the next `./scripts/buck` starts them again;
   a removed agent worktree leaves its own pair running, under a path that no longer exists: kill those too);
