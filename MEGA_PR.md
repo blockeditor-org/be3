@@ -165,6 +165,7 @@ Landed on 2026-11-24:
 - `backlog-24`: `./scripts/buck` restarts buck2's daemon and tries again when re-relay forgot a lost blob during a failed run.
 - `streamed-merges`: a compaction writes its merged search segments through a part sink, a window and a term at a time, so the idle pass merges tiers of any size; plans/streamed_part_writes.md steps 1-3.
 - `backlog-24-rasterizer`: the browser rasterizer drops Mesa, LLVM and all but the en-US locale (683 MB to 408 MB, previews pixel-identical) and carries the libudev it borrowed from the host; sysroot sets take `-PACKAGE`.
+- `backlog-26-3`: a retiring key's administrator bit is proved from each organization log served whole from its root, which a server can neither reduce nor withhold, so an ex-member takes a new phrase too; retired keys bar only records naming a head at or after the retirement.
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
