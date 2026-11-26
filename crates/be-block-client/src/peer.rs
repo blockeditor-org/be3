@@ -4298,6 +4298,38 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
+    /// Reads `block`'s summary and follows it (`topic.known`): a block this device knows of
+    /// without following a tree that holds it, as one known only through a reference, which
+    /// names no entry point. The connection hears `Event::KnownChanged` as it changes, and
+    /// reads it again. None, following nothing, for a block this account may not know of.
+    pub async fn follow_known(&self, block: Uuid) -> Result<Option<BlockSummary>, ClientError> {
+        let read = crate::ask(be_block_protocol::ask::<
+            Vec<Option<be_block_protocol::BlockSummary>>,
+            _,
+        >(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Query::Blocks {
+                blocks: vec![block],
+                contents: false,
+                held: Vec::new(),
+            },
+            true,
+        ))
+        .await?;
+        Ok(read.into_iter().next().flatten())
+    }
+
+    /// Stops following `block` as one this device knows of (`follow_known`).
+    pub async fn unfollow_known(&self, block: Uuid) -> Result<(), ClientError> {
+        Ok(be_block_protocol::client::server::unfollow(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Topic::Known(block),
+        )
+        .await??)
+    }
+
     /// Stops following `entry` (`changed_page`'s `follow`).
     pub async fn unfollow(&self, entry: Uuid) -> Result<(), ClientError> {
         Ok(be_block_protocol::client::server::unfollow(

@@ -236,6 +236,7 @@ const TARGETS: &[&str] = &[
 fn topic_case(topic: &Topic) -> &'static str {
     match topic {
         Topic::Tree(_) => "unfollow tree",
+        Topic::Known(_) => "unfollow known",
         Topic::Session(_) => "unfollow session",
         Topic::BlockLog(_) => "unfollow block-log",
         Topic::Keys => "unfollow keys",
@@ -249,6 +250,7 @@ fn topic_case(topic: &Topic) -> &'static str {
 
 const TOPICS: &[&str] = &[
     "unfollow tree",
+    "unfollow known",
     "unfollow session",
     "unfollow block-log",
     "unfollow keys",
@@ -759,6 +761,7 @@ impl TestClient {
             .await;
         for topic in [
             Topic::Tree(block),
+            Topic::Known(block),
             Topic::Session(block),
             Topic::BlockLog(block),
             Topic::Keys,

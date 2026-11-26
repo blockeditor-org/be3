@@ -699,6 +699,14 @@ of view) is told once more (`WatchHub::left`) and unfollowed, so it reads the
 tree, is refused, and lets go of what it showed of it. A failed read resets
 the follow, so the next change is told again (`WatchHub::unread`).
 
+**Known blocks.** A block a reader may only know exists (through a
+reference) names no entry point, so no tree it follows holds it. A `blocks`
+read of that one block with `follow` follows it by itself (`topic.known`,
+`WatchHub::follow_known`; let go at once when the caller may not know of it),
+and every change whose path holds it tells `topic-changed(known)`
+(`WatchHub::known_changed`, from `advance`), with nothing of what changed: the
+reader reads the summary again, which says what it may know.
+
 **Roots.** What lies at the top, in the trash and is shared with an account
 changes with a grant, a creation at the top, or a move that leaves or reaches
 the top or the trash or changes who may know of the block: `topic-changed(roots)`
