@@ -403,7 +403,13 @@ the connection a stopping stack closed.
   again. Opened before it
   joins (offline, or joining), those the server may hold already only show
   (`opening.doubtful-through`, the replica's `doubtful` layer): numbered here
-  they could land twice. Once joined, the order says which it holds, even after
+  they could land twice. Edits made after the first of them wait behind it, so
+  its made-up session numbers and seals none of them while it joins: the seal
+  `reconnect` asks holds only what came before, the order this device's journal
+  replayed, and the join, opened on the server's journal beside that seal in
+  the outbox, finds each edit once (be-host-stack's
+  `a_seal_made_while_a_join_holding_kept_edits_is_held_lands_each_edit_once`,
+  holding the join with `pause_rejoin`). Once joined, the order says which it holds, even after
   a seal trimmed the entries that held them: the journal's base and each reload
   carry each recent origin's highest `through` (`wire::BaseState`, sealed with
   the rest of the base). Kept edits made before a restart the order had since

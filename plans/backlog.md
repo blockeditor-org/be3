@@ -19,22 +19,6 @@ Fixed items are removed as they land.
 
 ## 7. Sessions
 
-- **A seal of its own during a join that holds kept edits.** `rejoined` seals
-  and waits only for a join begun on a settled made-up session
-  (`Open::joined_settled`). One that joins holding kept or doubtful edits takes
-  the server's journal as it is; if its made-up session sealed on its own while
-  the join was on its way (its seal timer, a close), that commit is pending in
-  the outbox and the replica reopens beside it, as the settled case did before
-  `sealed_joining`. It is expected to resolve once the drain sends the commit
-  and the replica merges it, with the sealed edits given up and not given again.
-  Done: a be-host-stack test that reopens a block after a crash, has its
-  made-up session seal while the join is held (a pause point in be-block-type-host's
-  `rejoin` after the server answered held it), and counts exactly what was made. Found
-  so far: reopened offline after a crash with kept edits, then held there, the
-  made-up session seals neither on `QUIET_INTERVAL` (manual clock) nor on
-  `close`: `Peer::local_head` does not move and nothing waits in the outbox, so
-  first find what holds its seal back while the join is on its way.
-
 - **Kept edits across two crashes, end to end.** The tests of kept submissions
   across a restart of the order (be-block-type-host's
   `an_edit_carried_over_a_restart_keeps_the_identity_it_goes_again_under_across_a_crash`
