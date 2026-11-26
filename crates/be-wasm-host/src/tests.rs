@@ -12,7 +12,8 @@ fn escaped(bytes: &[u8]) -> String {
 /// A guest whose `$ask_adapter` asks wasi:webgpu for an adapter with the options at a pointer
 /// (none, at 0): a gpu call that reads the guest's memory, answering a ticket.
 fn guest(body: &str) -> String {
-    let options = be_wasm_ops::encode(&None::<be_wasm_gpu_abi::webgpu::webgpu::GpuRequestAdapterOptions>);
+    let options =
+        be_wasm_ops::encode(&None::<be_wasm_gpu_abi::webgpu::webgpu::GpuRequestAdapterOptions>);
     format!(
         r#"(module
             (import "env" "memory" (memory 1 4))

@@ -122,9 +122,9 @@ mod web {
     pub(super) use be_wasm_gpu_abi::embed::host::Host as _;
     pub(super) use be_wasm_gpu_abi::embed::webgpu::Host as _;
     use be_wasm_gpu_abi::embed::webgpu::Host;
-    use std::sync::atomic::{AtomicU32, Ordering};
     pub(super) use be_wasm_gpu_abi::webgpu::webgpu::*;
     use be_wasm_ops::local::{Promise, Settled};
+    use std::sync::atomic::{AtomicU32, Ordering};
 
     use super::Gpu;
 
@@ -198,7 +198,11 @@ mod web {
     }
 
     /// What a validation scope around `act` caught on `device`, as its message.
-    pub(super) fn scoped(gpu: &mut Gpu, device: GpuDevice, act: impl FnOnce(&mut Gpu)) -> Option<String> {
+    pub(super) fn scoped(
+        gpu: &mut Gpu,
+        device: GpuDevice,
+        act: impl FnOnce(&mut Gpu),
+    ) -> Option<String> {
         gpu.gpu_device_push_error_scope(device, GpuErrorFilter::Validation);
         act(gpu);
         let error = pop(gpu, device, ticket()).expect("the scope pops")?;
@@ -206,7 +210,12 @@ mod web {
     }
 
     /// Configures `context` as an rgba8unorm canvas of `device`, viewed also as `views`.
-    pub(super) fn configure(gpu: &mut Gpu, device: GpuDevice, context: GpuCanvasContext, views: Vec<GpuTextureFormat>) {
+    pub(super) fn configure(
+        gpu: &mut Gpu,
+        device: GpuDevice,
+        context: GpuCanvasContext,
+        views: Vec<GpuTextureFormat>,
+    ) {
         gpu.gpu_canvas_context_configure(
             context,
             GpuCanvasConfiguration {
@@ -272,7 +281,11 @@ mod web {
         gpu.gpu_device_create_texture(
             device,
             GpuTextureDescriptor {
-                size: GpuExtent3D { width: 8, height: Some(8), depth_or_array_layers: None },
+                size: GpuExtent3D {
+                    width: 8,
+                    height: Some(8),
+                    depth_or_array_layers: None,
+                },
                 mip_level_count: None,
                 sample_count: None,
                 dimension: None,

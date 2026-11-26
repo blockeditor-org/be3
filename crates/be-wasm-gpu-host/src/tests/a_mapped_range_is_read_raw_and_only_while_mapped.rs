@@ -24,28 +24,29 @@ fn a_mapped_range_is_read_raw_and_only_while_mapped() {
         .gpu
         .gpu_buffer_get_mapped_range_set_with_copy(GpuBuffer(buffer.0), &written, Some(0), Some(16))
         .unwrap();
-    let length = glue::gpu_buffer_get_mapped_range_get_with_copy(&mut guest, buffer.0, 1, 0, 1, 8, 64, 64);
+    let length =
+        glue::gpu_buffer_get_mapped_range_get_with_copy(&mut guest, buffer.0, 1, 0, 1, 8, 64, 64);
     assert_eq!(length, 10, "the read is answered, its encoding's length");
     glue::returned(&mut guest, 64);
     assert_eq!(
         read(&guest.memory[64..74]),
         Some(vec![1, 2, 3, 4, 5, 6, 7, 8])
     );
-    let length = glue::gpu_buffer_get_mapped_range_get_with_copy(&mut guest, buffer.0, 1, 8, 1, 4, 0, 0);
+    let length =
+        glue::gpu_buffer_get_mapped_range_get_with_copy(&mut guest, buffer.0, 1, 8, 1, 4, 0, 0);
     assert_eq!(length, 6, "a read waits to be taken");
     glue::returned(&mut guest, 128);
-    assert_eq!(
-        read(&guest.memory[128..134]),
-        Some(vec![9, 10, 11, 12])
-    );
-    let misaligned = guest
-        .gpu
-        .gpu_buffer_get_mapped_range_get_with_copy(GpuBuffer(buffer.0), Some(2), Some(4));
+    assert_eq!(read(&guest.memory[128..134]), Some(vec![9, 10, 11, 12]));
+    let misaligned =
+        guest
+            .gpu
+            .gpu_buffer_get_mapped_range_get_with_copy(GpuBuffer(buffer.0), Some(2), Some(4));
     assert!(misaligned.is_err(), "a misaligned read is refused");
     guest.gpu.gpu_buffer_unmap(GpuBuffer(buffer.0)).unwrap();
-    let unmapped = guest
-        .gpu
-        .gpu_buffer_get_mapped_range_get_with_copy(GpuBuffer(buffer.0), Some(0), Some(8));
+    let unmapped =
+        guest
+            .gpu
+            .gpu_buffer_get_mapped_range_get_with_copy(GpuBuffer(buffer.0), Some(0), Some(8));
     assert!(unmapped.is_err(), "a read of an unmapped buffer is refused");
     assert!(guest.refused.is_empty(), "{:?}", guest.refused);
 }

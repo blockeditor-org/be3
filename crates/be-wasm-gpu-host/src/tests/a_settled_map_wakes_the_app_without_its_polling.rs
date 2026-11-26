@@ -14,7 +14,13 @@ fn a_settled_map_wakes_the_app_without_its_polling() {
             label: None,
         },
     );
-    gpu.gpu_buffer_map_async(GpuBuffer(buffer.0), GpuMapMode::READ, None, None, be_wasm_ops::local::Promise::new(4));
+    gpu.gpu_buffer_map_async(
+        GpuBuffer(buffer.0),
+        GpuMapMode::READ,
+        None,
+        None,
+        be_wasm_ops::local::Promise::new(4),
+    );
     wakes
         .recv_timeout(std::time::Duration::from_secs(30))
         .expect("the settled map woke the app");
@@ -25,9 +31,18 @@ fn a_settled_map_wakes_the_app_without_its_polling() {
             .map_err(|error| error.kind),
         Ok(vec![0; 8])
     );
-    gpu.gpu_buffer_map_async(GpuBuffer(buffer.0), GpuMapMode::READ, None, None, be_wasm_ops::local::Promise::new(5));
+    gpu.gpu_buffer_map_async(
+        GpuBuffer(buffer.0),
+        GpuMapMode::READ,
+        None,
+        None,
+        be_wasm_ops::local::Promise::new(5),
+    );
     let again: Result<(), MapAsyncError> = settled(&mut gpu, 5);
-    assert!(again.is_err(), "a map refused at once still settles, as failed");
+    assert!(
+        again.is_err(),
+        "a map refused at once still settles, as failed"
+    );
     let logged = gpu.take_logged();
     assert!(
         logged.iter().any(|error| error.contains("mapped")),

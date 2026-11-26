@@ -13,7 +13,10 @@ fn a_device_the_gpu_owns_tells_the_app_when_it_is_lost() {
         .recv_timeout(std::time::Duration::from_secs(30))
         .expect("the loss woke the app");
     let lost: GpuDeviceLostInfo = settled(&mut gpu, 7);
-    assert_eq!(gpu.gpu_device_lost_info_reason(lost), GpuDeviceLostReason::Unknown);
+    assert_eq!(
+        gpu.gpu_device_lost_info_reason(lost),
+        GpuDeviceLostReason::Unknown
+    );
     assert!(!gpu.gpu_device_lost_info_message(lost).is_empty());
 
     let again = web::device(&mut gpu, Vec::new()).unwrap();

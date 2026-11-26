@@ -1,6 +1,5 @@
 use std::ops::Range;
 
-
 use crate::{Outcome, slice, vertex_slice};
 
 const MAX_COLOR_ATTACHMENTS: usize = 8;

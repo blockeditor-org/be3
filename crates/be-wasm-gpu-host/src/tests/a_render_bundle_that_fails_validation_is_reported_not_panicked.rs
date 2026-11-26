@@ -26,6 +26,9 @@ fn a_render_bundle_that_fails_validation_is_reported_not_panicked() {
                 },
             );
         });
-        assert!(refused.is_some(), "{formats} formats at {sample_count} samples");
+        assert!(
+            refused.is_some(),
+            "{formats} formats at {sample_count} samples"
+        );
     }
 }

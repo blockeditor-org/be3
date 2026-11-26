@@ -15,8 +15,15 @@ fn a_device_offers_only_the_features_browser_webgpu_has() {
     gpu.gpu_request_adapter(instance, None, be_wasm_ops::local::Promise::new(TICKET));
     let adapter: Option<GpuAdapter> = settled(&mut gpu, TICKET);
     let features = gpu.gpu_adapter_features(adapter.unwrap());
-    for offered in ["core-features-and-limits", "texture-compression-bc", "shader-f16"] {
-        assert!(gpu.gpu_supported_features_has(features, offered), "{offered} is offered");
+    for offered in [
+        "core-features-and-limits",
+        "texture-compression-bc",
+        "shader-f16",
+    ] {
+        assert!(
+            gpu.gpu_supported_features_has(features, offered),
+            "{offered} is offered"
+        );
     }
     for native in ["immediates", "mappable-primary-buffers", "timestamp-query"] {
         assert!(

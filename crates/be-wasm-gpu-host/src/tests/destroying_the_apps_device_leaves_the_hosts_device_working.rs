@@ -27,7 +27,11 @@ fn destroying_the_apps_device_leaves_the_hosts_device_working() {
         mapped_at_creation: false,
     });
     gpu.queue().write_buffer(&shared, 0, &[1; 4]);
-    assert_eq!(crate::caught(scope.pop()), None, "the host's device still works");
+    assert_eq!(
+        crate::caught(scope.pop()),
+        None,
+        "the host's device still works"
+    );
 
     let again = web::device(&mut gpu, Vec::new()).unwrap();
     let queue = gpu.gpu_device_queue(again);

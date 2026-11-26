@@ -8,11 +8,11 @@ mod webgpu;
 #[cfg(test)]
 mod tests;
 
-use tables::{HashMap, HashSet};
 use std::future::Future;
 use std::pin::pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
+use tables::{HashMap, HashSet};
 
 use settling::Settling;
 use tables::Table;

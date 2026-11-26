@@ -168,7 +168,10 @@ fn main() {
     app.start().expect("the guest should start");
     app.step().expect("the guest should step");
     let logged = app.take_logged();
-    assert!(logged.is_empty(), "the guest's calls should be answered: {logged:?}");
+    assert!(
+        logged.is_empty(),
+        "the guest's calls should be answered: {logged:?}"
+    );
     let mut fastest = Duration::MAX;
     let mut total = Duration::ZERO;
     for _ in 0..STEPS {

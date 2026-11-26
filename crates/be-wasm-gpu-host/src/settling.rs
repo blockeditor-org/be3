@@ -3,7 +3,6 @@ use std::ops::Range;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::task::Waker;
 
-
 pub type Wake = Arc<dyn Fn() + Send + Sync>;
 
 #[derive(Clone, Debug, PartialEq)]

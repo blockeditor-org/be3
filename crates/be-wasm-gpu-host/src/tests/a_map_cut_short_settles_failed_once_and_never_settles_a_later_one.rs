@@ -34,11 +34,11 @@ fn a_map_cut_short_settles_failed_once_and_never_settles_a_later_one() {
 
     map(&mut gpu, 2);
     let second: Result<(), MapAsyncError> = settled(&mut gpu, 2);
-    assert!(second.is_ok(), "the first map's late callback settles nothing of the second");
     assert!(
-        gpu.settle(false).is_empty(),
-        "each ticket is answered once"
+        second.is_ok(),
+        "the first map's late callback settles nothing of the second"
     );
+    assert!(gpu.settle(false).is_empty(), "each ticket is answered once");
     gpu.gpu_buffer_unmap(GpuBuffer(buffer.0)).unwrap();
 
     map(&mut gpu, 3);
@@ -53,7 +53,10 @@ fn a_map_cut_short_settles_failed_once_and_never_settles_a_later_one() {
             .unwrap_or_else(|| panic!("ticket {ticket} did not settle"))
     };
     let third: Result<(), MapAsyncError> = be_wasm_ops::decode(&value(3)).unwrap();
-    assert!(third.is_err(), "destroying the device fails its pending map");
+    assert!(
+        third.is_err(),
+        "destroying the device fails its pending map"
+    );
     let lost: GpuDeviceLostInfo = be_wasm_ops::decode(&value(4)).unwrap();
     assert_eq!(
         gpu.gpu_device_lost_info_reason(lost),

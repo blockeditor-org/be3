@@ -97,23 +97,38 @@ impl Gpu {
     }
 
     /// A view of `texture` as `descriptor` asks, or its default view.
-    fn view(&self, handle: u32, descriptor: Option<web::GpuTextureViewDescriptor>) -> Result<wgpu::TextureView, Failure> {
+    fn view(
+        &self,
+        handle: u32,
+        descriptor: Option<web::GpuTextureViewDescriptor>,
+    ) -> Result<wgpu::TextureView, Failure> {
         let Some(descriptor) = descriptor else {
             return self.default_view(handle);
         };
         let texture = self.held(&self.textures, Kind::Texture, handle, "texture")?;
         let shared = self.web.imported.contains(&handle);
-        let usage = match (shared, descriptor.usage.map(Convert::<wgpu::TextureUsages>::convert)) {
+        let usage = match (
+            shared,
+            descriptor
+                .usage
+                .map(Convert::<wgpu::TextureUsages>::convert),
+        ) {
             (false, usage) => usage,
             (true, None) => Some(wgpu::TextureUsages::TEXTURE_BINDING),
-            (true, Some(usage)) if wgpu::TextureUsages::TEXTURE_BINDING.contains(usage) => Some(usage),
+            (true, Some(usage)) if wgpu::TextureUsages::TEXTURE_BINDING.contains(usage) => {
+                Some(usage)
+            }
             (true, Some(_)) => {
                 return Err(Failure::validation(
                     "a shared texture is only sampled: its views have no other usage",
                 ));
             }
         };
-        if descriptor.swizzle.as_deref().is_some_and(|swizzle| swizzle != "rgba") {
+        if descriptor
+            .swizzle
+            .as_deref()
+            .is_some_and(|swizzle| swizzle != "rgba")
+        {
             return Err(Failure::validation(
                 "a swizzled view needs the texture-component-swizzle feature",
             ));
@@ -123,7 +138,9 @@ impl Gpu {
             format: descriptor.format.map(Convert::convert),
             dimension: descriptor.dimension.map(Convert::convert),
             usage,
-            aspect: descriptor.aspect.map_or(wgpu::TextureAspect::All, Convert::convert),
+            aspect: descriptor
+                .aspect
+                .map_or(wgpu::TextureAspect::All, Convert::convert),
             base_mip_level: descriptor.base_mip_level.unwrap_or(0),
             mip_level_count: descriptor.mip_level_count,
             base_array_layer: descriptor.base_array_layer.unwrap_or(0),
@@ -1495,18 +1512,27 @@ impl Host for Gpu {
         descriptor: Option<web::GpuTextureViewDescriptor>,
     ) -> web::GpuTextureView {
         let device = self.device_of(Kind::Texture, this.0);
-        let label = descriptor.as_ref().and_then(|descriptor| descriptor.label.clone());
-        let handle = self.make(device, Kind::View, label.as_deref(), |gpu| &mut gpu.views, |gpu| {
-            // A view of a destroyed texture is valid in WebGPU: using it is what fails, at the
-            // submit, so what wgpu raises now is let go.
-            let destroyed = gpu.web.destroyed.contains(&this.0);
-            let scope = destroyed.then(|| gpu.device.push_error_scope(wgpu::ErrorFilter::Validation));
-            let made = gpu.view(this.0, descriptor);
-            if let Some(scope) = scope {
-                crate::caught(scope.pop());
-            }
-            made
-        });
+        let label = descriptor
+            .as_ref()
+            .and_then(|descriptor| descriptor.label.clone());
+        let handle = self.make(
+            device,
+            Kind::View,
+            label.as_deref(),
+            |gpu| &mut gpu.views,
+            |gpu| {
+                // A view of a destroyed texture is valid in WebGPU: using it is what fails, at the
+                // submit, so what wgpu raises now is let go.
+                let destroyed = gpu.web.destroyed.contains(&this.0);
+                let scope =
+                    destroyed.then(|| gpu.device.push_error_scope(wgpu::ErrorFilter::Validation));
+                let made = gpu.view(this.0, descriptor);
+                if let Some(scope) = scope {
+                    crate::caught(scope.pop());
+                }
+                made
+            },
+        );
         web::GpuTextureView(handle)
     }
 

@@ -20,5 +20,8 @@ fn a_rejected_shader_module_is_kept_and_says_why() {
         gpu.gpu_compilation_message_type(GpuCompilationMessage(message.0)),
         GpuCompilationMessageType::Error
     );
-    assert_eq!(gpu.gpu_compilation_message_line_num(GpuCompilationMessage(message.0)), 2);
+    assert_eq!(
+        gpu.gpu_compilation_message_line_num(GpuCompilationMessage(message.0)),
+        2
+    );
 }

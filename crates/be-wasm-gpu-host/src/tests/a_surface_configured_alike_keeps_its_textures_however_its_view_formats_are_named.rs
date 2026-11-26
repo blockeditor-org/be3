@@ -5,7 +5,13 @@ use super::*;
 fn a_surface_configured_alike_keeps_its_textures_however_its_view_formats_are_named() {
     let mut gpu = gpu();
     let device = device(&mut gpu, Vec::new()).unwrap();
-    let context = canvas(&mut gpu, device, 0, (8, 8), vec![GpuTextureFormat::Rgba8unormSrgb]);
+    let context = canvas(
+        &mut gpu,
+        device,
+        0,
+        (8, 8),
+        vec![GpuTextureFormat::Rgba8unormSrgb],
+    );
     let made = gpu.surface(0).expect("the surface has textures").0.clone();
     let refused = scoped(&mut gpu, device, |gpu| {
         configure(

@@ -12,7 +12,11 @@ fn unbinding_a_vertex_buffer_takes_no_offset_or_size() {
         })
     };
     for size in [None, Some(0)] {
-        assert_eq!(unbind(&mut gpu, None, size), None, "unbinding with a size of {size:?}");
+        assert_eq!(
+            unbind(&mut gpu, None, size),
+            None,
+            "unbinding with a size of {size:?}"
+        );
     }
     let error = unbind(&mut gpu, Some(8), None).expect("the offset is refused");
     assert!(error.contains("offset of 0, not 8"), "{error}");

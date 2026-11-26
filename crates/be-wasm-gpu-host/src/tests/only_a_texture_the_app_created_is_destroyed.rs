@@ -11,7 +11,10 @@ fn only_a_texture_the_app_created_is_destroyed() {
     let viewed = scoped(&mut gpu, device, |gpu| {
         gpu.gpu_texture_create_view(GpuTexture(shown.0), None);
     });
-    assert_eq!(viewed, None, "the canvas's texture was destroyed by the app");
+    assert_eq!(
+        viewed, None,
+        "the canvas's texture was destroyed by the app"
+    );
 
     let made = texture(&mut gpu, device, GpuTextureUsage::RENDER_ATTACHMENT);
     gpu.gpu_texture_destroy(GpuTexture(made.0));
@@ -19,7 +22,10 @@ fn only_a_texture_the_app_created_is_destroyed() {
     let viewed = scoped(&mut gpu, device, |gpu| {
         view = Some(gpu.gpu_texture_create_view(GpuTexture(made.0), None));
     });
-    assert_eq!(viewed, None, "a destroyed texture's view is made, as WebGPU says");
+    assert_eq!(
+        viewed, None,
+        "a destroyed texture's view is made, as WebGPU says"
+    );
     let queue = gpu.gpu_device_queue(device);
     let used = scoped(&mut gpu, device, |gpu| {
         let encoder = gpu.gpu_device_create_command_encoder(device, None);
