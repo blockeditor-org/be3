@@ -180,6 +180,7 @@ Landed on 2026-11-24:
 - `demo-carry-keys`: the demo's bin and list drag samples carry their own key types, so carrying one no longer lifts the other's row.
 - `root-picker-creation-4`: the share-dialog test waits for the dialog's access data before pressing (a race, not a regression); an app sends frame_needed itself once it lays out anew, and Surfaces drops paintings at a size the new layout no longer has; `redescribed` removed; be-host logs a dialog dropped for want of a shell.
 - `backlog-26-4`: a device signs whether it may administer when it takes a new phrase, proven from the organization log's path; a path keeps whole every retirement that may retire an administrator (organization logs only), so a server cannot hide one; a block's retirements stay off other readers' paths.
+- `carried-behind-in-flight`: an edit waiting behind one in flight over a restart is carried and lands once, without a snapshot to a live editor; keep-carried takes its restarts
 - `members-private-2`: only an administrator is served the organization's whole log; an editor is served a proof path, so members no longer see every other member through it.
 
 Landed on 2026-11-22 in one verify: signed logs 5b (`signed-logs-5b-10`), `backlog-keys-10b`, `block-rows-guard` and hosted blocks 4d2 (`hosted-blocks-4d2-5`).
