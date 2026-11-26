@@ -26,7 +26,7 @@ fn a_seal_waiting_on_its_state_part_lets_a_reload_land_first() {
     assert!(
         sim.held
             .iter()
-            .any(|(device, call)| *device == 0 && matches!(call, Call::PutPart { .. })),
+            .any(|(device, call)| *device == 0 && matches!(call, Call::PartWriterFinish { .. })),
         "the seal waits for its state's part"
     );
     sim.stalled = false;

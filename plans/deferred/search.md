@@ -33,7 +33,7 @@ aside until the user picks it up. The limits below are accepted for now.
   index, so a viewer's searches show the text the last editor catch-up indexed.
   plans/deferred/search_personal_index.md would cover it.
 - **Edited outside a session.** The indexer seals commits straight into the
-  outbox rather than through the index block's replica (`put-part` plus a
+  outbox rather than through the index block's replica (`part-writer` plus a
   `SetIndex` operation): two devices online at once diverge and merge by parts
   instead of being sequenced. `LiveEdit` has no hook for a replica to put a
   part of its own, which a session needs.

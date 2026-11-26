@@ -287,8 +287,8 @@ host owes a replica (the WIT documents each call):
   editor's `Read` uses outside that one-answer rule (guides/blocks/apps.md,
   "Reading a range"). `written` carries the parts a save keeps as they were as
   `reused`, so such a replica saves without the bytes it never loaded.
-  `put-part` uploads bytes as a part of the block before an operation names
-  it (below, "Parts named by hash").
+  A `part-writer` uploads bytes as a part of the block before an operation
+  names it (below, "Parts named by hash").
 - **The lease, relaying and reports.** The host passes on the session's lease
   state, relays `send`s to peers or editors, and stores what the replica
   reports (status, description, history, conflicts, errors).
@@ -297,16 +297,21 @@ host owes a replica (the WIT documents each call):
 
 An operation can carry a part by its ref instead of its bytes: the search index's
 writer adding one, an edit too large to relay.
-The sender calls `put-part(bytes)`, which seals the bytes under the block's
-current key, uploads them and has the server hold them for the block
-(`hold-objects` with `hold.until-committed`), and answers the `part-ref`
-once the upload is done. Only then does it send the operation, with that ref
+The sender makes a `part-writer` under its replica and writes the bytes to it
+a piece at a time: be-block-type-host serves each writer with a task of its own
+holding a `Peer::part_writer`, which seals each chunk under the block's current
+key as the bytes end it, so neither side holds the whole part. `finish` seals
+the rest, has the server hold the part for the block (`Peer::hold_part`:
+`hold-objects` with `hold.until-committed`) and answers the `part-ref` once
+the upload is done; a write that failed fails `finish`, and a writer dropped
+first lets go of what it wrote. Only then does it send the operation, with that ref
 (a `be_block_content::PartRef`) in its own payload. The hold ends when a commit of the
 block that uses the part publishes, or once `upload_grace` passed, the
 block's journal holds no entries (an uncommitted operation may still name the
 part) and its base names none of the part's objects (`journal-base.parts`). A type's part is put by an editor: `EditorMirror::put_part`
 (`FromEditor::PutPart`, answered `ToEditor::PartPut` under its token), which
-the replica turns into its `Effect::PutPart`. `LiveEdit` has no hook for a
+the replica turns into its `Effect::PutPart`, which the module's runner feeds
+to a writer as one write (an app frame carries the bytes whole anyway). `LiveEdit` has no hook for a
 replica to put a part of its own; the replica puts only an oversized operation's
 bytes. The
 block must be on the server: a block made offline, or one whose replica has
@@ -330,13 +335,11 @@ under a new ref.
 
 An edit too large to relay is the other kind: the part is the operation's own
 bytes, not a part of the content, so the session carries it rather than the
-type (below, "Peers"). Hosts: `Peer::put_part`, which feeds the bytes to a
-`Peer::part_writer` (a part sealed on the device a chunk at a time, which content
-the host saves itself can reuse) and holds the part with `Peer::hold_part`;
-be-sdk-test's store refuses.
+type (below, "Peers"). Hosts: be-block-type-host serves the writer as above;
+be-sdk-test's store refuses at `finish`.
 Tests:
 `be-sdk-type-guest/src/tests/an_operation_adds_a_part_by_its_hash.rs` (the
-flow), be-host-stack's `a_part_an_editor_puts_is_held_for_its_block_once_the_server_has_it`
+flow), be-block-type-host's `a_part_a_module_writes_in_pieces_is_held_and_read_back_whole`, be-host-stack's `a_part_an_editor_puts_is_held_for_its_block_once_the_server_has_it`
 and be-server's `a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes`.
 
 ### Signed logs
@@ -676,7 +679,7 @@ order: presence and channel messages. The rules an agent most needs:
   session starts fresh too.
 - **Large operations.** An operation over `LARGEST_RELAYED_OPERATION` (1 MiB, a
   large paste) goes by the part it was put as (`Payload::Part`, put with the
-  host's `put-part` before it is submitted); what is typed after it waits in
+  host's `part-writer` before it is submitted); what is typed after it waits in
   `unsent`. A replica reads the part with `read-part` before it applies the
   entry, holding the order behind the read, and reads the parts a journal names
   before it replays it. A read that fails is tried again after 1 s, doubling to a

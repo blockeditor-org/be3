@@ -37,15 +37,26 @@ interface host {
     /// of the `loaded` content that request was handed; any other is refused.
     read-part: async func(part: part-ref, range: byte-range) -> result<list<u8>, string>;
 
-    /// Seals `bytes` under the block's current key as a part, uploads it and has
-    /// the server hold it for the block until a commit that uses it publishes
-    /// or the upload grace runs out; answers once the upload is done. An
-    /// operation then names the part by putting the answer in its own payload,
-    /// and so travels without the bytes: each replica that applies it keeps the
-    /// part as `written-part.reused`, using bytes it rebuilt itself (checked
-    /// against a hash of them the operation carries) or reading the part with
-    /// `read-part`. Fails offline, and for a block the server does not have yet.
-    put-part: async func(bytes: list<u8>) -> result<part-ref, string>;
+    /// One part of the block written a piece at a time: the host seals each
+    /// chunk under the block's current key as the bytes end it, so neither side
+    /// holds the whole part. Made under a replica; dropped before `finish`
+    /// answers, the part is never put.
+    resource part-writer {
+        constructor();
+        /// Appends `bytes` to the part, answered once they are sealed. A write
+        /// that fails says so at `finish`.
+        write: async func(bytes: list<u8>);
+        /// Seals the rest, uploads the part and has the server hold it for the
+        /// block until a commit that uses it publishes or the upload grace runs
+        /// out; answers once the upload is done. An operation then names the
+        /// part by putting the answer in its own payload, and so travels
+        /// without the bytes: each replica that applies it keeps the part as
+        /// `written-part.reused`, using bytes it rebuilt itself (checked against
+        /// a hash of them the operation carries) or reading the part with
+        /// `read-part`. Fails when no byte was written, when a write failed,
+        /// offline, and for a block the server does not have yet.
+        finish: async func() -> result<part-ref, string>;
+    }
 
     /// A compare-and-swap on `expected`, whose commit is the first parent. An
     /// unchanged save answers `published` with the same head; one sealed on
@@ -58,7 +69,7 @@ interface host {
     /// `journal-state`, with it, is the session state as of that number: the server's
     /// journal starts from the commit with it only if the publish wins the head, and every
     /// replica hears `replica.sealed`. The host keeps this device's journal likewise.
-    /// `journal-parts` are the parts this replica put (`put-part`) that the state names: the
+    /// `journal-parts` are the parts this replica put (`part-writer`) that the state names: the
     /// server keeps them while the journal's base names them.
     publish: async func(
         expected: option<commit-id>,

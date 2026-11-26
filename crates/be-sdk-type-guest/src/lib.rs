@@ -905,10 +905,18 @@ impl Module {
                 token,
                 bytes,
             } => {
-                let pending = ops::with_parent(replica, || host::put_part(bytes));
-                self.answer_later(replica, pending, move |result| Input::PartPut {
-                    token,
-                    result: result.and_then(|put| put),
+                // Fed as one write: the replica holds the bytes whole already (an operation, a
+                // journal's state, or an editor's, which an app frame carries whole).
+                let writer = ops::with_parent(replica, host::PartWriter::new);
+                writer.write(bytes).detach();
+                let finished = writer.finish();
+                self.answer_later(replica, finished, move |result| {
+                    // Held until `finish` answers: dropped, it would let go of the part.
+                    drop(writer);
+                    Input::PartPut {
+                        token,
+                        result: result.and_then(|put| put),
+                    }
                 });
             }
             Effect::Append {

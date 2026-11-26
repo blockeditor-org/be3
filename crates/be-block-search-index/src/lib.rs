@@ -70,7 +70,7 @@ pub struct SearchIndexContent {
 }
 
 /// An operation: the index as a writer left it, with every part it names saved already
-/// (`put-part`, guides/type_modules.md, "Parts named by hash").
+/// (`part-writer`, guides/type_modules.md, "Parts named by hash").
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SetIndex {
     pub header: Vec<u8>,

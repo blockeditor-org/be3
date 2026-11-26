@@ -69,7 +69,7 @@ pub enum FromEditor {
         offset: u64,
         length: u64,
     },
-    /// Asks the replica to put `bytes` as a part of the block (`host.put-part`), so an
+    /// Asks the replica to put `bytes` as a part of the block (`host.part-writer`), so an
     /// operation can name it by its hash instead of carrying it. The replica answers
     /// `ToEditor::PartPut` with the same `token` once the part is uploaded.
     PutPart {

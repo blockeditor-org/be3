@@ -4386,7 +4386,7 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// Seals `bytes` as a part of `block` under its current key and uploads it, held for the
-    /// block until a commit that uses it publishes (`host.put-part` in be-sdk-type-api), so an
+    /// block until a commit that uses it publishes (`host.part-writer` in be-sdk-type-api), so an
     /// operation can name it by its ref and every replica save a commit that reuses it.
     pub async fn put_part(
         &self,
