@@ -15,6 +15,8 @@ use be_sdk_type_api::{
 };
 use uuid::Uuid;
 
+mod held;
+
 use crate::holds::{Holds, This, Took};
 use crate::lacking::{Carried, EditorAsk, Lacking};
 use crate::{
@@ -705,6 +707,8 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     beneath: Option<C>,
     /// Which editor messages the open tentative gestures hold, followed as the host follows them.
     holds: Holds,
+    /// How this replica's tentative layer reaches its peers (`SessionMessage::Held`).
+    told: held::Told,
     /// The open tentative gestures this replica ended itself (an edit of theirs did not carry
     /// over a restart, a replacement took what they moved): their edits are dropped until their
     /// editors end them.
@@ -1200,6 +1204,7 @@ where
             tentative: Vec::new(),
             beneath: None,
             holds: Holds::default(),
+            told: held::Told::default(),
             voided: BTreeSet::new(),
             held_now: None,
             undo_spent: false,
@@ -1373,6 +1378,7 @@ where
             };
             self.job(job);
         }
+        self.tell_layer();
         self.prune_payloads();
         self.tell_lacking();
         self.report();
@@ -1850,6 +1856,7 @@ where
                 }
             }
             if !std::mem::take(&mut self.tentative).is_empty() {
+                self.layer_changed();
                 self.rebuild_visible();
             }
             return;
@@ -1867,6 +1874,9 @@ where
                     dropped |= self.tentative.len() != before;
                 }
             }
+        }
+        if dropped {
+            self.layer_changed();
         }
         if took.settled {
             self.commit_layer(base, &took.counted, dropped);
@@ -1886,9 +1896,11 @@ where
     /// some cannot go (the order holds them already, or they were kept across a stop that
     /// outdated them).
     fn commit_layer(&mut self, base: u64, counted: &[u64], mut rebuild: bool) {
+        let whole = self.layer_to_tell();
         let layer = std::mem::take(&mut self.tentative);
         self.beneath = None;
         let mut queued = false;
+        let mut through = None;
         for Held {
             serial, operation, ..
         } in layer
@@ -1924,7 +1936,9 @@ where
             }
             self.queue(operation, number);
             queued = true;
+            through = Some(number);
         }
+        self.tell_layer_committed(whole, through);
         if rebuild {
             self.rebuild_visible();
         }
@@ -1971,11 +1985,15 @@ where
             },
             origin,
         );
+        if self.tentative.is_empty() {
+            self.start_layer();
+        }
         self.tentative.push(Held {
             gesture,
             serial,
             operation,
         });
+        self.tell_held_edit();
         true
     }
 
@@ -1984,7 +2002,11 @@ where
     /// and waits for the rest only loses its edits.
     fn void(&mut self, gesture: GestureId) {
         self.history.void(gesture);
+        let before = self.tentative.len();
         self.tentative.retain(|held| held.gesture != gesture);
+        if self.tentative.len() != before {
+            self.layer_changed();
+        }
         if self.holds.open().contains(&gesture) && self.voided.insert(gesture) {
             self.gesture_ended(gesture);
         }
@@ -2005,6 +2027,7 @@ where
             }
         }
         if held {
+            self.layer_changed();
             self.rebuild_visible();
         }
     }
@@ -2340,6 +2363,12 @@ where
                         channel,
                         payload,
                     });
+                }
+            }
+            SessionMessage::Held { .. } => {}
+            SessionMessage::HeldAgain => {
+                if from != self.client {
+                    self.tell_layer_to(from);
                 }
             }
         }
@@ -5502,6 +5531,7 @@ where
         self.check_build();
         for client in joined {
             self.show_presence_to(client);
+            self.tell_layer_to(client);
         }
         // A head heard while another held the lease, which that holder had not taken: it is this
         // holder's to take now.
@@ -5709,6 +5739,9 @@ where
         // The tentative layer goes on after them, on the same chain; a gesture with an edit
         // that does not carry ends, its edits dropped.
         let mut lost = Vec::new();
+        if !self.tentative.is_empty() {
+            self.layer_changed();
+        }
         for held in std::mem::take(&mut self.tentative) {
             let moved = C::carry_over(&held.operation, &before, &after, self.client);
             before.apply(&held.operation);

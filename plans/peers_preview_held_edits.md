@@ -71,19 +71,14 @@ commit is numbered, when the holder cancels, or when the holder leaves.
 
 ## Steps
 
-### 1. The message and the holder's side
-
-Add `SessionMessage::Held`, and have the holder's replica broadcast it as its layer grows (from
-`hold`), on a cancel that empties it, and with `commits_as` set at `commit_layer`. Done: a
-be-sdk-type-guest Sim test records what a holder sends through a held drag: one `Held` per frame,
-appended, and a final one naming the commit's edit number. Another test shows a cancel sends
-the drop, and a reader's `Held` is dropped by its peers.
-
 ### 2. The peer's layer
 
-Keep each peer's layer on the replica, apply it on top of `visible`, count it in `unsettled()`,
-and land its operations on editors. Add the `Landed` variant that only replaces `local`, for a
-layer that leaves without an entry. Done: a Sim test shows a peer's mirror following a held
+`SessionMessage::Held` and the holder's side are built (`replica/held.rs`; the message is
+`{ layer, origin, from, to, operations, commits_through }`, and `HeldAgain` asks for a layer
+whole). Keep each peer's layer on the replica, apply it on top of `visible`, count it in
+`unsettled()`, and land its operations on editors. Add the `Landed` variant that only replaces
+`local`, for a layer that leaves without an entry. Drop a reader's `Held`. Done: a Sim test
+shows a reader's `Held` dropped, and a peer's mirror following a held
 drag frame by frame with no snapshot, typing on the peer during it landing beneath, and the
 layer leaving at the commit's entry (one landing, never showing both) and at a cancel. The
 peer's `content`, seal and undo never hold it.
