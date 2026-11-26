@@ -26,7 +26,9 @@ write_package_value("be3.cargo", {
             ],
             "examples": {},
             "features": [],
-            "test_deps": [],
+            "test_deps": [
+                "//third-party/rust:pollster-0.4.0",
+            ],
             "test_features": [],
         },
         "linux-arm64": {
@@ -41,7 +43,9 @@ write_package_value("be3.cargo", {
             ],
             "examples": {},
             "features": [],
-            "test_deps": [],
+            "test_deps": [
+                "//third-party/rust:pollster-0.4.0",
+            ],
             "test_features": [],
         },
         "linux-x86_64": {
@@ -56,7 +60,9 @@ write_package_value("be3.cargo", {
             ],
             "examples": {},
             "features": [],
-            "test_deps": [],
+            "test_deps": [
+                "//third-party/rust:pollster-0.4.0",
+            ],
             "test_features": [],
         },
         "macos-arm64": {
@@ -71,7 +77,9 @@ write_package_value("be3.cargo", {
             ],
             "examples": {},
             "features": [],
-            "test_deps": [],
+            "test_deps": [
+                "//third-party/rust:pollster-0.4.0",
+            ],
             "test_features": [],
         },
         "macos-x86_64": {
@@ -86,7 +94,9 @@ write_package_value("be3.cargo", {
             ],
             "examples": {},
             "features": [],
-            "test_deps": [],
+            "test_deps": [
+                "//third-party/rust:pollster-0.4.0",
+            ],
             "test_features": [],
         },
         "wasm32-bindgen": {
@@ -116,7 +126,9 @@ write_package_value("be3.cargo", {
             ],
             "examples": {},
             "features": [],
-            "test_deps": [],
+            "test_deps": [
+                "//third-party/rust:pollster-0.4.0",
+            ],
             "test_features": [],
         },
         "windows-x86_64": {
@@ -131,7 +143,9 @@ write_package_value("be3.cargo", {
             ],
             "examples": {},
             "features": [],
-            "test_deps": [],
+            "test_deps": [
+                "//third-party/rust:pollster-0.4.0",
+            ],
             "test_features": [],
         },
     },

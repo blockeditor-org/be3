@@ -78,6 +78,7 @@ impl Caller for Guest {
 }
 
 mod a_buffer_range_past_the_end_of_its_buffer_is_reported;
+mod a_canvas_is_shown_as_its_configuration_asks;
 mod a_compute_pass_is_recorded_on_its_encoder;
 mod a_configured_surface_alternates_between_two_textures;
 mod a_configured_surface_keeps_its_texture_until_its_size_changes;
@@ -209,13 +210,9 @@ mod web {
         Some(gpu.gpu_error_message(error))
     }
 
-    /// Configures `context` as an rgba8unorm canvas of `device`, viewed also as `views`.
-    pub(super) fn configure(
-        gpu: &mut Gpu,
-        device: GpuDevice,
-        context: GpuCanvasContext,
-        views: Vec<GpuTextureFormat>,
-    ) {
+    /// Configures `context` as a premultiplied rgba8unorm canvas of `device`, viewed also as
+    /// `views`: one shown as it is, as be-sdk's are.
+    pub(super) fn configure(gpu: &mut Gpu, device: GpuDevice, context: GpuCanvasContext, views: Vec<GpuTextureFormat>) {
         gpu.gpu_canvas_context_configure(
             context,
             GpuCanvasConfiguration {
@@ -225,7 +222,7 @@ mod web {
                 view_formats: Some(views),
                 color_space: None,
                 tone_mapping: None,
-                alpha_mode: None,
+                alpha_mode: Some(GpuCanvasAlphaMode::Premultiplied),
             },
         );
     }

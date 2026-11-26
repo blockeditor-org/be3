@@ -7,14 +7,7 @@ fetched, never copied into the repository), beside a small `be3:gpu/host` interf
 surfaces and shared images (guides/app_libraries.md, "The gpu"). What is left; each step lands
 on its own.
 
-## 1. Canvas alpha mode, color space and tone mapping
-
-Composite a surface as its configuration asks: premultiplied alpha, display-p3, and extended
-range for rgba16float where the display can show it (else as `standard`, as browsers do). This
-is be-host's compositor and the shim's own canvas configuration; beui asks for premultiplied
-where it draws translucent surfaces.
-
-## 2. Taking a later wasi:webgpu
+## 1. Taking a later wasi:webgpu
 
 When upstream moves (a new release candidate or a release), change the `http_file`'s URL to
 the new commit and its `sha256` and `size_bytes` to the new file's, regenerate, and fix the
@@ -29,14 +22,14 @@ names the version itself, and changes with it:
 - the raw apps, which are wat: be-wasm-host's `src/tests/standalone.wat` and
   be-wasm-root-host's `src/tests/painter.wat`.
 
-## 3. Asynchronous pipelines off the app's thread
+## 2. Asynchronous pipelines off the app's thread
 
 Compile `create-*-pipeline-async`'s pipelines on a worker thread natively (wgpu's device and
 the descriptor's objects are `Send`), and in the shim through the browser's
 `createRenderPipelineAsync` and `createComputePipelineAsync` with web-sys, settling through the
 poll as now.
 
-## 4. One poll per app, and cancelling
+## 3. One poll per app, and cancelling
 
 - Each ticketed local interface has its own `[poll]`; an app's executor would rather make one
   call per wake for all of them. wasi:webgpu is the only ticketed interface, so this waits
@@ -45,7 +38,7 @@ poll as now.
   `Sender` until it settles; listing dropped tickets in the next poll would let it let them
   go.
 
-## 5. Per-draw calls as cheap as before
+## 4. Per-draw calls as cheap as before
 
 A per-draw call on wasi:webgpu costs about 135 ns in release (be-wasm-host's
 `example-gpu-calls`), about 12% more than `be3:gpu/device`'s did: each looks up the pass it
@@ -68,3 +61,7 @@ guides/app_libraries.md ("The gpu") says the same.
 
 External textures and `copyExternalImageToTexture` (plans/deferred/app_libraries.md, "External
 textures"): when they come, they go in `be3:gpu/host`.
+
+Wide-gamut and HDR displays: no display the host draws on shows display-p3 or extended range
+yet, so be-wasm-gpu-host's `looks.rs` clips such a canvas to sRGB. When one does, its
+compositor shows the canvas as it is instead.

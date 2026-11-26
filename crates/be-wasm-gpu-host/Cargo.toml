@@ -16,4 +16,5 @@ wgpu = { version = "30", default-features = false, features = ["std", "wgsl"] }
 workspace = true
 
 [dev-dependencies]
-wgpu = { version = "30", default-features = false, features = ["noop", "std", "wgsl"] }
+pollster = "0.4"
+wgpu = { version = "30", default-features = false, features = ["noop", "std", "vulkan", "wgsl"] }

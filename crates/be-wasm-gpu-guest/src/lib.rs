@@ -126,14 +126,23 @@ fn with_surface<R>(surface: u32, act: impl FnOnce(&gpu::GpuCanvasContext) -> R) 
 
 /// Gives `surface` textures of this size and `format` (a canvas format, never sRGB), which may
 /// also be viewed as each of `view_formats` (only its sRGB twin; a host on WebGL can view a
-/// texture in no other format), configured with the app's device.
+/// texture in no other format), configured with the app's device. `alpha` is how the host
+/// takes its alpha: `Opaque` ignores it, `PreMultiplied` blends it as premultiplied, as a
+/// translucent surface needs; `Auto` is WebGPU's default, opaque.
 pub fn configure_surface(
     surface: u32,
     width: u32,
     height: u32,
     format: wgpu::TextureFormat,
     view_formats: &[wgpu::TextureFormat],
+    alpha: wgpu::CompositeAlphaMode,
 ) {
+    let alpha_mode = match alpha {
+        wgpu::CompositeAlphaMode::Opaque => Some(web::GpuCanvasAlphaMode::Opaque),
+        wgpu::CompositeAlphaMode::PreMultiplied => Some(web::GpuCanvasAlphaMode::Premultiplied),
+        wgpu::CompositeAlphaMode::Auto => None,
+        other => panic!("a canvas's alpha is opaque or premultiplied, not {other:?}"),
+    };
     let Some(device) = be_wasm_gpu_abi::app_device() else {
         return;
     };
@@ -151,7 +160,7 @@ pub fn configure_surface(
             ),
             color_space: None,
             tone_mapping: None,
-            alpha_mode: None,
+            alpha_mode,
         });
     });
 }

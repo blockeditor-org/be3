@@ -1,3 +1,15 @@
-load("@root//buck/cargo:defs.bzl", "cargo_crate")
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_package", "cargo_test")
 
-cargo_crate()
+cargo_package()
+
+cargo_library()
+
+# Most tests answer on wgpu's noop device; those that read back what the host shows draw
+# through lavapipe, Mesa's software Vulkan, from buck/sysroot's Vulkan set, as
+# beui-renderer-wgpu's tests do.
+cargo_test(
+    env = {
+        "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
+        "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
+    },
+)
