@@ -5,17 +5,6 @@ Depends on: none.
 The running to-do list, grouped. Every item says what "done" looks like.
 Fixed items are removed as they land.
 
-## 1. Text
-
-- **An unquoted list code block's continuation spaces.** A fenced code block in
-  a list outside a quote draws the list's continuation spaces as code text, so
-  its content sits about 8px right of its own fence (the fence's backticks at
-  x≈87, the code at x≈95 in be-app-text's markdown showcase, lines ~187-189),
-  where a quoted one now keeps them in its marker, unseen, and lays the nesting
-  as a gap (`quote_prefix`). Done: an unquoted list code line keeps the
-  continuation spaces in its marker the same way, so its code lines up with its
-  fence, shown by the showcase painting.
-
 ## 2. Docking
 
 - **A bar on a deeper layer's pane, saved.** A joined dock's bar dropped on a
@@ -34,30 +23,28 @@ Fixed items are removed as they land.
   the last frame while a window is resized live, before beui draws the new size. Check it, and
   set it to top left if so, as X11 keeps the last frame at the corner (beui-platform-winit's
   `backdrop.rs`). Done when a live resize on a Mac shows the last frame unstretched.
+  Checked: wgpu 30 makes its layer through raw-window-metal 1.1, a sublayer that leaves
+  `contentsGravity` at `kCAGravityResize` (its `observer.rs`), so it does stretch. Setting
+  `kCAGravityTopLeft` on it, as `Surface::as_hal::<Metal>` gives its `render_layer()`, after each
+  `create_surface` (beui-renderer-wgpu `window.rs`, `present.rs`), is the likely fix; left for a
+  session with a Mac, since nothing here builds or runs macOS.
 
 ## 7. Sessions
 
-- **A reader outside the session cannot replay a base whose state goes by a part.** `replay`
-  reads no part, so a base past `LARGEST_RELAYED_OPERATION` (a large session with others in
-  it) fails it and the reader reads the head alone. The host could read the base's part
-  (`read-part`) and hand its bytes to `replay`. Done when such a reader sees the journal's
-  edits.
+- **A replay's reads fetch what they are refused.** `Scope::check` (be-block-type-host's
+  modules.rs) asks `Peer::block_of_part` of any part a module's `replay` names, which may
+  fetch its object before the read is refused as another block's; the server still decides
+  access. Done: a part's block found without fetching what this device does not hold.
 
-- **Hosted channel paths without tests.** Nothing tests a Join member's send
-  held back by `slow-down` and sent again, a join that waits for a replica of
-  the block to leave, a host that answers the newest of two handshakes a member
-  sent while the first was checked, or what a second host's component hears of
-  the players it inherits (guides/blocks/hosted.md). Done: a be-host-stack test
-  of each.
-
-- **Hosted channel races without tests.** Three fixes in hosted blocks 4b
-  close races that land between two awaits, which no test forces yet: an
-  admit a recheck ran beside asks for another check (`Member::Answering`'s
-  `admit`, `Hosting::snapshots`), a recheck drops a member only while it speaks
-  with the account and key it checked (`hosting::drop_checked`), both in
-  be-host-stack's hosting.rs; and be-server's participant join re-checks the
-  ban after registering (`Client::join`). Done: a test-only pause between the
-  two awaits of each, and a test that changes access or bans in it.
+- **An admit a recheck ran beside, without a test.** An admit a recheck ran
+  beside asks for another check (`Member::Answering`'s `admit`,
+  `Hosting::snapshots`, be-host-stack's hosting.rs), which no test forces: every
+  revocation a test can make there (a lowered grant, a ban) also has the server
+  take the member out of the session, and the host drops it on hearing that
+  whether or not it checks again. Done: a test held at `hosting::ANSWER_PAUSE`
+  with a change the signed logs refuse and the server does not act on (a new
+  identity key for the account), or with the server's word of the leave held
+  back.
 
 - **A seal of its own during a join that holds kept edits.** `rejoined` seals
   and waits only for a join begun on a settled made-up session
@@ -68,20 +55,20 @@ Fixed items are removed as they land.
   `sealed_joining`. It is expected to resolve once the drain sends the commit
   and the replica merges it, with the sealed edits given up and not given again.
   Done: a be-host-stack test that reopens a block after a crash, has its
-  made-up session seal while the join is held, and counts exactly what was made.
+  made-up session seal while the join is held (`be-lib-test-pause` can hold
+  it), and counts exactly what was made.
 
-- **A kept submission that does not encode again.** A replica opened again
-  submits the edits a kept submission holds under its id only if they encode
-  to its inline payload again (`Replica::flush`); otherwise they go as a new
-  submission, and if the first copy reaches the server late, from the process
-  that crashed, the order takes them twice. Two cases never match: an operation
-  too large to relay goes by its part (`Payload::Part`), and an edit carried
-  over a restart of the order goes again from `replay` as typed while its kept
-  submission holds the operation carried over, which differs for a type whose
-  `carry_over` rewrites it (text's positions). Done: such a submission matched
-  by what it holds rather than its bytes (the part's hash; the edits it was
-  carried from) and sent again under its id, with guest tests where its first
-  copy lands after the one given again.
+- **A kept submission carried over a restart that does not encode again.** A
+  replica opened again submits the edits a kept submission holds under its id
+  only if they go as its payload did (`Replica::flush`: the same inline bytes,
+  or the same part, which putting the same bytes under the same key makes
+  again); otherwise they go as a new submission, and if the first copy reaches
+  the server late, from the process that crashed, the order takes them twice.
+  An edit carried over a restart of the order goes again from `replay` as typed
+  while its kept submission holds the operation carried over, which differs for
+  a type whose `carry_over` rewrites it (text's positions). Done: such a
+  submission matched by the edits it was carried from and sent again under its
+  id, with a guest test where its first copy lands after the one given again.
 
 - **Kept edits across two crashes, end to end.** The tests of kept submissions
   across a restart of the order (be-block-type-host's
@@ -226,7 +213,11 @@ Depends on #686 (session catch-ups replaced by server ordering).
   failed 22 of 240 ("the stack never reached counted 5: it made no progress for
   60 s") and `a_joined_channel_opens_to_its_host_and_again_to_the_next` 95 of
   240 ("the channel to the first host closed: []"). Done: each cause found and
-  fixed at its source, and each passes 400 runs at 16 at once.
+  fixed at its source, and each passes 400 runs at 16 at once. Neither failed on
+  568d72d49 (2026-11-25): 0 of 1000 each at 32 at once on 4 cores, and 0 of 240 each at 16 at
+  once beside two whole-crate runs, nor did `an_edit_sealed_offline_onto_a_seal_the_server_lost_lands_once`
+  (0 of 600 at 32), so what failed is not reproduced locally: the next failure's output (a full
+  verify keeps it) is what to read.
 
 - **A joined block's tabs, once under verify load.**
   `a_joined_blocks_tabs_carry_its_menu` waited for "Referenced by (2)" and saw
@@ -434,7 +425,12 @@ Depends on #686 (session catch-ups replaced by server ordering).
   `wait not #dock.editors.menu.editor.keep-hosting` after reopening the closed Counter, and
   timed out busy, one publish of the Counter left in the outbox through every drain, the last
   `Diverged` (local and remote commits differ) with "object ... is nowhere to be found". Done:
-  the cause found and fixed at its source, and the test passes 200 runs under `stress`.
+  the cause found and fixed at its source, and the test passes 200 runs under `stress`. On
+  568d72d49 it passed 220 of 220 (100 at 4 at a time, 120 at 6 with `--apart --latency 75`),
+  and `players_carry_on_with_the_next_host_once_the_first_closes_the_world` 120 of 120 the
+  second way. Ruled out for the first way: the phone claiming on a stale word that no one
+  hosts as it reopens the Counter; with the phone's answers held from its close until after
+  it reopens, it still stands by (its replica leaves the session as the tab closes).
 
 ## 16. Host test tools
 
@@ -504,6 +500,18 @@ Depends on #686 (session catch-ups replaced by server ordering).
   makes, with places read relative to the refit, shown by a painting of a
   display carried below another.
 
+## 18. Keys
+
+- **Contact rows a new phrase could not seal again.** `set-recovery-key` deletes every
+  key sealed to the account that the device does not send again, sealed to the new key.
+  A device follows its contacts' key changes first (`set_recovery_key_in` runs
+  `contacts`), but that is best-effort: a row from a contact whose key change it could
+  not follow (a broken chain, a failed read) opens with no key it holds, so it is not
+  sealed again and the new phrase deletes it. Done: the server keeps a contact's row the
+  device did not seal again rather than deleting it, so a device can still open it with
+  the retired secret once it follows the contact, with a be-block-client test where a
+  contact's unfollowed row outlasts a new phrase.
+
 ## 19. Local accounts
 
 - **Share and Access offered with no server.** A local account's block menus
@@ -528,6 +536,12 @@ Depends on #686 (session catch-ups replaced by server ordering).
   input. Found while fixing Ctrl+Tab between texts. Done: a
   view given the keyboard early focuses its field once it is up, shown by a
   host test that gives a text's view the keyboard before its content arrives.
+  Left: a host test has no way to hold an app's content back while the host gives its view the
+  keyboard, so the race cannot be shown yet; that needs a test hook first (delaying a
+  subregion's child placement, say). Where to start: beui-core `window/hosted.rs`
+  (`window_focused` gives back the window's kept focus, else `focus_into` its root only when the
+  focus is not already inside it) and be-app-text's `caret_when_given_the_keyboard`, which
+  focuses the field only for an empty text.
 
 ## 21. Component macro
 
@@ -690,20 +704,6 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
   reader that knows a block only through a reference sees its new summary
   without reconnecting.
 
-- **A deadline on writing an answer.** hyper writes an answer for as long as
-  the client takes to read it, so a client that never reads a large S3 object
-  (up to `MAX_OBJECT_BYTES`) or a long-poll answer holds its connection and
-  place until the client goes. Done: `http::serve` gives up on a connection
-  whose answer has made no progress for `IDLE_TIMEOUT`, with a be-server test
-  where a client that stops reading a GetObject answer is disconnected.
-
-- **Following a log past one page on reconnect, tested.** `Replicas::follow_logs`
-  reads an open replica's log on from its kept head a page at a time as the
-  device connects, but no test appends more than one server page
-  (`MAX_PAGE_ENTRIES`) while the device is away. Done: a be-host-stack test
-  appends past a page offline and the open chat shows every entry once it
-  reconnects.
-
 - **Imported history in a re-export.** An export carries only a block's own
   log entries (`Peer::export_log`), and `transfer::decode` refuses an entry
   written in another block, so exporting a chat with imported history drops
@@ -711,15 +711,6 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
   own run, each entry naming the block it was written in and verifying
   there, and an import of it shows that history again, with a
   be-block-client test exporting and importing a chat twice.
-
-- **One bad log entry refuses its whole batch.** `Peer::send_appends` sends
-  a block's waiting entries in batches (`ENTRIES_PER_SEND`), and the server
-  refuses an append whole, so one entry it would refuse (over a limit, a
-  redaction it will not take) refuses every entry sent with it, each then kept
-  as refused (`Drained::NotAppended`). Done: the entries a refused batch held
-  go again one at a time, or the server names the entry it refused and takes
-  the rest, with a be-block-client test where one bad entry among good ones
-  leaves only it refused.
 
 ## 27. Unread counts
 

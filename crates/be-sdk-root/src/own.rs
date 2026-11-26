@@ -121,11 +121,11 @@ impl OwnSurface {
 }
 
 fn configure(surface: &gpu::Surface, (width, height): (u32, u32)) {
-    surface.configure(abi::SurfaceConfiguration {
+    surface.configure(&abi::SurfaceConfiguration {
         width,
         height,
         format: abi::TextureFormat::Rgba8Unorm,
-        view_format: None,
+        view_formats: Vec::new(),
     });
 }
 

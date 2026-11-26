@@ -25,13 +25,15 @@ fn an_editor_hears_the_author_go_when_they_are_removed_from_the_organization() {
         CounterContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
     );
-    // The stack lists the roots again as it connects, hers among them.
+    // The stack lists the roots again as it connects, hers among them. The mirror it kept may
+    // hold her block before the connection is back, and the server names the members only
+    // once it is (an ask made offline fails), so the wait is for both.
     harness.connect();
-    let shared = be_host_stack::wait_until("Ada's block is in the mirror", |shared| {
+    let shared = be_host_stack::wait_until("Ada's block is in the mirror, connected", |shared| {
         shared
             .graph
             .get(block)
-            .filter(|node| node.access.can_view())
+            .filter(|node| shared.connected && node.access.can_view())
             .map(|node| node.changed)
     });
 

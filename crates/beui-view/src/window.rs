@@ -329,6 +329,12 @@ pub fn Window(
             ),
             WindowAnchor::Centre => (frame, Placement::CenterOn),
         };
+        // Kept inside the parent's viewport unless what it hangs from is wholly outside it (a
+        // host's tab, handed to an app's dialog): then it is free to hang from it there.
+        let area = match area.intersects(target) || target.size() == Vec2::ZERO {
+            true => area,
+            false => Rect::from_min_max(Pos2::new(-FAR, -FAR), Pos2::new(FAR, FAR)),
+        };
         Some(crate::types::layer::resolve_rect(area, target, placement, shown.get()).min)
     });
     let asked = placement.clone();
@@ -362,6 +368,16 @@ pub fn Window(
     let shows = create_memo(move || {
         let dialog = anchor.get().is_some() || blocking.get();
         opened.get() && !(hosted.get() && dialog && locked.get())
+    });
+    // A dialog's window of its own shows only its card, so it clears to nothing rather than to
+    // the colour of the window it is opened from, which a window with no `Root` of its own takes:
+    // a host backs a view with the colour it clears to (`FrameReport::backdrop`).
+    let blocking = blocks;
+    let clears = create_memo(move || hosted.get() && (anchor.get().is_some() || blocking.get()));
+    crate::reactive::create_effect(move || {
+        if clears.get() {
+            crate::core::window::clear_window(id, crate::types::Color32::TRANSPARENT);
+        }
     });
     // A window of its own that blocks covers its owner (its parent window, with no owner) in
     // the owner's window, as an overlay that takes the presses there and draws the scrim.

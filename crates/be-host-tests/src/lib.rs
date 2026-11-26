@@ -129,7 +129,21 @@ impl HostTest {
     /// Start its other devices with [`HostTest::another_device`], which unlocks them with that
     /// key.
     pub fn device(account: &Account) -> Self {
-        Self::join(account, FILES)
+        Self::join(account, FILES, false, Vec::new())
+    }
+
+    /// Starts a device of `account` as [`HostTest::device`] does, drawn through lavapipe as
+    /// [`Options::previews`] is, so it can restart with a root in place of its UI
+    /// ([`HostTest::restart_as_root`]), whose apps draw on the window's device.
+    pub fn drawn_device(account: &Account) -> Self {
+        Self::join(account, FILES, true, Vec::new())
+    }
+
+    /// Starts a device of `account` as [`HostTest::device`] does, with the staged app `app`'s
+    /// entry point as the root guest in place of its own UI (`--root=APP`), drawn through
+    /// lavapipe. Wait for what the root shows with `settle`.
+    pub fn root_device(account: &Account, app: &str) -> Self {
+        Self::join(account, ROOT_SHOWN, true, vec![format!("--root={app}")])
     }
 
     /// The address this device reaches its test [`Server`] at: a link made on another device
@@ -143,7 +157,7 @@ impl HostTest {
     /// typed into this one. It returns once the new device shows its My files.
     pub fn another_device(&mut self) -> Self {
         let account = self.joined("another_device").account.clone();
-        let mut other = Self::join(&account, SHOW_A_CODE);
+        let mut other = Self::join(&account, SHOW_A_CODE, false, Vec::new());
         other.click(SHOW_A_CODE);
         other.wait("Type this code on the other device:");
         let tree = other.tree();
@@ -183,17 +197,22 @@ impl HostTest {
     /// with the staged app `app`'s entry point as the root guest in place of its own UI, on the
     /// dev workspace (`--root=APP --dev-workspace`), as [`HostTest::root_with_dev_workspace`]
     /// does: what be-host's own UI made, the root shows. Start the host with
-    /// [`Options::previews`], since the root's apps draw on the window's device.
+    /// [`Options::previews`], since the root's apps draw on the window's device, or a device
+    /// with [`HostTest::drawn_device`], which keeps its server.
     pub fn restart_as_root(&mut self, app: &str) {
         self.end_programs();
         self.run(&["settle"]);
         self.steps.push(format!("restart --root={app}"));
+        let workspace = match &self.device {
+            Some(device) => format!("--dev-workspace=http://{}", device.relay.address()),
+            None => "--dev-workspace".to_owned(),
+        };
         let restarted = self
             .host
             .as_mut()
             .expect("the host is still open")
             .restart_with(
-                [format!("--root={app}"), "--dev-workspace".to_owned()]
+                [format!("--root={app}"), workspace]
                     .into_iter()
                     .chain(self.desktop.then(|| "--desktop".to_owned()))
                     .collect(),
@@ -254,14 +273,15 @@ impl HostTest {
         })
     }
 
-    fn join(account: &Account, ready: &str) -> Self {
+    fn join(account: &Account, ready: &str, render: bool, mut arguments: Vec<String>) -> Self {
         let relay = account.server.relay();
         let url = format!("http://{}", relay.address());
         let token = account.server.token(account.id);
+        arguments.push(format!("--dev-workspace={url}"));
         let start = be_tool_drive::Start {
-            arguments: vec![format!("--dev-workspace={url}")],
+            arguments,
             environment: vec![("BE_DEV_TOKEN".to_owned(), token)],
-            ..Self::program(false, false)
+            ..Self::program(false, render)
         };
         Self::begin(
             start,
@@ -608,9 +628,9 @@ impl HostTest {
     }
 
     /// Closes the host once it has settled, so nothing is left unsaved for it to ask about, and
-    /// fails unless it exits cleanly.
+    /// fails unless it exits cleanly. Its programs' windows still open close first, as its
+    /// session ends, and the programs with them.
     pub fn close(mut self) {
-        self.end_programs();
         self.run(&["settle"]);
         self.steps.push("close".to_owned());
         let host = self.host.take().expect("the host is still open");
@@ -684,8 +704,9 @@ impl HostTest {
 }
 
 impl HostTest {
-    /// Ends the test's programs, before the host closes or restarts, once each window is gone
-    /// from the desktop, so the host does not close while it changes.
+    /// Ends the test's programs before the host restarts, once each window is gone from the
+    /// desktop, so it starts again with none: a window still open as it closes would come back
+    /// as its placeholder (the desktop keeps the windows that close as its session ends).
     fn end_programs(&mut self) {
         if self.programs.is_empty() {
             return;

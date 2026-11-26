@@ -1601,6 +1601,7 @@ dependencies = [
  "be-lib-build-id",
  "be-lib-dmabuf",
  "be-lib-layers",
+ "be-lib-qr",
  "be-lib-quoted-name",
  "be-lib-ui-types",
  "be-root-accounts-ui",
@@ -1629,7 +1630,6 @@ dependencies = [
  "libc",
  "ndk-context",
  "postcard",
- "qrcodegen",
  "serde",
  "serde_json",
  "tokio",
@@ -1852,6 +1852,7 @@ dependencies = [
  "be-lib-build-id",
  "be-lib-search",
  "be-lib-stable-hash",
+ "be-lib-test-pause",
  "be-lib-web-push",
  "be-sdk",
  "be-sdk-api",
@@ -2065,6 +2066,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-lib-qr"
+version = "0.1.0"
+dependencies = [
+ "qrcodegen",
+]
+
+[[package]]
 name = "be-lib-quoted-name"
 version = "0.1.0"
 dependencies = [
@@ -2127,6 +2135,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-lib-test-pause"
+version = "0.1.0"
+dependencies = [
+ "tokio",
+]
+
+[[package]]
 name = "be-lib-ui-keys"
 version = "0.1.0"
 dependencies = [
@@ -2172,6 +2187,7 @@ version = "0.1.0"
 dependencies = [
  "be-lib-geometry",
  "be-lib-layers",
+ "be-lib-qr",
  "be-lib-quoted-name",
  "be-lib-ui-types",
  "be-root-accounts-ui",
@@ -2396,6 +2412,7 @@ dependencies = [
  "be-lib-ui-types",
  "be-sdk-api",
  "be-sdk-app-host",
+ "be-sdk-window-stack",
  "be-wasm-gpu-abi",
  "be-wasm-ops",
  "be-wasm-root-api",
@@ -2612,6 +2629,7 @@ dependencies = [
  "be-block-sqlite-schema",
  "be-block-store",
  "be-lib-build-id",
+ "be-lib-test-pause",
  "be-lib-web-push",
  "be-server-portal",
  "be-wasm-ops",

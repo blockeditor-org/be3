@@ -96,6 +96,9 @@ Under `--desktop` the screen locks on Super+L, the power row's Lock, after the d
 `LoginSession` holds a logind `delay` inhibitor and releases it once the lock has been drawn twice
 (`src/login_session/sleep.rs`). `lock.rs` is the state machine, `ScreenLock` runs it, and
 `src/ui/lock.rs`'s `LockScreen` is a `Modal` at `LayerLevel::Lock` in every display's window.
+Under `--root` the root draws the lock screen and asks the host through `be3:root`'s lock calls
+(`src/root/platform.rs`): be-root locks on Super+L with `host.lock-session`, and the login session
+counts the root's frames after it was shown the lock as the lock drawn.
 logind's `Unlock` is not obeyed; only a password unlocks.
 
 - **The password** is checked by PAM (`pam.rs`, libpam `dlopen`ed on a thread) with the service

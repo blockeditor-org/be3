@@ -346,7 +346,7 @@ impl<S: ObjectStore> Tracker<S> {
     /// A block's bytes as read, with what its live session sequenced past them.
     async fn readable(&self, read: BlockRead) -> Option<Vec<u8>> {
         match read.journal {
-            Some(_) => self.types().await.readable(read).await,
+            Some(_) => self.types().await.readable(&self.peer, read).await,
             None => read.stored.map(|stored| stored.bytes),
         }
     }

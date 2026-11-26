@@ -8,4 +8,4 @@ The default `Slides` motion used to run the slide-away first and call `on_dismis
 
 ## Later: no slide but a sheet's
 
-Modals used to slide away in a `BackSlide` (`ModalMotion::Slides`), following a back gesture and lingering inert while they went. That motion was hard to keep right beside the owner's say, and modals are to give way to dock windows (plans/dialogs_are_dock_windows.md), so it was removed: a modal that is not a sheet disappears with no animation.
+Modals used to slide away in a `BackSlide` (`ModalMotion::Slides`), following a back gesture and lingering inert while they went. That motion was hard to keep right beside the owner's say, and modals were to give way to dialog windows (decisions/a_dialog_is_a_window_of_its_owner_not_of_the_dock.md), so it was removed: a modal that is not a sheet disappears with no animation.

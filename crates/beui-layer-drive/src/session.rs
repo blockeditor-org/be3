@@ -31,6 +31,9 @@ use crate::gestures::{Frames, Gestures};
 use crate::target::{coordinates, hidden, locate, node, place, point, scaled, shown_part};
 use crate::{Inbox, Reply, Request, changes};
 
+/// What a `close` answers once the program closed its window.
+const CLOSED: &str = "The window closed.\n";
+
 const CHANGES: usize = 60;
 const NOTHING_OUTSIDE: &str = "this program has nothing outside its window to keep in step with";
 const FRAME: Duration = Duration::from_micros(16_667);
@@ -398,6 +401,12 @@ enum Phase {
     Settling {
         before: Option<Rc<Rendered>>,
     },
+    /// A `close` the program put off (to close what it shows first, or to ask about unsaved
+    /// changes): answered as it settles, with what changed, or, should the program close its
+    /// window meanwhile, as closed (`Drop for Session`).
+    Closing {
+        before: Option<Rc<Rendered>>,
+    },
     Syncing,
     Offline,
     Waiting {
@@ -507,6 +516,20 @@ struct Session {
     other_frames: BTreeMap<String, FrameTimes>,
     shown: Vec<Option<WindowOutput>>,
     windows: Vec<(WindowId, Rc<be_lib_stable_hash::HashSet<accesskit::NodeId>>)>,
+}
+
+/// A program that closes its window while a `close` it put off waits (`Phase::Closing`) drops
+/// its layers, this session among them, before it exits: the `close` is answered as closed, as
+/// one the program closed at once is.
+impl Drop for Session {
+    fn drop(&mut self) {
+        if let Some(active) = self
+            .active
+            .take_if(|active| matches!(active.phase, Phase::Closing { .. }))
+        {
+            (active.request.reply)(Reply::Text(CLOSED.to_owned()));
+        }
+    }
 }
 
 impl Session {
@@ -1030,7 +1053,9 @@ impl Session {
         let reply = match failed {
             Some(error) => Some(Reply::Error(error)),
             None => match &mut active.phase {
-                Phase::Settling { before } if quiet || (immediate && before.is_some()) => {
+                Phase::Settling { before } | Phase::Closing { before }
+                    if quiet || (immediate && before.is_some()) =>
+                {
                     Some(Reply::Text(match (before.as_deref(), limit) {
                         (None, _) | (Some(_), Some(0)) => String::new(),
                         (Some(before), limit) => {
@@ -1316,11 +1341,9 @@ impl Session {
             "close" => match frame.program.close_requested() {
                 true => {
                     frame.close();
-                    Ok(Started::Done(Reply::Text(
-                        "The window closed.\n".to_owned(),
-                    )))
+                    Ok(Started::Done(Reply::Text(CLOSED.to_owned())))
                 }
-                false => Ok(Started::Phase(Phase::Settling {
+                false => Ok(Started::Phase(Phase::Closing {
                     before: Some(view.rendered()),
                 })),
             },

@@ -145,7 +145,9 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   be-wasm ones), which the root takes in with the frame being drawn (on the page, at
   its next resume), or else ahead of the next frame, so it routes by the
   layers it drew last; the host does not await the answer, which the root
-  gives once it has routed. The stepping is `Core`, shared with the
+  gives once it has routed. `Root::drag_files` (`input.drag-files`) hands it
+  files dragged over the window from outside it, in order with that input.
+  The stepping is `Core`, shared with the
   browser's half (`web`), where the page may never wait: `Root::load` compiles the root with `WebAssembly.compile` and
   instantiates it on the page, answering its transport itself, and
   `Root::frame`, called from `requestAnimationFrame`, steps it as far as it
@@ -287,9 +289,12 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   watches its statistics it samples its memory, writing it nowhere and parking
   the sampler when the watch ends, and each sample wakes the window; it hands
   the root be-host-base's performance rows each frame and its memory rows once
-  a sample came. It runs no screen lock, so it leaves the root's lock unavailable
-  and answers every password handed over no, unchecked; it manages no displays,
-  so it asks to keep none. What the root
+  a sample came. It serves the root what it keeps of the platform
+  (`root/platform.rs`): the login session's screen lock in a login session and
+  under `--desktop` (`host.lock`: the password goes to PAM, `host.lock-session`
+  locks it, `host.lock-power` does an offered power action), and the displays'
+  question while display settings wait to be kept (`host.displays`), with
+  times on the root's clock. What the root
   copies it puts on the window's clipboard (`Context::copy`), and each paste it
   asks for it reads there (`Context::read_clipboard`) and hands back with the
   next frame. `drive
@@ -297,8 +302,10 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   shows it.
   It runs the host's core (`HostCore`: its data directory, block stack,
   accounts, session and the dev workspace), which fills `host.core` and serves
-  the editors of the session's view, but no screen lock or OS services, so it is
-  refused as a login session; a
+  the editors of the session's view, and what it keeps of the platform as
+  be-host's own UI does (`HostCore::start_platform`, the host's frame begun before
+  the root's for its clock, and under `--desktop` the desktop's OS services), so
+  it runs as a login session too; a
   root that stops closes the window and be-host exits saying why. No host ships a root yet: be-host's
   own UI stays the default until be-root passes the host tests that exercise it
   (plans/host_as_platform_adapter.md, 4g7). The host test
@@ -335,7 +342,16 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   and takes it back from one that stops or loses the focus; one whose lock
   the platform released gets it again only once it stops asking and asks
   anew), and every sample
-  while one shown asks for them. `OwnSurface` is a surface of the root's own,
+  while one shown asks for them. A screen the root asks with windows
+  (`screen-request.windows`: the session's, when the host says it shows the
+  editor's windows as its own, `editor-app.hosts-windows`) has the windows its
+  editor opens floated by the root (be-sdk-root's `floating`, over
+  be-sdk-window-stack): `Embedded` adopts each from the layout commit that
+  opens it and asks for it beside the screens the root asks for
+  (`Embedded::show`), and `Embedded::window_layers` names each where it floats,
+  bottom first. A press on one raises it; a move or resize it asks for then
+  follows the main window's pointer, whose moves the root takes itself until
+  it is released (`Embedded::follow_held`). `OwnSurface` is a surface of the root's own,
   which it configures, draws (`fill`, or `acquire` and `present`) and names
   as a layer. `crates/be-sdk-beui-root` draws them with beui: `BeuiRoot` is
   what a root's surfaces share (the device `be3:gpu` gives it, the fonts

@@ -57,6 +57,26 @@ Nothing uses them yet.
    description of the protocols for other languages is generated. The macro reads other
    crates' types from their `schema.lock`, not their source. WIT stays only for the wasm
    boundary (plans/a_component_model_boundary.md).
+
+   What it keeps from WIT, so the protocols stay describable in any language and close to the
+   component model:
+   - **async funcs, `Stream<T>` and `Future<T>`** as WASI 0.3 has them, as arguments as well
+     as results (a stream the caller feeds), back-pressured as the kernel's are;
+   - **resources** with constructors, methods and a destructor, owned (`Document`) or borrowed
+     for the call (`&Document`), dropping an owned one ending it as canceling an op does;
+   - **a closed set of value types**: records, variants, enums, `Option`, `Result<T, E>`, lists,
+     maps and `flags` (named bits that can grow), adding `Result` and a `flags` derive to
+     be-wasm-schema; no type parameters, which the derive refuses already;
+   - **worlds**: what each kind of guest imports and exports, named;
+   - **`@since` and `@unstable`** as `#[since(..)]` and `#[unstable(..)]`, recorded in the
+     lockfile, for the version negotiation step 7 builds and for parts freezing leaves out;
+   - **names independent of Rust**, derived from identifiers by fixed rules, for the generated
+     description;
+   - **shared ids in one place**, as `be3:shared` is.
+
+   And what the bindgen does today: latest-value `*-watch`es, a dropped `Reply` answering
+   `Unanswered`, one `Complete` per op, children canceled with their parent, and `secret`
+   arguments zeroed once decoded.
 2. **Saved data.** Move registers, commits, manifests, metadata and be-server's rows onto
    `Schema`, and `be_block_model`'s stored form onto its encoding, keeping the model's own
    rules (list ids, `Text`, `#[critical]`, kept data). Retire `Kind::registers_accept_missing_fields`
@@ -75,10 +95,15 @@ Nothing uses them yet.
    converter can do most of it), carried in the format in place of postcard. Method ids come from
    the lockfile, not hashes of names; the stack's types are used directly, so `with`,
    `encodings`, `lenient`, `inline` and `be_wasm_ops::wire`'s byte encodings go.
+   Rewrite the decisions that describe today's protocols when this lands:
+   decisions/guest_calls_are_async_ops_except_local_ones.md (marked superseded),
+   decisions/server_protocol_is_unversioned.md (postcard over ops frames) and
+   decisions/app_libraries_are_coarse.md (postcard and serde in the base library, where
+   be-wasm-schema takes their place).
    Decide whether every protocol variant is open. Reading in place (aligned views, as rkyv or
    Cap'n Proto do) stays possible later, since the format is ours; compression wins size back
-   (plans/deferred/compression.md). The GPU leaves this plan: it moves to wasi:webgpu
-   (plans/a_component_model_boundary.md).
+   (plans/deferred/compression.md). The GPU is not in this plan: it is wasi:webgpu, bound by
+   the local generator (plans/be3_gpu_is_wasi_webgpu.md, plans/a_component_model_boundary.md).
 5. **The rest.** bincode (be-lib-remap, tabletop) and remaining postcard. JSON for files people
    edit and tools' output stays.
 6. **Transport.** Encode straight into a guest's memory, decode borrowed in the guest, and

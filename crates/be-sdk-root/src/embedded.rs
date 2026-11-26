@@ -33,6 +33,8 @@ use be_sdk_app_host::{
     wire::Wire,
 };
 use be_wasm_root_api::{Shown, ShownBlock, guest::host};
+
+use crate::floating::{self, Floating};
 use be_wasm_sandbox_api::{
     guest::sandbox::Instance,
     sandbox::{Config, Source, StagedModule},
@@ -91,6 +93,9 @@ pub struct Hosted {
     pub pan_and_zoom: bool,
     /// The editor, as its app's manifest names it (`host.editor-of`'s `editor`).
     pub shows: [u8; 16],
+    /// Whether the host shows the windows it opens from its main view as its own, which the
+    /// root floats (`host.editor-of`'s `hosts-windows`).
+    pub hosts_windows: bool,
 }
 
 /// Why `Embedded::spawn_block` spawned nothing.
@@ -199,6 +204,22 @@ struct State {
     /// How each view the app anchored hangs (`frame-report.anchored`), by the screen it opened
     /// for it, as its last layout's report said: it closes once a layout no longer lists it.
     anchored: HashMap<ScreenId, Hanging>,
+    /// The screens the root asks for (`Embedded::show`), without the windows it floats.
+    asked: Vec<ScreenRequest>,
+    /// The windows the app opened from a screen asked with windows, which the root floats
+    /// (`floating`), bottom first: each asked for besides `asked`.
+    floating: Vec<Floating>,
+    /// The last press on one of those windows, which a move or resize it asks for starts from.
+    pressed: Option<floating::Pressed>,
+    /// The move or resize of one of them under way, which follows the main window's pointer
+    /// until it is released (`Embedded::follow_held`).
+    held: Option<floating::Held>,
+    /// Where each screen keeps the windows opened from it, as its last layout's frame report
+    /// said (`frame-report.work-area`).
+    work_areas: HashMap<ScreenId, Insets>,
+    /// Where the pointer last was in the root's main window, in its points
+    /// (`Embedded::note_pointer`): where one of them opened at the pointer opens.
+    pointer: Pos2,
     /// Why the app stopped, once it did: it is asked for nothing again.
     failure: Option<String>,
     /// The frames waiting for the app to say hello or present.
@@ -255,6 +276,7 @@ impl Embedded {
         let name = editor.name;
         let preview = editor.preview;
         let pan_and_zoom = editor.pan_and_zoom;
+        let hosts_windows = editor.hosts_windows;
         let shows = editor.editor;
         let app = Self::spawn_app(editor.app, editor.module, spawn.surface, spawn.fonts, now);
         let editor = app
@@ -272,6 +294,7 @@ impl Embedded {
             preview,
             pan_and_zoom,
             shows,
+            hosts_windows,
         })
     }
 
@@ -350,16 +373,86 @@ impl Embedded {
     /// Asks the app for `screens` in place of those it was asked for, as when the window it
     /// shows in is resized: at once once it runs, else with the rest it is sent once it says
     /// hello.
+    /// The windows the app opened that the root floats are asked for besides them.
     pub fn show(&self, screens: Vec<ScreenRequest>) {
         let mut state = self.state.borrow_mut();
-        if state.failure.is_some() || state.run.screens == screens {
+        if state.failure.is_some() {
             return;
         }
-        state.run.screens.clone_from(&screens);
-        let send = state.run.queue([AppCall::Screens(screens).into()]);
-        state.run.pacing.need();
-        state.wire.send(send);
-        state.flush();
+        let floating: Vec<ScreenId> = state.floating.iter().map(|window| window.screen).collect();
+        state.asked = screens
+            .into_iter()
+            .filter(|screen| !floating.contains(&screen.screen))
+            .collect();
+        state.ask_screens();
+    }
+
+    /// Notes where the pointer is in the root's main window, in its points.
+    pub(crate) fn note_pointer(&self, at: Pos2) {
+        self.state.borrow_mut().pointer = at;
+    }
+
+    /// Whether one of the windows it opened that the root floats is being moved or resized.
+    pub(crate) fn holds(&self) -> bool {
+        self.state.borrow().held.is_some()
+    }
+
+    /// Follows the move or resize of one of its windows under way with the main window's
+    /// `input`, as be-host's desktop does: the window follows the pointer, which nothing else
+    /// hears meanwhile, until it is released, which the app hears. Answers whether the root
+    /// takes `input` itself.
+    pub(crate) fn follow_held(&self, input: &Input) -> bool {
+        let mut state = self.state.borrow_mut();
+        let Some(held) = state.held else {
+            return false;
+        };
+        // Whichever pointer pressed it, a mouse, a finger or a pen, as be-host's desktop follows
+        // every pointer's phases.
+        match input {
+            Input::PointerMoved(at)
+            | Input::Touch {
+                phase: TouchPhase::Move,
+                pos: at,
+                ..
+            }
+            | Input::Pen {
+                phase: PenPhase::Move,
+                pos: at,
+                ..
+            } => {
+                if floating::drag(&mut state.floating, held, *at) {
+                    state.ask_screens();
+                    state.wake();
+                }
+                true
+            }
+            // Released, it is kept within its work area again, and a move or resize asked for
+            // later starts from a press of its own.
+            input if ends(input) => {
+                state.held = None;
+                state.pressed = None;
+                state.ask_screens();
+                state.wake();
+                false
+            }
+            _ => false,
+        }
+    }
+
+    /// The windows the app opened that the root floats, bottom first: each the screen it is
+    /// asked for, and the layer showing it where it floats, in the window's points, once the app
+    /// painted it.
+    pub fn window_layers(&self) -> Vec<(ScreenRequest, Layer)> {
+        let floating = self.state.borrow().floating.clone();
+        floating
+            .iter()
+            .filter_map(|window| {
+                Some((
+                    window.request(),
+                    self.layer(window.screen, window.rect.min)?,
+                ))
+            })
+            .collect()
     }
 
     /// What the app paints its screens with now, as it answers a host's `paintings` for its
@@ -456,6 +549,12 @@ impl Embedded {
             contents: HashMap::default(),
             used: HashMap::default(),
             anchored: HashMap::default(),
+            asked: Vec::new(),
+            floating: Vec::new(),
+            pressed: None,
+            held: None,
+            pointer: Pos2::ZERO,
+            work_areas: HashMap::default(),
             failure: None,
             waiting: Vec::new(),
             stop: Rc::clone(&stop),
@@ -1052,6 +1151,24 @@ impl Embedded {
         else {
             return;
         };
+        // A press on a window it opened that the root floats raises it, and a move or resize
+        // it asks for next starts from it.
+        if matches!(
+            input,
+            Input::PointerButton { pressed: true, .. }
+                | Input::Touch {
+                    phase: TouchPhase::Start,
+                    ..
+                }
+                | Input::Pen {
+                    phase: PenPhase::Down(_),
+                    ..
+                }
+        ) && let pointer = state.pointer
+            && let Some(pressed) = floating::press(&mut state.floating, screen, pointer)
+        {
+            state.pressed = Some(pressed);
+        }
         // Which of its screens has the keyboard, which lets its editor open the palette.
         if let Input::Focus(focused) = input {
             match focused {
@@ -1224,6 +1341,50 @@ pub(crate) fn wants(
 }
 
 impl State {
+    /// Asks the app for the screens the root asks for and the windows it floats, unless it was
+    /// asked for those already.
+    fn ask_screens(&mut self) {
+        // Each window at its opener's pixels per point and within its bounds, as asked now, and
+        // kept within its opener's work area unless it is being moved or resized.
+        floating::follow_openers(&mut self.floating, &self.asked);
+        let windows: Vec<ScreenRequest> = self.floating.iter().map(Floating::request).collect();
+        let work = |opener: be_sdk_api::ViewRef| {
+            let request = self.asked.iter().chain(&windows).find(|request| {
+                (request.instance, request.view) == (opener.instance, opener.view)
+            })?;
+            let insets = self.work_areas.get(&request.screen)?;
+            let origin = request.anchor_space?.to_host.origin;
+            let size = request.metrics.logical;
+            Some(Rect::from_min_max(
+                pos2(origin.x + insets.left, origin.y + insets.top),
+                pos2(
+                    origin.x + size.x - insets.right,
+                    origin.y + size.y - insets.bottom,
+                ),
+            ))
+        };
+        let moving = self.held.map(|held| held.view());
+        floating::keep_in_work_areas(&mut self.floating, moving, work);
+        let mut screens: Vec<ScreenRequest> = self
+            .asked
+            .iter()
+            .cloned()
+            .chain(self.floating.iter().map(Floating::request))
+            .collect();
+        // In the order the app opened them, not as they are stacked: one raised is asked for
+        // as it was.
+        let asked = self.asked.len();
+        screens[asked..].sort_by_key(|screen| screen.screen.0);
+        if self.failure.is_some() || self.run.screens == screens {
+            return;
+        }
+        self.run.screens.clone_from(&screens);
+        let send = self.run.queue([AppCall::Screens(screens).into()]);
+        self.run.pacing.need();
+        self.wire.send(send);
+        self.flush();
+    }
+
     /// Takes in the children each view placed, in place of what it placed before.
     fn place(&mut self, children: Vec<ChildPlacements>) {
         for placements in children {
@@ -1354,6 +1515,10 @@ impl State {
                 self.described.retain(|screen, _| laid_out(screen));
                 self.used.retain(|screen, _| laid_out(screen));
                 self.anchored.retain(|screen, _| laid_out(screen));
+                // A window the layout no longer lists closed (its editor did).
+                let floated = self.floating.len();
+                self.floating.retain(|window| laid_out(&window.screen));
+                let unfloated = self.floating.len() != floated;
                 // A view the layout no longer has (an anchored view that closed) places nothing.
                 let before = self.placed.len();
                 self.placed.retain(|placements| {
@@ -1366,8 +1531,30 @@ impl State {
                     self.placing = true;
                 }
                 self.run.lay_out(layout, |_| false);
+                if unfloated {
+                    self.ask_screens();
+                }
             }
             Heard::LaidOut(mut commit) => {
+                // The windows it opened, moved, raised or closed, from a screen asked with
+                // windows, which it is asked for (or no longer) at once.
+                let requests = std::mem::take(&mut commit.window_requests);
+                let screens = self.run.screens.clone();
+                let (changed, held) = floating::hear(
+                    &mut self.floating,
+                    &screens,
+                    requests,
+                    self.pressed,
+                    self.pointer,
+                );
+                // A press starts one move or resize: the next asks from where it then is.
+                if held.is_some() {
+                    self.held = held;
+                    self.pressed = None;
+                }
+                if changed {
+                    self.ask_screens();
+                }
                 // A pick from a frame menu lets its editor open the palette for a few commits.
                 self.menu_picked.retain(|_, left| {
                     *left = left.saturating_sub(1);
@@ -1384,8 +1571,14 @@ impl State {
                 self.hear_sizes(std::mem::take(&mut commit.sizes));
                 // Held with its children when they wait for the present, else heard now.
                 self.hear_docks(std::mem::take(&mut commit.docks));
+                let mut rekept = false;
                 for report in &commit.reports {
                     self.contents.insert(report.screen, report.content);
+                    let kept = match report.work_area {
+                        Some(area) => self.work_areas.insert(report.screen, area) != Some(area),
+                        None => self.work_areas.remove(&report.screen).is_some(),
+                    };
+                    rekept |= kept;
                     if let Some(actions) = &report.actions {
                         self.actions.insert(report.screen, actions.clone());
                     }
@@ -1419,6 +1612,10 @@ impl State {
                             self.anchored.remove(&report.screen);
                         }
                     }
+                }
+                // A work area that changed keeps the windows opened from it within it anew.
+                if rekept && !self.floating.is_empty() {
+                    self.ask_screens();
                 }
                 self.run.pacing.laid_out();
             }
@@ -1515,10 +1712,12 @@ impl State {
                     continue;
                 }
                 // What a dialog's placer's status says (its pick, its answer, whether it takes
-                // Escape itself or shows as a card), which its host words that status from, and
-                // the settings an artifact's settings view edited, which its host applies once
-                // its placer commits it.
-                ShellMessage::Picked(_)
+                // Escape itself or shows as a card), which its host words that status from, the
+                // settings an artifact's settings view edited, which its host applies once its
+                // placer commits it, and a close of a child, which its host acts on for a
+                // program window (`shown-child.window`).
+                ShellMessage::CloseChild(_)
+                | ShellMessage::Picked(_)
                 | ShellMessage::CloseDialog(_)
                 | ShellMessage::HandlesDismiss(_)
                 | ShellMessage::ShowCard(_)

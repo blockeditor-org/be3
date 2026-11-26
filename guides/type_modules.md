@@ -646,8 +646,11 @@ order: presence and channel messages. The rules an agent most needs:
   longer than `LARGEST_PART` is passed over by every replica unread. A put that
   fails is tried again after 5 s, doubling to a minute (`put_retry_at`). No
   commit holds the part until the holder seals, so the server's hold on it
-  lasts the whole upload grace; `replay` cannot read a part, so a reader outside
-  the session reads the head alone.
+  lasts the whole upload grace. `replay`, for a reader outside the session,
+  reads the parts the journal names (its base state's, an operation's) under
+  its request, which the host serves only for parts sealed under that block's
+  keys; it reloads no commit, so a journal holding a reload is read as the head
+  alone.
 - **Replacements.** A whole-content replacement (`Replace`, `FromFile`) wins
   outright: the replica stashes what it shows, stashes the replacement on top and
   submits a barrier `Reload` of it, so the holder's next seal has it as second

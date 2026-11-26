@@ -3,7 +3,8 @@ package be3:block-type@0.1.0;
 /// What a type module offers: a replica for each open block, and requests
 /// that need none. A call the module makes under a stateless request has the
 /// request as its parent; the host serves only `read-part` there, and only of
-/// the parts of the `loaded` content the request was handed.
+/// the parts of the `loaded` content the request was handed (for `replay`, of
+/// the block whose journal it was handed).
 interface replicas {
     use types.{
         account-id, block-id, block-place, change, client-id, commit-id, content-type-id, description, editor-id,
@@ -197,9 +198,11 @@ interface replicas {
     start: async func() -> list<type-info>;
 
     /// Content bytes (none for the type's default) with a journal of this
-    /// build replayed on top, for a reader outside the session. It reads no
-    /// part, so it fails on a journal whose base state, an operation or a
-    /// reload goes by one: such a reader reads the head alone.
+    /// build replayed on top, for a reader outside the session. The module
+    /// reads the parts the journal names (its base state's, an operation's)
+    /// with `read-part` under this request, which serves only parts sealed
+    /// under the block's keys. It reloads no commit, so it fails on a journal
+    /// holding a reload: such a reader reads the head alone.
     replay: async func(
         content-type: content-type-id,
         bytes: option<list<u8>>,

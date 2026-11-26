@@ -8,6 +8,7 @@ use be_wasm_root_host::{Password, Root};
 use crate::{MENU_BUTTON, MENU_SURFACE};
 
 mod a_root_asks_before_leaving_a_block_and_opens_its_hosts_contact_and_share_links;
+mod a_root_asks_its_host_to_lock_on_super_l;
 mod a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once;
 mod a_root_asks_to_keep_display_settings_its_host_changed;
 mod a_root_describes_its_surfaces_once_asked_and_those_it_opens_after;

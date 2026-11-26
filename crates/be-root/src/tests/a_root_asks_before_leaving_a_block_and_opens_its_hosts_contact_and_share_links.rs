@@ -197,12 +197,12 @@ fn a_root_asks_before_leaving_a_block_and_opens_its_hosts_contact_and_share_link
         "a_root_asks_to_connect_with_a_contact",
         painting(&mut root, &mut time),
     );
-    let commands = asks(&mut root, &mut time, click(pos2(566.0, 248.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(516.0, 332.0)));
     assert!(
         matches!(commands.as_slice(), [CoreCommand::AcceptContact]),
         "Connect connects: {commands:?}"
     );
-    let commands = asks(&mut root, &mut time, click(pos2(477.0, 248.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(425.0, 332.0)));
     assert!(
         matches!(commands.as_slice(), [CoreCommand::ForgetContactLink]),
         "Cancel puts it aside: {commands:?}"
@@ -211,13 +211,13 @@ fn a_root_asks_before_leaving_a_block_and_opens_its_hosts_contact_and_share_link
     // Removing a contact asks first.
     show_core(&mut root, contacts(None));
     let _ = painting(&mut root, &mut time);
-    let commands = asks(&mut root, &mut time, click(pos2(593.0, 270.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(593.0, 240.0)));
     assert!(commands.is_empty(), "asking removes no one: {commands:?}");
     beui_paint_snapshot::assert_painting(
         "a_root_asks_before_removing_a_contact",
         painting(&mut root, &mut time),
     );
-    let commands = asks(&mut root, &mut time, click(pos2(566.0, 340.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(516.0, 340.0)));
     assert!(
         matches!(commands.as_slice(), [CoreCommand::RemoveContact(GRACE)]),
         "Remove removes them: {commands:?}"

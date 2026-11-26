@@ -22,8 +22,10 @@ a block. A desktop refuses to start on a data directory another be-host already 
 (guides/running/native.md).
 
 Under `--root` (guides/apps/runtime.md, The root guest), `--desktop` makes the desktop app the
-session's editor the root shows (`run_desktop_shell`) but starts none of the desktop's OS services
-yet (the screen lock and its power actions, notifications, the tray, screenshots). Its compositor
+session's editor the root shows, with the desktop's OS services as under be-host's UI
+(`run_as_desktop`: the screen lock and its power actions, notifications, the tray, screenshots); the
+root shows the lock on its own lock screen (`host.lock`) and locks on Super+L through
+`host.lock-session`. Its compositor
 runs as under be-host's UI (`RootShell` drives `DesktopHost`), and a program window the desktop
 places is a `Surface::Host` layer of the root's, which `RootShell` configures to its place's size
 and draws from the compositor's picture of it (`DesktopHost::place_windows`, `picture`). What the

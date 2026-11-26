@@ -992,6 +992,15 @@ impl input::Guest for Root {
         }
         Box::pin(async {})
     }
+
+    fn drag_files(
+        &self,
+        window: Option<u64>,
+        drag: be_wasm_root_api::input::FileDrag,
+    ) -> LocalFuture<()> {
+        self.embedding.borrow_mut().drag_files(window, drag);
+        Box::pin(async {})
+    }
 }
 
 impl paintings::Guest for Root {

@@ -39,16 +39,18 @@
 //! It runs the host's core (`HostCore`), as be-host's own UI does: its data directory and the
 //! lock that keeps a second be-host off it, the block stack, accounts and session, and the dev
 //! workspace (`--dev-workspace`), each stepped every frame before the root's (step 4g7b2). The
-//! core opens no editor of its own here: the root embeds them. It runs no screen lock and none
-//! of the desktop's OS services: step 4g7g brings back the rest of what the host keeps (the
-//! plan's What the host keeps) before the root becomes the default; until then `--root` is
-//! refused as a login session (`BEUI_PLATFORM=drm`), which would have no lock screen, and with
-//! `--desktop`.
+//! core opens no editor of its own here: the root embeds them. It runs what the host keeps of the
+//! platform as be-host's own UI does (step 4g7g; `platform`): the input devices and displays,
+//! the login session (`BEUI_PLATFORM=drm`), and under it or `--desktop` the screen lock with its
+//! password check and power actions, which the root shows (`host.lock`); the displays' keep
+//! changes (`host.displays`); and under `--desktop` the desktop's OS services (notifications,
+//! the tray, screenshots, media keys).
 //!
 //! The root is the app: one that fails to start or stops closes the window, and be-host exits
 //! saying why, as it would on a panic.
 
 mod block_stack;
+mod platform;
 
 use std::{
     cell::RefCell,
@@ -62,6 +64,7 @@ use std::collections::HashMap;
 
 use be_host_base::notices;
 use be_host_desktop::desktop_host::{DesktopHost, Host, PictureSurface, WindowPicture};
+use be_host_desktop::window_body::WindowStatus;
 use be_host_runtime::{EditorBlock, Forwarded, HostChildStatus, InstanceRole};
 use be_lib_layers::{Layer, LayerList, Surface};
 use be_lib_ui_types::ClipItem;
@@ -110,8 +113,9 @@ struct RootShell {
     /// What the window shows of the root's last frame.
     shown: Signal<Option<GpuDrawing>>,
     /// The windows' input since the root was last handed it, each in its window's points, with
-    /// when the platform sampled it, if it said.
-    input: Vec<(WindowId, Input, Option<Instant>)>,
+    /// when the platform sampled it, if it said, and the files dragged over the window from
+    /// outside it, in order.
+    input: Vec<Taken>,
     root: Option<Root>,
     /// Where the frame clock's time the root is asked for starts.
     time_origin: Option<Instant>,
@@ -160,6 +164,12 @@ struct RootShell {
     tree: be_sdk_app_host::accessibility::Graft,
     /// Whether the root was last asked for its tree (`frame-request.describe`).
     describing: bool,
+    /// What the root was last shown of the platform: the screen lock and the displays.
+    platform: platform::Platform,
+    /// Whether the person did anything (a key, the pointer, a touch) since the last frame, which
+    /// the root took before beui's document could hear it: the desktop host counts the time to
+    /// lock the screen and turn the displays off from the document's input.
+    active: bool,
     /// Whether the last frame was hurried (`Context::hurried`), as be-host's own UI keeps it:
     /// the block stack seals what its blocks owe at once, and `busy` waits for that.
     hurried: bool,
@@ -266,6 +276,8 @@ impl RootShell {
                 beui::native::accessibility::next_document_id(),
             ),
             describing: false,
+            platform: platform::Platform::default(),
+            active: false,
             hurried: false,
         }
     }
@@ -292,17 +304,30 @@ impl RootShell {
         let Some(root) = &mut self.root else {
             return;
         };
-        for run in input.chunk_by(|(left, ..), (right, ..)| left == right) {
-            let window = run[0].0;
-            let window = (!window.is_main()).then(|| window.raw());
-            let events: Vec<Timed> = run
-                .iter()
-                .map(|(_, input, time)| Timed {
-                    input: input.clone(),
-                    time: time.map(|at| nanos(at.saturating_duration_since(origin))),
-                })
-                .collect();
-            if let Err(why) = root.input(window, be_lib_ui_types::input::encode(&events)) {
+        for run in input.chunk_by(|left, right| match (left, right) {
+            (Taken::Input(left, ..), Taken::Input(right, ..)) => left == right,
+            _ => false,
+        }) {
+            let handed = match &run[0] {
+                // Files dragged over the window: the platform names no window, and the host
+                // opens the root one.
+                Taken::Files(drag) => root.drag_files(None, drag.clone()),
+                Taken::Input(window, ..) => {
+                    let window = (!window.is_main()).then(|| window.raw());
+                    let events: Vec<Timed> = run
+                        .iter()
+                        .filter_map(|taken| match taken {
+                            Taken::Input(_, input, time) => Some(Timed {
+                                input: input.clone(),
+                                time: time.map(|at| nanos(at.saturating_duration_since(origin))),
+                            }),
+                            Taken::Files(_) => None,
+                        })
+                        .collect();
+                    root.input(window, be_lib_ui_types::input::encode(&events))
+                }
+            };
+            if let Err(why) = handed {
                 return self.stopped(&why);
             }
         }
@@ -390,7 +415,8 @@ impl RootShell {
         for (id, data) in std::mem::take(&mut self.editors.artifact_applies) {
             self.core.store_artifact_settings(id, data);
         }
-        refuse_unserved(root);
+        // The screen lock and the displays' keep changes, what the host keeps of the platform.
+        self.platform.serve(&mut self.core, root, time);
         // What the root asked of the block stack in this frame, done at once; what that changed
         // reaches it with its next frame, which showing it wakes the host for.
         self.block_stack.step(&mut self.core, root, context);
@@ -509,6 +535,7 @@ impl beui::native::Program for RootShell {
         if self.core.desktop {
             Host::start(setup);
         }
+        self.core.start_platform(setup);
         match start(&self.app, setup) {
             Ok(root) => self.root = Some(root),
             Err(why) => self.stopped(&format!("it did not start: {why}")),
@@ -527,6 +554,13 @@ impl beui::native::Program for RootShell {
         let now = context.now();
         let origin = *self.time_origin.get_or_insert(now);
         let time = now.saturating_duration_since(origin);
+        // The host's frame, as be-host's own UI begins it (`Shell::update`): its clock, which the
+        // screen lock and the displays' question count on. It is not ended as be-host's own UI
+        // ends it (`frame::end`): what the core asks of the window is read below.
+        crate::frame::begin(context);
+        if std::mem::take(&mut self.active) {
+            self.document.note_input();
+        }
         self.hurried = context.hurried();
         if self.hurried {
             be_host_stack::seal_owed();
@@ -568,7 +602,12 @@ impl beui::native::Program for RootShell {
         if every_sample {
             context.want_every_sample(WindowId::MAIN);
         }
-        if self.stopped.borrow().is_some() {
+        // The core closes the window once the session it was asked to end has ended (its
+        // programs' windows closed first, `close_requested`), as be-host's own frame closes it
+        // (`frame::end`). Its frames come as the root's do, and as what it waits on wakes it
+        // (`host::wake`): the repaints it asks for, which its own UI's frames answer, are not
+        // the root's, which asks for its own (`next`).
+        if self.stopped.borrow().is_some() || be_host_base::host::finish().close {
             context.close_window();
             return;
         }
@@ -577,12 +616,45 @@ impl beui::native::Program for RootShell {
             Some(at) => context.request_repaint_after(at - time),
             None => {}
         }
+        // The frames the screen lock and the displays' question need of their own.
+        if let Some(due) = self.platform.due() {
+            context.request_repaint_after(due);
+        }
     }
 
     /// The root takes all of its windows' input, which it routes to its surfaces itself; beui's
     /// document, which only shows what the root drew, hears none of it.
     fn input(&mut self, window: WindowId, input: &Input, time: Option<Instant>) -> bool {
-        self.input.push((window, input.clone(), time));
+        self.active |= activity(input);
+        self.input.push(Taken::Input(window, input.clone(), time));
+        true
+    }
+
+    /// The root takes files dragged over the window from outside it too, which it carries to
+    /// the view under the pointer: dropped, each with what it holds, read here on the frame's
+    /// thread (as be-host's own views read them, be-host-runtime's `file_drop`); those dropped
+    /// together reach it together.
+    fn file_drag(&mut self, drag: &beui::FileDrag) -> bool {
+        use be_wasm_root_api::input::{DroppedFile, FileDrag};
+        let drag = match drag {
+            beui::FileDrag::Hovered => FileDrag::Hovered,
+            beui::FileDrag::Cancelled => FileDrag::Cancelled,
+            // One that cannot be read (a folder, or one it may not read) is left out, but the
+            // drop is handed on all the same, so the root ends the drag.
+            beui::FileDrag::Dropped(file) => {
+                let dropped =
+                    be_host_runtime::read_dropped(file.clone()).map(|dropped| DroppedFile {
+                        name: dropped.name,
+                        data: dropped.data,
+                    });
+                if let Some(Taken::Files(FileDrag::Dropped(held))) = self.input.last_mut() {
+                    held.extend(dropped);
+                    return true;
+                }
+                FileDrag::Dropped(dropped.into_iter().collect())
+            }
+        };
+        self.input.push(Taken::Files(drag));
         true
     }
 
@@ -612,6 +684,9 @@ impl beui::native::Program for RootShell {
         }
         if !self.editors.asks.is_empty() || !self.editors.openings.is_empty() {
             busy.push("the root asked for an editor of a block not listed yet".to_owned());
+        }
+        if !self.editors.finds.is_empty() {
+            busy.push("the root's quick open waits for the search index".to_owned());
         }
         if self.owed {
             busy.push(format!("the root {} owes a frame", self.app));
@@ -674,7 +749,34 @@ impl beui::native::Program for RootShell {
             Host::exiting();
         }
         be_host_runtime::exiting();
+        self.core.stop_platform();
     }
+}
+
+/// Whether `input` is the person doing something, as beui's document counts its input frames
+/// (`Document::note_input`).
+fn activity(input: &Input) -> bool {
+    matches!(
+        input,
+        Input::Key(_)
+            | Input::Text(_)
+            | Input::Paste(_)
+            | Input::PointerMoved(_)
+            | Input::PointerMotion(_)
+            | Input::PointerButton { .. }
+            | Input::Scroll(_)
+            | Input::Zoom(_)
+            | Input::Touchpad(_)
+            | Input::Touch { .. }
+            | Input::Pen { .. }
+    )
+}
+
+/// What `RootShell` hands the root in order: an input in a window, or files dragged over the
+/// window from outside it.
+enum Taken {
+    Input(WindowId, Input, Option<Instant>),
+    Files(be_wasm_root_api::input::FileDrag),
 }
 
 /// Starts `app`'s entry point as the root on the window's device, which it and its staged apps,
@@ -854,21 +956,6 @@ fn statistic_row(row: be_host_base::performance::PerformanceRow) -> StatisticRow
     }
 }
 
-/// Answers what the root asked of what `--root` does not run yet (4g7 brings each back), so
-/// that each request changes nothing:
-/// - The session's screen lock: it runs none (it is refused as a login session), so the lock is
-///   unavailable, as `be3:root` answers by default, and asking to lock or a power action from
-///   the lock screen changes nothing. `be3:root` drops a password handed over while the session
-///   is not locked, so none reaches here.
-/// - Displays (the desktop's): it asks to keep none, and an answer changes nothing.
-///
-/// The block stack it serves (`block_stack`), and its apps' editors (`serve_editors`).
-fn refuse_unserved(root: &mut Root) {
-    root.take_lock_asked();
-    root.take_lock_powers();
-    root.take_display_answers();
-}
-
 /// Serves the root the editors of the blocks it shows (plans/host_as_platform_adapter.md,
 /// 4g7b1): names the app that edits each block it asks of (`host.editor-of`), opens the
 /// editor in the app it spawned for it (`host.open-editor`) with be-host-runtime's
@@ -939,6 +1026,9 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
             pan_and_zoom: app
                 .editor(editor.into_bytes())
                 .is_some_and(|editor| editor.capabilities.pan_and_zoom),
+            // The desktop shell's windows float on the desktop, as be-host's own UI floats them
+            // (`compositor/desktop.rs`).
+            hosts_windows: core.desktop && editor == be_block::DESKTOP_EDITOR,
         });
         root.answer_editor(id, editor);
     }
@@ -975,6 +1065,20 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
     // every view the root showed are worded again with it.
     let mut told = false;
     for (instance, editor, messages) in root.take_shell_tells() {
+        // A root that encodes what no editor can read has nothing to relay.
+        let Some(messages) = be_sdk_api::ops::decode::<Vec<ShellMessage>>(&messages) else {
+            continue;
+        };
+        // The program windows the shell placed that it asks to close, as be-host's own shell
+        // closes them (`close_children`); a close of any other child is the root's.
+        let (closes, messages): (Vec<_>, Vec<_>) = messages
+            .into_iter()
+            .partition(|message| matches!(message, ShellMessage::CloseChild(_)));
+        for close in closes {
+            if let ShellMessage::CloseChild(child) = close {
+                close_window(core, &editors.shown, served, (instance, editor), child);
+            }
+        }
         // Only a dialog's placer's status says what it told: a block's editor's are dropped.
         let dialog = editors
             .opened
@@ -983,8 +1087,7 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
         let Some(forwarded) = served.get_mut(&instance).filter(|_| dialog) else {
             continue;
         };
-        // A root that encodes what no editor can read has nothing to relay.
-        if let Some(messages) = be_sdk_api::ops::decode::<Vec<ShellMessage>>(&messages) {
+        if !messages.is_empty() {
             let committed = messages
                 .iter()
                 .any(|message| matches!(message, ShellMessage::CommitChild(_)));
@@ -1044,14 +1147,27 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
     if told {
         views = editors.shown.keys().copied().collect();
     }
+    // The views placing program windows whose statuses changed since they were last worded.
+    if core.desktop {
+        views.extend(windows_restated(
+            &editors.shown,
+            served,
+            &mut editors.windows,
+        ));
+    }
+    views.sort_unstable();
+    views.dedup();
     for (instance, editor, view) in views {
+        let by_shell = served
+            .get(&instance)
+            .is_some_and(|forwarded| forwarded.is_shell(EditorInstanceId(editor)));
         let statuses = editors
             .shown
             .get(&(instance, editor, view))
             .map(|children| {
                 children
                     .iter()
-                    .map(|child| child_status(core, &editors.opened, served, child))
+                    .map(|child| child_status(core, &editors.opened, served, child, by_shell))
                     .collect()
             })
             .unwrap_or_default();
@@ -1109,6 +1225,7 @@ fn serve_editors(core: &mut crate::HostCore, root: &mut Root, editors: &mut Edit
         .placers
         .retain(|child, _| editors.opened.contains_key(child));
     open_blocks(core, opens, editors);
+    quick_open(core, root, editors);
     show_artifact_states(core, editors);
     for (instance, forwarded) in editors.served.iter_mut() {
         root.relay(*instance, forwarded.step());
@@ -1181,22 +1298,98 @@ fn open_blocks(
             .iter()
             .find(|((_, editor), opened)| *editor == instance.0 && opened.app.identity.id == app)
             .map(|(key, _)| *key);
-        let shell = editors
+        open_block(core, editors, from, open);
+    }
+}
+
+/// Opens `open` as the editor `from` (the root's instance and the editor) asked to, or as the
+/// session's editor would for none: the nearest editor placing it that shows blocks shows it.
+fn open_block(
+    core: &crate::HostCore,
+    editors: &mut Editors,
+    from: Option<(u64, u64)>,
+    open: be_host_runtime::BlockOpen,
+) {
+    let shell = editors
+        .opened
+        .iter()
+        .find(|(key, opened)| {
+            opened
+                .block
+                .is_some_and(|block| Some(block) == core.root_session)
+                && !editors.placers.contains_key(key)
+        })
+        .map(|(key, _)| *key);
+    let Some(handler) = handler(from, shell, editors) else {
+        return;
+    };
+    if let Some(forwarded) = editors.served.get_mut(&handler.0) {
+        forwarded.show_block(EditorInstanceId(handler.1), open);
+    }
+}
+
+/// Answers the root's quick open (`host.find-blocks`) as be-host's own palette finds blocks
+/// (`compositor::quick_open`): at once for no text, else once the search index answered what is
+/// typed, which is wanted until then; and opens the blocks it chose (`host.open-block`) as the
+/// editor it opened from asked to.
+fn quick_open(core: &crate::HostCore, root: &mut Root, editors: &mut Editors) {
+    // Those the root stopped waiting for go first, and their searches with them.
+    let cancelled = root.take_cancelled_finds();
+    editors.finds.retain(|(id, _)| !cancelled.contains(id));
+    editors.finds.extend(root.take_block_finds());
+    let wanted: Vec<be_host_stack::SearchAsk> = editors
+        .finds
+        .iter()
+        .filter_map(|(_, text)| crate::compositor::search_ask(text))
+        .collect();
+    be_host_stack::want_searches(be_host_stack::Owner::Root, wanted);
+    let (ready, waiting): (Vec<_>, Vec<_>) = std::mem::take(&mut editors.finds)
+        .into_iter()
+        .partition(|(_, text)| crate::compositor::quick_open_ready(text));
+    editors.finds = waiting;
+    if !ready.is_empty() {
+        // The blocks the root shows in an editor, which it lists first; read once for them all.
+        let open: Vec<Uuid> = editors
             .opened
-            .iter()
-            .find(|(key, opened)| {
-                opened
-                    .block
-                    .is_some_and(|block| Some(block) == core.root_session)
-                    && !editors.placers.contains_key(key)
-            })
-            .map(|(key, _)| *key);
-        let Some(handler) = handler(from, shell, editors) else {
-            continue;
-        };
-        if let Some(forwarded) = editors.served.get_mut(&handler.0) {
-            forwarded.show_block(EditorInstanceId(handler.1), open);
+            .values()
+            .filter_map(|opened| opened.block)
+            .collect();
+        let blocks = crate::compositor::quick_open_blocks(&open);
+        for (id, text) in ready {
+            let found = crate::compositor::quick_open(&blocks, &text);
+            root.answer_block_find(id, found.into_iter().map(openable).collect());
         }
+    }
+    for (from, block) in root.take_block_opens() {
+        let open = be_host_runtime::BlockOpen {
+            id: Uuid::from_bytes(block.block),
+            block_type: Uuid::from_bytes(block.block_type),
+            via: None,
+            editor: None,
+            // A root that encodes what no host can read opens the block where it opens.
+            at: be_sdk_api::ops::decode(&block.at),
+        };
+        open_block(
+            core,
+            editors,
+            from.map(|from| (from.instance, from.editor)),
+            open,
+        );
+    }
+}
+
+/// A block quick open offers, as the root hears it.
+fn openable(block: crate::compositor::OpenableBlock) -> be_wasm_root_api::OpenableBlock {
+    be_wasm_root_api::OpenableBlock {
+        block: block.id.into_bytes(),
+        block_type: block.block_type.into_bytes(),
+        name: block.name,
+        detail: block.detail,
+        at: block
+            .at
+            .as_ref()
+            .map(be_sdk_api::ops::encode)
+            .unwrap_or_default(),
     }
 }
 
@@ -1358,10 +1551,16 @@ struct Editors {
     opened: HashMap<(u64, u64), OpenedFor>,
     asks: Vec<(u64, be_wasm_root_api::Shown)>,
     openings: Vec<EditorOpening>,
+    /// What the root's quick open asked to find (`host.find-blocks`) that waits for the search
+    /// index, by the id it is answered by.
+    finds: Vec<(u64, String)>,
     /// The children each view of the editors the root shows placed, as the root last said
     /// (`host.show-children`), by the root's instance, the editor and the view: what their
     /// statuses are worded from again once a dialog among them told the shell something.
     shown: HashMap<(u64, u64, u64), Vec<be_wasm_root_api::ShownChild>>,
+    /// The statuses of the program windows each view places, as they were last worded: a view
+    /// is worded again once one of its windows' changes.
+    windows: HashMap<(u64, u64, u64), Vec<Option<WindowStatus>>>,
     /// The editor placing each editor the root shows as a child, as the root last said
     /// (`host.show-children`), each by the root's instance and the editor: what a show request
     /// climbs to find its handler.
@@ -1456,6 +1655,77 @@ fn step_creations(
     changed
 }
 
+/// Closes the program window the child `child` of `placer` (the root's instance and the editor)
+/// shows, as be-host's own shell closes one (`close_children`): only the shell places windows.
+fn close_window(
+    core: &crate::HostCore,
+    shown: &HashMap<(u64, u64, u64), Vec<be_wasm_root_api::ShownChild>>,
+    served: &HashMap<u64, Forwarded>,
+    placer: (u64, u64),
+    child: ChildId,
+) {
+    let (instance, editor) = placer;
+    let by_shell = served
+        .get(&instance)
+        .is_some_and(|forwarded| forwarded.is_shell(EditorInstanceId(editor)));
+    if !core.desktop || !by_shell {
+        return;
+    }
+    let window = shown
+        .iter()
+        .filter(|((at, by, _), _)| (*at, *by) == placer)
+        .flat_map(|(_, children)| children)
+        .find(|shown| shown.child == child.0)
+        .and_then(|shown| shown.window);
+    if let Some(window) = window {
+        Host::close(HostWindowId(window));
+    }
+}
+
+/// What a program window's status says to its placer, as the host keeps it: its status less
+/// the size it was last drawn at, which its placer hears nothing of.
+fn window_status(window: u64) -> Option<WindowStatus> {
+    Host::window_status(HostWindowId(window)).map(|status| WindowStatus {
+        drawn: beui::Vec2::ZERO,
+        ..status
+    })
+}
+
+/// The views of the shell placing program windows whose statuses changed since they were last
+/// worded, which it notes as worded; it forgets the views no longer shown.
+fn windows_restated(
+    shown: &HashMap<(u64, u64, u64), Vec<be_wasm_root_api::ShownChild>>,
+    served: &HashMap<u64, Forwarded>,
+    worded: &mut HashMap<(u64, u64, u64), Vec<Option<WindowStatus>>>,
+) -> Vec<(u64, u64, u64)> {
+    worded.retain(|view, _| shown.contains_key(view));
+    let mut changed = Vec::new();
+    for (view, children) in shown {
+        // Only the shell hears its windows' statuses.
+        let (instance, editor, _) = *view;
+        if !served
+            .get(&instance)
+            .is_some_and(|forwarded| forwarded.is_shell(EditorInstanceId(editor)))
+        {
+            continue;
+        }
+        let statuses: Vec<_> = children
+            .iter()
+            .filter_map(|child| child.window)
+            .map(window_status)
+            .collect();
+        if statuses.is_empty() {
+            worded.remove(view);
+            continue;
+        }
+        if worded.get(view) != Some(&statuses) {
+            worded.insert(*view, statuses);
+            changed.push(*view);
+        }
+    }
+    changed
+}
+
 /// Said of a child the root shows nothing of and gave no reason for: one whose editor is still
 /// being opened.
 const CHILD_OPENING: &str = "the block's editor is opening";
@@ -1470,7 +1740,11 @@ fn child_status(
     opened: &HashMap<(u64, u64), OpenedFor>,
     served: &HashMap<u64, Forwarded>,
     child: &be_wasm_root_api::ShownChild,
+    by_shell: bool,
 ) -> HostChildStatus {
+    if let Some(window) = child.window {
+        return window_child_status(core, child, window, by_shell);
+    }
     let shown = child
         .shown_in
         .as_ref()
@@ -1569,6 +1843,51 @@ fn child_status(
         notice: None,
         menu_asked: None,
     }
+}
+
+/// Said of a program window placed by an editor other than the shell, which alone places them,
+/// or under a host with no desktop.
+const WINDOW_UNAVAILABLE: &str = "only the desktop shows a program's window";
+
+/// The status of a program window an editor the root embeds placed (`shown-child.window`), as
+/// be-host's own shell hears it: worded from the window's (`with_window`), available to the
+/// shell alone, under a desktop.
+fn window_child_status(
+    core: &crate::HostCore,
+    child: &be_wasm_root_api::ShownChild,
+    window: u64,
+    by_shell: bool,
+) -> HostChildStatus {
+    let available = core.desktop && by_shell;
+    let mut status = HostChildStatus {
+        child: ChildId(child.child),
+        available,
+        intrinsic: None,
+        active: available && child.active,
+        interaction: InteractionMode::Preview,
+        capabilities: EditorCapabilities::default(),
+        resize: ResizeMode::None,
+        error: (!available).then(|| WINDOW_UNAVAILABLE.to_owned()),
+        menu: Vec::new(),
+        creation: None,
+        preview: ChildPreview::Hosted,
+        dialog: DialogStatus::default(),
+        picked: None,
+        card: false,
+        title: None,
+        icon: None,
+        group: None,
+        raised: 0,
+        rung: 0,
+        minimized: 0,
+        fullscreen: false,
+        notice: None,
+        menu_asked: None,
+    };
+    if available && let Some(shown) = window_status(window) {
+        crate::compositor::with_window(&mut status, shown);
+    }
+    status
 }
 
 /// Opens the editor `opening` asks for in the app the root's instance runs, which must be the

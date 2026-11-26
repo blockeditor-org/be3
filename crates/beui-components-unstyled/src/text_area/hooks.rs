@@ -211,7 +211,8 @@ impl TextLine {
         let (look, size, margin, outdent) = (self.look, self.size, self.margin, self.outdent);
         create_memo(move || {
             let look = look.get();
-            let listed = look.list.is_some() || look.continues;
+            // A list's code line is nested as its continuation lines are (`quoted_nesting_em`).
+            let listed = look.list.is_some() || look.continues || look.code_block && look.depth > 0;
             let levels = match listed {
                 true => look.depth as f32 + f32::from(u8::from(look.continues)),
                 false => 0.0,

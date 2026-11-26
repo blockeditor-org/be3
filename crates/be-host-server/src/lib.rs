@@ -31,16 +31,25 @@ pub fn start_embedded_server(
     start_embedded_server_at(
         "127.0.0.1:0",
         data_dir,
-        be_server::push::PushConfig::DEFAULT,
+        embedded_config(be_server::push::PushConfig::DEFAULT),
     )
 }
 
-/// A server at `address`; `push` says where it may push (tests that serve a push service on
-/// loopback allow local endpoints).
+/// What an embedded server serves with: open to anyone, with no account quota, pushing where
+/// `push` says (tests that serve a push service on loopback allow local endpoints).
+pub fn embedded_config(push: be_server::push::PushConfig) -> be_server::ServerConfig {
+    be_server::ServerConfig {
+        account_quota: None,
+        push,
+        ..be_server::ServerConfig::OPEN
+    }
+}
+
+/// A server at `address`, serving with `config` (`embedded_config`, or one a test changed).
 pub fn start_embedded_server_at(
     address: &str,
     data_dir: PathBuf,
-    push: be_server::push::PushConfig,
+    config: be_server::ServerConfig,
 ) -> Result<EmbeddedServer, Box<dyn Error + Send + Sync>> {
     let listener = StdTcpListener::bind(address)?;
     listener.set_nonblocking(true)?;
@@ -59,17 +68,8 @@ pub fn start_embedded_server_at(
                 let shutdown = async {
                     let _ = shutdown_receiver.await;
                 };
-                if let Err(error) = be_server::serve_with_config(
-                    listener,
-                    data_dir,
-                    be_server::ServerConfig {
-                        account_quota: None,
-                        push,
-                        ..be_server::ServerConfig::OPEN
-                    },
-                    shutdown,
-                )
-                .await
+                if let Err(error) =
+                    be_server::serve_with_config(listener, data_dir, config, shutdown).await
                 {
                     panic!("embedded block server stopped: {error}");
                 }

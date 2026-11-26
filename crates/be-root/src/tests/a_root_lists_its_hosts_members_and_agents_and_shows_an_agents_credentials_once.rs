@@ -10,6 +10,9 @@ use be_wasm_root_api::{
 use super::*;
 
 const ME: [u8; 16] = [1; 16];
+/// Where the agents' name field is, as `a_root_lists_its_hosts_agents` paints it.
+const NAME: be_lib_geometry::Pos2 = pos2(400.0, 358.0);
+
 const GRACE: [u8; 16] = [2; 16];
 const BUILDER: [u8; 16] = [3; 16];
 
@@ -133,7 +136,7 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
         "the list stays open"
     );
     let _ = asks(&mut root, &mut time, click(pos2(604.0, 285.0)));
-    let commands = asks(&mut root, &mut time, click(pos2(576.0, 348.0)));
+    let commands = asks(&mut root, &mut time, click(pos2(516.0, 348.0)));
     assert!(
         matches!(commands.as_slice(), [CoreCommand::RemoveMember(GRACE)]),
         "Remove removes them: {commands:?}"
@@ -153,6 +156,7 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
     show_core(&mut root, agents());
     let listed = painting(&mut root, &mut time);
     beui_paint_snapshot::assert_painting("a_root_lists_its_hosts_agents", listed.clone());
+    let _ = asks(&mut root, &mut time, click(NAME));
     let _ = asks(
         &mut root,
         &mut time,
@@ -187,7 +191,8 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
         "a_root_shows_an_agents_credentials",
         painting(&mut root, &mut time),
     );
-    let _ = asks(&mut root, &mut time, key(Key::Enter));
+    // The field's own Copy copies them.
+    let _ = asks(&mut root, &mut time, click(pos2(592.0, 335.0)));
     assert_eq!(root.take_copies().len(), 1, "Copy copies them once");
     // A stray press on the scrim leaves them showing: they cannot be had again.
     let commands = asks(&mut root, &mut time, click(pos2(8.0, 8.0)));
@@ -205,6 +210,7 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
         listed,
         "reopened, no credentials are held"
     );
+    let _ = asks(&mut root, &mut time, click(NAME));
     // While an agent is being made the dialog stays open, its credentials not to be lost:
     // Escape waits, and so does a question of the host's, until they come.
     let _ = asks(

@@ -23,7 +23,6 @@ mod members;
 mod memory;
 #[cfg(any(target_arch = "wasm32", target_os = "android"))]
 mod pressed_notifications;
-mod qr;
 mod reveals;
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 mod root;
@@ -183,10 +182,16 @@ async fn run_host(
         if arguments.dev_workspace {
             core.open_dev_workspace(arguments.dev_server.clone(), dev_token);
         }
-        // The root shows the desktop shell as its session's editor; the desktop's OS services
-        // (the screen lock, notifications, the tray) come back with 4g7g.
+        core.login_session_mode = arguments.drm;
+        #[cfg(target_os = "linux")]
+        if arguments.drm {
+            core.start_screen_lock();
+        }
+        // The root shows the desktop shell as its session's editor, with the desktop's OS
+        // services (the screen lock, notifications, the tray, screenshots) as under be-host's
+        // own UI.
         if arguments.desktop {
-            core.run_desktop_shell();
+            core.run_as_desktop();
         }
         return root::run(app, core, native_options()).await;
     }
@@ -425,31 +430,7 @@ impl beui::native::Program for Shell {
         if self.core.desktop {
             Host::start(setup);
         }
-        input::start(setup);
-        #[cfg(target_os = "linux")]
-        if let Some(problems) = setup.get::<beui_platform_drm::Problems>() {
-            problems.listen(notices::report);
-        }
-        #[cfg(target_os = "linux")]
-        if self.core.login_session.is_none() && login_session::owns_a_seat(setup) {
-            self.core.login_session = Some(login_session::LoginSession::start(
-                desk().mailbox(HostCore::logind_heard),
-            ));
-            self.core.power.log_in();
-            login_session::export_environment(Host::environment());
-        }
-        display::start(setup);
-        be_host_desktop::remap::load_cached(self.core.host_state.remapper().unwrap_or_else(
-            |error| {
-                eprintln!(
-                    "be-host: the input remapper kept for this session was not read: {error}"
-                );
-                None
-            },
-        ));
-        self.core.input.boot(&self.core.host_state);
-        self.core.display.boot(&self.core.host_state);
-        display::boot(&self.core.host_state);
+        self.core.start_platform(setup);
     }
 
     fn renderer_replaced(&mut self, setup: &beui::native::Setup) {
@@ -599,14 +580,7 @@ impl beui::native::Program for Shell {
     fn exiting(&mut self) {
         Host::exiting();
         be_host_runtime::exiting();
-        display::stop();
-        #[cfg(target_os = "linux")]
-        {
-            self.core.media = None;
-            self.core.notifications = None;
-            self.core.tray = None;
-            self.core.login_session = None;
-        }
+        self.core.stop_platform();
         be_host_stack::flush();
         be_host_stack::stop_and_wait();
     }
@@ -1195,6 +1169,45 @@ impl HostCore {
         be_host_base::watches::publish::<be_sdk_api::SuperKeptWatch>(&true);
     }
 
+    /// Starts what the host keeps of the platform once its window opened (the plan's What the
+    /// host keeps), under be-host's own UI and under a root alike: the input devices and the
+    /// displays, the login session on a seat it owns, and the settings each was left with.
+    fn start_platform(&mut self, setup: &beui::native::Setup) {
+        input::start(setup);
+        #[cfg(target_os = "linux")]
+        if let Some(problems) = setup.get::<beui_platform_drm::Problems>() {
+            problems.listen(notices::report);
+        }
+        #[cfg(target_os = "linux")]
+        if self.login_session.is_none() && login_session::owns_a_seat(setup) {
+            self.login_session = Some(login_session::LoginSession::start(
+                desk().mailbox(HostCore::logind_heard),
+            ));
+            self.power.log_in();
+            login_session::export_environment(Host::environment());
+        }
+        display::start(setup);
+        be_host_desktop::remap::load_cached(self.host_state.remapper().unwrap_or_else(|error| {
+            eprintln!("be-host: the input remapper kept for this session was not read: {error}");
+            None
+        }));
+        self.input.boot(&self.host_state);
+        self.display.boot(&self.host_state);
+        display::boot(&self.host_state);
+    }
+
+    /// Stops what `start_platform` and the desktop's OS services started, as the window closes.
+    fn stop_platform(&mut self) {
+        display::stop();
+        #[cfg(target_os = "linux")]
+        {
+            self.media = None;
+            self.notifications = None;
+            self.tray = None;
+            self.login_session = None;
+        }
+    }
+
     #[cfg(target_os = "linux")]
     fn start_screen_lock(&mut self) {
         if self.screen_lock.is_none() {
@@ -1290,6 +1303,10 @@ impl HostCore {
     #[cfg(target_os = "linux")]
     fn run_screen_lock(&mut self) {
         let Some(lock) = &mut self.screen_lock else {
+            // Without its lock (under the root, until 4g7g) the session still ends as it was
+            // asked to: its programs' windows closed first (`close_requested`).
+            self.power
+                .frame(&mut login_session::Live::of(self.login_session.as_ref()));
             return;
         };
         lock.frame();
@@ -1406,6 +1423,10 @@ impl HostCore {
             (!self.pending_reorders.is_empty(), "a reorder is pending"),
             (!self.pending_copies.is_empty(), "a copy is pending"),
             (
+                self.session_ending(),
+                "the session waits for its programs' windows to close",
+            ),
+            (
                 // A device of the account without its key waits on the unlock screen for a
                 // person (or a test) to pair it, which is not work left to do.
                 self.dev_workspace
@@ -1418,6 +1439,15 @@ impl HostCore {
         .filter_map(|(busy, reason)| busy.then_some(reason))
         .map(str::to_owned)
         .collect()
+    }
+
+    /// Whether the session is ending (be-host closing, logging out or powering off), which
+    /// waits for its programs' windows to close first.
+    fn session_ending(&self) -> bool {
+        #[cfg(target_os = "linux")]
+        return self.power.ending();
+        #[cfg(not(target_os = "linux"))]
+        false
     }
 
     /// Signs in to the dev workspace's account: a local account, made on this device if there is
@@ -2884,7 +2914,8 @@ impl HostCore {
     /// The app and editor that show `shown`'s block in a root, and the block as it is opened:
     /// the editor and view block its placement names, else the session's own editor for the
     /// session's block, which it views (`view_block`), else its type's default editor. Why
-    /// not, when the block is not listed, the person may not view it, or no app edits its type.
+    /// not, when the block is not listed, the person may neither view nor join it, or no app
+    /// edits its type.
     fn editor_of(
         &self,
         shown: &be_wasm_root_api::ShownBlock,
@@ -2898,8 +2929,10 @@ impl HostCore {
     > {
         let block = Uuid::from_bytes(shown.block);
         let node = be_host_stack::node(block).ok_or("no block of that id is listed")?;
-        if !be_host_stack::access(block).can_view() {
-            return Err("the person may not view the block".to_owned());
+        // A block this account may only join opens its editor as a Join member, with no
+        // content, as under be-host's own UI (guides/blocks/hosted.md).
+        if !be_host_stack::access(block).can_join() {
+            return Err("the person may neither view nor join the block".to_owned());
         }
         let shell = match self.root_session == Some(block) {
             true => self.root_settings.session_editor(block),
@@ -3818,6 +3851,18 @@ impl HostCore {
         {
             self.root_opens
                 .push((heard.app_id.clone(), heard.instance, open.clone()));
+            return;
+        }
+        // Leaving a block the root asks about in its own dialog (`core-view`'s `leaving`), as
+        // be-host's asks in its own.
+        #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+        if self.under_root
+            && let be_host_runtime::InstanceEvent::Action(EditorAction::Command {
+                id,
+                command: BlockCommand::Leave,
+            }) = &heard.event
+        {
+            ask_to_leave(&mut self.leaving, *id);
             return;
         }
         if matches!(

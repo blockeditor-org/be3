@@ -43,7 +43,10 @@ pub(super) fn file_drop(input: &beui::ForwardedInput, dropping: bool) -> Option<
     })
 }
 
-fn read_dropped(file: beui::DroppedFile) -> Option<ClipFile> {
+/// A file dropped on a window as a view hears it: its name (`File` when it has none) and what it
+/// holds, read from where it is when the platform did not hand its bytes over. None for one that
+/// cannot be read.
+pub fn read_dropped(file: beui::DroppedFile) -> Option<ClipFile> {
     let name = Some(file.name.clone())
         .filter(|name| !name.is_empty())
         .unwrap_or_else(|| "File".to_owned());

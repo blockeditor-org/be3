@@ -73,11 +73,23 @@ pub fn Dialog(
     /// Whether a press on the scrim dismisses it (`unstyled::Dialog`'s).
     #[prop(default = true)]
     dismiss_on_outside_press: Prop<bool>,
+    /// Its level (`unstyled::Dialog`'s).
+    #[prop(default = LayerLevel::Normal)]
+    level: Prop<LayerLevel>,
     on_dismiss: Callback<()>,
     #[prop(children)] content: BuildFn<Children<ListItem>>,
 ) -> NodeId {
     view! {
-        <DialogFrame open kind width size anchor dismiss_on_outside_press on_dismiss={on_dismiss}>
+        <DialogFrame
+            open
+            kind
+            width
+            size
+            anchor
+            dismiss_on_outside_press
+            level
+            on_dismiss={on_dismiss}
+        >
             <DialogBody
                 kind
                 title={title.clone()}
@@ -108,6 +120,9 @@ pub fn DialogFrame(
     /// Whether a press on the scrim dismisses it (`unstyled::Dialog`'s).
     #[prop(default = true)]
     dismiss_on_outside_press: Prop<bool>,
+    /// Its level (`unstyled::Dialog`'s).
+    #[prop(default = LayerLevel::Normal)]
+    level: Prop<LayerLevel>,
     on_dismiss: Callback<()>,
     #[prop(children)] content: BuildFn<NodeId>,
 ) -> NodeId {
@@ -124,6 +139,7 @@ pub fn DialogFrame(
             anchor
             beak=POINTER_REACH
             dismiss_on_outside_press
+            level
             on_dismiss={on_dismiss}
             card={move |handle: DialogCardHandle| view! {
                 <Frame padding=MARGIN>

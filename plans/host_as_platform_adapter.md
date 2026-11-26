@@ -1431,10 +1431,8 @@ Each step lands on its own.
          buffers (its text field and what encoded the call) and, on the web, the page's copy
          are not scrubbed, so a root clears its field as it hands it over and keeps no copy
          (be-wasm-root-host's `Root::show_lock`, `take_lock_asked`, `take_unlock`,
-         `take_lock_powers`). be-host's `--root` runs no screen lock, being refused as a login
-         session, so the lock stays unavailable and no password reaches it; the login session's
-         lock (`login_session`'s `ScreenLock`, PAM) reaches the root once `--root` runs as one
-         (4g7). be-sdk-root-testing shows a lock screen while locked (`LOCK_LAYER`, beui on
+         `take_lock_powers`). be-host's `--root` serves the login session's lock
+         (`login_session`'s `ScreenLock`, PAM) since 4g7g1. be-sdk-root-testing shows a lock screen while locked (`LOCK_LAYER`, beui on
          `LOCK_SURFACE`, hit everywhere, capturing and focusing): over everything, toasts
          hidden, taking the focus for its password field once drawn and giving it back once
          unlocked, the root intercepting none of its own keys meanwhile, only the F5 test
@@ -1831,11 +1829,36 @@ Each step lands on its own.
                the root paintings with a tab now show the tab's child's menu in its bar.
                A card dropped under the root is fitted to its child's intrinsic size as under
                be-host (the checklist declares one, and be-host tells no default size before
-               the child's editor has drawn). Left for later: a pick from a
-               joined dock's tab menu (the docks' `take_picks`, now sent as `menu-pick`), a
-               docked child's details (`take_details`, as `child-details`) and a pick through a
-               child's menu have no host test; files dragged in from outside the window are not
-               carried yet.
+               the child's editor has drawn). A pick from a joined dock's tab
+               menu (the docks' `take_picks`, sent as `menu-pick`) and a docked child's details
+               (`take_details`, as `child-details`) reach their editors as under be-host: host
+               tests `be_root_in_place_of_the_hosts_ui_picks_from_a_joined_canvas_tab_menu`
+               and `be_root_in_place_of_the_hosts_ui_opens_a_joined_blocks_details_from_its_tab`.
+               Files dragged in from outside the window: be-host's `RootShell` takes them
+               (beui's `Program::file_drag`) and hands them on in order with the window's input
+               (`input.drag-files`: hovered, cancelled, or dropped with what each file holds, read
+               by the host), and `Embedding::drag_files` carries them to the view under the
+               pointer that takes a drag (`drop_site`) as it carries a block: there with no files
+               while they hover, with the files once dropped (a `Files` clip, as a copy). A view
+               a dock shows an editor's content in (a tab's body) hears them as its main view
+               would, under be-host too (be-sdk's `EditorHost::files`, which looked only in the
+               main view, so a canvas in a workspace never took a dropped image). No pointer
+               moves come while the system carries files, so the platforms say where they are as
+               the pointer's (beui-platform-winit from `DragEntered` and `DragPosition`, the web
+               from `dragover` and `drop`), which be-host's own views read too, and the root finds
+               what is under the pointer as the files arrive and as they drop
+               (`Embedding::files_at_pointer`). A drop of nothing that could be read (a folder)
+               ends the drag where it is. Host test
+               `be_root_in_place_of_the_hosts_ui_lands_a_file_dropped_from_outside_on_a_canvas`.
+               - Left: a `FileDrag` names no window, so files dropped on a window of the root's
+                 other than its main one do not land; the files are read whole on the frame's
+                 thread and copied through the root's memory, with no cap on their size; and a
+                 drop on a view other than the one an editor shows (a tab's body) is placed by
+                 that one's scale, as a block dragged there is (be-sdk's `editor_state`).
+               - Left: a pick through a child's menu that its placer shows (`child-menu-pick`)
+                 has no host test, and no editor found shows one: a pan and zoom editor, a text
+                 and a checklist on a canvas each leave the canvas's tab menu as it was when they
+                 take the keyboard.
            - 4g7b3g. The other kinds of child: web views, host panels, pickers, creations,
              artifact settings and rename forms, which the placer hears are unavailable until
              then. A web view stays as under be-host until real web views exist: its editor's
@@ -2037,8 +2060,15 @@ Each step lands on its own.
            tests `be_root_in_place_of_the_hosts_ui_lists_a_text_on_a_canvas_in_its_palette` and
            `..._opens_its_palette_from_a_frame_menu`, and be-root's
            `a_root_keeps_its_palette_shut_while_locked_or_in_a_dialog`.
-           - Left: quick open (`PaletteMode::Blocks`), which needs the host's blocks and
-             search through be3:root.
+           - Built: quick open (`PaletteMode::Blocks`, the workspace's Ctrl+P). An editor's
+             `open-palette` for blocks opens the root's palette as quick open, which asks the
+             host for the blocks it finds for what is typed (`host.find-blocks`, answered as
+             be-host's own palette finds them, `compositor::quick_open`: the graph's blocks by
+             name, those the root shows in an editor first, then the search index's hits, once
+             it answered, be-host busy until then) as it changes, and opens the one chosen as the
+             editor that asked would (`host.open-block`, routed as an editor's own `open-block`:
+             the nearest editor placing it that shows blocks). Host test
+             `be_root_in_place_of_the_hosts_ui_quick_opens_a_file_from_the_workspace`.
            - Left: be-host's own rows (switch account, theme, lock): the root lists none of
              its own yet.
            - Left: each editor's rows under its block's name, as be-host's palette names them,
@@ -2070,10 +2100,8 @@ Each step lands on its own.
          win32 hosts' surfaces, which stay the host's.
          - 4g7e1. Built: the desktop shell under the root. `--root` takes `--desktop` (no
            longer refused), which makes the desktop app the session's editor, its bars shown
-           (`HostCore::run_desktop_shell`), without the desktop's OS services, which come back
-           with 4g7g (the screen lock and its power actions, notifications, the tray,
-           screenshots): the Status bar shows Quick settings' glyph where be-host's shows
-           power's. The apps the root embeds are told its host's wall clock with each frame
+           (`HostCore::run_desktop_shell`); the desktop's OS services came back with 4g7g1
+           (`HostCore::run_as_desktop` under the root too). The apps the root embeds are told its host's wall clock with each frame
            and its UTC offset as they say hello (be-sdk-root's `set_clock`, from
            `frame-request`), so the clock reads as be-host's. Host test
            `be_root_in_place_of_the_hosts_ui_shows_the_desktop_shell`, beside be-host's own
@@ -2082,9 +2110,9 @@ Each step lands on its own.
          - 4g7e2. App windows (`HostView::Window` views: a session the Apps panel opens, a
            window an app opens): floated by the root as be-host's `compositor/desktop.rs`
            floats them (be-sdk-window-stack), moved and resized by their grips and
-           Super+drag, kept on the displays' work areas. Today be-sdk-root drops a layout
-           commit's `window-requests`, so no window an app opens shows under the root. In
-           parts:
+           Super+drag, kept on the displays' work areas. Only the desktop session's windows
+           float (4g7e2a): the root asks children without windows, so the windows a child's
+           app opens are drawn in its own views. In parts:
            - Built first: a session the desktop's Apps panel opens is a tab of the desktop's
              own dock window, drawn in its main view, and its workspace's dock joins that
              window's as under be-host. A block's editor placed in a dock tab's body is known
@@ -2097,27 +2125,59 @@ Each step lands on its own.
              - Left, under be-host too: an editor first laid out undocked and later moved into
                a dock tab's body keeps its undocked frame (`DockedTabs::key`). Host test `be_root_in_place_of_the_hosts_ui_floats_a_window_the_desktop_opens`,
              beside be-host's own painting of the same.
-           - Left with them: a desktop session's window be-host's own UI opened is not
-             shown when the root starts on the same data (it is listed in the windows bar
-             only), where be-host started again restores it. Most likely since be-host's UI
-             opened it as a host window, which a root asking for no windows does not open
-             again; not confirmed.
-           - Deferred until 4g7e3 needs them, 4g7e2a's window requests and 4g7e2b/c: the
-             root asks every screen with `windows: false`, so its apps draw their windows in
-             their own views and send no `window-request`, which paints as be-host's desktop
-             does; host windows matter once program windows interleave with them (4g7e3) or
-             span displays.
-           - 4g7e2a. `open`, `close` and `raise`: the root adopts the window's screen as
-             be-host-runtime's `adopt_window` does (asked for at its size, `windows: true`),
-             floats it where its `window-placement` says (`at-pointer`, `over` its opener),
-             above its opener in the stack, and shows it as a layer of its app's; `close`
-             lets it go, `raise` brings it in front of the app's others.
-           - 4g7e2b. `begin-move`, `begin-resize`, `resize` and `place`: the window stack's
-             gestures and springs (be-sdk-window-stack's `Gesture`, `Stacked`), the pointer
-             held by the root while one runs, and Super+drag on any window.
-           - 4g7e2c. Levels and host placements (`window-level`, `window-placement.host`): bars
-             and panels in front, work areas the desktop notes (`note_work_area`) that keep
-             normal windows clear of them.
+           - 4g7e2a. Built: `open`, `close`, `raise`, `place` and `resize`. The host says
+             which editor's windows it shows as its own (`editor-app.hosts-windows`: the
+             desktop shell under `--desktop`, as be-host's own UI floats them), and the root
+             asks that session screen with windows. Each window the editor opens from it
+             (`window-request.open`) be-sdk-root's `Embedded` adopts as be-host-runtime's
+             `adopt_window` does: asked for at its size (`HostView::Window`, with windows, its
+             views anchored from where it shows) beside the screens the root asks for
+             (`Embedded::show`), floated where its placement says (at the pointer, over its
+             opener) and stacked as be-host's desktop stacks them (be-sdk-window-stack, in
+             be-sdk-root's `floating`), until it closes or its screen leaves the layout. be-root
+             draws each over the session, the last raised on top, with the children it places
+             (`Embedded::window_layers`, `Children::layers`), and paints them for drive. So a
+             desktop session's window be-host's own UI opened shows again when the root starts
+             on the same data, as be-host started again restores it. Host test
+             `be_root_in_place_of_the_hosts_ui_floats_a_window_the_desktop_opens`; be-sdk-root's
+             `floating::tests`.
+             - Left: windows of a child's app (an editor placed in the session) are drawn in
+               their own views, as the root asks children without windows; and the pointer an
+               `at-pointer` window opens at is the last the main window saw.
+           - 4g7e2b. Built: `begin-move` and `begin-resize`. A press on a window the root
+             floats raises it, with the windows opened over it, and notes where the pointer was
+             (`floating::press`); a move or resize the app asks for next is held from there
+             (`floating::Held`), and the root takes the main window's pointer moves itself
+             while one is held (`Embedding::input`, `Embedded::follow_held`): the window
+             follows the pointer (be-sdk-window-stack's `drag`), asked for where it moved and at
+             its new size, until the pointer is released, which the app hears. Host test
+             `be_root_in_place_of_the_hosts_ui_moves_a_window_the_desktop_opens_by_its_grip`;
+             be-sdk-root's `floating::tests`.
+             - Left: the springs be-host's desktop pulls a moved window to the displays' edges
+               and other windows with (`Spring`), Super+drag on any window, and a gesture held
+               by the pointer that began it (be-host's `Gesture::pointer`): under the root any
+               pointer's moves follow it.
+           - 4g7e2c. Built: levels, host placements and work areas. A window opened `above`
+             stays in front of the app's normal ones, and one `fullscreen` is never kept in a
+             work area (be-sdk-window-stack's `Stacked`). Each window is asked for with the
+             host's place for it (`screen-request.host-place`, where it was put), which the app
+             may open it at again (`window-placement.host`). The work area its opener's frame
+             report keeps (`frame-report.work-area`, the desktop's view less its bars) keeps each
+             window but the one moving with its grip on it, as be-host's desktop does
+             (`note_work_area`, `keep_in_work_areas`): kept again as the area changes, as the
+             root asks its screens, and once a move ends (`floating::keep_in_work_areas`).
+             be-sdk-root's `floating::tests`; host test
+             `be_root_in_place_of_the_hosts_ui_keeps_a_window_dragged_onto_the_bar_clear_of_it`.
+             A move or resize follows a finger or a pen as well as the mouse, and ends as it
+             lifts (`Embedded::follow_held`, host test
+             `be_root_in_place_of_the_hosts_ui_moves_a_window_the_desktop_opens_by_its_grip`).
+             - Left: `above` and `fullscreen` are tested in be-sdk-window-stack alone, not
+               under the root.
+             - Left: a window opened over one being moved moves with it but is kept in the
+               work area each time the root asks its screens, so while held over a bar it can
+               lag there, as under be-host.
+             - Left: one display, the root's window: a window is kept within the work area of
+               the view it opened from, not of the display it is on.
          - 4g7e3. Program windows as tabs (`child-content.window`): the root places each as
            a `Surface::Host` layer, which the host composites and routes input to, and relays
            its status (title, icon, raised, fullscreen) to its placer. Under be-host's own UI
@@ -2147,8 +2207,6 @@ Each step lands on its own.
            `be_root_in_place_of_the_hosts_ui_hands_a_programs_window_its_input`: the windows
            bar lists it, the desktop shows it in a tab, and a press and a key reach it, under
            be-host and the root.
-           - Left, for 4g7e3d: under the root the tab and the chip are named by the program
-             (the last part of its app id) rather than its window's title.
            - Left: where the compositor thinks a composited window is (`place_windows`) is
              its layer's origin, upright and unscaled, which its popups follow: a window
              placed zoomed or turned hears its pointer right (the root's router delivers it in
@@ -2157,16 +2215,41 @@ Each step lands on its own.
              carried over windows by what the pointer is over (`Over`, from a view's catcher
              under be-host), which `Catch` leaves empty: under the root it stays over the window
              it began on.
+           - Left: a program window's tab sits at about (186,186) under the root but
+             (154,154) under be-host's own UI (`be_root_lists_a_programs_window_on_the_desktop`
+             beside `the_host_lists_a_programs_window_on_the_desktop`): the desktop's dock places
+             it differently when laid out under the root; not yet looked into.
            - Left: a window's popups (menus) show only within its place, clipped by its layer,
              where under be-host they hang outside the window's view; and the pointer's shape
              a program asks for is not shown under the root, which shows its own
              (`frame-done.cursor`).
-           - 4g7e3d. Each window's status to its placer (`child-status`'s title, icon,
-             group, raised, rung, minimized, fullscreen, notice), which the host keeps
-             (`DesktopHost::window_status`), and closing a window from its tab.
-           - 4g7e3e. be-host closed with a program window open (under its own UI or the
-             root) answers drive's `close`: it stops without answering today ("the program
-             stopped before it answered"), so a host test stops its programs first.
+           - 4g7e3d. Built: each window's status to its placer. be-sdk-root tells its host
+             every window child placed, hidden too, by its window (`shown-child.window`), and
+             be-host words its status from the window's as it keeps it
+             (`DesktopHost::window_status`, be-host's `with_window`): its title, icon, group,
+             raises, bell, minimizes, full screen ask, notice and menu ask, available to the
+             shell alone (`Forwarded::is_shell`), worded again each time one of a view's windows
+             changes (`windows_restated`). The root relays a `close-child` to its host
+             (`tell-shell`), which closes the window that child shows (`close_window`), as
+             be-host's own shell closes one. Under the root the tab and chip are named by the
+             window's title, and a window minimizing itself is hidden, as under be-host. Host
+             tests `be_root_in_place_of_the_hosts_ui_lists_a_programs_window_on_the_desktop`,
+             `be_root_in_place_of_the_hosts_ui_hands_a_programs_window_its_input` and
+             `be_root_in_place_of_the_hosts_ui_closes_a_programs_window_from_its_tab`.
+           - Left: of what be-host's core asks of its window (`host::finish`), `RootShell`
+             hands on only the close: its repaints (honoured, a root showing an artifact's
+             settings never settles), a copy, a paste, the pointer grab, full screen and file
+             picks are dropped under the root, and a pick's slot dropped leaves the app's pick
+             unanswered (be-host-runtime's `instances/services.rs`).
+           - Left: no test shows a program window that minimized itself coming back when the
+             desktop shows it again from its chip, under the root or under be-host.
+           - 4g7e3e. Built: be-host closed with a program window open answers drive's `close`.
+             Its session ends first, its programs' windows asked to close (`Power::close`),
+             under the root too, which has no screen lock to run it (`run_screen_lock`); be-host
+             is busy while it ends, and a `close` the program put off (`Phase::Closing`,
+             beui-layer-drive) is answered as closed once the program closes its window. A host
+             test closes the host with its programs' windows open; it still ends them before a
+             restart, so the desktop starts again without their placeholders.
        - 4g7f. Built, before 4g7e2, whose tests press windows by name: drive's `tree`,
          `find` and presses by name read the root's accessibility tree. While be-host asks
          for it (`frame-request.describe`, set as be-host-runtime's `describe` says: a driver
@@ -2208,7 +2291,122 @@ Each step lands on its own.
          becomes the default and be-host's `src/ui` and `src/compositor` go, with the copies
          noted above (`SlowSave`, the memory graph). With be-host's `panel_icon`
          (`src/ui/organization.rs`) gone, be-root's `panel_glyph` and be-sdk-shell's
-         `panel_icon` fold into one.
+         `panel_icon` fold into one. In parts:
+         - 4g7g1. Built: what the host keeps of the platform, under `--root`. `RootShell` starts
+           and stops it as be-host's `Shell` does (`HostCore::start_platform`, `stop_platform`:
+           the input devices, the displays, the login session on a seat it owns), begins the
+           host's frame as `Shell` does (`frame::begin`: the host's clock, which the lock's wait
+           and the displays' question count on) but does not end it as `Shell` does, since the
+           core's repaints are not the root's (4g7e3d): `root/platform.rs` asks for the frames
+           the lock and the displays need itself (`Platform::due`), and `--root` runs as a login session (`BEUI_PLATFORM=drm`, no longer
+           refused). In a login session and under `--desktop` it runs the screen lock, and under
+           `--desktop` the desktop's OS services as be-host does (`run_as_desktop`: power and
+           Quick settings' power row, notifications, the tray, screenshots, media keys).
+           `root/platform.rs` serves the root each frame: `host.lock` from the login session's
+           `ScreenLock` (its user, whether a password is checked, why the last was refused, the
+           power actions be-host's lock screen offers, and the end of the wait after failed
+           passwords on the root's clock as `retry-at`), `host.lock-session` locking it,
+           `host.unlock` handing PAM the password, `host.lock-power` doing an offered action while
+           locked; `host.displays` from the displays' guard (`display::prompt`, its revert time
+           on the root's clock), `answer-display` keeping or reverting the round asked. Its
+           triggers lock it as under be-host's own UI: idle and the displays turning off (the
+           root's input counts as the person's, `Document::note_input`, which the desktop host
+           counts idle time from), logind's Lock and a suspend (held back until the root drew
+           two frames since it was shown the lock), Quick settings' Lock; and Super+L, which
+           be-root intercepts while the host can lock and asks the host with
+           (`host.lock-session`; be-root's `a_root_asks_its_host_to_lock_on_super_l`). Host test
+           `be_root_in_place_of_the_hosts_ui_locks_the_screen_on_super_l`, beside be-host's own
+           lock screen; `be_root_shows_the_desktop_shell` now shows the Status bar's power
+           glyph, as be-host's does. Clipboard and notices were already wired as 4g3 and 4g4
+           say (`clipboard`, `show_notices`, `answer_notices`).
+           - Left: no host test keeps or reverts display settings: headless be-host has no
+             displays to change (`display::set_screens` comes from DRM), so be-root's
+             `a_root_asks_to_keep_display_settings_its_host_changed` is what covers it.
+           - Left: the login session's "drawn twice" before a suspend counts the root's frames
+             after it was shown the lock rather than frames whose layer list holds its lock
+             layer, which the host cannot name.
+           - Left: the lock layer per display a real root shows (4g7, above): be-root shows one
+             over its one window.
+           - Left: a GPU device lost under the root ends be-host (`RootShell::renderer_replaced`
+             stops the root, whose children drew on the lost device), so under `--root` as a
+             login session it ends the whole session, where be-host's own UI moves to the new
+             device (`be_host_runtime::replace_gpu`). Restarting the root and its instances on
+             the new device would keep the session.
+           - Left: unlocking with a password has no host test (PAM needs the machine's
+             password); be-root's `a_root_shows_its_hosts_lock_screen` covers handing it over.
+           - Left: what 4g7a2 left to be-host's menu (About, Close be-host, its other debug
+             panels and the inspector; the invite's Share; the web's local account note). The
+             invite's QR code and Invite member inside Members came with 4g7g2b.
+         - 4g7g2. The root becomes the default, and be-host's `src/ui` and `src/compositor` go,
+           once the real root passes the host tests that exercise be-host's own UI. Surveyed
+           (not started): the host tests that drive `src/ui` or the compositor's palette by its
+           test ids (`host.*`, `account.*`, `sessions.*`) and have no counterpart under the
+           root, each to run under the root with its paintings compared to be-host's:
+           - Accounts and onboarding: `a_local_account_needs_only_a_display_name`,
+             `adding_an_account_chooses_a_local_or_custom_server`,
+             `removing_a_local_account_asks_first_and_names_what_is_lost`. Under the root only
+             `be_root_in_place_of_the_hosts_ui_shows_its_onboarding` (no painting) and
+             `..._shows_its_signed_in_block_stack` (`be_root_signed_in`, `_menu`) exist,
+             not compared to be-host's.
+           - The host menu: `the_host_menu_opens_under_its_button`,
+             `on_a_phone_the_host_menu_rises_as_a_sheet_it_draws_itself`,
+             `the_desktops_bars_hold_their_place_empty_and_their_grips_open_their_menu`
+             (inspector, recovery phrase, status: entries 4g7a2 left to be-host).
+           - Organizations and sessions: `the_organizations_screen_takes_an_invite_link`,
+             `players_carry_on_with_the_next_host_once_the_first_closes_the_world`,
+             `killing_the_desktop_shell_shows_the_session_picker` and
+             `a_wait_names_an_app_that_stopped_instead_of_running_out` (`sessions.keep`).
+           - Built (4g7g2b): members, invitations and agents. Counterparts under the root, on a
+             device of a test's server that restarts as the root (`HostTest::drawn_device`,
+             `restart_as_root`) or starts as it (`HostTest::root_device`):
+             `be_root_in_place_of_the_hosts_ui_lists_an_organizations_members_and_their_roles`,
+             `..._warns_of_a_member_no_invitation_signed_in`,
+             `..._shows_the_link_to_send_the_invited_person` and
+             `..._creates_an_agent_in_a_personal_organization`. be-root's menu entries, Members,
+             Invite member and Agents carry be-host's test ids and layout (Members' and Contacts'
+             Remove ask over the list): Members' Invite member
+             closes it for a new link, Invite member is its own dialog with the link's QR code
+             (`be-lib-qr`, which be-host's draws with too), and Agents' credentials copy from
+             their fields and Done closes it. Their paintings match be-host's but for the agents'
+             proxy note, which names the host's default server where be-host's names the hosted
+             service.
+             - Left: Invite member offers no Share, as the root's host has no share sheet to
+               ask for.
+           - Built (4g7g2b): contacts and share links. Counterparts
+             `be_root_in_place_of_the_hosts_ui_asks_before_connecting_two_accounts_by_a_contact_link`,
+             `..._keeps_the_key_it_saw_of_a_contact_the_server_rolls_back`,
+             `..._asks_before_leaving_a_workspace_someone_shared`,
+             `..._asks_before_opening_a_block_someone_shared_by_a_link`,
+             `..._opens_a_share_link_for_an_outsider_as_a_guest` and
+             `..._lets_a_player_dig_through_the_editor_that_hosts_the_hunt`. be-root's Contacts
+             and Open a share link are be-host's: the contact link shows in the list, and
+             Connect? and Open this block? ask over it, Escape going back to the link; the
+             contacts' rows and the offer are worded as be-host's, and the root's alerts are
+             beui's dialog width as be-host's. Under the root be-host now hands an editor's
+             Leave to the root's question (`instance_heard`), and opens a block the person may
+             only join as a Join member (`editor_of`), as its own UI does. Their paintings match
+             be-host's but for the gem hunt's whole window: the root's menu button covers the
+             workspace's Close pane button, and the files' row of the open hunt is not
+             focused.
+             - Left: `keep_hosting_outlives_the_editor_until_stop`, a known flake. Under the root
+               be-host still drops an editor's other block commands (Share, Export, Keep
+               hosting and the rest, `instance_heard`), and the workspace's dock names no panes
+               (be-host's `Pane "Files"`), so the guest's files are cropped by
+               `#workspace.files`.
+           - The palette (`src/compositor`): `quick_open_finds_a_word_typed_in_a_text_and_opens_it`,
+             `quick_open_goes_to_a_file_and_the_palette_offers_the_workspaces_and_hosts_actions`
+             (the host's own actions, which be-root's palette does not list),
+             `the_host_palette_lists_the_desktops_window_keys`,
+             `ctrl_tab_leaves_the_workspace_tabs_alone_while_the_host_palette_is_open`.
+             `the_host_palette_lists_a_text_on_a_canvas_before_the_canvas` has a counterpart
+             (`be_root_..._lists_a_text_on_a_canvas_in_its_palette`) whose paintings are its
+             own, not compared to be-host's.
+           With counterparts whose paintings match be-host's: the desktop shell, F6 between
+           views, and the lock screen on Super+L (4g7g1). The test ids above are be-host's;
+           be-root sets almost none (`session.crashed`, `root.palette`), so each test needs
+           be-root to give its controls be-host's ids as it moves. src/ui's own component tests (`ui/tests`,
+           `ui/lock/tests`, `ui/keep_changes/tests`, `ui/saving/tests`, `ui/onboarding/tests`,
+           `ui/organization/tests`) go with it, their cases covered by be-root's tests.
 5. The block stack as an instance the root guest spawns, behind capabilities, building on the
    web's stack worker with a memory of its own, and sending smaller updates.
 6. Space as a guest, offscreen windows, and the host's OpenXR part, with late latching.

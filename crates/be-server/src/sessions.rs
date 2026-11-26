@@ -29,6 +29,8 @@ pub struct SessionRegistry {
     /// (`ordering`), so they hear entries in the order they were numbered. One per block, not
     /// the registry's lock, which every session shares.
     orders: std::sync::Mutex<Orders>,
+    /// The host-channel messages an account may send a holder at once (`ServerConfig`).
+    host_message_burst: f64,
 }
 
 /// The blocks' order locks, each held weakly while someone submits to its block, and how many
@@ -272,11 +274,12 @@ async fn send(hub: &WatchHub, block: Place, told: &[ClientId], entry: Membership
 }
 
 impl SessionRegistry {
-    pub fn new(hub: Arc<WatchHub>) -> Self {
+    pub fn new(hub: Arc<WatchHub>, host_message_burst: f64) -> Self {
         Self {
             sessions: Arc::new(Mutex::new(Sessions::default())),
             hub,
             orders: std::sync::Mutex::default(),
+            host_message_burst,
         }
     }
 
@@ -417,13 +420,15 @@ impl SessionRegistry {
         match (from == holder, to) {
             (true, Some(to)) if to != holder && member(to) => HostRoute::To(to),
             (false, None) => {
-                let sends = session.sends.entry(account).or_insert_with(|| {
-                    crate::limits::Bucket::full(crate::limits::HOST_MESSAGE_BURST)
-                });
+                let burst = self.host_message_burst;
+                let sends = session
+                    .sends
+                    .entry(account)
+                    .or_insert_with(|| crate::limits::Bucket::full(burst));
                 match sends.take(
                     std::time::Instant::now(),
                     crate::limits::HOST_MESSAGES_PER_SECOND,
-                    crate::limits::HOST_MESSAGE_BURST,
+                    burst,
                 ) {
                     true => HostRoute::To(holder),
                     false => HostRoute::SlowDown,

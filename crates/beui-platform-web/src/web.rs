@@ -1037,36 +1037,52 @@ fn listen(
             event.prevent_default();
         },
     )?;
-    on(surface_target, "dragover", |event: web_sys::DragEvent| {
-        event.prevent_default();
-        push(FileDrag::Hovered);
+    // Files dragged over the page: where they are is the pointer's, as no pointer moves come
+    // while the browser carries them.
+    on(surface_target, "dragover", {
+        let surface = surface.clone();
+        move |event: web_sys::DragEvent| {
+            event.prevent_default();
+            push_logical(Input::PointerMoved(position(&surface, &event)));
+            push(FileDrag::Hovered);
+        }
     })?;
     on(surface_target, "dragleave", |_event: web_sys::DragEvent| {
         push(FileDrag::Cancelled);
     })?;
-    on(surface_target, "drop", |event: web_sys::DragEvent| {
-        event.prevent_default();
-        let Some(files) = event.data_transfer().and_then(|transfer| transfer.files()) else {
-            push(FileDrag::Cancelled);
-            return;
-        };
-        if files.length() == 0 {
-            push(FileDrag::Cancelled);
-        }
-        for index in 0..files.length() {
-            let Some(file) = files.get(index) else {
-                continue;
+    on(surface_target, "drop", {
+        let surface = surface.clone();
+        move |event: web_sys::DragEvent| {
+            event.prevent_default();
+            push_logical(Input::PointerMoved(position(&surface, &event)));
+            let Some(files) = event.data_transfer().and_then(|transfer| transfer.files()) else {
+                push(FileDrag::Cancelled);
+                return;
             };
+            if files.length() == 0 {
+                push(FileDrag::Cancelled);
+                return;
+            }
+            let files: Vec<web_sys::File> = (0..files.length())
+                .filter_map(|index| files.get(index))
+                .collect();
+            // Read one after another and handed on together, so they land as one drop.
             wasm_bindgen_futures::spawn_local(async move {
-                let bytes = wasm_bindgen_futures::JsFuture::from(file.array_buffer())
-                    .await
-                    .ok()
-                    .map(|buffer| js_sys::Uint8Array::new(&buffer).to_vec());
-                push(FileDrag::Dropped(DroppedFile {
-                    name: file.name(),
-                    path: None,
-                    bytes: bytes.map(Arc::from),
-                }));
+                let mut dropped = Vec::new();
+                for file in files {
+                    let bytes = wasm_bindgen_futures::JsFuture::from(file.array_buffer())
+                        .await
+                        .ok()
+                        .map(|buffer| js_sys::Uint8Array::new(&buffer).to_vec());
+                    dropped.push(DroppedFile {
+                        name: file.name(),
+                        path: None,
+                        bytes: bytes.map(Arc::from),
+                    });
+                }
+                for file in dropped {
+                    push(FileDrag::Dropped(file));
+                }
             });
         }
     })?;

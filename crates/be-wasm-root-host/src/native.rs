@@ -266,6 +266,36 @@ impl Root {
         }
     }
 
+    /// The finds taken that the root cancelled since the last call, which need no answer.
+    pub fn take_cancelled_finds(&mut self) -> Vec<u64> {
+        self.core.take_cancelled_finds()
+    }
+
+    /// What the root asked quick open to find since the last call (`host.find-blocks`), each by
+    /// the id `answer_block_find` answers it by.
+    pub fn take_block_finds(&mut self) -> Vec<(u64, String)> {
+        self.core.take_block_finds()
+    }
+
+    /// Answers the root's `host.find-blocks` of `id`. If the root waited for it, it is stepped
+    /// for the answer.
+    pub fn answer_block_find(&mut self, id: u64, blocks: Vec<be_wasm_root_api::OpenableBlock>) {
+        if self.core.answer_block_find(id, blocks) {
+            self.bell.ring();
+        }
+    }
+
+    /// The blocks the root asked to open since the last call (`host.open-block`), each with
+    /// the editor it asked as.
+    pub fn take_block_opens(
+        &mut self,
+    ) -> Vec<(
+        Option<be_wasm_root_api::OpenedIn>,
+        be_wasm_root_api::OpenableBlock,
+    )> {
+        self.core.take_block_opens()
+    }
+
     /// The editors the root asked to open since the last call (`host.open-editor`), each
     /// answered by its id (`answer_opening`).
     pub fn take_openings(&mut self) -> Vec<crate::EditorOpening> {
@@ -449,6 +479,17 @@ impl Root {
     /// drawing it, and routes it by the layers it drew last. A root that stopped says why.
     pub fn input(&mut self, window: Option<u64>, events: Vec<u8>) -> Result<(), String> {
         self.core.input(window, events)
+    }
+
+    /// Hands the root files dragged over `window` from outside it, in order with `input`: the
+    /// root carries them to the view under the pointer that takes a drag. A root that stopped
+    /// says why.
+    pub fn drag_files(
+        &mut self,
+        window: Option<u64>,
+        drag: be_wasm_root_api::input::FileDrag,
+    ) -> Result<(), String> {
+        self.core.drag_files(window, drag)
     }
 
     /// Draws a frame for `request`, waiting for the root's children until `deadline` and for the

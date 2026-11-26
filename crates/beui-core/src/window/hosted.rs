@@ -36,6 +36,10 @@ pub(crate) struct Windows {
     shown: HashMap<WindowId, Vec2>,
     pub(crate) paintings: Vec<(WindowId, Painting)>,
     pub(crate) viewport: Option<(WindowId, Rect)>,
+    /// The windows being laid out, outermost first, with the rects they are laid out in: while
+    /// one is, its node is out of the arena, so an overlay inside it shown in it (or in a window
+    /// around it) finds it here.
+    laying: Vec<(WindowId, Rect)>,
     kept_focus: HashMap<WindowId, NodeId>,
     host_focused: Option<WindowId>,
     pub(crate) focus_resized: bool,
@@ -59,6 +63,7 @@ impl Default for Windows {
             shown: HashMap::default(),
             paintings: Vec::new(),
             viewport: None,
+            laying: Vec::new(),
             kept_focus: HashMap::default(),
             host_focused: None,
             focus_resized: false,
@@ -96,15 +101,62 @@ impl Document {
                 && matches!(spec.placement, beui_types::WindowPlacement::Host(_)))
     }
 
-    pub(crate) fn shows_in(&self, window: WindowId) -> bool {
-        self.opens_windows() && (window.is_main() || self.window_node(window).is_some())
+    /// The window of this document an overlay asked to be shown in `window` is shown in, where
+    /// windows are hosted: that window, or the main one when this document holds no window of
+    /// that id, as when it is the window of another document this one is drawn in (an app's
+    /// editor in the region its platform opened for it).
+    ///
+    /// Only such a foreign id maps to main: every window this document opens is held (its node
+    /// noted as it opens, and found in `laying` while it is out of the arena being laid out), so
+    /// one of its own is never taken for another.
+    pub(crate) fn shown_window(&self, window: WindowId) -> Option<WindowId> {
+        let held = window.is_main()
+            || self
+                .windows
+                .laying
+                .iter()
+                .any(|(laying, _)| *laying == window)
+            || self.window_node(window).is_some();
+        self.opens_windows().then_some(match held {
+            true => window,
+            false => WindowId::MAIN,
+        })
+    }
+
+    /// Where the open windows of its own placed over `window` are, in its points: through
+    /// where the host shows both once it said, else where they were placed.
+    pub(crate) fn windows_over(&self, window: WindowId) -> Vec<Rect> {
+        let origin = |id| self.context().and_then(|ctx| ctx.window_origin(id));
+        self.windows
+            .nodes
+            .iter()
+            .filter(|(_, node)| self.contains(*node))
+            .filter_map(|(id, node)| {
+                let held = self.arena.get_as::<OverlayNode>(*node);
+                let spec = held
+                    .window
+                    .as_ref()
+                    .filter(|spec| self.hosts_window(spec))?;
+                let beui_types::WindowPlacement::Over { window: over, at } = spec.placement else {
+                    return None;
+                };
+                if over != window || !held.is_open() {
+                    return None;
+                }
+                let at = match (origin(*id), origin(window)) {
+                    (Some(shown), Some(under)) => Pos2::ZERO + (shown - under),
+                    _ => at,
+                };
+                Some(Rect::from_min_size(at, self.window_size(*id)?))
+            })
+            .collect()
     }
 
     pub(crate) fn shown_in(&self, overlay: NodeOf<OverlayNode>) -> Option<WindowId> {
         self.arena
             .get_as::<OverlayNode>(overlay)
             .shown_in
-            .filter(|window| self.shows_in(*window))
+            .and_then(|window| self.shown_window(window))
     }
 
     pub(crate) fn real_window(&self, overlay: NodeOf<OverlayNode>) -> Option<WindowId> {
@@ -306,6 +358,21 @@ impl Document {
         std::mem::replace(&mut self.windows.viewport, viewport)
     }
 
+    /// Lays out `window`'s content in `rect` with `lay`, its viewport while it does.
+    pub(crate) fn laying_out_window<T>(
+        &mut self,
+        window: WindowId,
+        rect: Rect,
+        lay: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        let outer = self.swap_window_viewport(Some((window, rect)));
+        self.windows.laying.push((window, rect));
+        let laid = lay(self);
+        self.windows.laying.pop();
+        self.swap_window_viewport(outer);
+        laid
+    }
+
     pub(crate) fn viewport_window(&self) -> WindowId {
         self.windows
             .viewport
@@ -313,6 +380,15 @@ impl Document {
     }
 
     pub(crate) fn window_viewport(&self, window: WindowId) -> Option<(WindowId, Rect)> {
+        if let Some(laying) = self
+            .windows
+            .laying
+            .iter()
+            .rev()
+            .find(|(laying, _)| *laying == window)
+        {
+            return Some(*laying);
+        }
         let rect = self.window_rect(window)?;
         let rect = self
             .context()

@@ -645,7 +645,12 @@ impl Runner {
                         .or((window == WindowId::MAIN).then_some(physical / scale))
                 },
                 layer_target: &|layer| self.context.layer_target(layer),
-                take: &mut |window, input, time| self.program.input(window, input, time),
+                take: &mut |taken| match taken {
+                    intake::Taken::Input(window, input, time) => {
+                        self.program.input(window, input, time)
+                    }
+                    intake::Taken::Files(drag) => self.program.file_drag(drag),
+                },
             },
             &mut self.events,
         );

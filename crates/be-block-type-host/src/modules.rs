@@ -290,17 +290,19 @@ fn failed(content_type: Uuid, failure: Failure) -> String {
 }
 
 /// What a module refused a stateless request's `read-part` of a part outside it is told.
-pub const OUTSIDE_REQUEST: &str =
-    "a stateless request reads only the parts of the commits it was handed";
+pub const OUTSIDE_REQUEST: &str = "a stateless request reads only the parts of what it was handed";
 
 /// The parts a stateless request may read with `read-part`: those of the `loaded` content it
-/// was handed, so a module reads nothing of a block, or of another, that it was not asked
-/// about. Any stateless request that hands a module content loaded by parts asks with one
+/// was handed, or for one handed a block's journal (`replay`), those sealed under that block's
+/// keys, so a module reads nothing of a block, or of another, that it was not asked about. Any
+/// stateless request that hands a module content loaded by parts, or a journal, asks with one
 /// (`Modules::ask_reading`, `Replicas::ask_reading`), which also keeps what was served: the
 /// parts read, and the first read that failed.
 #[derive(Debug, Default)]
 pub struct Scope {
     allowed: HashSet<be_block_store::PartRef>,
+    /// The block whose parts it may read besides `allowed`.
+    block: Option<Uuid>,
     read: Vec<be_block_store::PartRef>,
     failed: Option<ClientError>,
 }
@@ -317,8 +319,42 @@ impl Scope {
         }
     }
 
+    /// The parts sealed under `block`'s keys: those its journal names.
+    pub fn of_block(block: Uuid) -> Self {
+        Self {
+            block: Some(block),
+            ..Self::default()
+        }
+    }
+
     pub fn allows(&self, part: be_block_store::PartRef) -> bool {
         self.allowed.contains(&part)
+    }
+
+    /// Checks a read `take` left to check (`Under::Check`): it is read, and kept as read, only
+    /// when the part is sealed under the scope's block's keys; otherwise `Checked::Outside`,
+    /// to refuse (`PartRead::refuse`).
+    pub async fn check<S: ObjectStore>(
+        &mut self,
+        peer: &Peer<S>,
+        Unchecked(read): Unchecked,
+    ) -> Checked {
+        let reaches = match self.block {
+            Some(block) => peer
+                .block_of_part(read.part)
+                .await
+                .map(|of| of == Some(block)),
+            None => Ok(false),
+        };
+        match reaches {
+            Ok(true) => {
+                self.read.push(read.part);
+                let result = read.read(peer).await;
+                Checked::Read(read, result)
+            }
+            Ok(false) => Checked::Outside(read),
+            Err(error) => Checked::Read(read, Err(error)),
+        }
     }
 
     /// The handed parts whose hash is one of `hashes`.
@@ -355,12 +391,14 @@ impl Scope {
     /// call). An `error` comes back for the host to report.
     pub fn take(&mut self, connection: &mut Connection, op: OpId, call: Call) -> Under {
         match call {
-            Call::ReadPart { reply, part, range } => match self.allows(part) {
-                true => {
+            Call::ReadPart { reply, part, range } => match (self.allows(part), self.block) {
+                (true, _) => {
                     self.read.push(part);
                     Under::Read(PartRead { reply, part, range })
                 }
-                false => {
+                // Granted only once `Scope::check` finds it sealed under the block's keys.
+                (false, Some(_)) => Under::Check(Unchecked(PartRead { reply, part, range })),
+                (false, None) => {
                     reply.send(connection, &Err(OUTSIDE_REQUEST.to_owned()));
                     Under::Answered
                 }
@@ -392,9 +430,29 @@ impl Scope {
 }
 
 pub enum Under {
+    /// A read of a part the scope was handed, to serve.
     Read(PartRead),
+    /// A read of another part, which only `Scope::check` may serve.
+    Check(Unchecked),
     Error(String),
     Answered,
+}
+
+/// A `read-part` of a part a scope was not handed: it has no `read`, so nothing serves it
+/// but `Scope::check`, or refuses it (`Unchecked::refuse`).
+pub struct Unchecked(PartRead);
+
+impl Unchecked {
+    /// Answers that the part is outside the request.
+    pub fn refuse(self, connection: &mut Connection) {
+        self.0.refuse(connection);
+    }
+}
+
+/// What `Scope::check` found of a read: read (or failing to be), or outside the scope.
+pub enum Checked {
+    Read(PartRead, Result<Vec<u8>, ClientError>),
+    Outside(PartRead),
 }
 
 /// A `read-part` a scope allows, for the host to read and answer (`Scope::answer`).
@@ -408,6 +466,12 @@ impl PartRead {
     pub async fn read<S: ObjectStore>(&self, peer: &Peer<S>) -> Result<Vec<u8>, ClientError> {
         peer.read_part(self.part, self.range.offset, self.range.length)
             .await
+    }
+
+    /// Answers that the part is outside the request.
+    pub fn refuse(self, connection: &mut Connection) {
+        self.reply
+            .send(connection, &Err(OUTSIDE_REQUEST.to_owned()));
     }
 }
 
@@ -1011,7 +1075,8 @@ impl Modules {
                     } if from == module && parent == ticket.op() => {
                         let held = &mut self.modules[module];
                         match scope.take(&mut held.connection, op, call) {
-                            Under::Read(read) => reads.push(read),
+                            Under::Read(read) => reads.push(Ok(read)),
+                            Under::Check(read) => reads.push(Err(read)),
                             Under::Error(message) => {
                                 eprintln!("the type module {}: {message}", held.source.name);
                             }
@@ -1027,7 +1092,19 @@ impl Modules {
             }
             let served = !reads.is_empty();
             for read in reads {
-                let result = read.read(peer).await;
+                let (read, result) = match read {
+                    Ok(read) => {
+                        let result = read.read(peer).await;
+                        (read, result)
+                    }
+                    Err(unchecked) => match scope.check(peer, unchecked).await {
+                        Checked::Read(read, result) => (read, result),
+                        Checked::Outside(read) => {
+                            self.call(module, |connection| read.refuse(connection));
+                            continue;
+                        }
+                    },
+                };
                 self.call(module, |connection| scope.answer(connection, read, result));
             }
             if !served {
@@ -1053,8 +1130,12 @@ impl Modules {
 
     /// A block's content as a reader outside its session sees it: its head with the journal
     /// replayed on top by the type, when this build wrote the journal on that head; otherwise
-    /// the head alone.
-    pub async fn readable(&mut self, read: be_block_client::BlockRead) -> Option<Vec<u8>> {
+    /// the head alone. The type reads the parts the journal names from `peer`.
+    pub async fn readable<S: ObjectStore>(
+        &mut self,
+        peer: &Peer<S>,
+        read: be_block_client::BlockRead,
+    ) -> Option<Vec<u8>> {
         let be_block_client::BlockRead {
             summary,
             stored,
@@ -1074,14 +1155,15 @@ impl Modules {
             return bytes;
         }
         let head = bytes.clone();
-        match self
-            .ask_type(content_type, |connection| {
+        let mut scope = Scope::of_block(summary.id);
+        let answer = self
+            .ask_reading(module, peer, &mut scope, |connection| {
                 replicas::replay(connection, content_type, head, journal)
             })
-            .await
-        {
-            Ok(replayed) => Some(replayed),
-            Err(_) => bytes,
+            .await;
+        match (answer, scope.take_failure()) {
+            (Ok(Ok(replayed)), None) => Some(replayed),
+            _ => bytes,
         }
     }
 

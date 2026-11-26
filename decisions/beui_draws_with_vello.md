@@ -24,7 +24,10 @@ draw with it too. The HTML core is unaffected.
   first fill. A punch after a drawing erases nothing drawn before it in the frame.
 - Vello writes sRGB-encoded values, so it draws into each target's non-sRGB view: every target
   lists it in `view_formats`, and be3:gpu's `surface-configuration` carries an app surface's.
-  Blending is in sRGB everywhere, as the paintings rasterize it.
+  Blending is in sRGB everywhere, as the paintings rasterize it. Under wasi:webgpu
+  (plans/be3_gpu_is_wasi_webgpu.md) an app's surface is the linear format itself, with its sRGB
+  twin in `view-formats`, and the compositor samples it through the linear view, so the encoded
+  values reach the window unchanged.
 - The filter's blur is Vello's (decisions/beui_filter_blur_is_vellos_gaussian.md).
 - A lost device stops the renderer before Vello is called (`Lost`); overlays keep wgpu's and
   vello_gpu's uploads from panicking on a device lost mid-frame.

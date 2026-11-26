@@ -1,8 +1,10 @@
 package be3:gpu@0.1.0;
 
-/// A subset of WebGPU, shaped after wasi:webgpu (the wasi-gfx proposal), for
-/// the one device and queue an app is given, plus the surfaces its host
-/// shows. Usages, shader stages and color writes are WebGPU's bit values.
+/// WebGPU, shaped after wasi:webgpu (the wasi-gfx proposal), for the one
+/// device and queue an app is given, plus the surfaces its host shows: an app
+/// gets what JS WebGPU gives a page (decisions/be3_gpu_matches_webgpu.md).
+/// wasi:webgpu itself replaces it (plans/be3_gpu_is_wasi_webgpu.md). Usages, shader
+/// stages and color writes are WebGPU's bit values.
 ///
 /// A create that fails answers `none`; the reason is kept for `take-error`,
 /// as is the first error any other call met.
@@ -732,10 +734,10 @@ interface device {
         width: u32,
         height: u32,
         format: texture-format,
-        /// The other format its textures may be viewed as, as in a WebGPU
-        /// canvas's `viewFormats`: `format` with or without its sRGB suffix.
-        /// One at most, so the record stays flat values.
-        view-format: option<texture-format>,
+        /// The other formats its textures may be viewed as, as a WebGPU
+        /// canvas's `viewFormats`: only `format` with or without its sRGB
+        /// suffix.
+        view-formats: list<texture-format>,
     }
 
     /// One place the host shows the app, named by the id the host gave it.

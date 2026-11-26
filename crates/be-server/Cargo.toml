@@ -53,6 +53,7 @@ webauthn-rs = { version = "0.6.2", default-features = false, features = ["condit
 workspace = true
 
 [dev-dependencies]
+be-lib-test-pause = { path = "../be-lib-test-pause" }
 futures-util = "0.3"
 jiff = "0.2"
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "test-util", "time"] }

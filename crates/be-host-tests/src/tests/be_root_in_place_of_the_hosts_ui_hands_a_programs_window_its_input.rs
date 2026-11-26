@@ -34,19 +34,19 @@ fn be_root_in_place_of_the_hosts_ui_hands_a_programs_window_its_input() {
     host.restart_as_root(ROOT);
     host.run(&["settle"]);
     host.open_test_window("Test window");
-    host.wait("Button \"be-tool-wayland-window\"");
+    host.wait("Button \"Be tool wayland window — Test window\"");
     host.run(&["settle"]);
     host.click("#workspace.window");
-    // The root's desktop names it by the last part of its app id alone (4g7e3d).
-    host.wait("Button \"pressed\"");
+    host.wait("Button \"Pressed — Test window\"");
     host.run(&["settle"]);
     host.key("a");
-    host.wait("Button \"typed\"");
+    host.wait("Button \"Typed — Test window\"");
     host.run(&["settle"]);
-    // Not M here: a window minimizing itself is its status, which the root does not hear yet
-    // (4g7e3d), so it stays shown. A window let go of while it has the keyboard loses it
-    // under the root too (be-host-wayland's
-    // `a_window_a_host_composites_itself_hears_its_input_and_lets_go_of_the_keyboard_once_let_go`).
+    // Its minimizing itself reaches the desktop as its status, which hides it, under the root
+    // too: it loses the keyboard.
+    host.key("m");
+    host.wait("Button \"Left — Test window\"");
+    host.run(&["settle"]);
     host.snapshot("be_root_hands_a_programs_window_its_input");
     host.close();
 }

@@ -17,7 +17,6 @@ fn counts(chat: Uuid, count: u32, what: &str) {
 /// counted again as its log grows.
 #[test]
 fn a_chats_unread_count_is_counted_from_its_head_and_the_accounts_reads() {
-    crate::unread::forget();
     let harness = Harness::pushing();
     let room = ChatRoom::start(&harness, &[("rosa", None, true)]);
     flush();
@@ -48,5 +47,4 @@ fn a_chats_unread_count_is_counted_from_its_head_and_the_accounts_reads() {
         1,
         "counted the message that came after the place read",
     );
-    crate::unread::forget();
 }

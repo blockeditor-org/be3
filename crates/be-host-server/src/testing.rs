@@ -29,6 +29,9 @@ pub struct Options {
     /// run on a clock of their own: it stamps when it took each edit, which a device reads
     /// against when the edit was made.
     pub starts_at: Option<i64>,
+    /// The host-channel messages an account may send a holder at once, for a test that holds
+    /// sends back after a few (`ServerConfig::host_message_burst`); none for the server's own.
+    pub host_message_burst: Option<f64>,
 }
 
 impl Default for Options {
@@ -36,6 +39,7 @@ impl Default for Options {
         Self {
             push: be_server::push::PushConfig::DEFAULT,
             starts_at: None,
+            host_message_burst: None,
         }
     }
 }
@@ -55,7 +59,8 @@ struct Inner {
     /// set the database up at once; it makes accounts and signs devices in.
     store: be_server::ServerStore,
     address: SocketAddr,
-    push: be_server::push::PushConfig,
+    /// What it serves with, again when it starts again.
+    config: be_server::ServerConfig,
     relays: Mutex<Vec<Weak<Relay>>>,
     /// How long each device's relay holds each answer of the server's (`slow`).
     latency: Mutex<Duration>,
@@ -110,8 +115,12 @@ impl Server {
         let directory = std::env::temp_dir().join(format!("be3-test-server-{}", Uuid::new_v4()));
         let store = be_server::ServerStore::open(&directory)
             .unwrap_or_else(|error| panic!("the test server's data could not be set up: {error}"));
+        let mut config = crate::embedded_config(options.push);
+        if let Some(burst) = options.host_message_burst {
+            config.host_message_burst = burst;
+        }
         let running =
-            crate::start_embedded_server_at("127.0.0.1:0", directory.clone(), options.push.clone())
+            crate::start_embedded_server_at("127.0.0.1:0", directory.clone(), config.clone())
                 .expect("the test server starts");
         let address = running
             .url
@@ -123,7 +132,7 @@ impl Server {
                 running: Mutex::new(Some(running)),
                 store,
                 address,
-                push: options.push,
+                config,
                 relays: Mutex::new(Vec::new()),
                 latency: Mutex::new(Duration::ZERO),
                 runtime,
@@ -188,7 +197,7 @@ impl Server {
         let running = crate::start_embedded_server_at(
             &self.inner.address.to_string(),
             self.inner.data.0.clone(),
-            self.inner.push.clone(),
+            self.inner.config.clone(),
         )
         .expect("the test server starts again");
         *lock(&self.inner.running) = Some(running);

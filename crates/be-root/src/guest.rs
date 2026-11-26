@@ -170,6 +170,9 @@ struct Root {
     memory_fed: Rc<Cell<bool>>,
     /// The session's screen lock as the host said last, until a frame shows it.
     lock_state: Rc<RefCell<Option<LockState>>>,
+    /// Whether the host can lock the session and it is not locked, as the host said last: Super+L
+    /// asks it to lock then (`host.lock-session`), as it does under be-host's own UI.
+    lockable: Rc<Cell<bool>>,
     /// Its lock screen, while the session is locked.
     lock: Rc<RefCell<Option<Locked>>>,
     /// The editor of the block the session shows, while it shows one.
@@ -279,6 +282,8 @@ enum Closed {
     Added,
     /// The host's question was answered yes (discarding unsaved changes).
     Confirmed,
+    /// Members' Invite member: a new invite link shows in its place, as be-host's does.
+    Invite,
 }
 
 /// A question of the host's that the root asks in its dialog's place while the host asks it.
@@ -404,6 +409,7 @@ impl Root {
             statistics_fed: Rc::default(),
             memory_fed: Rc::default(),
             lock_state: Rc::default(),
+            lockable: Rc::default(),
             lock: Rc::default(),
             session: Rc::default(),
             session_rounds: Rc::default(),
@@ -633,6 +639,7 @@ impl Root {
         let mut seen = 0;
         while let Ok(lock) = host::lock(seen).await {
             seen = lock.generation;
+            self.lockable.set(lock.available && !lock.locked);
             *self.lock_state.borrow_mut() = Some(lock);
             self.waker.wake();
         }
@@ -823,6 +830,18 @@ impl Root {
                         self.cycle_asked.set(Some(delivery.modifiers.shift));
                         None
                     }
+                    Some(key)
+                        if self.lockable.get()
+                            && lock_chord().matches(KeyPress {
+                                key,
+                                pressed: true,
+                                repeat: false,
+                                modifiers: delivery.modifiers,
+                            }) =>
+                    {
+                        lock_session();
+                        None
+                    }
                     _ => None,
                 },
                 _ => None,
@@ -936,7 +955,7 @@ impl Root {
                 }
             }
             Some(Closed::Confirmed) => ask_core(CoreCommand::ConfirmDiscard),
-            Some(Closed::Added) | None => {}
+            Some(Closed::Added | Closed::Invite) | None => {}
         }
         // Escape or a press on the scrim closes it, which for the question reverts at once.
         if closed.is_none()
@@ -1026,6 +1045,11 @@ impl Root {
         }
         if closing {
             self.close_dialog();
+        }
+        // Members' Invite member opens the invite in its place, unless a question took it.
+        if matches!(closed, Some(Closed::Invite)) && opening.is_none() && !locked {
+            *self.wanted.borrow_mut() = Some(Asking::Invite);
+            self.waker.wake();
         }
         match opening {
             Some(opening) => self.open_dialog(opening),
@@ -1220,6 +1244,7 @@ impl Root {
                                 link={link}
                                 pending={pending}
                                 ask={ask}
+                                invite={invite}
                                 done={done}
                             />
                         }
@@ -1334,11 +1359,12 @@ impl Presented {
     }
 }
 
-/// beui's default dialog width, in points, which be-host's alerts keep.
-const DIALOG_POINTS: f32 = 400.0;
+/// beui's default dialog width (`Size::Dialog`), in points, which be-host's alerts keep.
+const DIALOG_POINTS: f32 = 360.0;
 
 /// The chords the root takes ahead of whatever has the keyboard, while the session is not
-/// locked: its palette's, F6 and Shift+F6, which move the keyboard between the apps' views, and
+/// locked: its palette's, F6 and Shift+F6, which move the keyboard between the apps' views,
+/// Super+L while the host can lock the session (`lock_chord`, added where the frame intercepts), and
 /// Escape while `escape` (its dialog is open but the keyboard is outside it). With the keyboard
 /// in the dialog, Escape is its document's, which closes it once nothing in it (a popup) took
 /// the key first.
@@ -1665,7 +1691,13 @@ impl frames::Guest for Root {
                 && embedding.focused(None).map(|layer| layer.id) != Some(DIALOG_LAYER);
             embedding.intercept(match locked {
                 true => Vec::new(),
-                false => chords(outside),
+                false => {
+                    let mut chords = chords(outside);
+                    if root.lockable.get() {
+                        chords.push(lock_chord());
+                    }
+                    chords
+                }
             });
             drop(embedding);
             root.heard(&drawn.own);
@@ -1754,6 +1786,18 @@ impl input::Guest for Root {
         if self.asked.get().is_some() {
             self.waker.wake();
         }
+        Box::pin(async {})
+    }
+
+    /// Files dragged over the window from outside it, carried to the view under the pointer
+    /// that takes them (`Embedding::drag_files`).
+    fn drag_files(
+        &self,
+        window: Option<u64>,
+        drag: be_wasm_root_api::input::FileDrag,
+    ) -> LocalFuture<()> {
+        self.embedding.borrow_mut().drag_files(window, drag);
+        self.waker.wake();
         Box::pin(async {})
     }
 }
