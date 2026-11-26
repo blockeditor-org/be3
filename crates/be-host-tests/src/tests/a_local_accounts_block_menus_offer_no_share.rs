@@ -1,7 +1,8 @@
 use super::*;
 
 /// A local account has no server to share through, so neither the files' section menu, a
-/// block's menu nor its tab's menu offers Share or the access it is viewed at.
+/// block's menu nor its tab's menu offers Share or the access it is viewed at, the files show
+/// no Shared with me, and the host menu offers no contacts or share links.
 #[test]
 fn a_local_accounts_block_menus_offer_no_share() {
     let mut host = HostTest::start(Options::default());
@@ -14,6 +15,16 @@ fn a_local_accounts_block_menus_offer_no_share() {
     host.click("#account.confirm");
     host.click("Button \"Personal\"");
     host.wait("TreeItem \"My files\"");
+    assert!(
+        !host.tree().contains("Shared with me"),
+        "a local account's files show Shared with me"
+    );
+    host.click("#file-tree.host-menu");
+    host.wait("#host.menu.status");
+    host.gone("#host.menu.share-link");
+    host.gone("#host.menu.contacts");
+    host.key("Escape");
+    host.gone("#host.menu.status");
     host.run(&["click", "TreeItem \"My files\"", "right"]);
     host.wait("#file-tree.section.rename");
     host.gone("#file-tree.section.share");
