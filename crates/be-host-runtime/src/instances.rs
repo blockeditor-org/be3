@@ -1156,6 +1156,17 @@ impl Instances {
         self.entries.is_empty()
     }
 
+    /// Closes every instance as `remove` closes one, for an app that goes with its instances
+    /// open (a `Forwarded` the root lets go of): they let go of what they held of the stack, so
+    /// no replica keeps an editor that is gone and no block stays open or wanted for it. Dropping
+    /// them could not: a drop at the thread's end reaches the stack's thread locals as they go.
+    pub(super) fn close_all(&mut self) {
+        let instances: Vec<EditorInstanceId> = self.entries.keys().copied().collect();
+        for instance in instances {
+            self.remove(instance);
+        }
+    }
+
     pub(super) fn remove(&mut self, instance: EditorInstanceId) -> bool {
         self.withdraw_all(instance);
         self.waiting.remove(&instance);
