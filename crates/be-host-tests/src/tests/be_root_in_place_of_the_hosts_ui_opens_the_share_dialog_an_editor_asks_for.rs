@@ -22,11 +22,10 @@ fn be_root_in_place_of_the_hosts_ui_opens_the_share_dialog_an_editor_asks_for() 
     host.click("#dock.editors.pin.editor.share");
     host.wait("#share.query");
     host.click("#share.query");
-    // The field the press focused, in the dialog the workspace anchored, holds the window's
-    // focus, as under be-host.
-    host.wait("TextInput \"Add contacts\" focused");
+    // The field the press focused, in the dialog the workspace anchored, takes what is typed
+    // and holds the window's focus, as under be-host.
     host.type_text("Ada");
-    host.wait("TextInput \"Add contacts\" value=\"Ada\"");
+    host.wait("TextInput \"Add contacts\" value=\"Ada\" focused");
     host.run(&["settle"]);
     host.snapshot("be_root_opens_the_share_dialog_an_editor_asks_for");
     host.close();

@@ -2550,19 +2550,20 @@ Each step lands on its own.
                  `a_child_placed_in_a_popover_shows_above_it` passes under the root
                  (`:root-popover-web-host-test`); left:
                  - `two_pages_write_in_one_chat_and_neither_makes_a_file_call_or_starts_a_thread`
-                   fails under the root on most runs, at a different step each time; its
+                   reaches its last steps under the root but fails now and then, so its
                    target is left out. Each press waits for its target first (as the popover
                    script's do), since be-host's `busy` on the page does not say whether the
                    root and its apps took a click in: counting the apps' steps in flight
                    (`Root::apps_unsettled`, natively) keeps drive busy for minutes, since the
                    root keeps its apps stepping, and counting what the root has yet to take
                    in (`Connection::has_outbound`) never settles between its frames. Seen
-                   still: the expanded picker's Chat, pressed, makes no creation and shows no
-                   error (My files stays empty, no `TextInput "Name" value="Chat"`); now and
-                   then the host menu's Contacts, pressed, leaves the menu open with the row
-                   focused and opens no dialog, on either page. Both pages hear the press and
-                   release whole (no focus change or pointer cancel between), so the root
-                   does not dismiss a dialog for an unfocused window.
+                   still: now and then the host menu's Contacts, pressed, leaves the menu open
+                   with the row focused and opens no dialog, on either page (both pages hear
+                   the press and release whole, with no focus change or pointer cancel
+                   between, so the root does not dismiss it for an unfocused window). Under a
+                   stopped clock, natively, a field focused in a view an app anchored now and
+                   then shows focused in the root's tree only after a later frame (the share
+                   test checks it once it typed there).
                  - `a_grown_page_shows_the_workspaces_backdrop_beyond_its_last_frame` reads the
                    host's canvas, which under the root shows only the background: its
                    counterpart would read the root's canvas instead.
