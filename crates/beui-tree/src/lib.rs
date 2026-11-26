@@ -47,8 +47,8 @@ pub mod reactive {
         Stored, StoredCell, Trackable, Trigger, child_scope, create_async_memo, create_binding,
         create_effect, create_effect_on, create_effect_on_change, create_linked_signal,
         create_memo, create_selector, create_signal, create_source, create_trigger, flush, hold,
-        on_cleanup, owner_scope, provide_context, spawn_with, store, untrack, use_context,
-        zone_pending,
+        on_cleanup, owner_scope, provide_context, spawn_with, store, tracking, untrack,
+        use_context, zone_pending,
     };
 
     /// What the `#[component]` and `view!` macros name by absolute path: a module, so that

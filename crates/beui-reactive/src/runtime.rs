@@ -263,7 +263,10 @@ pub(crate) fn in_memo() -> bool {
     RUNTIME.with(|runtime| runtime.memo_depth.get() > 0)
 }
 
-pub(crate) fn tracking() -> bool {
+/// Whether a read now subscribes the running computation: one is running and has not been
+/// disposed, and the read is not `untrack`ed. For a source that keeps a subscriber list of
+/// its own (`Selector`, a drag board's carries) and registers only a reader that will hear it.
+pub fn tracking() -> bool {
     RUNTIME.with(|runtime| {
         runtime.probe.borrow().is_some()
             || runtime

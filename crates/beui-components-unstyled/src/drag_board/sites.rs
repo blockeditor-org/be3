@@ -3,17 +3,19 @@
 //! point chooses the closest of them all; a release commits the chosen place to its site.
 //! Nothing is written before the release: a site draws what is chosen from its `over`.
 
-use std::any::Any;
+use std::any::{Any, TypeId};
 use std::rc::Rc;
 
 use beui_view::drag::{
     CandidateId, Carry, CarryId, DragFrame, DragPoint, DragSpec, Evaluation, STICKY, evaluate,
 };
-use beui_view::reactive::{Get, NodeId, Set, now};
+use beui_view::reactive::{
+    Get, NodeId, OwnedTrigger, Set, Trigger, now, on_cleanup, tracking,
+};
 use beui_view::types::input::PointerId;
 use beui_view::types::{Rect, Velocity};
 
-use super::Board;
+use super::{Board, Watch};
 
 pub(crate) type Erased = Rc<dyn Any>;
 
@@ -154,7 +156,9 @@ impl Board {
             last: None,
             aimed: None,
         });
-        self.lifted.update(|lifted| lifted.push((id, payload)));
+        self.lifted
+            .update(|lifted| lifted.push((id, Rc::clone(&payload))));
+        self.wake(&payload);
         self.place(point, false);
         let over = self.over_chosen(point.pointer);
         let places = self.rests_of(point.pointer).len();
@@ -417,6 +421,59 @@ impl Board {
     }
 
     /// Whether `pointer`'s carry scrolls the edge scroller holding it (not `scrolls_nothing`).
+    /// Subscribes the running computation to the lifts and put-downs of `payload` alone, until
+    /// it runs again or is disposed.
+    fn watch<P: Clone + PartialEq + 'static>(&self, payload: &P) {
+        if !tracking() {
+            return;
+        }
+        let id = self.next_watch.replace(self.next_watch.get() + 1);
+        let woken = OwnedTrigger::new();
+        woken.track();
+        let own = payload.clone();
+        self.watches
+            .borrow_mut()
+            .entry(TypeId::of::<P>())
+            .or_default()
+            .insert(
+                id,
+                Watch {
+                    matches: Box::new(move |other| other.downcast_ref::<P>() == Some(&own)),
+                    woken,
+                },
+            );
+        let watches = Rc::clone(&self.watches);
+        on_cleanup(move || {
+            let gone = watches
+                .borrow_mut()
+                .get_mut(&TypeId::of::<P>())
+                .and_then(|of| of.remove(&id));
+            drop(gone);
+        });
+    }
+
+    /// Wakes the readers of `payload`, which was lifted or put down: those of an equal payload
+    /// (`carries`) and those of every payload of its type (`carried`).
+    fn wake(&self, payload: &Erased) {
+        let payload: &dyn Any = &**payload;
+        let kind = payload.type_id();
+        let mut woken: Vec<Trigger> = self
+            .watches
+            .borrow()
+            .get(&kind)
+            .map(|of| {
+                of.values()
+                    .filter(|watch| (watch.matches)(payload))
+                    .map(|watch| watch.woken.handle())
+                    .collect()
+            })
+            .unwrap_or_default();
+        woken.extend(self.kinds.borrow().get(&kind).map(|kind| kind.handle()));
+        for trigger in woken {
+            trigger.notify();
+        }
+    }
+
     pub(crate) fn placing_scrolls(&self, pointer: PointerId) -> bool {
         self.placing
             .borrow()
@@ -426,9 +483,16 @@ impl Board {
     }
 
     /// Every carried payload that is a `P`, in the order they were lifted: tracked, so a
-    /// site or row reading it follows each lift and put-down.
+    /// site or row reading it follows each lift and put-down of a `P`, and only those.
     pub fn carried<P: Clone + 'static>(&self) -> Vec<P> {
-        self.lifted.with(|lifted| {
+        if tracking() {
+            self.kinds
+                .borrow_mut()
+                .entry(TypeId::of::<P>())
+                .or_default()
+                .track();
+        }
+        self.lifted.with_untracked(|lifted| {
             lifted
                 .iter()
                 .filter_map(|(_, payload)| payload.downcast_ref::<P>().cloned())
@@ -436,14 +500,16 @@ impl Board {
         })
     }
 
-    /// Whether `payload` is carried; tracked.
-    pub fn carries<P: PartialEq + 'static>(&self, payload: &P) -> bool {
+    /// Whether `payload` is carried; tracked, so a reader wakes only when a payload equal to
+    /// `payload` is lifted or put down.
+    pub fn carries<P: Clone + PartialEq + 'static>(&self, payload: &P) -> bool {
         self.carry_with(payload).is_some()
     }
 
-    /// The carry whose payload is `payload`; tracked.
-    fn carry_with<P: PartialEq + 'static>(&self, payload: &P) -> Option<CarryId> {
-        self.lifted.with(|lifted| {
+    /// The carry whose payload is `payload`; tracked, as `carries` is.
+    fn carry_with<P: Clone + PartialEq + 'static>(&self, payload: &P) -> Option<CarryId> {
+        self.watch(payload);
+        self.lifted.with_untracked(|lifted| {
             lifted
                 .iter()
                 .find(|(_, carried)| carried.downcast_ref::<P>() == Some(payload))
@@ -458,7 +524,7 @@ impl Board {
     /// are shown a carry by its site, which publishes the place chosen in it (its `over`) as
     /// presence in its own terms, so their copy of the site draws it in their view (a
     /// canvas's carried shapes at their world place).
-    pub fn frame_of<P: PartialEq + 'static>(&self, payload: &P) -> Option<DragFrame> {
+    pub fn frame_of<P: Clone + PartialEq + 'static>(&self, payload: &P) -> Option<DragFrame> {
         self.frame_by(self.carry_with(payload)?)
     }
 
@@ -659,8 +725,17 @@ impl Board {
             .then(|| placing.carry.outside.clone().zip(placing.last))
             .flatten();
         let id = placing.id;
+        let payload = self.lifted.with_untracked(|lifted| {
+            lifted
+                .iter()
+                .find(|(lifted, _)| *lifted == id)
+                .map(|(_, payload)| Rc::clone(payload))
+        });
         self.lifted
             .update(|lifted| lifted.retain(|(lifted, _)| *lifted != id));
+        if let Some(payload) = payload {
+            self.wake(&payload);
+        }
         self.shown
             .update(|shown| shown.retain(|(shown, _)| *shown != id));
         let over_site = placing.told.map(|(site, _)| site);
