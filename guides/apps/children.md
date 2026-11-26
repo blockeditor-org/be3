@@ -367,8 +367,9 @@ nothing but its `Docking`.
   has taken every restore the dock asked for (`DockHosted::restored`,
   `EditorHost::dock_restored`). It stops waiting as soon as the root says
   so, whatever the root then hosts, and the host never leaves it waiting:
-  it counts a restore that reaches no root, or whose root lets the child go,
-  as taken. The root counts a descendant's restore when it grafts it, which
+  it counts as taken a restore that reaches no root, whose root lets the
+  child go or stops being the root (it joins another dock, or the child's
+  declaration is withdrawn from it), or whose root goes away. The root counts a descendant's restore when it grafts it, which
   waits until it hosts the descendant's group, and drops one for a group
   the child no longer declares. A dock that does not join is wrapped
   in a `DockHost` and kept under the same key (`DockKeeper`), so a bar moved
