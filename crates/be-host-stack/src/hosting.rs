@@ -79,6 +79,19 @@ pub const ANSWER_PAUSE: &str = "hosting::answer";
 pub const RECHECK_PAUSE: &str = "hosting::recheck";
 #[cfg(test)]
 pub const RECHECKED_PAUSE: &str = "hosting::rechecked";
+/// Where a test holds back the server's word that a member of a block left (`heard`): while
+/// held, the host does not drop a member on hearing it leave, as when that word is late.
+#[cfg(test)]
+pub const LEAVE_PAUSE: &str = "hosting::leave";
+
+/// The server's word that `member` left `block`, unless a test holds it back (`LEAVE_PAUSE`).
+fn member_left(shared: &Arc<Mutex<Shared>>, block: Uuid, member: ClientId) {
+    #[cfg(test)]
+    if be_lib_test_pause::is_held(LEAVE_PAUSE, block.as_u128()) {
+        return;
+    }
+    drop_member(&mut lock(shared), block, member);
+}
 
 /// Whether a check of the members runs.
 #[cfg(test)]
@@ -357,10 +370,10 @@ pub fn heard(
         Some(Event::Joiner {
             block,
             change: JoinerChange::Left(member),
-        }) => drop_member(&mut lock(shared), *block, *member),
+        }) => member_left(shared, *block, *member),
         Some(Event::Membership { block, entry }) => {
             if matches!(entry.change, MembershipChange::Left) {
-                drop_member(&mut lock(shared), *block, entry.client);
+                member_left(shared, *block, entry.client);
             }
         }
         Some(Event::KeysChanged | Event::Roots | Event::TreeAdvanced { .. }) | None => {

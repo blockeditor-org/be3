@@ -1369,8 +1369,11 @@ the web build.
   tests running side by side hold only their own, and a test `hold`s the place,
   waits until code is `reached` it, changes access or bans, then `release`s it
   (be-host-stack's `hosting::ANSWER_PAUSE`, `RECHECK_PAUSE` and
-  `RECHECKED_PAUSE`; be-server's `client::JOIN_PAUSE`). A pause point works only
-  in its own crate's tests.
+  `RECHECKED_PAUSE`; be-server's `client::JOIN_PAUSE`). Code that should set
+  something aside rather than wait asks `is_held` (be-host-stack's
+  `hosting::LEAVE_PAUSE` ignores the server's word that a member left;
+  be-tool-cli's `replica::PRESENCE_PAUSE` holds back what a session's replica
+  says of its peers). A pause point works only in its own crate's tests.
 - crates/be-host-tests' `Server` runs one in a host test's process, and be-hosts
   join it as devices of its accounts, each through a relay of its own
   (guides/testing_a_gui.md, 6).
