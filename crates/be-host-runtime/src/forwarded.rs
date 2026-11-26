@@ -171,6 +171,12 @@ impl Forwarded {
         self.instances.set_shell(Some(instance));
     }
 
+    /// Whether its shell (`set_shell`) said it lays out as on a phone (`set-phone-layout`),
+    /// which every app the root embeds is told with its frame, as be-host tells its own.
+    pub fn phone_layout(&self) -> bool {
+        self.shell.is_some() && self.instances.phone_layout()
+    }
+
     /// Asks the editor `instance` to show the host's panel `panel`, as be-host asks its shell
     /// (`show_panel`): it hears it with its shows.
     pub fn show_panel(&mut self, instance: EditorInstanceId, panel: be_sdk_api::HostPanel) {

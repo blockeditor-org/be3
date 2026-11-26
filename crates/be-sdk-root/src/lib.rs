@@ -58,12 +58,13 @@ mod own;
 mod windows;
 
 pub use children::{
-    ALREADY_OPEN_ABOVE, Around, Children, KeyboardMove, NOT_SHOWN_YET, PanelPlace, Spawning,
+    ALREADY_OPEN_ABOVE, Around, Children, KeyboardMove, NOT_SHOWN_YET, PanelPlace, PanelReport,
+    Spawning,
     child_screen, framing_screen, main_screen, preview_screen, preview_screen_of,
 };
 pub use embedded::{
     AnchoredView, BlockSpawn, Embedded, Hosted, Spawn, SpawnFailure, Wants, describing,
-    next_document, set_clock, set_describing, tell_editor,
+    next_document, phone, set_clock, set_describing, set_phone, tell_editor,
 };
 pub use own::OwnSurface;
 pub use windows::{Delivery, Windows};

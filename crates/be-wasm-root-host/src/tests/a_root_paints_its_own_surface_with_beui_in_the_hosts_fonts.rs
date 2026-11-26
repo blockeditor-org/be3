@@ -12,6 +12,7 @@ fn a_root_paints_its_own_surface_with_beui_in_the_hosts_fonts() {
             utc_offset: 0,
             window: window(),
             describe: false,
+            phone: false,
         },
         Instant::now() + PATIENT,
     )

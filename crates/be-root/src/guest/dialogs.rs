@@ -268,6 +268,24 @@ pub(super) fn ReauthDialog(core: Signal<CoreView>, done: Callback<Closed>) -> No
     }
 }
 
+/// What the host is, as be-host's About says it: its name, version and build.
+#[component]
+pub(super) fn AboutDialog(about: AboutHost, done: Callback<Closed>) -> NodeId {
+    view! {
+        <Frame width=Length::FILL>
+            <DialogBody title="About" on_dismiss={move || done.call(Closed::Dismissed)}>
+                <List spacing=Space::Md>
+                    <Text style=TextStyle::PARAGRAPH>"be-host"</Text>
+                    <Text style=TextStyle::CAPTION>"Version"</Text>
+                    <Text style=TextStyle::CODE>{about.version}</Text>
+                    <Text style=TextStyle::CAPTION>"Build"</Text>
+                    <Text style=TextStyle::CODE>{about.build}</Text>
+                </List>
+            </DialogBody>
+        </Frame>
+    }
+}
+
 /// The host's question before discarding the changes not saved to this device yet, for
 /// `reason`: discarding them, or keeping them (Escape, or closing it).
 #[component]

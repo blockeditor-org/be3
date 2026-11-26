@@ -7,7 +7,7 @@
 
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    AccountRow, AgentCredentials, AgentRow, AgentsArea, BrowserSignIn, CoreCommand, CoreFailure,
+    AboutHost, AccountRow, AgentCredentials, AgentRow, AgentsArea, BrowserSignIn, CoreCommand, CoreFailure,
     CoreSecret, CoreView, CoreWait, DefaultServer, DiscardReason, HostedBlock, Invitation, Leaving,
     MemberRole, NewAccount, OrganizationRow, OrganizationsArea, OrganizationsListed,
     PairingRequest, ProfileRow, Reauthenticating, RecoveryArea, Refusal, SecretCommand,
@@ -304,6 +304,8 @@ fn commands(command: CoreCommand) -> Vec<ui::UiCommand> {
             Ui::ConfirmErrorAction,
         ],
         CoreCommand::Exit => vec![Ui::Exit],
+        CoreCommand::Close => vec![Ui::CloseApp],
+        CoreCommand::OpenInspector => vec![Ui::OpenInspector],
     }
 }
 
@@ -510,6 +512,12 @@ fn view(core: &HostCore) -> CoreView {
             }
         }),
         showing: core.root_session.map(Uuid::into_bytes),
+        about: AboutHost {
+            version: env!("CARGO_PKG_VERSION").to_owned(),
+            build: crate::build().to_owned(),
+        },
+        // As be-host's own menu offers Close be-host: everywhere but a browser.
+        can_close: !cfg!(target_arch = "wasm32"),
     }
 }
 

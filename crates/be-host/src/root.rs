@@ -365,6 +365,12 @@ impl RootShell {
                 pixels_per_point: context.pixels_per_point(),
             },
             describe: describing,
+            // As be-host tells its own apps: what the session's shell said of its layout.
+            phone: self
+                .editors
+                .served
+                .values()
+                .any(be_host_runtime::Forwarded::phone_layout),
         };
         let done = match root.frame(request, deadline) {
             Ok(done) => done,
@@ -1580,9 +1586,17 @@ fn child_status(
                 _ => None,
             }),
         preview,
-        dialog: dialog
-            .as_ref()
-            .map_or_else(DialogStatus::default, |(_, dialog, _)| *dialog),
+        // A host panel the root draws says it is done as be-host's own does: its dialog
+        // accepted, which closes the popover holding it.
+        dialog: match &child.shows {
+            Some(be_wasm_root_api::Shown::Dialog(shown)) if shown.done => DialogStatus {
+                answer: Some(be_sdk_api::DialogAnswer::Accepted),
+                ..DialogStatus::default()
+            },
+            _ => dialog
+                .as_ref()
+                .map_or_else(DialogStatus::default, |(_, dialog, _)| *dialog),
+        },
         picked: dialog.as_ref().and_then(|(picked, ..)| picked.clone()),
         card: dialog.as_ref().is_some_and(|(.., card)| *card),
         title: None,
