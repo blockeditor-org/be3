@@ -1566,6 +1566,7 @@ pub fn exiting() {
     });
     super::backend::discard_prepared();
     for (_, mut runtime) in runtimes {
+        runtime.instances.close_all();
         runtime.stop();
     }
     presenter::stop();

@@ -284,6 +284,7 @@ impl RootShell {
         #[cfg(target_arch = "wasm32")]
         self.surfaces.clear(self.root.as_ref());
         self.root = None;
+        self.editors.served.close_all();
         self.next = None;
         self.owed = false;
         self.requests = Requests::default();

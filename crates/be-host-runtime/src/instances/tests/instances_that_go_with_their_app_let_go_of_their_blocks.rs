@@ -2,7 +2,7 @@ use super::*;
 
 use be_type_example_counter::CounterContent;
 
-/// Instances that go with their app (a `Forwarded` the root lets go of) are each closed first
+/// Instances that go with their app (a `Forwarded` the root lets go of, or the host exiting) are each closed first
 /// (`close_all`), and detach their editors as closing each would: the replica keeps no editor
 /// that is gone, so the block, wanted by nothing else, closes and the stack holds it no longer.
 #[test]
@@ -18,7 +18,14 @@ fn instances_that_go_with_their_app_let_go_of_their_blocks() {
         None,
         false,
     );
+    // Two editors of the block: closing only one would leave it open for the other.
     let mut instances = placed_on(block, CounterContent::CONTENT_TYPE);
+    place_editor(
+        &mut instances,
+        EditorInstanceId(2),
+        block,
+        CounterContent::CONTENT_TYPE,
+    );
     next_screens(&mut instances);
     assert!(to_replica(&mut instances, block, &FromEditor::Resend));
     replica_sent_until(&mut instances, block, |sent| {
