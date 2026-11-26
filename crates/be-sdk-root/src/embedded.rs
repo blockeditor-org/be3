@@ -510,8 +510,10 @@ impl Embedded {
         fonts: Rc<Fonts>,
         now: Duration,
     ) -> Self {
+        // Its session starts once the instance did (`hear`): how long the host takes to load and
+        // link its module is not the app's to answer for, as be-host-runtime starts an app's once
+        // its backend is ready.
         let mut run = Run::new(Session::new(HOST_NAME, Some(surface)), false, preferences());
-        run.session.start(millis(now));
         run.screens.clone_from(&screens);
         let hosted = matches!(opened, Opened::Host);
         let open = match opened {
@@ -2022,20 +2024,31 @@ async fn hear_host() {
 }
 
 /// Hears the app until it stops or the last `Embedded` of it goes: then it lets go of the
-/// instance, which stops it.
+/// instance, which stops it. Its session starts once the instance did, and it has the session's
+/// while from then to say hello.
 async fn hear(state: Weak<RefCell<State>>, instance: Rc<Instance>, stop: Rc<Stop>) {
-    loop {
-        let next = {
-            let mut next = pin!(instance.next());
-            std::future::poll_fn(|context| {
-                if stop.stopped.get() {
-                    return Poll::Ready(None);
+    match until_stopped(&stop, instance.started()).await {
+        None => return,
+        Some(started) => {
+            let Some(state) = state.upgrade() else {
+                return;
+            };
+            let mut state = state.borrow_mut();
+            match started {
+                Ok(Ok(())) => {
+                    let now = state.now;
+                    state.run.session.start(millis(now));
                 }
-                *stop.waker.borrow_mut() = Some(context.waker().clone());
-                next.as_mut().poll(context).map(Some)
-            })
-            .await
-        };
+                Ok(Err(failure)) => return state.fail(format!("the app stopped: {failure}")),
+                Err(error) => {
+                    return state
+                        .fail(format!("the host stopped answering for the app: {error:?}"));
+                }
+            }
+        }
+    }
+    loop {
+        let next = until_stopped(&stop, instance.next()).await;
         let (Some(next), Some(state)) = (next, state.upgrade()) else {
             return;
         };
@@ -2052,6 +2065,19 @@ async fn hear(state: Weak<RefCell<State>>, instance: Rc<Instance>, stop: Rc<Stop
             }
         }
     }
+}
+
+/// What `future` answers, or none once the app is stopped (`Embedded::stop`).
+async fn until_stopped<F: Future>(stop: &Stop, future: F) -> Option<F::Output> {
+    let mut future = pin!(future);
+    std::future::poll_fn(|context| {
+        if stop.stopped.get() {
+            return Poll::Ready(None);
+        }
+        *stop.waker.borrow_mut() = Some(context.waker().clone());
+        future.as_mut().poll(context).map(Some)
+    })
+    .await
 }
 
 /// Whether `placements` only moves the children its view placed before, as be-host-runtime's

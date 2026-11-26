@@ -76,6 +76,13 @@ interface sandbox {
         /// Queues frames for it; it is stepped with them as soon as it is
         /// free.
         send: async func(frames: list<list<u8>>);
+        /// Answered once it started: its module is loaded and linked and its
+        /// start has run, so it steps from now on; or why it could not start or
+        /// stopped before it did. What it is sent before waits for it. A spawner
+        /// that gives it a while to answer counts from here, not from its
+        /// constructor, since loading and linking a module takes as long as its
+        /// host takes (on the web, fetching and linking it in a worker).
+        started: async func() -> result<_, string>;
         /// The frames it sent since the last answer, answered once there is
         /// at least one, or why it stopped: it could not start, trapped or
         /// panicked. Once it stopped, every later call fails the same way.

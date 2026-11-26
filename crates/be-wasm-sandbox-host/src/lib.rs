@@ -76,6 +76,19 @@ struct Served {
     app: Option<String>,
     received: Vec<Vec<u8>>,
     next: Option<(OpId, Answer<Frames>)>,
+    /// The guest's `started`, until it started or stopped.
+    started: Option<(OpId, Answer<Result<(), String>>)>,
+}
+
+impl Served {
+    /// What its `started` is answered now: once it started, or why it could not.
+    fn started(&self) -> Option<Result<(), String>> {
+        match &self.instance {
+            Ok(instance) if instance.started() => Some(Ok(())),
+            Ok(_) => None,
+            Err(failure) => Some(Err(failure.clone())),
+        }
+    }
 }
 
 impl Server {
@@ -252,6 +265,7 @@ impl Server {
                         app,
                         received: Vec::new(),
                         next: None,
+                        started: None,
                     },
                 );
             }
@@ -268,6 +282,13 @@ impl Server {
                 }
                 reply.send(connection, &());
             }
+            Call::InstanceStarted { this, reply } => match self.instances.get_mut(&this.op()) {
+                Some(served) => {
+                    let op = reply.op();
+                    served.started = Some((op, Box::new(move |value| reply.answer(value))));
+                }
+                None => reply.fail(connection, OpError::Canceled),
+            },
             Call::InstanceNext { this, reply } => match self.instances.get_mut(&this.op()) {
                 Some(served) => {
                     let op = reply.op();
@@ -292,6 +313,10 @@ impl Server {
                 let (op, outcome) = next(&Err(why.to_owned()));
                 connection.complete(op, outcome);
             }
+            if let Some((_, started)) = served.started {
+                let (op, outcome) = started(&Err(why.to_owned()));
+                connection.complete(op, outcome);
+            }
         }
     }
 
@@ -312,6 +337,9 @@ impl Server {
             if let Some((next, _)) = served.next {
                 connection.complete(next, Outcome::Err(OpError::Canceled));
             }
+            if let Some((started, _)) = served.started {
+                connection.complete(started, Outcome::Err(OpError::Canceled));
+            }
             connection.complete(op, Outcome::returned(&()));
             return true;
         }
@@ -322,6 +350,15 @@ impl Server {
                 .is_some_and(|(waiting, _)| *waiting == op)
             {
                 served.next = None;
+                connection.complete(op, Outcome::Err(OpError::Canceled));
+                return true;
+            }
+            if served
+                .started
+                .as_ref()
+                .is_some_and(|(waiting, _)| *waiting == op)
+            {
+                served.started = None;
                 connection.complete(op, Outcome::Err(OpError::Canceled));
                 return true;
             }
@@ -376,6 +413,14 @@ impl Server {
                     Ok(frames) => served.received.extend(frames),
                     Err(failure) => served.instance = Err(failure),
                 }
+            }
+            if served.started.is_some()
+                && let Some(started) = served.started()
+                && let Some((_, answer)) = served.started.take()
+            {
+                let (op, outcome) = answer(&started);
+                connection.complete(op, outcome);
+                answered = true;
             }
             let answer = match &served.instance {
                 _ if served.next.is_none() => continue,

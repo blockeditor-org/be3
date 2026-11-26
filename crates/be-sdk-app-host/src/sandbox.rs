@@ -48,6 +48,10 @@ impl Stopped {
                 self.instances.insert(resource.op());
             }
             Call::InstanceSend { reply, .. } => reply.send(connection, &()),
+            Call::InstanceStarted { reply, .. } => {
+                let stopped: Result<(), String> = Err(self.why.to_owned());
+                reply.send(connection, &stopped);
+            }
             Call::InstanceNext { reply, .. } => {
                 let stopped: Result<Vec<Vec<u8>>, String> = Err(self.why.to_owned());
                 reply.send(connection, &stopped);

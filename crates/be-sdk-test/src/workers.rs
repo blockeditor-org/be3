@@ -96,6 +96,14 @@ impl Workers {
                 }
                 reply.send(connection, &());
             }
+            // A test's worker starts as it is made, so it is answered at once.
+            Call::InstanceStarted { this, reply } => match self.running.get(&this.op()) {
+                Some(running) => {
+                    let started: Result<(), String> = running.work.as_ref().map(|_| ()).map_err(Clone::clone);
+                    reply.send(connection, &started);
+                }
+                None => reply.fail(connection, OpError::Canceled),
+            },
             Call::InstanceNext { this, reply } => match self.running.get_mut(&this.op()) {
                 Some(running) => {
                     running.next = Some((reply.op(), Box::new(move |value| reply.answer(value))));
