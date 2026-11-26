@@ -361,7 +361,10 @@ nothing but its `Docking`.
 - Each docked editor's own layout is saved by be-sdk-beui
   (`docked/saved.rs`) in this device's `DisplaySettings`, keyed by block type
   and dock, and restored whenever the setting changes, so every open
-  instance follows the last one moved. A dock that does not join is wrapped
+  instance follows the last one moved. A joined dock's root takes a restore
+  frames after it is asked, reporting meanwhile the layout of each
+  declaration it heard: nothing is saved until the root reports every bar
+  the restore placed where it placed it (`landed`). A dock that does not join is wrapped
   in a `DockHost` and kept under the same key (`DockKeeper`), so a bar moved
   in one place shows there everywhere. An editor that saves its own dock
   (be-sdk-shell's `Workspace`) provides `DockKeeper::none()`.
