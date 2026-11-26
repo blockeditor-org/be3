@@ -55,7 +55,8 @@ impl RenderParts {
                 })
             })
             .collect();
-        let targets: Vec<Option<wgpu::ColorTargetState>> = self.descriptor
+        let targets: Vec<Option<wgpu::ColorTargetState>> = self
+            .descriptor
             .fragment
             .as_ref()
             .map(|fragment| {
@@ -87,11 +88,14 @@ impl RenderParts {
             cull_mode: None,
             unclipped_depth: None,
         });
-        let multisample = self.descriptor.multisample.unwrap_or(web::GpuMultisampleState {
-            count: None,
-            mask: None,
-            alpha_to_coverage_enabled: None,
-        });
+        let multisample = self
+            .descriptor
+            .multisample
+            .unwrap_or(web::GpuMultisampleState {
+                count: None,
+                mask: None,
+                alpha_to_coverage_enabled: None,
+            });
         let vertex_constants: Vec<(&str, f64)> = self
             .vertex_constants
             .iter()
@@ -131,7 +135,8 @@ impl RenderParts {
                 polygon_mode: wgpu::PolygonMode::Fill,
                 conservative: false,
             },
-            depth_stencil: self.descriptor
+            depth_stencil: self
+                .descriptor
                 .depth_stencil
                 .map(|state| wgpu::DepthStencilState {
                     format: state.format.convert(),
@@ -154,18 +159,22 @@ impl RenderParts {
                 mask: u64::from(multisample.mask.unwrap_or(u32::MAX)),
                 alpha_to_coverage_enabled: multisample.alpha_to_coverage_enabled.unwrap_or(false),
             },
-            fragment: self.fragment_module.as_ref().map(|module| wgpu::FragmentState {
-                module,
-                entry_point: self.descriptor
-                    .fragment
-                    .as_ref()
-                    .and_then(|fragment| fragment.entry_point.as_deref()),
-                compilation_options: wgpu::PipelineCompilationOptions {
-                    constants: &fragment_constants,
-                    ..Default::default()
-                },
-                targets: &targets,
-            }),
+            fragment: self
+                .fragment_module
+                .as_ref()
+                .map(|module| wgpu::FragmentState {
+                    module,
+                    entry_point: self
+                        .descriptor
+                        .fragment
+                        .as_ref()
+                        .and_then(|fragment| fragment.entry_point.as_deref()),
+                    compilation_options: wgpu::PipelineCompilationOptions {
+                        constants: &fragment_constants,
+                        ..Default::default()
+                    },
+                    targets: &targets,
+                }),
             multiview_mask: None,
             cache: None,
         };
@@ -191,17 +200,19 @@ impl ComputeParts {
             .iter()
             .map(|(key, value)| (key.as_str(), *value))
             .collect();
-        Ok(device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: self.descriptor.label.as_deref(),
-            layout: self.layout.as_ref(),
-            module: &self.module,
-            entry_point: self.descriptor.compute.entry_point.as_deref(),
-            compilation_options: wgpu::PipelineCompilationOptions {
-                constants: &constants,
-                ..Default::default()
-            },
-            cache: None,
-        }))
+        Ok(
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: self.descriptor.label.as_deref(),
+                layout: self.layout.as_ref(),
+                module: &self.module,
+                entry_point: self.descriptor.compute.entry_point.as_deref(),
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &constants,
+                    ..Default::default()
+                },
+                cache: None,
+            }),
+        )
     }
 }
 
@@ -280,7 +291,8 @@ impl Workers {
         if self.queue.is_none() {
             let (queue, tasks) = mpsc::channel::<Task>();
             let tasks = Arc::new(std::sync::Mutex::new(tasks));
-            let count = std::thread::available_parallelism().map_or(1, |count| count.get().min(WORKERS));
+            let count =
+                std::thread::available_parallelism().map_or(1, |count| count.get().min(WORKERS));
             let started = (0..count)
                 .filter(|_| {
                     let tasks = Arc::clone(&tasks);
@@ -330,9 +342,18 @@ impl Job {
 
     fn made_in_scopes(self, device: &wgpu::Device) -> Answer {
         let filters = [
-            (wgpu::ErrorFilter::Validation, web::GpuPipelineErrorReason::Validation),
-            (wgpu::ErrorFilter::OutOfMemory, web::GpuPipelineErrorReason::Internal),
-            (wgpu::ErrorFilter::Internal, web::GpuPipelineErrorReason::Internal),
+            (
+                wgpu::ErrorFilter::Validation,
+                web::GpuPipelineErrorReason::Validation,
+            ),
+            (
+                wgpu::ErrorFilter::OutOfMemory,
+                web::GpuPipelineErrorReason::Internal,
+            ),
+            (
+                wgpu::ErrorFilter::Internal,
+                web::GpuPipelineErrorReason::Internal,
+            ),
         ];
         let scopes: Vec<(wgpu::ErrorScopeGuard, web::GpuPipelineErrorReason)> = filters
             .into_iter()
@@ -470,7 +491,12 @@ impl Gpu {
             }
             Ok(Made::Compute(pipeline)) => {
                 let handle = self.compute_pipelines.insert(pipeline);
-                self.own(Kind::ComputePipeline, handle, Some(device), label.as_deref());
+                self.own(
+                    Kind::ComputePipeline,
+                    handle,
+                    Some(device),
+                    label.as_deref(),
+                );
                 Ok(handle)
             }
         };

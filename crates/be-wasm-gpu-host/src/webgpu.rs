@@ -277,7 +277,8 @@ impl Web {
                 .compiling
                 .iter()
                 .any(|(_, promise)| promise.ticket() == ticket)
-            || self.pipelines
+            || self
+                .pipelines
                 .making
                 .iter()
                 .any(|making| making.ticket == ticket)
