@@ -20,6 +20,8 @@ mod a_dialog_in_a_view_anchored_to_an_edge_opens_as_a_sheet;
 mod a_joined_docks_body_is_its_owners_dock_view_framed_where_it_holds_the_content;
 mod a_keyboard_ask_for_a_child_not_up_takes_the_keyboard_out_and_gives_it_once_up;
 mod a_keyboard_ask_for_a_host_panel_moves_the_keyboard_into_the_surface_drawing_it;
+mod a_keyboard_ask_for_a_host_panel_waits_in_its_placers_layer_until_it_is_drawn;
+mod a_keyboard_ask_for_a_host_panel_withdrawn_before_it_is_drawn_ends;
 mod a_keyboard_ask_never_takes_the_keyboard_from_outside_its_editor;
 mod a_new_keyboard_ask_moves_the_keyboard_into_a_child_that_shows;
 mod a_placer_is_hit_everywhere_but_where_its_children_that_take_input_are;
@@ -124,4 +126,33 @@ fn keyboard(
 
 fn rect(min: (f32, f32), max: (f32, f32)) -> Rect {
     Rect::from_min_max(pos2(min.0, min.1), pos2(max.0, max.1))
+}
+
+/// A host panel editor 1 placed as child 9, which the root draws in its own surface, shown in
+/// the layer 300 once `shown`.
+fn panel(shown: bool) -> (PanelPlace, ChildPlacement, Option<Layer>) {
+    let mut placement = placed(rect((0.0, 0.0), (100.0, 100.0)), ChildMode::Live);
+    placement.child = ChildId(9);
+    placement.content = ChildContent::Host(be_sdk_api::HostPanel::Performance);
+    let place = PanelPlace {
+        editor: EditorInstanceId(1),
+        view: ViewId::MAIN,
+        child: ChildId(9),
+        panel: be_sdk_api::HostPanel::Performance,
+        size: be_lib_geometry::vec2(100.0, 100.0),
+        raster: 1.0,
+        sheet: false,
+    };
+    let layer = be_lib_layers::Layer {
+        id: LayerId(300),
+        surface: be_lib_layers::Surface::Root(1),
+        size: (100, 100),
+        transform: be_lib_layers::Affine::IDENTITY,
+        clip: rect((0.0, 0.0), (100.0, 100.0)),
+        corner_radius: 0.0,
+        opacity: 1.0,
+        shown: true,
+        input: be_lib_layers::LayerInput::default(),
+    };
+    (place, placement, shown.then_some(layer))
 }

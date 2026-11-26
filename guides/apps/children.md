@@ -66,10 +66,9 @@ The keyboard follows the same rules as under be-host (Focus, below): the root
 reads each editor's `keyboard-ask` from the placements it settles and, once the
 frame's layers are drawn, moves the keyboard into the child's layer, or out of
 the placer's screen until the child shows (`Children::keyboard`), while
-nothing outside the editor took it meanwhile. A host panel the root draws takes
-it in the layer of the root's own surface drawing it, once drawn, and its placer
-hears `child-focused` for it as for any child. Placers hear
-`child-focused` through `be3:root`'s `host.tell-placer`, and a press outside an
+nothing outside the editor took it meanwhile; a host panel the root draws
+takes it in the layer of the root's own surface drawing it, once drawn. Placers
+hear `child-focused` through `be3:root`'s `host.tell-placer`, and a press outside an
 active child takes it back (`Children::revoke`); an Escape the child leaves to
 its placer does not, so the keyboard stays where it is.
 
@@ -275,11 +274,10 @@ the placement carries the editor's next `keyboard-ask` serial (be-sdk-beui's
 `Subregion` in a dock tab adds one each time the dock gives that tab the
 keyboard or brings its window forward, while it shows a child that takes input
 (an active or live block, a dock tab's body, a program window, a host panel) and
-no popover or keyboard-taking layer of the editor's is open. Under be-host,
-which draws a host panel in its own document, an ask for one ends at once and
-leaves the keyboard where it is (`asks_end_at_drawn_child`). An editor that makes a block to type into ("Add
-notes") places its child with a count of one once it places it; a program tab
-counts its window's raises and calls for attention.
+no popover or keyboard-taking layer of the editor's is open. An editor that
+makes a block to type into ("Add notes") places its child with a count of one
+once it places it; a program tab counts its window's raises and calls for
+attention.
 
 The host acts on the layout commit that carries a serial above every one it
 acted on for the editor (be-host-runtime's `Instances::hear_keyboard_asks`,
@@ -369,7 +367,11 @@ nothing but its `Docking`.
 
 The host's debugging panels (`HostPanel`) are drawn by the host (under a
 root, by the root; see Under a root) but placed by the workspace as dock
-windows holding `SubregionContent::Host(panel)`.
+windows holding `SubregionContent::Host(panel)`. A host panel takes the
+keyboard as any child that takes input does, from its placer's ask or a press,
+and its placer hears `child-focused` for it: be-host focuses the panel in its
+own document (`drawn_child_takes_asked_keyboard`), and a root moves the keyboard
+into the surface it draws the panel in.
 
 Program windows are placed the same way. On Linux the host is a Wayland
 compositor (guides/desktop/wayland.md); `editor.watch::<WindowsWatch>()` lists

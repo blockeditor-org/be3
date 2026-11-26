@@ -16,6 +16,10 @@ use beui::reactive::*;
 
 type Key = (String, EditorInstanceId);
 
+/// The view a child be-host draws itself in its own document (a host panel) is up under, as its
+/// placer's instance's (`viewed`): no app's view has it, so `acts` never takes it for one.
+pub(crate) const DRAWN_BY_HOST: ViewId = ViewId(u64::MAX);
+
 thread_local! {
     static ASKED: RefCell<HashMap<Key, ChildId>> = RefCell::new(HashMap::new());
     /// The views up of the children each instance placed: the child, its instance and the view.
