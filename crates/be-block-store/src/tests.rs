@@ -7,12 +7,14 @@ use uuid::Uuid;
 
 use super::*;
 
+mod a_collection_passes_over_what_was_claimed_or_pinned_while_it_walked;
 mod a_collection_removes_nothing_while_another_owners_access_is_under_way;
 mod a_different_key_produces_different_objects;
 mod a_file_store_persists_objects_across_reopening;
 mod a_first_part_loads_without_the_rest;
 mod a_keyring_opens_by_the_id_sealed_bytes_carry;
 mod a_manifest_round_trips_through_the_vault;
+mod a_part_put_by_another_owner_between_the_look_and_the_note_is_not_collected;
 mod a_part_kept_across_a_rotation_is_resealed_under_the_new_key;
 mod a_part_reused_from_the_loaded_head_is_not_sealed_again;
 mod a_part_written_in_pieces_seals_as_a_whole_write_does;
@@ -55,6 +57,40 @@ fn pseudorandom(length: usize, seed: u64) -> Vec<u8> {
             u8::try_from((state >> 33) & 0xff).unwrap()
         })
         .collect()
+}
+
+/// A store whose `has` runs `during` in the middle of the call, after it found the object and
+/// before its vault claims it.
+#[derive(Clone)]
+struct Interrupting {
+    inner: MemoryStore,
+    during: Arc<Mutex<Option<Box<dyn Fn() + Send + Sync>>>>,
+}
+
+impl ObjectStore for Interrupting {
+    fn put(&self, bytes: &[u8]) -> Result<Hash, StoreError> {
+        self.inner.put(bytes)
+    }
+
+    fn get(&self, hash: Hash) -> Result<Option<Vec<u8>>, StoreError> {
+        self.inner.get(hash)
+    }
+
+    fn has(&self, hash: Hash) -> Result<bool, StoreError> {
+        let has = self.inner.has(hash)?;
+        if let Some(during) = &*self.during.lock().unwrap() {
+            during();
+        }
+        Ok(has)
+    }
+
+    fn remove(&self, hash: Hash) -> Result<(), StoreError> {
+        self.inner.remove(hash)
+    }
+
+    fn identity(&self) -> Option<Vec<u8>> {
+        self.inner.identity()
+    }
 }
 
 #[derive(Clone, Default)]
