@@ -8,7 +8,7 @@ use be_sdk_api::{ChildId, DockTabPath};
 use beui::NodeId;
 use beui::dock::SplitSize;
 use beui::dock::{
-    DockAlign, DockBarControl, DockBarPane, DockBarMove, DockBarPlacement, DockBodies, DockCompact,
+    DockAlign, DockBarControl, DockBarMove, DockBarPane, DockBarPlacement, DockBodies, DockCompact,
     DockDeclaration, DockDeclaredBar, DockDeclaredDialog, DockDeclaredGroup, DockDeclaredTab,
     DockDragStage, DockEdge, DockHostEvent, DockHostLink, DockHostSlot, DockHosted, DockMapping,
     DockMode, DockOutside, DockOutsidePlace, DockRequest, DockSpec, DockSpecBar, DockSpecEntry,
@@ -1437,11 +1437,7 @@ impl SavedBarPlace {
     }
 
     fn apply(&self, spec: &mut DockSpec) {
-        let Some(bar) = spec
-            .bars
-            .iter_mut()
-            .find(|bar| bar.bar.value() == self.bar)
-        else {
+        let Some(bar) = spec.bars.iter_mut().find(|bar| bar.bar.value() == self.bar) else {
             return;
         };
         if !self.via.is_empty() {

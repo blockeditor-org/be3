@@ -4,8 +4,8 @@ use be_lib_geometry::Direction;
 use be_lib_geometry::{Pos2, Rect};
 
 use super::{
-    Bar, DockBarPane, DockBarPlacement, DockCompact, DockEdge, DockHome, DockOutside, DockState, Entry,
-    FLOATING_SIZE, Group, GroupId, Home, Leaf, LeafId, MIN_SIDEBAR_WIDTH, Node, Side, Split,
+    Bar, DockBarPane, DockBarPlacement, DockCompact, DockEdge, DockHome, DockOutside, DockState,
+    Entry, FLOATING_SIZE, Group, GroupId, Home, Leaf, LeafId, MIN_SIDEBAR_WIDTH, Node, Side, Split,
     SplitId, SplitSize, Surface, SurfaceId, TabId, Tree,
 };
 

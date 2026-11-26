@@ -4,9 +4,9 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 use beui_dock_state::{
-    DockBarPane, DockBarPlacement, DockEdge, DockMode, DockSpec, DockSpecBar, DockSpecEntry, DockSpecNode,
-    DockSpecPane, DockSpecWindow, DockState, SIDE_PANEL_WIDTH, SplitSize, TabId, joined_host,
-    joined_key, joined_prefix,
+    DockBarPane, DockBarPlacement, DockEdge, DockMode, DockSpec, DockSpecBar, DockSpecEntry,
+    DockSpecNode, DockSpecPane, DockSpecWindow, DockState, SIDE_PANEL_WIDTH, SplitSize, TabId,
+    joined_host, joined_key, joined_prefix,
 };
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;

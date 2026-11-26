@@ -92,7 +92,9 @@ impl Pacing {
     }
 
     fn due(&self, seen: bool, now: Duration, pass: u64) -> bool {
-        (self.needed || (seen && self.unseen) || (self.animated != pass && self.asked_by(now, pass)))
+        (self.needed
+            || (seen && self.unseen)
+            || (self.animated != pass && self.asked_by(now, pass)))
             && self
                 .requested_at
                 .is_none_or(|at| now.saturating_sub(at) >= FRAME_TIMEOUT)

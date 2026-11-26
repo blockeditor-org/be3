@@ -413,8 +413,12 @@ impl DockState {
     fn number_bar_slots(&mut self) {
         let shown: Vec<Option<TabId>> = self.bars.iter().map(|held| self.slot_pane(held)).collect();
         for (at, held) in self.bars.iter_mut().enumerate() {
-            held.slot = shown[at]
-                .map(|tab| shown[..at].iter().filter(|other| **other == Some(tab)).count());
+            held.slot = shown[at].map(|tab| {
+                shown[..at]
+                    .iter()
+                    .filter(|other| **other == Some(tab))
+                    .count()
+            });
         }
     }
 
@@ -425,8 +429,7 @@ impl DockState {
             return self.bar_pane(held).map(|(tab, _)| tab);
         }
         let pane = held.pane.as_ref()?.resolved()?;
-        self.leaf_pane(self.find(pane)?.leaf, 0)
-            .map(|(tab, _)| tab)
+        self.leaf_pane(self.find(pane)?.leaf, 0).map(|(tab, _)| tab)
     }
 
     /// Puts a bar that came with a saved slot among its pane's bars by slot: before the first

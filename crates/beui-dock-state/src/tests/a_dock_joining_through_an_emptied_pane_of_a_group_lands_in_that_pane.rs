@@ -74,7 +74,7 @@ fn a_dock_joining_through_an_emptied_pane_of_a_group_lands_in_that_pane() {
             placement: DockBarPlacement::Beside(DockEdge::Top, DockAlign::Center),
             hidden: false,
             pane: None,
-        slot: None,
+            slot: None,
         },
         DockSpecBar {
             bar: TabId::new(21),
@@ -82,7 +82,7 @@ fn a_dock_joining_through_an_emptied_pane_of_a_group_lands_in_that_pane() {
             placement: DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center),
             hidden: false,
             pane: None,
-        slot: None,
+            slot: None,
         },
     ];
     state.reconcile(&joining);

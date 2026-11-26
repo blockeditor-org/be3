@@ -3,8 +3,8 @@ use be_lib_stable_hash::{HashMap, HashSet};
 use be_lib_geometry::Rect;
 
 use super::{
-    Bar, DockBarPane, DockCompact, DockHome, DockSpecNode, DockState, DockVisit, Entry, Group, GroupId, Home,
-    LeafId, Node, Split, SplitId, TabId, Tree,
+    Bar, DockBarPane, DockCompact, DockHome, DockSpecNode, DockState, DockVisit, Entry, Group,
+    GroupId, Home, LeafId, Node, Split, SplitId, TabId, Tree,
 };
 
 const JOINED: &str = "joined:";

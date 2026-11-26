@@ -3,8 +3,8 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use beui_dock_state::{
-    DockBarPane, DockBarPlacement, DockMapping, DockMode, DockSpec, DockSpecNode, DockState, TabId, joined_host,
-    joined_key, joined_prefix,
+    DockBarPane, DockBarPlacement, DockMapping, DockMode, DockSpec, DockSpecNode, DockState, TabId,
+    joined_host, joined_key, joined_prefix,
 };
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;

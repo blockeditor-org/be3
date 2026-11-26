@@ -759,8 +759,8 @@ mod autoscrolling_slowly_away_from_the_end_of_a_following_scroll_leaves_it;
 mod back_and_a_press_outside_close_the_emoji_menu_and_back_the_find_bar;
 mod backspace_deletes_the_character_before_the_caret;
 mod bars_docked_along_one_edge_share_its_band_side_by_side;
-mod bars_on_a_deeper_layers_pane_come_back_there_in_the_order_dropped;
 mod bars_of_one_key_from_two_docked_tabs_share_one_window_that_follows_the_tab_shown_last;
+mod bars_on_a_deeper_layers_pane_come_back_there_in_the_order_dropped;
 mod beuis_keyboard_is_used_only_where_the_platform_has_none_of_its_own;
 mod breaking_anywhere_wraps_monospace_text_every_column;
 mod changing_a_filter_damages_only_the_region_it_covers;
@@ -3669,7 +3669,9 @@ pub(crate) fn grip_of(harness: &Harness, name: &str) -> Pos2 {
 
 /// The middle layer's bar as the outer dock holds it (the one bar that may show on three
 /// panes): the tab naming the pane it shows on, and its placement.
-pub(crate) fn middle_bar(outer: &dock::DockingLayout<u64>) -> (Option<dock::TabId>, Option<dock::DockBarPlacement>) {
+pub(crate) fn middle_bar(
+    outer: &dock::DockingLayout<u64>,
+) -> (Option<dock::TabId>, Option<dock::DockBarPlacement>) {
     let state = outer.state().get_untracked();
     let bar = state
         .bars()

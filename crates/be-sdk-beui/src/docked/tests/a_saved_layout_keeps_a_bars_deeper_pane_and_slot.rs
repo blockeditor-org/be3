@@ -59,6 +59,9 @@ fn a_saved_layout_keeps_a_bars_deeper_pane_and_slot() {
             .find(|restored| restored.bar == bar)
             .map(|restored| (restored.pane.clone(), restored.slot))
     };
-    assert_eq!(restored(deeper.bar), Some((deeper.pane.clone(), deeper.slot)));
+    assert_eq!(
+        restored(deeper.bar),
+        Some((deeper.pane.clone(), deeper.slot))
+    );
     assert_eq!(restored(own.bar), Some((own.pane.clone(), own.slot)));
 }
