@@ -304,8 +304,17 @@ key as the bytes end it, so neither side holds the whole part. `finish` seals
 the rest, has the server hold the part for the block (`Peer::hold_part`:
 `hold-objects` with `hold.until-committed`) and answers the `part-ref` once
 the upload is done; a write that failed fails `finish`, and a writer dropped
-before `finish` lets go of the writer; the chunks it sealed stay
-(plans/streamed_part_writes.md). A writer may hold at most `UNSEALED_WRITES`
+before `finish` lets go of the writer. What a writer sealed is pinned until
+`finish` has the server hold it; after that, or once dropped, it is left to the
+vault's collection (guides/blocks/client.md, "Unnamed parts"), which removes it
+here unless something on the device names it: a commit reusing it later fetches
+what it lacks. A writer takes its block's sealing key once, as it starts, so a
+key that rotates mid-write seals the whole part under the old key, as a whole
+put begun just before the rotation would; a commit that reuses it seals it again
+under its own key (`Peer::write_content_under` fetches and rewrites a stale
+part), and until one does, the part is readable with the old key, which a member
+the rotation removed still holds. Nothing handles that yet: a module's writes are
+short-lived and the server's access checks stand. A writer may hold at most `UNSEALED_WRITES`
 (8 MiB) unsealed in the host: a write past it, made before earlier ones were
 answered, is refused and the writer let go of. Only then does it send the operation, with that ref
 (a `be_block_content::PartRef`) in its own payload. The hold ends when a commit of the

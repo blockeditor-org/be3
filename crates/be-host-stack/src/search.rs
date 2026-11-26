@@ -36,7 +36,7 @@ use be_block_commit::CommitId;
 use be_block_content::{BlockContent, BlockMetadata, SEARCH_INDEX, be_block_model::BlockRef};
 use be_block_graph::{Access, BlockParent, EDIT_KINDS, SEARCH_INDEX_TYPE, SETTINGS_TYPE};
 use be_block_search_index::{AsyncRead, MERGE_BYTES, SavedParts, SearchIndexContent};
-use be_block_store::{ObjectStore, PartRef, PartWriter, Vault};
+use be_block_store::{ObjectStore, PartRef, PartWriter, Vault, Written};
 use be_lib_search::{Batch, DocId, Put, Query, Text};
 use std::sync::Mutex;
 use uuid::Uuid;
@@ -271,6 +271,9 @@ pub struct Searching {
     /// How many idle passes wrote a commit.
     #[cfg(test)]
     pub(crate) idle_compactions: u64,
+    /// How many objects idle collections removed (`collect_unnamed`).
+    #[cfg(test)]
+    pub(crate) collected: usize,
     /// The watermark each index was last settled at here, for a test to see it move.
     #[cfg(test)]
     pub(crate) settled_at: HashMap<Uuid, u64>,
@@ -1114,21 +1117,22 @@ pub(crate) async fn step(
 /// commit is a write too, so the next idle round makes the next merge.
 fn compact_idle_indexes(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-    #[cfg(test)]
-    if held.search.hold_idle {
-        return;
-    }
-    let rest = crate::rest();
-    let idle = !held.search.off
-        && rest.away
-        && rest.on_power
-        && held.waiting == 0
+    let quiet = held.waiting == 0
         && held.pending() == 0
         && held.typing.is_empty()
         && !held.arriving
         && !held.draining
         && held.search.busy_with(wants_index(&held)).is_none();
-    if !idle {
+    if !quiet {
+        return;
+    }
+    collect_unnamed(peer, &mut held);
+    #[cfg(test)]
+    if held.search.hold_idle {
+        return;
+    }
+    let rest = crate::rest();
+    if held.search.off || !rest.away || !rest.on_power {
         return;
     }
     // An index another device wrote since, or that a merge moved, is no longer this device's
@@ -1188,6 +1192,24 @@ fn compact_idle_indexes(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, ta
         drop(held);
         crate::changes::wake();
     });
+}
+
+/// While the host is quiet as `compact_idle_indexes` needs it (nothing written, sealed, sent,
+/// read for search or waiting, no module working), removes what part writers sealed that nothing
+/// names (`Peer::collect_unnamed`): a compaction let go of, a module's writer dropped. It runs in
+/// the loop, holding no await, and only while something is noted.
+fn collect_unnamed(peer: &Peer<Store>, held: &mut Shared) {
+    if peer.commits().vault().unnamed_count() == 0 {
+        return;
+    }
+    match peer.collect_unnamed() {
+        #[cfg(test)]
+        Ok(removed) => held.search.collected += removed,
+        #[cfg(not(test))]
+        Ok(_) => {}
+        Err(error) => eprintln!("be-host: collecting unnamed parts failed: {error}"),
+    }
+    let _ = held;
 }
 
 async fn index(
@@ -2540,6 +2562,45 @@ pub(crate) async fn found_on_server<S: ObjectStore>(
     (found, content.index().segment_count())
 }
 
+/// Compacts `index` at its newest head with merges of any size, sealing the merged parts as
+/// `compact_past` does, then lets the compaction go before any commit names them, as one whose
+/// head moved is. Answers the objects the merge sealed.
+#[cfg(test)]
+pub(crate) async fn compact_and_let_go<S: ObjectStore>(
+    peer: &Peer<S>,
+    index: Uuid,
+) -> Vec<be_block_store::Hash> {
+    let head = head_of(peer, index).await.expect("the index has a head");
+    let mut content = load(peer, index, head).await.expect("the index loads");
+    let before = content.index().parts();
+    let key = peer.sealing_key(index).await.expect("the index has a key");
+    let out = Saving::new(peer.commits().vault(), key);
+    content
+        .compact(
+            &PeerParts(peer),
+            &out,
+            Uuid::new_v4().into_bytes(),
+            be_block_commit::now_milliseconds(),
+            u64::MAX,
+        )
+        .await
+        .expect("the merge reads and writes its parts");
+    assert_ne!(content.index().parts(), before, "the compaction merged segments");
+    let saved: Vec<PartRef> = out
+        .saved
+        .borrow()
+        .values()
+        .filter_map(Written::part)
+        .collect();
+    let objects = peer.part_objects(&saved).expect("the merged parts are held");
+    // Pinned until `out` goes, so no collection has run on them yet.
+    let store = peer.commits().vault().store();
+    for object in &objects {
+        assert!(store.has(*object).unwrap(), "the merge sealed {object}");
+    }
+    objects
+}
+
 /// How many segments `index` has at its newest head.
 #[cfg(test)]
 pub(crate) async fn segment_count<S: ObjectStore>(peer: &Peer<S>, index: Uuid) -> usize {
@@ -2762,14 +2823,16 @@ async fn write_at<S: ObjectStore>(
 /// Where a compaction writes its merged segments' parts (`SavedParts`): each sealed a chunk at a
 /// time as it is written (`Vault::part_writer`) under the index block's key.
 ///
-/// A part it seals stays in the vault even when the commit that would name it is never made (a
-/// compaction let go of, or a seal that failed): plans/streamed_part_writes.md, "Unnamed parts".
+/// What it seals stays pinned while it lives (`Written`), so keep it until the commit that names
+/// the parts is sealed into the outbox. When that commit is never made (a compaction let go of,
+/// a seal that failed, the host stopping), the vault's collection removes them
+/// (`Peer::collect_unnamed`).
 struct Saving<'a, S> {
     vault: &'a Vault<S>,
     key: Uuid,
     // Neither is borrowed across an await: `PartsOut` is synchronous.
     writing: std::cell::RefCell<HashMap<be_lib_search::PartName, PartWriter<'a, S>>>,
-    saved: std::cell::RefCell<HashMap<be_lib_search::PartName, Option<PartRef>>>,
+    saved: std::cell::RefCell<HashMap<be_lib_search::PartName, Written<'a, S>>>,
 }
 
 impl<'a, S: ObjectStore> Saving<'a, S> {
@@ -2801,10 +2864,11 @@ impl<S: ObjectStore> be_lib_search::PartsOut for Saving<'_, S> {
     }
 
     fn finish(&self, part: &be_lib_search::PartName) -> Result<(), be_lib_search::Error> {
-        let saved = match self.writing.borrow_mut().remove(part) {
-            Some(writer) => writer.finish().map_err(unsaved)?,
-            None => None,
+        let writer = match self.writing.borrow_mut().remove(part) {
+            Some(writer) => writer,
+            None => self.vault.part_writer(self.key).map_err(unsaved)?,
         };
+        let saved = writer.finish().map_err(unsaved)?;
         self.saved.borrow_mut().insert(*part, saved);
         Ok(())
     }
@@ -2822,7 +2886,7 @@ impl<S: ObjectStore> SavedParts for Saving<'_, S> {
         self.saved
             .borrow()
             .get(part)
-            .copied()
+            .map(Written::part)
             .ok_or_else(|| be_lib_search::Error::Write(format!("no part {part:?} was saved")))
     }
 }

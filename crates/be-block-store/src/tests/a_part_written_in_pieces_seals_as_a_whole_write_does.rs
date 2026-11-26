@@ -17,7 +17,7 @@ fn a_part_written_in_pieces_seals_as_a_whole_write_does() {
             most <= ChunkerConfig::SMALL.maximum,
             "pieces of {piece} held {most} bytes"
         );
-        assert_eq!(writer.finish().unwrap(), whole, "pieces of {piece}");
+        assert_eq!(writer.finish().unwrap().part(), whole, "pieces of {piece}");
     }
 
     let mut cut = Vec::new();
@@ -41,7 +41,7 @@ fn a_part_written_in_pieces_seals_as_a_whole_write_does() {
         .unwrap();
     assert_eq!(cut, split(&data, ChunkerConfig::SMALL));
 
-    assert_eq!(vault.part_writer(id(1)).unwrap().finish().unwrap(), None);
+    assert_eq!(vault.part_writer(id(1)).unwrap().finish().unwrap().part(), None);
     assert!(matches!(
         vault.part_writer(id(9)),
         Err(StoreError::MissingKey(_))

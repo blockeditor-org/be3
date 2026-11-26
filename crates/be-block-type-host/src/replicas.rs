@@ -433,8 +433,8 @@ impl Answering {
 /// the host holds at most a chunk of it, and at `finish` has the server hold the part for the
 /// block (`Peer::hold_part`). A write that fails is answered all the same, and `finish` answers
 /// its failure. The feed ending first (the writer dropped, its replica or module gone) lets go
-/// of the writer; the chunks it sealed stay in the vault, which nothing collects yet
-/// (plans/streamed_part_writes.md). `answer` sends each answer to the module, and `locked` says
+/// of the writer; the chunks it sealed are left to the vault's collection
+/// (`Peer::collect_unnamed`). `answer` sends each answer to the module, and `locked` says
 /// the block was found locked, as of the `Peer::arrivals` the writer started at. `unsealed`
 /// counts down the bytes of each write once it is sealed.
 #[allow(clippy::too_many_arguments)]
@@ -467,8 +467,10 @@ pub(crate) async fn write_part<S: be_block_store::ObjectStore>(
                 answer(Answered::Wrote(reply));
             }
             Feed::Finish(reply) => {
+                // Pinned from collection until the server holds it.
                 let put = async {
-                    let part = writing?.finish()?.ok_or_else(|| {
+                    let written = writing?.finish()?;
+                    let part = written.part().ok_or_else(|| {
                         ClientError::Encoding("a part needs at least one byte".to_owned())
                     })?;
                     peer.hold_part(block, part).await?;

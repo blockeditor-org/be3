@@ -84,10 +84,13 @@ pub(crate) enum Table {
     /// What each kept access log holds at each of its places (`KeptLog`, `kept_logs`), by block
     /// and place: an append writes only the places it adds.
     LogPlace,
+    /// The objects this device's part writers sealed that nothing named yet, by hash, each
+    /// with the block whose key sealed it (`be_block_store::Ledger`, `Vault::collect`).
+    Unnamed,
 }
 
 impl Table {
-    pub const ALL: [Self; 33] = [
+    pub const ALL: [Self; 34] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -121,6 +124,7 @@ impl Table {
         Self::Replaced,
         Self::ListingEntry,
         Self::LogPlace,
+        Self::Unnamed,
     ];
 
     pub fn code(self) -> u8 {
@@ -158,6 +162,7 @@ impl Table {
             Self::Replaced => 31,
             Self::ListingEntry => 32,
             Self::LogPlace => 33,
+            Self::Unnamed => 34,
         }
     }
 
@@ -541,6 +546,8 @@ struct State {
     /// The distinct objects each of a local account's blocks holds, which its `size` counts
     /// (`grow`).
     objects: HashMap<Uuid, HashSet<Hash>>,
+    /// What this device's part writers sealed that nothing named yet (`Table::Unnamed`).
+    unnamed: HashMap<Hash, Uuid>,
     open_edits: HashMap<Uuid, OpenEdits>,
     set_aside: HashMap<Uuid, Vec<SetAside>>,
     /// Blocks whose local edits were discarded with their unsent edits (`discard_unsent`):
@@ -900,6 +907,10 @@ impl State {
             Table::LetGo => {
                 self.let_go.insert(uuid_key(&row.key)?, decode(value)?);
             }
+            Table::Unnamed => {
+                let object: [u8; 32] = row.key.as_slice().try_into().map_err(|_| StoreError::Corrupt)?;
+                self.unnamed.insert(Hash::from_bytes(object), decode(value)?);
+            }
             Table::LogRedactions => {
                 self.log_redactions
                     .insert(uuid_key(&row.key)?, decode(value)?);
@@ -990,6 +1001,20 @@ pub(crate) struct Refs {
     backend: Arc<Backend>,
     scope: Scope,
     state: Mutex<State>,
+}
+
+impl be_block_store::Ledger for Refs {
+    fn noted(&self) -> Result<Vec<(Hash, Uuid)>, StoreError> {
+        Ok(self.unnamed())
+    }
+
+    fn note(&self, object: Hash, block: Uuid) -> Result<(), StoreError> {
+        self.note_unnamed(object, block)
+    }
+
+    fn forget(&self, objects: &[Hash]) -> Result<(), StoreError> {
+        self.forget_unnamed(objects)
+    }
 }
 
 impl Refs {
@@ -2298,6 +2323,40 @@ impl Refs {
             key: block.as_bytes().to_vec(),
             value: None,
         }])
+    }
+
+    /// The objects part writers sealed that nothing named yet, kept for `Vault::collect`
+    /// across restarts.
+    pub fn unnamed(&self) -> Vec<(Hash, Uuid)> {
+        let state = self.state.lock().unwrap();
+        state
+            .unnamed
+            .iter()
+            .map(|(object, block)| (*object, *block))
+            .collect()
+    }
+
+    pub fn note_unnamed(&self, object: Hash, block: Uuid) -> Result<(), StoreError> {
+        if self.state.lock().unwrap().unnamed.insert(object, block) == Some(block) {
+            return Ok(());
+        }
+        self.write(vec![row(Table::Unnamed, object.as_bytes().to_vec(), &block)])
+    }
+
+    pub fn forget_unnamed(&self, objects: &[Hash]) -> Result<(), StoreError> {
+        let rows = {
+            let mut state = self.state.lock().unwrap();
+            objects
+                .iter()
+                .filter(|object| state.unnamed.remove(object).is_some())
+                .map(|object| Row {
+                    table: Table::Unnamed,
+                    key: object.as_bytes().to_vec(),
+                    value: None,
+                })
+                .collect()
+        };
+        self.write(rows)
     }
 
     pub fn push(&self, op: Op) -> Result<u64, StoreError> {
