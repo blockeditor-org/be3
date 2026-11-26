@@ -6,32 +6,39 @@ decisions/be3_gpu_is_wasi_webgpu.md: an app's gpu becomes wasi:webgpu 0.3.0-rc.2
 and fetched, never copied into the repository), beside a small `be3:gpu/host` interface for surfaces and shared images, replacing
 `be3:gpu/device` (`crates/be-wasm-gpu-abi/wit/device.wit`). Each step lands on its own.
 
-## 1. The local generator handles what wasi:webgpu uses
+## 1. Guests bind with wit-bindgen; hosts answer the canonical ABI
 
-`crates/be-wasm-ops-bindgen/src/local.rs` refuses async funcs, futures and streams, and
-encodes (postcard) any parameter that is not flat values. wasi:webgpu needs:
+An app's wasi:webgpu calls are the component model's canonical ABI, so an app built against
+wasi:webgpu by anyone's tools is the core module of a component, and runs on our hosts
+unwrapped: natively, its imports are V8 functions (fast-API calls where the flattened signature
+allows); in a browser worker, JS functions in the instance's import object, as the shim's are
+now. No component runtime runs: the hosts lift and lower as the spec says.
 
-- **Async funcs, `future` and `stream` results.** Lower an async func to a call that answers
-  a ticket; a `future<T>` result or a `stream<T>` to a handle. The generator makes one poll
-  import per local interface, `poll(wait: bool)`, which answers every ticket settled and
-  every stream item since the last poll, encoded once per poll rather than per call. Waiting
-  blocks where the host can block (natively) until everything asked for has settled; in a
-  browser it is the same as not waiting. The host wakes the app when anything settles. On the
-  guest these are Rust futures and streams that the poll wakes. This replaces
-  `be3:gpu/device`'s hand-written `poll` and `settled` record.
-- **Options of lists and strings flat**, as the canonical ABI flattens them (a tag, a pointer,
-  a length), so `set-bind-group`'s `option<list<u32>>` and `option<string>` labels cost no
-  encoding.
-- **`result` returns** answering a scalar on success and an error encoded only when there is
-  one (`set-bind-group`, `unmap`, `write-buffer-with-copy`).
-- **A `use` of another package's resources** (`be3:gpu/host` uses wasi:webgpu's
-  `gpu-canvas-context` and `gpu-texture`), with one handle table for both.
-- **Records holding owned resources** (`gpu-canvas-configuration-owned` holds a
-  `gpu-device`), **variants of error records** (`create-pipeline-error` and the like), and
-  resources built by calls (`record-gpu-pipeline-constant-value`,
-  `record-option-gpu-size64`, `gpu-supported-limits`), whichever local.rs lacks.
+claude/gpu-wasi-webgpu-2 built this step first as tickets and one poll in be-wasm-ops-bindgen's
+local generator (`src/local.rs`), and the host of step 2 over it. Step 2's host stays; 1a and
+1b replace how its calls arrive.
 
-Test each in be-wasm-ops-bindgen with a small interface, run natively and on the web.
+- **1a. Synchronous calls.** Guests: upstream `wit-bindgen`, at a pinned version, over the
+  pinned webgpu.wit and `be3:gpu/host`. Hosts: lifting and lowering generated from the same
+  WIT, natively and as the shim's JS, following the canonical ABI exactly: parameters flattened
+  up to its limit and passed in memory past it, results past one value through a return
+  pointer, strings UTF-8 as pointer and length, lists, options, results and variants with its
+  discriminants and alignment, records laid out in memory, resources as owned and borrowed
+  handles in a table per resource type with their `[resource-drop]` imports, and returned lists
+  and strings written through the guest's `cabi_realloc`. Per-draw calls (`draw`,
+  `set-vertex-buffer`, `set-pipeline`, `set-bind-group`) stay flat wasm values with no
+  encoding. Test with a guest built by wit-bindgen that passes every shape the WIT uses, run
+  natively and on the web.
+- **1b. Async.** WASI 0.3's async funcs, `future` and `stream`, as the canonical ABI lowers
+  them: async imports answering subtasks, and the built-ins a guest imports for them (waitable
+  sets, `subtask.drop`, `stream.*` and `future.*`, `task.return`, `context.get`/`set`),
+  implemented by both hosts, enough for wasi:webgpu's async funcs (adapter and device requests,
+  `map-async`, `on-submitted-work-done`, `pop-error-scope`, async pipelines) and its
+  uncaptured-error stream. The guest runs wit-bindgen's async support beside
+  `be_wasm_ops::guest`'s executor, both driven by the guest's step; the host wakes the app when
+  anything settles, as it does for frames. Until 1b lands, the async calls keep the ticket
+  lowering, the one way an app's gpu calls differ from a component's, and be3:gpu/host's
+  surfaces and the sync calls do not wait on it.
 
 ## 2. The host implements wasi:webgpu
 
@@ -69,8 +76,8 @@ the per-app checks. What changes:
   `push-error-scope`, `pop-error-scope` and `on-uncaptured-error` are forwarded to the wgpu
   device the app's calls run on. On the web that is the worker's own device; natively it is
   the shared device, whose scopes in wgpu 30 are per thread, and each app runs on its own
-  thread, so one app's scopes never see another's errors. A pop settles through the poll
-  (on the webgpu backend it resolves later; today's `caught()` in be-wasm-gpu-host's
+  thread, so one app's scopes never see another's errors. A pop settles as an async
+  call does (step 1; on the webgpu backend it resolves later; today's `caught()` in be-wasm-gpu-host's
   `lib.rs` polls the pop once, so there every caught error is lost). The host still wraps
   some calls in a scope of its own, to learn that an object it made is invalid: device
   creates, queue calls, `finish` and pass `end`, never per-draw calls. An error it catches
@@ -80,7 +87,7 @@ the per-app checks. What changes:
   option), whose use is a validation error.
 - Async pipelines compile on a worker thread natively. wgpu 30 has no async pipeline
   creation on any backend, so the shim calls the browser's `createRenderPipelineAsync` and
-  `createComputePipelineAsync` through web-sys. Both settle through the poll.
+  `createComputePipelineAsync` through web-sys. Both settle as async calls do (step 1).
 - `get-compilation-info` counts UTF-16 code units, as WebGPU does.
 - Canvas configuration: the format must be bgra8unorm, rgba8unorm or rgba16float (WebGPU's
   canvas formats); usage and view formats as asked. Alpha mode, color space and tone mapping
@@ -121,7 +128,7 @@ resize against configure.
 
 ## 3a. Apps use wasi:webgpu
 
-- be-wasm-gpu-guest becomes wgpu's custom backend over the wasi:webgpu bindings. What wgpu
+- be-wasm-gpu-guest becomes wgpu's custom backend over the wit-bindgen bindings of step 1. What wgpu
   has no call for (async pipelines, `set-label`, `max-draw-count`, compilation hints,
   several devices from one adapter) stays reachable only by calling the bindings; a
   `be_wasm_gpu_guest` function exposes async pipeline creation until wgpu has it.

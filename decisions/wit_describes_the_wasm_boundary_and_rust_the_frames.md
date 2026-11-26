@@ -7,11 +7,11 @@ Two layers, each described one way:
 - **The boundary** is WIT: what a guest imports and exports as wasm functions. That is
   wasi:webgpu, pinned as published (decisions/be3_gpu_is_wasi_webgpu.md), with `be3:gpu/host`
   beside it, and a small world of our own for sending and receiving frames, waking, panicking
-  and the guest's entry points. be-wasm-ops-bindgen's local generator binds them, answering the
-  canonical ABI as closely as our runtime allows: sync calls as the canonical ABI lays them out,
-  async ones imitated with tickets and a poll until we can do better. So once guests can run as
-  real components (on V8, natively and in the browser), they become components with little
-  change.
+  and the guest's entry points. Guests bind them with upstream wit-bindgen, and hosts answer
+  the component model's canonical ABI, its async built-ins included, natively and in the
+  browser with nothing wrapping the guest. So a guest is already a component's core module,
+  and once guests can run as real components (on V8, natively and in the browser), wrapping
+  it is the change.
 - **What travels in the frames** is Rust: every protocol of our own (apps, type modules, host
   services, the root, the server) is `#[interface]` traits and `#[derive(Schema)]` types in
   be-wasm-schema's encoding, with ids from `schema.lock`. A description of them for readers in

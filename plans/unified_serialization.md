@@ -102,8 +102,8 @@ Nothing uses them yet.
    be-wasm-schema takes their place).
    Decide whether every protocol variant is open. Reading in place (aligned views, as rkyv or
    Cap'n Proto do) stays possible later, since the format is ours; compression wins size back
-   (plans/deferred/compression.md). The GPU is not in this plan: it is wasi:webgpu, bound by
-   the local generator (plans/be3_gpu_is_wasi_webgpu.md, plans/a_component_model_boundary.md).
+   (plans/deferred/compression.md). The GPU is not in this plan: it is wasi:webgpu in the
+   canonical ABI (plans/be3_gpu_is_wasi_webgpu.md, plans/a_component_model_boundary.md).
 5. **The rest.** bincode (be-lib-remap, tabletop) and remaining postcard. JSON for files people
    edit and tools' output stays.
 6. **Transport.** Encode straight into a guest's memory, decode borrowed in the guest, and

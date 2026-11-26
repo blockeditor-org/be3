@@ -20,7 +20,11 @@ The `be3:gpu` interface beside it holds:
 
 `take-error`, `poll`'s hand-written `settled` record and the free functions go: errors are
 wasi:webgpu's error scopes and uncaptured-error stream, and its async funcs, futures and
-streams settle through the one poll our binding generator gives every local interface.
+streams settle as the canonical ABI's async does.
+
+Apps bind it with upstream `wit-bindgen`, and the hosts answer the component model's canonical
+ABI, natively and in the browser, with no component runtime and nothing wrapping the guest
+(plans/be3_gpu_is_wasi_webgpu.md, step 1).
 
 ## Why
 
@@ -33,12 +37,14 @@ streams settle through the one poll our binding generator gives every local inte
   hints, labels on every object, full canvas configuration, and several devices. Hand-keeping
   our own copy current would redo that generator by hand, and fall behind.
 - **It is the standard we would move to.** Its funcs, records and resources are the ones a
-  component-model host would ship, so a later switch changes our binding generation, not
-  apps.
+  component-model host would ship, and an app bound by wit-bindgen in the canonical ABI is a
+  component's core module, so moving to the component model wraps apps rather than rebinding
+  them, and an app built by anyone's tools runs here.
 - **Its shape costs no more per draw.** Per-draw calls (`draw`, `set-vertex-buffer`,
-  `set-pipeline`) take scalars, borrows and options of them, which our `local` generator
-  already passes as flat wasm values. `set-bind-group` takes `option<list<u32>>` and returns
-  a `result`; the generator learns to pass both without encoding (plan step 1). What is
+  `set-pipeline`) take scalars, borrows and options of them, which the canonical ABI passes as
+  flat wasm values, natively as V8 fast-API calls. `set-bind-group`'s `option<list<u32>>`
+  flattens to a tag, a pointer and a length, and its `result` returns through a pointer the
+  error alone fills. What is
   shaped differently (limits and features as resources with a getter each, pipeline
   constants as a resource) runs only when an app starts or creates a pipeline.
 
@@ -51,16 +57,22 @@ streams settle through the one poll our binding generator gives every local inte
   it needs others for toolchains), and the file is not in the repository to grep: an agent
   reads it by building its buck target (plans/be3_gpu_is_wasi_webgpu.md, "Reading the
   pinned WIT").
-- It uses WASI 0.3's `async` funcs, `future` and `stream`, which our runtime (V8, no
-  component model) does not have. Our `local` binding generator lowers them to tickets
-  settled by one generated poll, which is not the canonical ABI's lowering: a binary built
-  against our bindings still runs only on our hosts. The WIT, not the binary, is what is
-  shared.
+- It uses WASI 0.3's `async` funcs, `future` and `stream`, whose canonical ABI needs
+  built-ins (waitable sets, subtasks, streams, futures, `task.return`) that a component runtime
+  provides and V8 does not: both hosts implement them (plan step 1b). Until they do, async
+  calls keep a ticket lowering of our own, so until then an app's binary runs only on our
+  hosts.
+- Lifting and lowering by the canonical ABI is ours to write and keep to the spec, natively
+  and in the shim's JS.
 - It has no `copyExternalImageToTexture` or external textures. Both stay deferred
   (plans/deferred/app_libraries.md, "External textures"), and when they come they belong in
   the `be3:gpu` interface beside it.
 
 ## Rejected
+
+- **Our own lowering** (be-wasm-ops-bindgen's `local` generator: flat values where it could,
+  postcard where it could not, tickets and one poll for async). A binary built against it runs
+  only on our hosts and its bindings are ours to keep; the canonical ABI costs no more per draw.
 
 - **Keeping `be3:gpu/device` and filling its gaps** (the plan this replaces). It would end
   as a hand-written copy of wasi:webgpu with different names, kept current with the spec by

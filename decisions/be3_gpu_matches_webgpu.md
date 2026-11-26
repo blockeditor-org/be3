@@ -8,13 +8,13 @@ could take its place if hosts ship one.
 
 Where the WIT cannot say something the way WebGPU does, it says the same thing another way
 and keeps WebGPU's values: a canvas's `viewFormats` is a list even though a record holding a
-list is passed encoded rather than as flat wasm values.
+list is passed in memory rather than as flat wasm values.
 
 What it has beyond WebGPU is only the host's part of an app's life, in `be3:gpu`'s own
 interface beside wasi:webgpu: the surfaces the host shows (an explicit `present`, as
 wasi:graphics-context had, and `age`), textures the host shares under an image id
-(`import-texture`), and the poll, which our binding generator makes for every local
-interface, through which callbacks reach a wasm app that has no event loop of its own.
+(`import-texture`). Callbacks reach a wasm app, which has no event loop of its own, as the
+canonical ABI's async delivers them (plans/be3_gpu_is_wasi_webgpu.md, step 1b).
 
 External textures and external image copies are deferred until apps get camera access
 (plans/deferred/app_libraries.md, "External textures").
