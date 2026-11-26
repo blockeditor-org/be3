@@ -317,6 +317,10 @@ Traps when changing it:
   which be-sdk calls each step). The guest polls only while a ticket waits:
   `[poll]` reaches the gpu, and a host with none stops a guest that does, so
   an app whose surfaces are not rendered must never poll.
+  `be_wasm_gpu_guest::wait` polls after blocking until something settles.
+- An async pipeline is made natively on a thread of its own
+  (`webgpu/pipelines.rs`), inside error scopes that wgpu keeps per thread,
+  and settles at the first poll after it is made; the shim makes it at once.
 - Device loss is per app: `Device::destroy` drops only the app's view of the
   host's shared device until it requests a device again. Natively be-host
   restarts every app on a replaced device (`replace_gpu`).

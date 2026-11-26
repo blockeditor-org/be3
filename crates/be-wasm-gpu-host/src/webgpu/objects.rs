@@ -6,6 +6,7 @@ use be_wasm_gpu_convert::allowed::Allowed;
 use be_wasm_gpu_convert::{Convert, TryConvert, webgpu as convert};
 use be_wasm_ops::local::{Promise, Sender, Settled};
 
+use super::pipelines::{ComputeParts, Job, RenderParts};
 use super::{Failure, Kind, limits};
 use crate::Gpu;
 use crate::queries::QuerySet;
@@ -261,20 +262,13 @@ impl Gpu {
         }
     }
 
-    pub(super) fn try_render_pipeline(
-        &mut self,
+    /// What a render pipeline is made of, looked up now: the pipeline may be made later, off
+    /// the app's thread (pipelines.rs).
+    pub(super) fn render_parts(
+        &self,
         device: u32,
         descriptor: &web::GpuRenderPipelineDescriptor,
-    ) -> Result<wgpu::RenderPipeline, Failure> {
-        let layout = self.pipeline_layout(descriptor.layout)?;
-        let vertex_module = self
-            .held(
-                &self.modules,
-                Kind::Module,
-                descriptor.vertex.module.0,
-                "shader module",
-            )?
-            .clone();
+    ) -> Result<RenderParts, Failure> {
         let fragment_module = descriptor
             .fragment
             .as_ref()
@@ -288,188 +282,61 @@ impl Gpu {
                 .cloned()
             })
             .transpose()?;
-        let vertex_constants = self.constants(descriptor.vertex.constants)?;
-        let fragment_constants = match &descriptor.fragment {
-            Some(fragment) => self.constants(fragment.constants)?,
-            None => Vec::new(),
-        };
-        let layouts = descriptor.vertex.buffers.clone().unwrap_or_default();
-        let attributes: Vec<Vec<wgpu::VertexAttribute>> = layouts
-            .iter()
-            .map(|layout| {
-                layout
-                    .iter()
-                    .flat_map(|layout| &layout.attributes)
-                    .map(|attribute| wgpu::VertexAttribute {
-                        format: attribute.format.convert(),
-                        offset: attribute.offset,
-                        shader_location: attribute.shader_location,
-                    })
-                    .collect()
-            })
-            .collect();
-        let buffers: Vec<_> = layouts
-            .iter()
-            .zip(&attributes)
-            .map(|(layout, attributes)| {
-                layout.as_ref().map(|layout| wgpu::VertexBufferLayout {
-                    array_stride: layout.array_stride,
-                    step_mode: layout
-                        .step_mode
-                        .map_or(wgpu::VertexStepMode::Vertex, Convert::convert),
-                    attributes,
-                })
-            })
-            .collect();
-        let targets: Vec<Option<wgpu::ColorTargetState>> = descriptor
-            .fragment
-            .as_ref()
-            .map(|fragment| {
-                fragment
-                    .targets
-                    .iter()
-                    .map(|target| {
-                        target.as_ref().map(|target| wgpu::ColorTargetState {
-                            format: target.format.convert(),
-                            blend: target.blend.map(|blend| wgpu::BlendState {
-                                color: blend.color.convert(),
-                                alpha: blend.alpha.convert(),
-                            }),
-                            write_mask: target
-                                .write_mask
-                                .map_or(wgpu::ColorWrites::ALL, Convert::convert),
-                        })
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-        if let Some((_, limits)) = self.device_has(device) {
-            limits::render_pipeline(&limits, &buffers, targets.len())?;
-        }
-        let primitive = descriptor.primitive.unwrap_or(web::GpuPrimitiveState {
-            topology: None,
-            strip_index_format: None,
-            front_face: None,
-            cull_mode: None,
-            unclipped_depth: None,
-        });
-        let multisample = descriptor.multisample.unwrap_or(web::GpuMultisampleState {
-            count: None,
-            mask: None,
-            alpha_to_coverage_enabled: None,
-        });
-        let vertex_constants: Vec<(&str, f64)> = vertex_constants
-            .iter()
-            .map(|(key, value)| (key.as_str(), *value))
-            .collect();
-        let fragment_constants: Vec<(&str, f64)> = fragment_constants
-            .iter()
-            .map(|(key, value)| (key.as_str(), *value))
-            .collect();
-        let wgpu_descriptor = wgpu::RenderPipelineDescriptor {
-            label: descriptor.label.as_deref(),
-            layout: layout.as_ref(),
-            vertex: wgpu::VertexState {
-                module: &vertex_module,
-                entry_point: descriptor.vertex.entry_point.as_deref(),
-                compilation_options: wgpu::PipelineCompilationOptions {
-                    constants: &vertex_constants,
-                    ..Default::default()
-                },
-                buffers: &buffers,
+        Ok(RenderParts {
+            layout: self.pipeline_layout(descriptor.layout)?,
+            vertex_module: self
+                .held(
+                    &self.modules,
+                    Kind::Module,
+                    descriptor.vertex.module.0,
+                    "shader module",
+                )?
+                .clone(),
+            fragment_module,
+            vertex_constants: self.constants(descriptor.vertex.constants)?,
+            fragment_constants: match &descriptor.fragment {
+                Some(fragment) => self.constants(fragment.constants)?,
+                None => Vec::new(),
             },
-            primitive: wgpu::PrimitiveState {
-                topology: primitive
-                    .topology
-                    .map_or(wgpu::PrimitiveTopology::TriangleList, Convert::convert),
-                strip_index_format: primitive.strip_index_format.map(Convert::convert),
-                front_face: primitive
-                    .front_face
-                    .map_or(wgpu::FrontFace::Ccw, Convert::convert),
-                cull_mode: match primitive.cull_mode {
-                    None | Some(web::GpuCullMode::None) => None,
-                    Some(web::GpuCullMode::Front) => Some(wgpu::Face::Front),
-                    Some(web::GpuCullMode::Back) => Some(wgpu::Face::Back),
-                },
-                unclipped_depth: primitive.unclipped_depth.unwrap_or(false),
-                polygon_mode: wgpu::PolygonMode::Fill,
-                conservative: false,
-            },
-            depth_stencil: descriptor
-                .depth_stencil
-                .map(|state| wgpu::DepthStencilState {
-                    format: state.format.convert(),
-                    depth_write_enabled: state.depth_write_enabled,
-                    depth_compare: state.depth_compare.map(Convert::convert),
-                    stencil: wgpu::StencilState {
-                        front: state.stencil_front.convert(),
-                        back: state.stencil_back.convert(),
-                        read_mask: state.stencil_read_mask.unwrap_or(u32::MAX),
-                        write_mask: state.stencil_write_mask.unwrap_or(u32::MAX),
-                    },
-                    bias: wgpu::DepthBiasState {
-                        constant: state.depth_bias.unwrap_or(0),
-                        slope_scale: state.depth_bias_slope_scale.unwrap_or(0.0),
-                        clamp: state.depth_bias_clamp.unwrap_or(0.0),
-                    },
-                }),
-            multisample: wgpu::MultisampleState {
-                count: multisample.count.unwrap_or(1),
-                mask: u64::from(multisample.mask.unwrap_or(u32::MAX)),
-                alpha_to_coverage_enabled: multisample.alpha_to_coverage_enabled.unwrap_or(false),
-            },
-            fragment: fragment_module.as_ref().map(|module| wgpu::FragmentState {
-                module,
-                entry_point: descriptor
-                    .fragment
-                    .as_ref()
-                    .and_then(|fragment| fragment.entry_point.as_deref()),
-                compilation_options: wgpu::PipelineCompilationOptions {
-                    constants: &fragment_constants,
-                    ..Default::default()
-                },
-                targets: &targets,
-            }),
-            multiview_mask: None,
-            cache: None,
-        };
-        self.allowed(device)
-            .render_pipeline(&wgpu_descriptor)
-            .map_err(Failure::validation)?;
-        Ok(self.device.create_render_pipeline(&wgpu_descriptor))
+            allowed: self.allowed(device),
+            limits: self.device_has(device).map(|(_, limits)| limits),
+            descriptor: descriptor.clone(),
+        })
+    }
+
+    pub(super) fn try_render_pipeline(
+        &mut self,
+        device: u32,
+        descriptor: &web::GpuRenderPipelineDescriptor,
+    ) -> Result<wgpu::RenderPipeline, Failure> {
+        self.render_parts(device, descriptor)?.make(&self.device)
+    }
+
+    /// What a compute pipeline is made of, as `render_parts`.
+    pub(super) fn compute_parts(
+        &self,
+        descriptor: &web::GpuComputePipelineDescriptor,
+    ) -> Result<ComputeParts, Failure> {
+        Ok(ComputeParts {
+            layout: self.pipeline_layout(descriptor.layout)?,
+            module: self
+                .held(
+                    &self.modules,
+                    Kind::Module,
+                    descriptor.compute.module.0,
+                    "shader module",
+                )?
+                .clone(),
+            constants: self.constants(descriptor.compute.constants)?,
+            descriptor: descriptor.clone(),
+        })
     }
 
     pub(super) fn try_compute_pipeline(
         &mut self,
         descriptor: &web::GpuComputePipelineDescriptor,
     ) -> Result<wgpu::ComputePipeline, Failure> {
-        let layout = self.pipeline_layout(descriptor.layout)?;
-        let module = self
-            .held(
-                &self.modules,
-                Kind::Module,
-                descriptor.compute.module.0,
-                "shader module",
-            )?
-            .clone();
-        let constants = self.constants(descriptor.compute.constants)?;
-        let constants: Vec<(&str, f64)> = constants
-            .iter()
-            .map(|(key, value)| (key.as_str(), *value))
-            .collect();
-        Ok(self
-            .device
-            .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: descriptor.label.as_deref(),
-                layout: layout.as_ref(),
-                module: &module,
-                entry_point: descriptor.compute.entry_point.as_deref(),
-                compilation_options: wgpu::PipelineCompilationOptions {
-                    constants: &constants,
-                    ..Default::default()
-                },
-                cache: None,
-            }))
+        self.compute_parts(descriptor)?.make(&self.device)
     }
 
     fn try_bind_group(
@@ -1154,17 +1021,18 @@ impl Host for Gpu {
         descriptor: web::GpuComputePipelineDescriptor,
         settle: Promise<Result<web::GpuComputePipeline, web::CreatePipelineError>>,
     ) {
-        let answer = self.made_async(
+        let job = self
+            .compute_parts(&descriptor)
+            .map(|parts| Job::Compute(Box::new(parts)));
+        self.compile(
             this.0,
-            Kind::ComputePipeline,
-            descriptor.label.clone(),
-            |gpu| &mut gpu.compute_pipelines,
-            |gpu| gpu.try_compute_pipeline(&descriptor),
+            descriptor.label,
+            job,
+            (
+                settle.ticket(),
+                Box::new(move |answer| settle.settle(&answer.map(web::GpuComputePipeline))),
+            ),
         );
-        self.web
-            .settled
-            .push(settle.settle(&answer.map(web::GpuComputePipeline)));
-        self.settling.wake();
     }
 
     fn gpu_device_create_render_pipeline_async(
@@ -1173,17 +1041,18 @@ impl Host for Gpu {
         descriptor: web::GpuRenderPipelineDescriptor,
         settle: Promise<Result<web::GpuRenderPipeline, web::CreatePipelineError>>,
     ) {
-        let answer = self.made_async(
+        let job = self
+            .render_parts(this.0, &descriptor)
+            .map(|parts| Job::Render(Box::new(parts)));
+        self.compile(
             this.0,
-            Kind::RenderPipeline,
-            descriptor.label.clone(),
-            |gpu| &mut gpu.pipelines,
-            |gpu| gpu.try_render_pipeline(this.0, &descriptor),
+            descriptor.label,
+            job,
+            (
+                settle.ticket(),
+                Box::new(move |answer| settle.settle(&answer.map(web::GpuRenderPipeline))),
+            ),
         );
-        self.web
-            .settled
-            .push(settle.settle(&answer.map(web::GpuRenderPipeline)));
-        self.settling.wake();
     }
 
     fn gpu_device_create_command_encoder(

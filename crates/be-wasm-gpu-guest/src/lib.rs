@@ -115,6 +115,12 @@ pub fn poll() {
     objects::settle(false);
 }
 
+/// Polls as `poll` does, first waiting for something to settle when anything is waited on: an
+/// app with nothing else to do until a pipeline is made calls this instead of spinning.
+pub fn wait() {
+    objects::settle(true);
+}
+
 fn with_surface<R>(surface: u32, act: impl FnOnce(&gpu::GpuCanvasContext) -> R) -> R {
     SURFACES.with(|surfaces| {
         let mut surfaces = surfaces.borrow_mut();

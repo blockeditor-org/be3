@@ -13,6 +13,7 @@
 mod limits;
 mod objects;
 mod passes;
+mod pipelines;
 mod surfaces;
 
 pub(crate) use passes::Recording;
@@ -221,6 +222,8 @@ pub(crate) struct Web {
     maps: HashMap<u64, (u32, Promise<Result<(), web::MapAsyncError>>)>,
     work: HashMap<u64, Promise<()>>,
     compiling: Vec<(Compiling, Promise<web::GpuCompilationInfo>)>,
+    /// Pipelines being made off the app's thread (`create-*-pipeline-async`).
+    making: Vec<pipelines::Making>,
     wraps: Vec<Wrap>,
     scopes: u64,
     settled: Vec<Settled>,
@@ -274,6 +277,7 @@ impl Web {
                 .compiling
                 .iter()
                 .any(|(_, promise)| promise.ticket() == ticket)
+            || self.making.iter().any(|making| making.ticket == ticket)
             || self.devices.values().any(|device| {
                 device
                     .losing
@@ -676,6 +680,7 @@ impl Gpu {
                 Poll::Pending => self.web.compiling.push((compilation, promise)),
             }
         }
+        self.settle_pipelines(wait && self.web.settled.is_empty());
         self.settle_wraps();
         self.settle_losses();
         std::mem::take(&mut self.web.settled)
