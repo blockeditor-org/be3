@@ -122,7 +122,9 @@ Bulk object bytes never travel inside frames (guides/blocks/server.md,
 `MAX_OBJECT_URLS` at a time, and GET each with `http::get`, at most
 `MAX_OBJECT_BYTES` and `TRANSFERS` at once (`peer/transfers.rs`); an object
 with no URL, or one the store answers 404 for, is missing, and bytes that do
-not hash to what was asked are `ClientError::Tampered`. `push` and imports ask
+not hash to what was asked are `ClientError::Tampered`. `is_part_of` asks
+`download-urls` with a `holder`, so finding whether a part this device lacks
+is one block's fetches nothing of another block's. `push` and imports ask
 `upload-urls` with each object's length and PUT the bytes of each one it answers a
 URL for (none for one the server holds already) with the headers given; an
 object the device does not hold (a part reused by its ref) is asked for with no
@@ -464,7 +466,12 @@ would no longer hold (`still_in`). A block's references past
 `MAX_REFERENCES` are refused before anything is sealed or put in the outbox
 (`bounded`). The refs database keeps one summary per block, the larger `changed`
 winning, and a listing is the ids it held: a copy kept per listing went stale offline (a listing fetched
-before another device's seal, or the copy a parent's listing held). Offline, a
+before another device's seal, or the copy a parent's listing held). A listing
+is kept as a row of its own (that it is known, and the sequence it was read
+at) and a row per block it holds (`Table::ListingEntry`), in the order of block
+ids as the server answers, so a listing read again, a block added offline or
+one moved writes only the blocks that joined or left it, and a watcher of a
+folder gaining children one at a time writes in proportion to them. Offline, a
 listing answers as the summaries place its blocks now:
 
 - a block's `References` are what the content it kept references
@@ -530,7 +537,7 @@ sends it. `Peer::write` does both.
   head the server has. Every
   summary the server gives is laid over with what the outbox has yet to send of
   its block, a waiting move's parent and a waiting define's metadata, as it is
-  kept (`RefsDb::set_listing`, which `Peer::note` and listings keep it
+  kept (`Refs::set_listing_locked`, which `Peer::note` and listings keep it
   through) and where it is returned (`Peer::summary_with_outbox`), and a server
   listing with what the outbox adds or moves (`Peer::with_outbox`): an answer
   the server gave before those reached it would otherwise undo them here. A

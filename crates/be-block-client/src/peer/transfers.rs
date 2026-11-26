@@ -7,6 +7,7 @@ use std::collections::HashSet;
 use be_block_protocol::{ErrorCode, MAX_OBJECT_BYTES, MAX_OBJECT_URLS, ObjectLength};
 use be_block_store::{Hash, ObjectStore};
 use futures_util::StreamExt;
+use uuid::Uuid;
 
 use super::Peer;
 use crate::{ClientError, http};
@@ -20,13 +21,23 @@ impl<S: ObjectStore> Peer<S> {
     /// the hash asked for: the server is not trusted with content, and this is what stops it
     /// substituting any.
     pub async fn fetch(&self, hashes: &[Hash]) -> Result<(), ClientError> {
-        self.fetch_lacking(hashes, true).await
+        self.fetch_lacking(hashes, true, None).await
     }
 
     /// Fetches what it can of the objects among `hashes` this device lacks, in one round of
     /// requests, leaving out those the server or the store does not have.
     pub async fn try_fetch_all(&self, hashes: &[Hash]) -> Result<(), ClientError> {
-        self.fetch_lacking(hashes, false).await
+        self.fetch_lacking(hashes, false, None).await
+    }
+
+    /// Fetches what it can of the objects among `hashes` this device lacks that `holder` holds
+    /// on the server, leaving out the rest: nothing of another block's is fetched.
+    pub(crate) async fn try_fetch_held_by(
+        &self,
+        holder: Uuid,
+        hashes: &[Hash],
+    ) -> Result<(), ClientError> {
+        self.fetch_lacking(hashes, false, Some(holder)).await
     }
 
     /// Fetches one object unless this device has it; answers whether it has it now.
@@ -35,7 +46,12 @@ impl<S: ObjectStore> Peer<S> {
         Ok(self.commits.vault().store().has(hash)?)
     }
 
-    async fn fetch_lacking(&self, hashes: &[Hash], all: bool) -> Result<(), ClientError> {
+    async fn fetch_lacking(
+        &self,
+        hashes: &[Hash],
+        all: bool,
+        holder: Option<Uuid>,
+    ) -> Result<(), ClientError> {
         let store = self.commits.vault().store();
         let mut seen = HashSet::new();
         let mut missing = Vec::new();
@@ -45,7 +61,7 @@ impl<S: ObjectStore> Peer<S> {
             }
         }
         for batch in missing.chunks(MAX_OBJECT_URLS) {
-            let urls = self.download_urls(batch).await?;
+            let urls = self.download_urls(batch, holder).await?;
             let mut downloads =
                 // Owned hashes, so the stream's future is sent between threads whatever lifetimes
                 // its callers hold it with.
@@ -146,11 +162,18 @@ impl<S: ObjectStore> Peer<S> {
         Ok(())
     }
 
-    async fn download_urls(&self, hashes: &[Hash]) -> Result<Vec<Option<String>>, ClientError> {
+    async fn download_urls(
+        &self,
+        hashes: &[Hash],
+        holder: Option<Uuid>,
+    ) -> Result<Vec<Option<String>>, ClientError> {
         let urls = crate::ask(be_block_protocol::read::<Vec<Option<String>>, _>(
             &self.connection(),
             Some(self.organization),
-            be_block_protocol::Query::DownloadUrls(hashes.to_vec()),
+            be_block_protocol::Query::DownloadUrls {
+                objects: hashes.to_vec(),
+                holder,
+            },
         ))
         .await?;
         match urls.len() == hashes.len() {

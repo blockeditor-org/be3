@@ -143,7 +143,8 @@ call as `object-not-found`, alike whether another organization stored it or no
 one did, with nothing reserved, so a real uploader is never held to a length no
 one gave and the answer leaks nothing. `query.download-urls` answers a
 presigned GET for each object the caller may read (`may_read_objects`) and none
-for the rest. Each names at most `be_block_protocol::MAX_OBJECT_URLS` objects.
+for the rest; with a `holder`, only for those that block holds, so a client that
+wants a part only as one block's fetches nothing of another's. Each names at most `be_block_protocol::MAX_OBJECT_URLS` objects.
 Only `publish`'s carried objects and a `blocks` read's objects travel inside
 frames. The URLs are signed by `Services::transfers`, an `objects::Bucket`:
 the configured bucket, so bytes go between clients and the bucket and never
@@ -657,7 +658,9 @@ A connection reads what it shows with plain reads and follows trees, not
 listings; there is no stream per block. A `list` query (a `Listing`: children,
 `Shared`, backrefs, references, `Deleted`, `OpenSettings`) comes a page at a
 time, in the order of block ids (`ServerStore::list_page`, which works out the
-listing's ids and summarizes only the page's blocks): the summaries that fit in
+listing's ids past `after` and summarizes only the page's blocks; a folder's
+children are read from the graph's ordered set from `after` on, so a page of a
+large folder costs what the page holds): the summaries that fit in
 `ServerConfig::listing_page_bytes`, then the next ids in half that more
 (`listed.rest`), and `listed.next` when it goes on, which the client passes back
 as `after` for the ids past it. The client reads `rest`'s summaries with a

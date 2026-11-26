@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     sync::{Arc, Mutex},
 };
 
@@ -73,10 +73,14 @@ pub(crate) enum Table {
     LogRedactions,
     /// The first fork of each block's signed log this device found (`Refs::log_fork`).
     LogForks,
+    /// The blocks each listing holds, one row each keyed by the listing and the block, so a
+    /// change to a listing writes what it changed (`Refs::put_listing`). `Listing` keeps each
+    /// listing's own row, which says it is known and as of what sequence.
+    ListingEntry,
 }
 
 impl Table {
-    pub const ALL: [Self; 30] = [
+    pub const ALL: [Self; 31] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -107,6 +111,7 @@ impl Table {
         Self::NameCards,
         Self::LogRedactions,
         Self::LogForks,
+        Self::ListingEntry,
     ];
 
     pub fn code(self) -> u8 {
@@ -141,6 +146,7 @@ impl Table {
             Self::NameCards => 28,
             Self::LogRedactions => 29,
             Self::LogForks => 30,
+            Self::ListingEntry => 31,
         }
     }
 
@@ -178,6 +184,13 @@ impl RefsDb {
         Ok(Self {
             backend: Arc::new(Backend::open(path)?),
         })
+    }
+
+    /// How many bytes of rows this database has written since it opened, for tests that
+    /// bound what a change costs on disk.
+    #[cfg(test)]
+    pub(crate) fn written(&self) -> u64 {
+        self.backend.written()
     }
 
     fn account_scope(server: &str, account: Uuid) -> Scope {
@@ -486,7 +499,9 @@ struct State {
     held: HashMap<Uuid, CommitId>,
     /// Each block's newest summary: what every listing that holds the block shows of it.
     summaries: HashMap<Uuid, BlockSummary>,
-    listings: HashMap<Listing, Vec<Uuid>>,
+    /// The blocks of each listing this device read, in the order of their ids as the server
+    /// answers them.
+    listings: HashMap<Listing, BTreeSet<Uuid>>,
     /// The organization's sequence when the server answered each `Children` and `Deleted`
     /// listing: a summary that changed after it is of a block made or moved since (`placed_in`).
     listed_at: HashMap<Listing, u64>,
@@ -792,9 +807,16 @@ impl State {
             }
             Table::Listing => {
                 let listing = decode_raw(&row.key)?;
-                let (at, ids): (u64, Vec<Uuid>) = decode(value)?;
-                self.listed_at.insert(listing, at);
-                self.listings.insert(listing, ids);
+                self.listed_at.insert(listing, decode(value)?);
+                self.listings.entry(listing).or_default();
+            }
+            Table::ListingEntry => {
+                let split = row.key.len().checked_sub(16).ok_or(StoreError::Corrupt)?;
+                let (listing, block) = row.key.split_at(split);
+                self.listings
+                    .entry(decode_raw(listing)?)
+                    .or_default()
+                    .insert(uuid_key(block)?);
             }
             Table::Summary => {
                 self.summaries.insert(uuid_key(&row.key)?, decode(value)?);
@@ -1180,13 +1202,61 @@ impl Refs {
         rows.push(row(Table::Summary, summary.id.as_bytes().to_vec(), summary));
     }
 
-    fn put_listing(state: &mut State, listing: Listing, ids: Vec<Uuid>, rows: &mut Vec<Row>) {
-        if state.listings.get(&listing) == Some(&ids) {
-            return;
+    /// Keeps `listing` as holding `ids`, writing only the blocks that joined or left it, so a
+    /// listing read again after one block joined writes that block's row and no other.
+    fn put_listing(
+        state: &mut State,
+        listing: Listing,
+        ids: BTreeSet<Uuid>,
+        rows: &mut Vec<Row>,
+    ) {
+        let held = Self::known_listing(state, listing, rows);
+        for left in held.difference(&ids) {
+            rows.push(Row {
+                table: Table::ListingEntry,
+                key: listing_entry(&listing, *left),
+                value: None,
+            });
         }
+        for joined in ids.difference(held) {
+            rows.push(listing_entry_row(&listing, *joined));
+        }
+        *held = ids;
+    }
+
+    /// The blocks `listing` holds, kept as known (with its own row) if it was not yet.
+    fn known_listing<'a>(
+        state: &'a mut State,
+        listing: Listing,
+        rows: &mut Vec<Row>,
+    ) -> &'a mut BTreeSet<Uuid> {
         let at = state.listed_at.get(&listing).copied().unwrap_or_default();
-        rows.push(row(Table::Listing, encode_raw(&listing), &(at, &ids)));
-        state.listings.insert(listing, ids);
+        state.listings.entry(listing).or_insert_with(|| {
+            rows.push(row(Table::Listing, encode_raw(&listing), &at));
+            BTreeSet::new()
+        })
+    }
+
+    /// Puts `block` in `listing`, writing its row unless it was there.
+    fn join_listing(state: &mut State, listing: Listing, block: Uuid, rows: &mut Vec<Row>) {
+        if Self::known_listing(state, listing, rows).insert(block) {
+            rows.push(listing_entry_row(&listing, block));
+        }
+    }
+
+    /// Takes `block` out of `listing`, deleting its row if it was there.
+    fn leave_listing(state: &mut State, listing: Listing, block: Uuid, rows: &mut Vec<Row>) {
+        if state
+            .listings
+            .get_mut(&listing)
+            .is_some_and(|held| held.remove(&block))
+        {
+            rows.push(Row {
+                table: Table::ListingEntry,
+                key: listing_entry(&listing, block),
+                value: None,
+            });
+        }
     }
 
     /// Keeps a summary the server answered, with what the outbox has yet to send laid over it,
@@ -1213,7 +1283,7 @@ impl Refs {
             let summary = Self::with_outbox_locked(state, summary.clone());
             Self::put(state, &summary, rows);
         }
-        let ids: Vec<Uuid> = blocks.iter().map(|summary| summary.id).collect();
+        let ids = blocks.iter().map(|summary| summary.id).collect();
         Self::put_listing(state, listing, ids, rows);
     }
 
@@ -1230,10 +1300,10 @@ impl Refs {
             let mut state = self.state.lock().unwrap();
             if matches!(listing, Listing::Children(_) | Listing::Deleted)
                 && state.listed_at.insert(listing, sequence) != Some(sequence)
-                && let Some(ids) = state.listings.get(&listing).cloned()
+                && state.listings.contains_key(&listing)
             {
-                // The listing's row holds the sequence, so it is written again even unchanged.
-                rows.push(row(Table::Listing, encode_raw(&listing), &(sequence, &ids)));
+                // The listing's own row holds the sequence; its blocks' rows stay as they are.
+                rows.push(row(Table::Listing, encode_raw(&listing), &sequence));
             }
             Self::set_listing_locked(&mut state, listing, blocks, &mut rows);
         }
@@ -1249,11 +1319,7 @@ impl Refs {
         {
             let mut state = self.state.lock().unwrap();
             Self::put(&mut state, summary, &mut rows);
-            let mut ids = state.listings.get(&listing).cloned().unwrap_or_default();
-            if !ids.contains(&summary.id) {
-                ids.push(summary.id);
-            }
-            Self::put_listing(&mut state, listing, ids, &mut rows);
+            Self::join_listing(&mut state, listing, summary.id, &mut rows);
         }
         self.write(rows)
     }
@@ -1271,7 +1337,6 @@ impl Refs {
             Self::put(&mut state, &summary, &mut rows);
             let listings: Vec<Listing> = state.listings.keys().copied().collect();
             for listing in listings {
-                let mut ids = state.listings[&listing].clone();
                 let leaves = match listing {
                     Listing::Children(under) => Some(under) != parent,
                     Listing::Deleted => parent != Some(BlockParent::Detached),
@@ -1283,11 +1348,10 @@ impl Refs {
                     _ => false,
                 };
                 if leaves {
-                    ids.retain(|held| *held != block);
-                } else if joins && !ids.contains(&block) {
-                    ids.push(block);
+                    Self::leave_listing(&mut state, listing, block, &mut rows);
+                } else if joins {
+                    Self::join_listing(&mut state, listing, block, &mut rows);
                 }
-                Self::put_listing(&mut state, listing, ids, &mut rows);
             }
         }
         self.write(rows)
@@ -1357,7 +1421,6 @@ impl Refs {
             .filter(shown)
             .cloned()
             .collect();
-        let listed: HashSet<&Uuid> = listed.iter().collect();
         let mut since: Vec<BlockSummary> = there
             .iter()
             .filter(|id| !listed.contains(id))
@@ -2588,24 +2651,23 @@ impl Refs {
                 _ => false,
             };
             for (listing, held) in state.listings.iter_mut() {
-                let before = held.len();
-                match about(listing) {
-                    true => held.clear(),
-                    false => held.retain(|id| !gone.contains(id)),
-                }
-                if about(listing) {
+                let leaving: Vec<Uuid> = match about(listing) {
+                    true => {
+                        rows.push(Row {
+                            table: Table::Listing,
+                            key: encode_raw(listing),
+                            value: None,
+                        });
+                        std::mem::take(held).into_iter().collect()
+                    }
+                    false => gone.iter().copied().filter(|id| held.remove(id)).collect(),
+                };
+                for left in leaving {
                     rows.push(Row {
-                        table: Table::Listing,
-                        key: encode_raw(listing),
+                        table: Table::ListingEntry,
+                        key: listing_entry(listing, left),
                         value: None,
                     });
-                } else if held.len() != before {
-                    let at = state.listed_at.get(listing).copied().unwrap_or_default();
-                    rows.push(row(
-                        Table::Listing,
-                        encode_raw(listing),
-                        &(at, &held.clone()),
-                    ));
                 }
             }
             for block in &gone {
@@ -2934,6 +2996,21 @@ fn row<T: Serialize>(table: Table, key: Vec<u8>, value: &T) -> Row {
         table,
         key,
         value: Some(encode(value)),
+    }
+}
+
+/// The key of `block`'s row in `listing` (`Table::ListingEntry`): the listing, then the block.
+fn listing_entry(listing: &Listing, block: Uuid) -> Vec<u8> {
+    let mut key = encode_raw(listing);
+    key.extend_from_slice(block.as_bytes());
+    key
+}
+
+fn listing_entry_row(listing: &Listing, block: Uuid) -> Row {
+    Row {
+        table: Table::ListingEntry,
+        key: listing_entry(listing, block),
+        value: Some(vec![VERSION]),
     }
 }
 

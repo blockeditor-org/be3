@@ -94,7 +94,7 @@ pub(crate) fn query_rule(query: &Query) -> Rule {
         | Query::KeyWork
         | Query::Revocations { .. }
         | Query::SigningKeys(_)
-        | Query::DownloadUrls(_)
+        | Query::DownloadUrls { .. }
         | Query::Mutes
         // Every member, to an administrator; the agents it made, to anyone else.
         | Query::Members => Rule::Member,
@@ -247,7 +247,7 @@ pub(crate) fn bound_may_read(query: &Query, follow: bool) -> bool {
         | Query::RecoveryKey
         | Query::Organizations
         | Query::Mailbox
-        | Query::DownloadUrls(_)
+        | Query::DownloadUrls { .. }
         | Query::ServerInfo
         | Query::Session { .. } => true,
         // The keys topic tells of keys for any block the account may open.
@@ -1722,11 +1722,13 @@ impl Client {
                 Page::ShareLinks(store.share_links(admitted.identity()?, block).await?)
             }
             Query::Invitation(link) => Page::Invitation(store.read_invitation(link).await?),
-            Query::DownloadUrls(hashes) => {
+            Query::DownloadUrls { objects: hashes, holder } => {
                 let identity = admitted.identity()?;
                 at_most_urls(hashes.len())?;
                 let lifetime = store.transfer_lifetime();
-                let readable = store.may_read_objects(identity, hashes.clone()).await?;
+                let readable = store
+                    .may_read_objects(identity, hashes.clone(), holder)
+                    .await?;
                 Page::DownloadUrls(
                     hashes
                         .into_iter()

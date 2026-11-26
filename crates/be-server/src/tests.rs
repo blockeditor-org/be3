@@ -1535,7 +1535,10 @@ impl TestClient {
     async fn download(&mut self, hash: Hash) -> Result<Option<Vec<u8>>, Error> {
         let mut urls = self
             .call(|peer| {
-                peer.read::<Vec<Option<String>>>(be_block_protocol::Query::DownloadUrls(vec![hash]))
+                peer.read::<Vec<Option<String>>>(be_block_protocol::Query::DownloadUrls {
+                    objects: vec![hash],
+                    holder: None,
+                })
             })
             .await?;
         assert_eq!(urls.len(), 1);

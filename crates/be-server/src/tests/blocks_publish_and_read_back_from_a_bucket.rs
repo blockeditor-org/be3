@@ -70,9 +70,10 @@ async fn blocks_publish_and_read_back_from_a_bucket() {
     }
     let url = client
         .call(|peer| {
-            peer.read::<Vec<Option<String>>>(be_block_protocol::Query::DownloadUrls(vec![
-                chunks[0],
-            ]))
+            peer.read::<Vec<Option<String>>>(be_block_protocol::Query::DownloadUrls {
+                objects: vec![chunks[0]],
+                holder: None,
+            })
         })
         .await
         .unwrap()

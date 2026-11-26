@@ -37,6 +37,7 @@ mod a_part_read_for_an_editor_keeps_the_replicas_unsettled_until_answered;
 mod a_rejoin_whose_unsealed_edits_no_seal_can_take_waits_without_asking_again;
 mod a_relayed_message_sealed_with_a_key_another_search_awaits_waits_for_it;
 mod a_reopened_replica_holds_an_editors_operations_less_those_replayed;
+mod a_replay_on_a_device_that_holds_none_of_its_parts_fetches_only_its_own_blocks;
 mod a_replay_reads_only_parts_of_the_block_whose_journal_it_was_handed;
 mod a_replica_joining_its_session_trades_log_heads_with_the_participants;
 mod a_replica_opened_again_after_a_restart_is_told_it_and_its_edit_lands_once;
@@ -472,6 +473,44 @@ async fn section_parts(
     (0..sections::SECTIONS)
         .map(|index| content.saved(index).expect("every section is a part"))
         .collect()
+}
+
+/// A journal on `head`, by the build `tag` names, whose base state goes by `part`, with one
+/// entry past it, so a reader outside the session replays it.
+fn journal_by(
+    tag: be_sdk_type_api::SessionTag,
+    head: Option<be_block_commit::CommitId>,
+    part: be_block_store::PartRef,
+) -> be_block_protocol::Journal {
+    let kept = be_sdk_type_guest::wire::Submitted {
+        through: 0,
+        entry: be_sdk_type_guest::wire::Entry::Keep {
+            commit: be_block_commit::CommitId::from_hash(be_block_store::Hash::of(b"kept")),
+        },
+    };
+    be_block_protocol::Journal {
+        tag: be_block_store::Hash::from_bytes(tag.0),
+        base: be_block_protocol::JournalBase {
+            commit: head,
+            sequence: 0,
+            state: be_sdk_type_guest::wire::BaseState {
+                part: Some(part),
+                ..be_sdk_type_guest::wire::BaseState::default()
+            }
+            .encode(),
+            parts: Vec::new(),
+        },
+        entries: vec![be_block_protocol::JournalEntry {
+            sequence: 1,
+            origin: 1,
+            counter: 1,
+            base: 0,
+            floor: 0,
+            received: None,
+            payload: kept.encode(),
+        }],
+        lost: false,
+    }
 }
 
 async fn block(peer: &Peer<MemoryStore>) -> Uuid {
