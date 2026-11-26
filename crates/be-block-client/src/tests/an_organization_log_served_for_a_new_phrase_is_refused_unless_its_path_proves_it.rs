@@ -48,9 +48,8 @@ fn an_organization_log_served_for_a_new_phrase_is_refused_unless_its_path_proves
     let promotion = next(&steps, administrator(true));
     steps.push(promotion.clone().into());
     let promoted = promotion.hash();
-    let demotion = next(&steps, administrator(false));
-    steps.push(demotion.clone().into());
-    let demoted = demotion.hash();
+    // The deputy's removal, in place of the demotion: it lowers them, and is no administrator
+    // record.
     let removal = next(
         &steps,
         Record::Member(Member {
@@ -62,6 +61,10 @@ fn an_organization_log_served_for_a_new_phrase_is_refused_unless_its_path_proves
         }),
     );
     assert!(removal.lowers);
+    let hidden_removal = [steps.clone(), vec![Step::Reduced(removal.reduced())]].concat();
+    let demotion = next(&steps, administrator(false));
+    steps.push(demotion.clone().into());
+    let demoted = demotion.hash();
 
     let answer = |log: Uuid, head: [u8; 32], path: Option<&[Step]>| RecoveryKey {
         public: None,
@@ -114,7 +117,6 @@ fn an_organization_log_served_for_a_new_phrase_is_refused_unless_its_path_proves
         forged(&answer(organization, demoted, Some(&reduced_promotion))),
         "a path that reduces an administrator record is forged"
     );
-    let hidden_removal = [steps.clone(), vec![Step::Reduced(removal.reduced())]].concat();
     assert!(
         forged(&answer(organization, removal.hash(), Some(&hidden_removal))),
         "a path that hides a lowering is forged"
