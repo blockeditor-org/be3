@@ -3,7 +3,8 @@ use be_block_graph::Access;
 
 /// A block's agent follows the keys topic, so a key sealed to it after it connected reaches it,
 /// and hears only of its own block's keys: one stored for a block outside it, though granted
-/// there too, tells it nothing.
+/// there too, tells it nothing, whether sealed to it or a new key wrapped under the block's
+/// scope, which tells every viewer of the block.
 #[tokio::test]
 async fn a_block_agent_hears_only_of_its_own_blocks_keys() {
     let harness = Harness::start().await;
@@ -40,9 +41,18 @@ async fn a_block_agent_hears_only_of_its_own_blocks_keys() {
         keys: Vec::new(),
         wrapped: vec![wrap(scope, WrappedBy::Account(account), sealed)],
     };
+    let opened = |scoped: &Scoped, sealed: &[u8]| {
+        let data = Uuid::new_v4();
+        KeySet {
+            keys: vec![row(data, scoped.block, KeyKind::Data)],
+            wrapped: vec![wrap(data, WrappedBy::Key(scoped.scope), sealed)],
+        }
+    };
     for (keys, told, place) in [
-        (seal(outside.scope, b"outside"), false, "outside its block"),
-        (seal(own.scope, b"inside"), true, "in its block"),
+        (seal(outside.scope, b"outside"), false, "sealed to it outside its block"),
+        (opened(&outside, b"outside"), false, "wrapped under a scope outside its block"),
+        (opened(&own, b"inside"), true, "wrapped under its block's scope"),
+        (seal(own.scope, b"inside"), true, "sealed to it in its block"),
     ] {
         let put = owner
             .call(|peer| {
@@ -55,7 +65,7 @@ async fn a_block_agent_hears_only_of_its_own_blocks_keys() {
         assert_eq!(
             agent.told(Topic::Keys).await,
             told,
-            "whether a block's agent heard of a key sealed to it {place}"
+            "whether a block's agent heard of a key {place}"
         );
     }
 
