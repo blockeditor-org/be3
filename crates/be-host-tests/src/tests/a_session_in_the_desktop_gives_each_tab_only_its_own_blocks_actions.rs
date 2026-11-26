@@ -23,7 +23,8 @@ fn a_session_in_the_desktop_gives_each_tab_only_its_own_blocks_actions() {
             "the Files bar has none of the session block's actions and no menu"
         );
     }
-    for action in ["undo", "redo", "share"] {
+    // The dev workspace is a local account's, which offers no Share.
+    for action in ["undo", "redo"] {
         let canvas = format!("{EDITORS_BAR}pin.editor.{action} ");
         assert_eq!(host.count(&canvas), 1, "the canvas bar has one {action}");
     }

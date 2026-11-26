@@ -3,9 +3,7 @@ use be_sdk_beui::be_block::{
     Settings, SettingsContent, WhoMay,
 };
 use be_sdk_beui::be_block_content::be_block_model::Document;
-use be_sdk_beui::be_block_content::{
-    BlockContent, BlockMetadata, Edit, LiveEdit, Root, Setting,
-};
+use be_sdk_beui::be_block_content::{BlockContent, BlockMetadata, Edit, LiveEdit, Root, Setting};
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -42,7 +40,10 @@ const SHARING: Policy<OrganizationPolicies, Allowance> = Policy {
     key: "sharing",
     label: "Sharing outside the organization",
     description: "Blocks are shared only with members. Blocked also refuses links that carry access, since a link reaches whoever holds it.",
-    options: &[(Allowance::Allowed, "Allowed"), (Allowance::Blocked, "Blocked")],
+    options: &[
+        (Allowance::Allowed, "Allowed"),
+        (Allowance::Blocked, "Blocked"),
+    ],
     get: |policies| policies.outside_sharing.unwrap_or_default(),
     set: |value| OrganizationPolicies::set_outside_sharing(unless_default(value)),
 };
@@ -118,7 +119,10 @@ const LOST_ACCESS: Policy<OfflineSettings, LostAccess> = Policy {
     key: "lost-access",
     label: "When a member loses access",
     description: "What their devices do with what they kept. Personal accounts never delete anything by themselves.",
-    options: &[(LostAccess::Keep, "Keep it"), (LostAccess::Delete, "Delete it")],
+    options: &[
+        (LostAccess::Keep, "Keep it"),
+        (LostAccess::Delete, "Delete it"),
+    ],
     get: |offline| offline.on_lost_access.unwrap_or_default(),
     set: |value| OfflineSettings::set_on_lost_access(unless_default(value)),
 };
@@ -174,22 +178,22 @@ pub(super) fn OrganizationPage(editor: Editor) -> NodeId {
         <SettingsPage>
             <SettingsSection title="Sharing and workspaces" description={ABOUT}>
                 <List spacing=Space::None>
-                    {policy_row(editor, settings, &SHARING, locked, false)}
-                    {policy_row(editor, settings, &SHARE_LINKS, locked, true)}
-                    {policy_row(editor, settings, &WORKSPACES, locked, true)}
+                    <PolicyRow editor settings policy={&SHARING} locked separated=false />
+                    <PolicyRow editor settings policy={&SHARE_LINKS} locked separated=true />
+                    <PolicyRow editor settings policy={&WORKSPACES} locked separated=true />
                 </List>
             </SettingsSection>
             <SettingsSection title="History and storage">
                 <List spacing=Space::None>
-                    {policy_row(editor, settings, &HISTORY, locked, false)}
-                    {policy_row(editor, settings, &QUOTA, locked, true)}
+                    <PolicyRow editor settings policy={&HISTORY} locked separated=false />
+                    <PolicyRow editor settings policy={&QUOTA} locked separated=true />
                 </List>
             </SettingsSection>
             <SettingsSection title="Devices">
                 <List spacing=Space::None>
-                    {policy_row(editor, settings, &OFFLINE, locked, false)}
-                    {policy_row(editor, settings, &LOST_ACCESS, locked, true)}
-                    {policy_row(editor, settings, &GRACE, locked, true)}
+                    <PolicyRow editor settings policy={&OFFLINE} locked separated=false />
+                    <PolicyRow editor settings policy={&LOST_ACCESS} locked separated=true />
+                    <PolicyRow editor settings policy={&GRACE} locked separated=true />
                 </List>
             </SettingsSection>
         </SettingsPage>
@@ -197,7 +201,8 @@ pub(super) fn OrganizationPage(editor: Editor) -> NodeId {
 }
 
 /// One policy's row, given whether the page is locked and whether a row is above it.
-fn policy_row<R, V>(
+#[component]
+fn PolicyRow<R, V>(
     editor: Editor,
     settings: Memo<Option<Uuid>>,
     policy: &'static Policy<R, V>,
@@ -246,7 +251,9 @@ where
                     options={view! {
                         <ForEach value={options}>|option: usize| {
                             let (value, label) = policy.options[option];
-                            view! { <ChoiceOption value=value label={label.to_owned()} /> }
+                            view! {
+                                <ChoiceOption value=value label={label.to_owned()} />
+                            }
                         }</ForEach>
                     }}
                     selected={Binding::new(selected, choose)}

@@ -24,7 +24,7 @@ fn on_a_phone_a_held_file_rises_its_menu_as_a_sheet_over_the_whole_host() {
     );
     host.snapshot("on_a_phone_a_held_file_rises_its_menu_as_a_sheet_over_the_whole_host");
     host.run(&["tap", "200,200"]);
-    host.run(&["pause", "600"]);
+    host.run(&["pause", "1200"]);
     host.gone("#file-tree.section.settings");
     host.close();
 }

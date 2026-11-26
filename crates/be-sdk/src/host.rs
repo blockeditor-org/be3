@@ -567,6 +567,17 @@ struct Watches {
 /// Renders a representation of a copy on request (`EditorHost::copy`).
 pub type ClipRender = Rc<dyn Fn(&str, Box<dyn FnOnce(Option<be_sdk_api::clipboard::ClipBody>)>)>;
 
+/// Whether the editor offers sharing (`opening.offers-share`): true until its opening says
+/// otherwise, so an editor made without one offers it.
+#[derive(Clone)]
+struct OffersShare(Rc<Cell<bool>>);
+
+impl Default for OffersShare {
+    fn default() -> Self {
+        Self(Rc::new(Cell::new(true)))
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct EditorHost {
     waker: Waker,
@@ -669,9 +680,7 @@ pub struct EditorHost {
     graph: Rc<crate::graph::GraphState>,
     account: Rc<Cell<Uuid>>,
     organization: Rc<Cell<Uuid>>,
-    /// Sharing is not offered (`opening.offers-share` false), so an editor made without an
-    /// opening offers it.
-    no_share: Rc<Cell<bool>>,
+    offers_share: OffersShare,
     page_origin: Rc<RefCell<String>>,
     module: Rc<RefCell<std::rc::Weak<crate::module::ModuleState>>>,
     settings_draft: Rc<RefCell<Option<crate::SettingsDraft>>>,
@@ -2813,7 +2822,7 @@ impl EditorHost {
     }
 
     pub fn set_offers_share(&self, offered: bool) {
-        self.no_share.set(!offered);
+        self.offers_share.0.set(offered);
     }
 
     /// Whether the editor offers sharing at all (`opening.offers-share`): Share, and the access
@@ -2821,7 +2830,7 @@ impl EditorHost {
     /// Whether a block may be shared is its access, apart from this (guides/apps/host_services.md,
     /// "Offered and permitted").
     pub fn offers_share(&self) -> bool {
-        !self.no_share.get()
+        self.offers_share.0.get()
     }
 
     /// The origin of the web page the host runs in, empty where it is not a web page. On the

@@ -27,6 +27,13 @@ async fn a_new_recovery_key_brings_back_no_key_revoked_while_it_was_sealed() {
             .unwrap();
     }
 
+    let kept_bytes: Vec<u8> = database
+        .query_row(
+            "SELECT sealed FROM wrapped_keys WHERE key_id = ?1 AND wrapped_by = ?2",
+            rusqlite::params![kept.scope.to_string(), by],
+            |row| row.get(0),
+        )
+        .unwrap();
     let old = test_secret(account);
     let new = be_block_keys::RecoveryPhrase::generate().secret();
     let found = owner
@@ -108,9 +115,10 @@ async fn a_new_recovery_key_brings_back_no_key_revoked_while_it_was_sealed() {
         Some(contact.to_string()),
         "the contact's row not sealed again was dropped"
     );
-    assert_ne!(
+    assert_eq!(
         held(kept.scope).map(|row| row.2.clone()),
-        Some(format!("{} resealed", kept.scope).into_bytes())
+        Some(kept_bytes),
+        "the contact's row not sealed again changed"
     );
 
     harness.stop().await;
