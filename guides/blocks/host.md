@@ -320,12 +320,16 @@ the connection a stopping stack closed.
   had) holds them rewritten, which the edits given again as typed would not
   encode to. The replica makes the submission of every edit it carries as it
   carries it, not only of the first, which goes at once, and has the host keep
-  them (`host.keep-carried`, `Replica::keep_carried`, after reporting the
-  restart), not as sent: one waiting behind it was made on content the restart
-  replaced, so given again as typed it would apply nowhere. A carried edit that
-  goes by a part is not made ahead, its part not put yet. A kept submission by
-  a part goes under its id only if they encode to its payload again; otherwise they go as a new submission. One the order
-  numbers meanwhile takes the edits it holds out of what waits; one it passes
+  them (`host.keep-carried`, `Replica::keep_carried`, under the restart they
+  were carried over, which the host takes as it would from a status), not as
+  sent: one waiting behind it was made on content the restart replaced, so
+  given again as typed it would apply nowhere. Carried live, what waits is the
+  carried edit already, so what editors are shown stays; given again as typed,
+  the replica rebuilds what it shows. A carried edit that goes by a part is not
+  made ahead, its part not put yet. A kept submission by a part goes under its
+  id only if they encode to its payload again; otherwise they go as a new
+  submission. One the order numbers meanwhile takes the edits it holds out of
+  what waits; one it passes
   over, based before the order's floor (`below_floor`: a copy made before a
   restart, numbered after it), puts none of its edits in the order, counts
   nothing in `own_through`, journaled_taken or the origin's `through`, and

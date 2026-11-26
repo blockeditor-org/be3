@@ -72,6 +72,15 @@ Fixed items are removed as they land.
   be-block-type-host test restarts the text type with a large paste queued
   behind one in flight and finds both applied after a crash.
 
+- **Restart tests outside the guest crate are slow.** Only the guest crate's own
+  tests can lower the size at which a session restarts (`RESTART_LIMIT`,
+  `cfg(test)` in be-sdk-type-guest's replica.rs), so be-block-type-host's
+  restart tests build over 1 MiB of session state each
+  (`a_text_edit_waiting_behind_one_in_flight_over_a_restart_lands_after_a_crash`
+  takes about 28 s of CPU, and the `an_edit_carried_over_a_restart_*` tests
+  alike). Done: host tests can lower the limit for a block they open, and those
+  tests build a few kilobytes.
+
 ## 12. Large folders
 
 - **A listing read again is applied whole in memory.** A listing now writes only the

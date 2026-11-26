@@ -6027,9 +6027,22 @@ impl<H: Host> Replicas<H> {
                     .await;
                 false
             }
-            Call::KeepCarried { reply, submissions } => {
-                // Kept as those submitted are, but not as sent: `submitted_through` stays.
-                if let Some(open) = self.open.get_mut(&replica) {
+            Call::KeepCarried {
+                reply,
+                restarts,
+                submissions,
+            } => {
+                // Kept as those submitted are, but not as sent: `submitted_through` stays. Kept
+                // under the restart they were carried over, as a status reporting it would
+                // (`report`), whatever reaches the disk between: those of an earlier one go.
+                if let Some(open) = self.open.get_mut(&replica)
+                    && restarts >= open.restarts
+                {
+                    if restarts > open.restarts {
+                        open.restarts = restarts;
+                        open.submissions.clear();
+                        open.edits_changed = true;
+                    }
                     open.submissions.retain(|kept| kept.through > open.given_up);
                     for submission in submissions {
                         if !open

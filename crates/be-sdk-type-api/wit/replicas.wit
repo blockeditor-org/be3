@@ -50,10 +50,10 @@ interface replicas {
         kept-submitted: u64,
         /// The submissions earlier openings made online of the local edits it
         /// is given again, oldest first, sent or made of edits carried over a
-        /// restart to go in turn (`host.keep-carried`). Once joined, the replica submits the
-        /// edits each holds as exactly that submission, under its id, so a
-        /// server that holds it already answers it held rather than number
-        /// those edits a second time.
+        /// restart to go in turn (`host.keep-carried`). Once joined, the
+        /// replica submits the edits each holds as exactly that submission,
+        /// under its id, so a server that holds it already answers it held
+        /// rather than number those edits a second time.
         kept-submissions: list<kept-submission>,
         /// The head the host just read; the replica reads it itself.
         head: option<commit-id>,
