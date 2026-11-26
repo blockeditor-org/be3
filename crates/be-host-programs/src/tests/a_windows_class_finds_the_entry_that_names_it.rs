@@ -20,11 +20,11 @@ fn a_windows_class_finds_the_entry_that_names_it() {
         "share/applications/kate.desktop",
         application("Kate", "kate", "Icon=kate\n").as_bytes(),
     );
-    let environment = environment(&scratch, &["share"]);
+    let entries = environment(&scratch, &["share"]).entries();
     let icon = |program_id: &str| {
-        environment
-            .entry_of_window(program_id)
-            .and_then(|entry| entry.icon)
+        entries
+            .of_window(program_id)
+            .and_then(|entry| entry.icon.clone())
     };
     assert_eq!(
         icon("foot").as_deref(),
@@ -41,6 +41,6 @@ fn a_windows_class_finds_the_entry_that_names_it() {
         Some("kate"),
         "a class that is an entry's name in another case finds it"
     );
-    assert!(environment.entry_of_window("").is_none());
-    assert!(environment.entry_of_window("unknown").is_none());
+    assert!(entries.of_window("").is_none());
+    assert!(entries.of_window("unknown").is_none());
 }
