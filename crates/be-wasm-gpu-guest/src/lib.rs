@@ -115,8 +115,11 @@ pub fn poll() {
     objects::settle(false);
 }
 
-/// Polls as `poll` does, first waiting for something to settle when anything is waited on: an
-/// app with nothing else to do until a pipeline is made calls this instead of spinning.
+/// Polls as `poll` does, first blocking until something settles where the host can: submitted
+/// gpu work (maps, `on_submitted_work_done`, and error scopes and compilation info waiting on
+/// it) finishing, or an async pipeline being made. A promise that waits on neither (a device's
+/// `lost`, or a stream's next item) does not hold it, so a loop that calls this only for one of
+/// those spins.
 pub fn wait() {
     objects::settle(true);
 }

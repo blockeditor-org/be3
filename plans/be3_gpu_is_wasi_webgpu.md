@@ -24,10 +24,13 @@ names the version itself, and changes with it:
 
 ## 2. Asynchronous pipelines in the browser
 
-Natively the host makes `create-*-pipeline-async`'s pipelines on a thread of their own
+Natively the host makes `create-*-pipeline-async`'s pipelines on threads of the app's own
 (be-wasm-gpu-host `webgpu/pipelines.rs`). The shim still makes them at once: make them through
 the browser's `createRenderPipelineAsync` and `createComputePipelineAsync` with web-sys,
 settling through the poll as now.
+
+A pipeline asked for on a lost device, or made as its device was lost, is refused as internal;
+WebGPU resolves it with an invalid pipeline instead. Do the same.
 
 ## 3. One poll per app, and cancelling
 

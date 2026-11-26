@@ -223,7 +223,7 @@ pub(crate) struct Web {
     work: HashMap<u64, Promise<()>>,
     compiling: Vec<(Compiling, Promise<web::GpuCompilationInfo>)>,
     /// Pipelines being made off the app's thread (`create-*-pipeline-async`).
-    making: Vec<pipelines::Making>,
+    pipelines: pipelines::Pipelines,
     wraps: Vec<Wrap>,
     scopes: u64,
     settled: Vec<Settled>,
@@ -277,7 +277,10 @@ impl Web {
                 .compiling
                 .iter()
                 .any(|(_, promise)| promise.ticket() == ticket)
-            || self.making.iter().any(|making| making.ticket == ticket)
+            || self.pipelines
+                .making
+                .iter()
+                .any(|making| making.ticket == ticket)
             || self.devices.values().any(|device| {
                 device
                     .losing
