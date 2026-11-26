@@ -330,7 +330,10 @@ under a new ref.
 
 An edit too large to relay is the other kind: the part is the operation's own
 bytes, not a part of the content, so the session carries it rather than the
-type (below, "Peers"). Hosts: `Peer::put_part`; be-sdk-test's store refuses.
+type (below, "Peers"). Hosts: `Peer::put_part`, which feeds the bytes to a
+`Peer::part_writer` (a part sealed on the device a chunk at a time, which content
+the host saves itself can reuse) and holds the part with `Peer::hold_part`;
+be-sdk-test's store refuses.
 Tests:
 `be-sdk-type-guest/src/tests/an_operation_adds_a_part_by_its_hash.rs` (the
 flow), be-host-stack's `a_part_an_editor_puts_is_held_for_its_block_once_the_server_has_it`

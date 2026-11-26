@@ -4393,16 +4393,37 @@ impl<S: ObjectStore> Peer<S> {
         block: Uuid,
         bytes: &[u8],
     ) -> Result<be_block_store::PartRef, ClientError> {
-        let key = self.sealing_key(block).await?;
-        let vault = self.commits.vault();
-        let manifest = vault.write(key, Uuid::nil(), Part::from(bytes))?;
-        let part = manifest
-            .root
+        let mut writer = self.part_writer(block).await?;
+        writer.write(bytes)?;
+        let part = writer
+            .finish()?
             .ok_or_else(|| ClientError::Encoding("a part needs at least one byte".to_owned()))?;
-        let objects = vault.objects(&manifest)?;
-        self.hold(block, &objects, be_block_protocol::Hold::UntilCommitted)
-            .await?;
+        self.hold_part(block, part).await?;
         Ok(part)
+    }
+
+    /// A writer of a part of `block`, sealed under its current key on this device a chunk at a
+    /// time as it is written (`Vault::part_writer`). The part it answers can go into content
+    /// this device saves as `Part::Reused`, whose drain uploads it; one an operation names is
+    /// held for the block first (`hold_part`).
+    pub async fn part_writer(
+        &self,
+        block: Uuid,
+    ) -> Result<be_block_store::PartWriter<'_, S>, ClientError> {
+        let key = self.sealing_key(block).await?;
+        Ok(self.commits.vault().part_writer(key)?)
+    }
+
+    /// Uploads `part`, which this device wrote (`part_writer`), and has the server hold it for
+    /// `block` until a commit that uses it publishes, as `put_part` does.
+    pub async fn hold_part(
+        &self,
+        block: Uuid,
+        part: be_block_store::PartRef,
+    ) -> Result<(), ClientError> {
+        let objects = self.part_objects(&[part])?;
+        self.hold(block, &objects, be_block_protocol::Hold::UntilCommitted)
+            .await
     }
 
     /// Every object of `parts`, which this device put (`put_part`) or holds: what a journal's
