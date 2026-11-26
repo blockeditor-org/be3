@@ -120,6 +120,7 @@ APPS = {
     "be_root_in_place_of_the_hosts_ui_lists_the_desktops_window_keys_in_its_palette": ["desktop", "//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_locks_the_screen_on_super_l": ["desktop", "//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_makes_a_block_a_picker_creates": ["infinite-canvas", "checklist", "//crates/be-root"],
+    "be_root_in_place_of_the_hosts_ui_makes_a_block_in_my_files": ["infinite-canvas", "//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_moves_a_window_the_desktop_opens_by_its_grip": ["desktop", "//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_moves_the_keyboard_between_views_with_f6": ["infinite-canvas", "text", "//crates/be-root"],
     "be_root_in_place_of_the_hosts_ui_names_an_app_that_stopped_while_a_wait_ran": ["//crates/be-root"],
