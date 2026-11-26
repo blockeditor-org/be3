@@ -74,7 +74,7 @@ fn a_lowering_this_device_appended_outdates_its_epochs_before_any_log_shows_it()
             book.served(block, &check(&log)),
             crate::keys::Served::Withheld
         ),
-        "a log served without the revocation is taken"
+        "a log served without the revocation is withheld"
     );
 
     let mut after = log.clone();

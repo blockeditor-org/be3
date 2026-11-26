@@ -550,9 +550,7 @@ impl<S: ObjectStore> Peer<S> {
             link: row.id,
             signed,
         };
-        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization()), op.clone())
-            .await??;
-        self.appended(&op);
+        self.write_appending(vec![op]).await?;
         self.keep_share(row.id, None).await
     }
 

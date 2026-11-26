@@ -419,6 +419,17 @@ impl<S: ObjectStore> Peer<S> {
                 let _ = self.checked_access(node.id).await;
             }
         }
+        // A log still short of a lowering this device appended to it outdates every epoch it
+        // judges, one minted now too (`KeyBook::awaiting`): none is made until it shows it.
+        if walked.iter().any(|node| !node.owner_only) && self.keys.awaiting(self.organization) {
+            return Err(ClientError::Withheld(self.organization));
+        }
+        for node in &walked {
+            if !node.owner_only && super::scope_of(node)? == node.id && self.keys.awaiting(node.id)
+            {
+                return Err(ClientError::Withheld(node.id));
+            }
+        }
         let outer = match top_scope == top.id {
             true => None,
             false => Some(self.scope_key(top_scope).await?),
@@ -664,9 +675,7 @@ impl<S: ObjectStore> Peer<S> {
             role: role,
             signed: signed,
         });
-        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), op.clone())
-            .await??;
-        self.appended(&op);
+        self.write_appending(vec![op]).await?;
         Ok(())
     }
 
@@ -763,9 +772,7 @@ impl<S: ObjectStore> Peer<S> {
                 })
             }
         };
-        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), op.clone())
-            .await??;
-        self.appended(&op);
+        self.write_appending(vec![op]).await?;
         Ok(())
     }
 
@@ -808,9 +815,7 @@ impl<S: ObjectStore> Peer<S> {
             _ => None,
         };
         let op = be_block_protocol::Op::DeleteLink { link, signed };
-        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), op.clone())
-            .await??;
-        self.appended(&op);
+        self.write_appending(vec![op]).await?;
         Ok(())
     }
 
@@ -822,9 +827,7 @@ impl<S: ObjectStore> Peer<S> {
             account: account,
             revocations: revocations,
         };
-        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), op.clone())
-            .await??;
-        self.appended(&op);
+        self.write_appending(vec![op]).await?;
         Ok(())
     }
 
@@ -937,6 +940,7 @@ impl<S: ObjectStore> Peer<S> {
         if let Some(kept) = self.keys.note_log(self.organization, &checked, &entries) {
             let _ = self.refs.keep_log(self.organization, kept);
         }
+        self.keep_awaited(self.organization);
         self.keys.set_organization(Some(&checked));
         Ok(Some(checked))
     }
@@ -1049,13 +1053,7 @@ impl<S: ObjectStore> Peer<S> {
                     signed,
                     revocations: Vec::new(),
                 });
-                be_block_protocol::write::<(), _>(
-                    &self.connection(),
-                    Some(self.organization),
-                    op.clone(),
-                )
-                .await??;
-                self.appended(&op);
+                self.write_appending(vec![op]).await?;
             }
         }
         Ok(())

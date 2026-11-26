@@ -659,6 +659,7 @@ impl<S: ObjectStore> Peer<S> {
             }
         }
         keys.set_kept_logs(refs.kept_logs());
+        keys.set_awaited(refs.awaited());
         keys.set_unmade(refs.unmade());
         for (_, op) in refs.outbox() {
             if let crate::refs::Op::Create(creation) = op
@@ -1659,9 +1660,22 @@ impl<S: ObjectStore> Peer<S> {
             Some(kept) => Some(kept),
             None => self.summary(block).await.ok(),
         };
-        if let Some(scope) = kept.and_then(|kept| scope_of(&kept).ok())
-            && self.outdated(chosen, scope).await
-        {
+        let Some(scope) = kept.and_then(|kept| scope_of(&kept).ok()) else {
+            return Ok(chosen);
+        };
+        let (outdated, unreachable) = self.outdated_reading(chosen, scope).await;
+        if outdated {
+            // A log still short of a lowering this device appended to it (its read just failed
+            // or was withheld) outdates every epoch it judges, a new one too: rotating now would
+            // only leave an epoch no one can use. Offline, as a rotation that cannot reach the
+            // server below.
+            if self.awaiting(chosen, scope) {
+                return match unreachable {
+                    Some(_) if outbox => Ok(chosen),
+                    Some(error) => Err(error),
+                    None => Err(ClientError::Locked(block)),
+                };
+            }
             // Another editor may have given the scope its new epoch already and sealed it here:
             // asked for first, so this device rotates only when no one has, and one that may
             // not rotate (a viewer whose lowering outdated the epoch) seals under theirs.
@@ -1704,15 +1718,46 @@ impl<S: ObjectStore> Peer<S> {
     /// of it to withhold, and what this device kept on making it stands. A read that does not
     /// answer within `LOG_READ_LIMIT` leaves what was kept.
     async fn outdated(&self, key: Uuid, scope: Uuid) -> bool {
+        self.outdated_reading(key, scope).await.0
+    }
+
+    /// `outdated`, with the first read that failed for want of the server, if any: what a seal
+    /// refused for a log still short of this device's lowering (`awaiting`) answers offline.
+    async fn outdated_reading(&self, key: Uuid, scope: Uuid) -> (bool, Option<ClientError>) {
         if self.local {
-            return false;
+            return (false, None);
         }
+        let unreachable = self.read_logs(key, scope).await;
+        (self.keys.outdated(key, scope), unreachable)
+    }
+
+    /// Reads the logs `outdated` judges `key`, of `scope`, by that this device has not checked
+    /// or that fall short of the head the key names (`KeyBook::logs_to_read`), each once per key
+    /// in a run; one short of a lowering this device appended (`KeyBook::awaiting`) is read
+    /// every time, as nothing can be sealed under its scope until it shows the lowering.
+    /// Answers the first read that failed for want of the server.
+    async fn read_logs(&self, key: Uuid, scope: Uuid) -> Option<ClientError> {
+        let mut unreachable = None;
         for log in self.keys.logs_to_read(key, scope) {
-            if !self.uncreated(log) && self.log_reads.lock().unwrap().insert((key, log)) {
-                let _ = self.bounded_read(log).await;
+            if !self.uncreated(log)
+                && (self.keys.awaiting(log) || self.log_reads.lock().unwrap().insert((key, log)))
+                && let Err(error) = self.bounded_read(log).await
+                && error.is_unreachable()
+            {
+                unreachable.get_or_insert(error);
             }
         }
-        self.keys.outdated(key, scope)
+        unreachable
+    }
+
+    /// Whether a log `outdated` judges `key`, of `scope`, by still falls short of a lowering this
+    /// device appended to it (`KeyBook::awaiting`): every epoch it judges, any minted now too, is
+    /// outdated until a read shows the lowering.
+    fn awaiting(&self, key: Uuid, scope: Uuid) -> bool {
+        self.keys
+            .logs_to_read(key, scope)
+            .into_iter()
+            .any(|log| self.keys.awaiting(log))
     }
 
     /// Whether `commit`, an edit of `block` waiting to be sent, is sealed under a key the logs
@@ -1726,11 +1771,7 @@ impl<S: ObjectStore> Peer<S> {
         let Some(scope) = kept.and_then(|kept| scope_of(&kept).ok()) else {
             return Ok(false);
         };
-        for log in self.keys.logs_to_read(key, scope) {
-            if !self.uncreated(log) && self.log_reads.lock().unwrap().insert((key, log)) {
-                let _ = self.bounded_read(log).await;
-            }
-        }
+        self.read_logs(key, scope).await;
         Ok(self.keys.shown_outdated(key, scope))
     }
 
@@ -1835,7 +1876,12 @@ impl<S: ObjectStore> Peer<S> {
                     .ok_or(ClientError::Locked(scope))?
             }
         };
-        if self.outdated(key, scope).await {
+        let (outdated, unreachable) = self.outdated_reading(key, scope).await;
+        if outdated {
+            // As `sealing_key_for`: no epoch minted now would be current.
+            if self.awaiting(key, scope) {
+                return Err(unreachable.unwrap_or(ClientError::Locked(scope)));
+            }
             self.rotate_outdated(scope)
                 .await
                 .map_err(|error| match error.is_unreachable() {
@@ -2836,6 +2882,7 @@ impl<S: ObjectStore> Peer<S> {
         if let Some(kept) = self.keys.note_log(block, &checked, &read.steps) {
             let _ = self.refs.keep_log(block, kept);
         }
+        self.keep_awaited(block);
         Ok((read.steps, checked))
     }
 
@@ -4827,19 +4874,14 @@ impl<S: ObjectStore> Peer<S> {
             true => {
                 let sealed = self.share_key(block, account, public).await?;
                 let grant = self.grant_op(block, account, access, identity).await?;
-                be_block_protocol::write_all::<(), _>(
-                    &self.connection(),
-                    Some(self.organization),
-                    vec![
-                        be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(
-                            sealed.clone(),
-                        )),
-                        grant.clone(),
-                    ],
-                )
-                .await??;
+                self.write_appending(vec![
+                    be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(
+                        sealed.clone(),
+                    )),
+                    grant,
+                ])
+                .await?;
                 self.recorded(&sealed);
-                self.appended(&grant);
                 Ok(())
             }
             false => {
@@ -5084,49 +5126,63 @@ impl<S: ObjectStore> Peer<S> {
         identity: Option<be_block_keys::PublicIdentity>,
     ) -> Result<(), ClientError> {
         let grant = self.grant_op(block, account, access, identity).await?;
-        be_block_protocol::write::<(), _>(
-            &self.connection(),
-            Some(self.organization),
-            grant.clone(),
-        )
-        .await??;
-        self.appended(&grant);
+        self.write_appending(vec![grant]).await?;
         Ok(())
+    }
+
+    /// Writes `ops` in one write, noting the access log records they carry: as appended once the
+    /// server took them (`appended`), and, when the connection dropped before it answered, as
+    /// perhaps appended (`KeyBook::unsure`), so the next seal reads their logs again.
+    pub(crate) async fn write_appending(
+        &self,
+        ops: Vec<be_block_protocol::Op>,
+    ) -> Result<(), ClientError> {
+        let written =
+            be_block_protocol::write_all::<(), _>(&self.connection(), Some(self.organization), ops.clone())
+                .await;
+        match &written {
+            Ok(Ok(())) => ops.iter().for_each(|op| self.appended(op)),
+            Ok(Err(_)) => {}
+            Err(_) => {
+                for op in &ops {
+                    for record in log_records(op) {
+                        if let Some(log) = self.keys.unsure(record) {
+                            self.forget_log_reads(log);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(written??)
+    }
+
+    /// Drops this run's marks that `log` was read for each key (`log_reads`), so the next
+    /// `outdated` reads it again.
+    fn forget_log_reads(&self, log: Uuid) {
+        self.log_reads
+            .lock()
+            .unwrap()
+            .retain(|(_, read)| *read != log);
     }
 
     /// Notes each access log record `op`, which the server just took, carries
     /// (`KeyBook::appended`): one that lowered anyone has the epochs before it outdated here at
-    /// once, and its log read again before the next seal, rather than this device sealing on
-    /// by the log it read before signing it.
-    pub(crate) fn appended(&self, op: &be_block_protocol::Op) {
-        use be_block_protocol::{LogRecord, Op};
-        let records: Vec<&Vec<u8>> = match op {
-            Op::AppendLog(LogRecord::Grant { signed, .. })
-            | Op::AppendLog(LogRecord::Role { signed, .. })
-            | Op::DeleteLink { signed, .. } => signed.iter().collect(),
-            Op::AppendLog(LogRecord::Ban { signed, .. })
-            | Op::AppendLog(LogRecord::Owner { signed, .. })
-            | Op::RevokeShareLink { signed, .. } => vec![signed],
-            Op::AppendLog(LogRecord::Member {
-                signed,
-                revocations,
-            }) => std::iter::once(signed).chain(revocations).collect(),
-            Op::DeleteAgent {
-                signed,
-                revocations,
-                ..
-            } => signed.iter().chain(revocations).collect(),
-            Op::RemoveContact { revocations, .. } => revocations.iter().collect(),
-            _ => Vec::new(),
-        };
-        for record in records {
+    /// once, and its log read again before each seal until it shows it (`read_logs`), rather
+    /// than this device sealing on by the log it read before signing it.
+    fn appended(&self, op: &be_block_protocol::Op) {
+        for record in log_records(op) {
             if let Some(log) = self.keys.appended(record) {
-                self.log_reads
-                    .lock()
-                    .unwrap()
-                    .retain(|(_, read)| *read != log);
+                self.keep_awaited(log);
             }
         }
+    }
+
+    /// Writes the lowering this device awaits on `log` (`KeyBook::awaited`) to the refs, or
+    /// clears it once a log checked here holds it, so a restart still withholds a log served
+    /// short of it. A lost append (an honest server restored from a backup made before it)
+    /// leaves the log withheld here until it is appended again, which fails closed.
+    pub(crate) fn keep_awaited(&self, log: Uuid) {
+        let _ = self.refs.set_awaited(log, self.keys.awaited(log));
     }
 
     /// The op granting `access` to `account`, by the record `signed_grant` signs.
@@ -5276,9 +5332,7 @@ impl<S: ObjectStore> Peer<S> {
             block: block,
             signed: signed,
         });
-        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), op.clone())
-            .await??;
-        self.appended(&op);
+        self.write_appending(vec![op]).await?;
         Ok(())
     }
 
@@ -5355,6 +5409,30 @@ impl<S: ObjectStore> Peer<S> {
 
     pub fn first_search_for(&self, key: Uuid) -> bool {
         self.tried.lock().unwrap().insert(key)
+    }
+}
+
+/// The access log records `op` carries, each signed here.
+fn log_records(op: &be_block_protocol::Op) -> Vec<&Vec<u8>> {
+    use be_block_protocol::{LogRecord, Op};
+    match op {
+        Op::AppendLog(LogRecord::Grant { signed, .. })
+        | Op::AppendLog(LogRecord::Role { signed, .. })
+        | Op::DeleteLink { signed, .. } => signed.iter().collect(),
+        Op::AppendLog(LogRecord::Ban { signed, .. })
+        | Op::AppendLog(LogRecord::Owner { signed, .. })
+        | Op::RevokeShareLink { signed, .. } => vec![signed],
+        Op::AppendLog(LogRecord::Member {
+            signed,
+            revocations,
+        }) => std::iter::once(signed).chain(revocations).collect(),
+        Op::DeleteAgent {
+            signed,
+            revocations,
+            ..
+        } => signed.iter().chain(revocations).collect(),
+        Op::RemoveContact { revocations, .. } => revocations.iter().collect(),
+        _ => Vec::new(),
     }
 }
 
