@@ -1,5 +1,5 @@
 use be_block_commit::MergeResult;
-use be_block_model::{Change, Document, Edit, Model, Step, Touched};
+use be_block_model::{Change, Document, ObjectId, Edit, Model, Step, Touched};
 use uuid::Uuid;
 
 use crate::{BlockContent, ChildChange, ContentError, LiveEdit, Merge, Undo};
@@ -208,15 +208,16 @@ impl<R: Root> LiveEdit for Document<R> {
                 }
                 operation.0.retain(|held| same(held).is_none());
             }
-            // A later set of a field leaves an earlier one in the edit nothing to do, unless
-            // something in it reads the field (a conditional set, an add): a drag's frames are
-            // one write.
+            // A later set of a field leaves an earlier one in the edit nothing to do when
+            // nothing else in it reads or changes the field or its object as a whole (a
+            // conditional set or put, an add, a reshape, text, a removal that compares every
+            // field): a drag's frames are one write.
             if let Change::Set { object, field, .. } = &change {
-                let reads = operation.0.iter().any(|held| {
-                    matches!(held, Change::SetIf { object: o, field: f, .. }
-                        | Change::Add { object: o, field: f, .. } if o == object && f == field)
-                });
-                if !reads {
+                let alone = operation
+                    .0
+                    .iter()
+                    .all(|held| !reads_field(held, *object, *field));
+                if alone {
                     operation.0.retain(|held| {
                         !matches!(held, Change::Set { object: o, field: f, .. }
                             if o == object && f == field)
@@ -308,5 +309,28 @@ impl<R: Root> Undo for Document<R> {
 
     fn reapply(&self, step: &Self::Step) -> Vec<Self::Op> {
         vec![step.redo()]
+    }
+}
+
+/// Whether `change` reads or changes `field` of `object` other than by a plain set, or acts on
+/// `object` whole, so that an earlier set of the field still matters to it.
+fn reads_field(change: &Change, object: ObjectId, field: u16) -> bool {
+    match change {
+        Change::Set { .. } => false,
+        Change::Remove { object: o } | Change::RemoveIf { object: o, .. } => *o == object,
+        Change::SetIf { object: o, field: f, .. }
+        | Change::Add { object: o, field: f, .. }
+        | Change::Put { object: o, field: f, .. }
+        | Change::PutIf { object: o, field: f, .. }
+        | Change::Paint { object: o, field: f, .. }
+        | Change::Reshape { object: o, field: f, .. }
+        | Change::Stamp { object: o, field: f, .. }
+        | Change::Text { object: o, field: f, .. }
+        | Change::Mark { object: o, field: f, .. }
+        | Change::Unmark { object: o, field: f, .. }
+        | Change::Series { object: o, field: f, .. } => *o == object && *f == field,
+        Change::Insert { place, .. }
+        | Change::Move { place, .. }
+        | Change::MoveRange { place, .. } => place.object == object && place.field == field,
     }
 }

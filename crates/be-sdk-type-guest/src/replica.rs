@@ -748,6 +748,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// the journal's base and in reloads (`wire::BaseState`), so a replica opened again knows its
     /// own edits after the entries that held them were trimmed.
     origins: BTreeMap<u64, (u64, u64)>,
+    /// Each origin's highest `through` in an entry the order passed over (below a barrier):
+    /// a peer's layer committing as those edits leaves, as one the order holds does.
+    passed_origins: BTreeMap<u64, u64>,
     /// A seal the holder announced past what this replica applied, taken once it applies that
     /// far.
     heard_seal: Option<(CommitId, u64)>,
@@ -1216,6 +1219,7 @@ where
             projected: Settling::new(empty.clone(), Vec::new()),
             sealed_state: Vec::new(),
             origins: BTreeMap::new(),
+            passed_origins: BTreeMap::new(),
             visible: empty.clone(),
             confirmed: empty,
             pending: VecDeque::new(),
@@ -3609,7 +3613,7 @@ where
         match passed {
             false => self.note_origin(op.id.origin, through, op.sequence),
             // What a peer's layer was to go out as is gone with it.
-            true => self.drop_passed_layers(op.id.origin, through),
+            true => self.passed_over_origin(op.id.origin, through),
         }
         if mine {
             if !passed {

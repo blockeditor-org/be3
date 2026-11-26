@@ -31,7 +31,7 @@ A replica relays its tentative layer as it grows (`SessionMessage::Held`; guides
 Peers preview held layers), and each peer shows it on top of what it holds, never writing it:
 
 - **Where it shows.** A peer's layer shows above the device's own unconfirmed edits and beneath
-  its own tentative layer, peers' layers ordered by client id. So each device sees its own drag
+  its own tentative layer, peers' layers ordered by client, then layer number. So each device sees its own drag
   on top: two people dragging one item each see their own, and presence draws both cursors.
 - **An edit to a previewed item** needs nothing of the app: it is made, sent and goes beneath
   the layer, which shows what the commit, ordered after it, will leave. Presence already says
