@@ -758,9 +758,9 @@ impl State {
         let mut places = std::mem::take(&mut state.log_places);
         // A log whose places do not all read back is dropped, as never kept: its next read
         // checks it afresh.
-        state.logs.retain(|block, kept| {
-            kept_logs::join(kept, places.remove(block).unwrap_or_default())
-        });
+        state
+            .logs
+            .retain(|block, kept| kept_logs::join(kept, places.remove(block).unwrap_or_default()));
         for summary in state.summaries.values() {
             if let Some(parent) = summary.parent {
                 state.placed.entry(parent).or_default().insert(summary.id);

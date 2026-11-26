@@ -17,10 +17,17 @@ fn a_kept_log_missing_a_place_reads_back_as_never_kept() {
     let (block, other) = (Uuid::new_v4(), Uuid::new_v4());
     let creator = RecoveryPhrase::generate().secret();
     let kept = |block: Uuid| {
-        let root = be_block_keys::Entry::root(&creator, [1; 16], LogKind::Block, block.into_bytes());
+        let root =
+            be_block_keys::Entry::root(&creator, [1; 16], LogKind::Block, block.into_bytes());
         let steps = vec![Step::from(root.clone())];
-        let checked =
-            check_log(LogKind::Block, block.into_bytes(), root.hash(), &steps, &|_| None).unwrap();
+        let checked = check_log(
+            LogKind::Block,
+            block.into_bytes(),
+            root.hash(),
+            &steps,
+            &|_| None,
+        )
+        .unwrap();
         KeptLog {
             head: root.hash(),
             place: 0,

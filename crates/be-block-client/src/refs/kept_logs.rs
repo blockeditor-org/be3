@@ -197,13 +197,20 @@ pub(super) fn join(kept: &mut KeptLog, mut places: BTreeMap<u64, KeptPlace>) -> 
     kept.current = (kept.lowering_place..=kept.place)
         .filter_map(|place| places.get(&place).map(|place| place.hash))
         .collect();
-    kept.steps = places.values().filter_map(|place| place.step.clone()).collect();
+    kept.steps = places
+        .values()
+        .filter_map(|place| place.step.clone())
+        .collect();
     if let Some(checked) = &mut kept.checked {
         for (place, held) in &places {
             let at = *place as usize;
             checked.positions.insert(held.hash, at);
             for (account, level) in &held.levels {
-                checked.levels.entry(*account).or_default().push((at, *level));
+                checked
+                    .levels
+                    .entry(*account)
+                    .or_default()
+                    .push((at, *level));
             }
             if let Some(placement) = held.placement {
                 checked.placements.push((at, placement));

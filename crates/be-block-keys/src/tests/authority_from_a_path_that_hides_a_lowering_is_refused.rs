@@ -17,7 +17,15 @@ fn authority_from_a_path_that_hides_a_lowering_is_refused() {
     let (alice_id, bob_id, carol_id, dave_id, erin_id) =
         ([1; 16], [2; 16], [3; 16], [4; 16], [5; 16]);
     let (folder, note) = ([10; 16], [12; 16]);
-    let grant = |by: &RecoverySecret, signer, log, previous: &Entry, lowers, grantee, identity, level, authority| {
+    let grant = |by: &RecoverySecret,
+                 signer,
+                 log,
+                 previous: &Entry,
+                 lowers,
+                 grantee,
+                 identity,
+                 level,
+                 authority| {
         Entry::sign(
             by,
             signer,
@@ -35,10 +43,50 @@ fn authority_from_a_path_that_hides_a_lowering_is_refused() {
 
     // Alice's folder: Bob manages it, Dave was granted View and revoked, and Erin edits it.
     let folder_root = Entry::root(&alice, alice_id, LogKind::Block, folder);
-    let bob_manages = grant(&alice, alice_id, folder, &folder_root, false, bob_id, bob.identity(), Level::Manage, Authority::Log);
-    let dave_views = grant(&alice, alice_id, folder, &bob_manages, false, dave_id, dave.identity(), Level::View, Authority::Log);
-    let dave_revoked = grant(&alice, alice_id, folder, &dave_views, true, dave_id, dave.identity(), Level::None, Authority::Log);
-    let erin_edits = grant(&alice, alice_id, folder, &dave_revoked, false, erin_id, erin.identity(), Level::Edit, Authority::Log);
+    let bob_manages = grant(
+        &alice,
+        alice_id,
+        folder,
+        &folder_root,
+        false,
+        bob_id,
+        bob.identity(),
+        Level::Manage,
+        Authority::Log,
+    );
+    let dave_views = grant(
+        &alice,
+        alice_id,
+        folder,
+        &bob_manages,
+        false,
+        dave_id,
+        dave.identity(),
+        Level::View,
+        Authority::Log,
+    );
+    let dave_revoked = grant(
+        &alice,
+        alice_id,
+        folder,
+        &dave_views,
+        true,
+        dave_id,
+        dave.identity(),
+        Level::None,
+        Authority::Log,
+    );
+    let erin_edits = grant(
+        &alice,
+        alice_id,
+        folder,
+        &dave_revoked,
+        false,
+        erin_id,
+        erin.identity(),
+        Level::Edit,
+        Authority::Log,
+    );
 
     // Alice's note in the folder, which Bob grants Carol as a manager of the folder.
     let note_root = Entry::root(&alice, alice_id, LogKind::Block, note);
@@ -71,7 +119,8 @@ fn authority_from_a_path_that_hides_a_lowering_is_refused() {
                 head: head.hash(),
             }]),
         );
-        let log = move |_: LogKind, block: [u8; 16]| (block == folder).then(|| folder_steps.clone());
+        let log =
+            move |_: LogKind, block: [u8; 16]| (block == folder).then(|| folder_steps.clone());
         let logs = Logs::new([0; 16], None, &log);
         let outside = |asked: &Asked| answer(&logs, note, asked);
         check_log(
@@ -85,7 +134,13 @@ fn authority_from_a_path_that_hides_a_lowering_is_refused() {
 
     // Carol, who may not view the folder, is served it as a path proving Bob. One that keeps
     // the lowering whole, as the server serves a log records below rest on, proves Bob's grant.
-    let folder_log = vec![folder_root.clone(), bob_manages.clone(), dave_views.clone(), dave_revoked.clone(), erin_edits.clone()];
+    let folder_log = vec![
+        folder_root.clone(),
+        bob_manages.clone(),
+        dave_views.clone(),
+        dave_revoked.clone(),
+        erin_edits.clone(),
+    ];
     let honest = proof_path(LogKind::Block, &folder_log, carol_id, [bob_id], true);
     assert!(
         honest.iter().any(|step| matches!(step, Step::Reduced(_))),
@@ -107,10 +162,23 @@ fn authority_from_a_path_that_hides_a_lowering_is_refused() {
 
     // Alice revokes Bob, and a server reduces the revocation on the path it serves Carol, so Bob
     // would still seem to manage the folder: his grant is refused.
-    let bob_revoked = grant(&alice, alice_id, folder, &erin_edits, true, bob_id, bob.identity(), Level::None, Authority::Log);
+    let bob_revoked = grant(
+        &alice,
+        alice_id,
+        folder,
+        &erin_edits,
+        true,
+        bob_id,
+        bob.identity(),
+        Level::None,
+        Authority::Log,
+    );
     let mut forged = proof_path(LogKind::Block, &folder_log, carol_id, [bob_id], true);
     forged.push(Step::Reduced(bob_revoked.reduced()));
-    let partial = check_log(LogKind::Block, folder, folder_root.hash(), &forged, &|_| None).unwrap();
+    let partial = check_log(LogKind::Block, folder, folder_root.hash(), &forged, &|_| {
+        None
+    })
+    .unwrap();
     assert_eq!(
         partial.grants.get(&bob_id).map(|(level, _)| *level),
         Some(Level::Manage),
