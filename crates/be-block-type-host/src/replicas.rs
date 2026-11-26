@@ -47,6 +47,39 @@ const JOINING_OWNER: ClientId = ClientId::MAX;
 
 pub const EARLY_OPEN: std::time::Duration = std::time::Duration::from_millis(250);
 
+/// Where the next rejoin of a block waits once the server answered it, before the answer
+/// reaches its replica (`pause_rejoin`).
+type RejoinPause = (Arc<tokio::sync::Notify>, Arc<tokio::sync::Notify>);
+static REJOIN_PAUSES: Mutex<Vec<(Uuid, RejoinPause)>> = Mutex::new(Vec::new());
+
+/// Has the next rejoin of `block` stop once the server answered it, telling `paused` and waiting
+/// for `resume` before its replica takes the answer: a test's hold on the join, inert unless a
+/// test asks for it (decisions/test_hooks_are_ordinary_code.md).
+pub fn pause_rejoin(
+    block: Uuid,
+    paused: Arc<tokio::sync::Notify>,
+    resume: Arc<tokio::sync::Notify>,
+) {
+    REJOIN_PAUSES
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .push((block, (paused, resume)));
+}
+
+async fn paused_rejoin(block: Uuid) {
+    let pause = {
+        let mut pauses = REJOIN_PAUSES.lock().unwrap_or_else(PoisonError::into_inner);
+        pauses
+            .iter()
+            .position(|(paused, _)| *paused == block)
+            .map(|at| pauses.remove(at).1)
+    };
+    if let Some((paused, resume)) = pause {
+        paused.notify_one();
+        resume.notified().await;
+    }
+}
+
 /// A session the host makes up for a replica outside the server's (offline, or while it joins):
 /// `clients`, each an editor, the first holding the lease. Its index is 0, which no session the
 /// server answers has (a joiner's own entry is its first at least), and its participants speak
@@ -5195,6 +5228,7 @@ impl<H: Host> Replicas<H> {
                 Ok::<_, ClientError>((client, session, head, kept_commits(&peer, block), journal))
             }
             .await;
+            paused_rejoin(block).await;
             let _ = io.send(Io::Rejoined {
                 replica,
                 block,
