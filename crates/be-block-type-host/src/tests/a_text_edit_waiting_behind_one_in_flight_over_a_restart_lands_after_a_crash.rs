@@ -73,7 +73,9 @@ fn a_text_edit_waiting_behind_one_in_flight_over_a_restart_lands_after_a_crash()
             "the deletes leave {state} bytes of session state"
         );
         for deleted in deletes {
-            let message = mirror.operate(None, deleted).expect("the editor has content");
+            let message = mirror
+                .operate(None, deleted)
+                .expect("the editor has content");
             replicas.relay_from_editor(block, editor, message.encode(), std::time::Instant::now());
         }
         replicas.pump((&peer, &shared)).await;
@@ -83,7 +85,9 @@ fn a_text_edit_waiting_behind_one_in_flight_over_a_restart_lands_after_a_crash()
             &mut replicas,
             "had the fragments ordered",
             |replicas, _| {
-                replicas.status(block).is_some_and(|status| status.journaled)
+                replicas
+                    .status(block)
+                    .is_some_and(|status| status.journaled)
                     && replicas
                         .submissions_of(block)
                         .is_some_and(|(submitting, ..)| submitting == 0)
@@ -147,7 +151,9 @@ fn a_text_edit_waiting_behind_one_in_flight_over_a_restart_lands_after_a_crash()
             &mut replicas,
             "settled both edits",
             |replicas, _| {
-                replicas.status(block).is_some_and(|status| status.journaled)
+                replicas
+                    .status(block)
+                    .is_some_and(|status| status.journaled)
                     && replicas
                         .submissions_of(block)
                         .is_some_and(|(submitting, ..)| submitting == 0)
