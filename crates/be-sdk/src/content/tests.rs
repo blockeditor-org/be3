@@ -18,6 +18,7 @@ fn arrived(operation: Vec<u8>, mine: bool) -> crate::EditorOperation {
     }
 }
 
+mod a_block_is_projected_as_one_content_type;
 mod a_foreign_edit_during_an_edit_in_flight_keeps_both;
 mod a_foreign_edit_during_an_edit_in_flight_runs_only_what_either_touched;
 mod a_gesture_the_replica_ended_is_cancelled_and_its_later_edits_dropped;
@@ -30,6 +31,7 @@ mod an_edit_rereads_only_the_objects_it_touched;
 mod an_operation_runs_only_the_watchers_of_what_it_touched;
 mod an_undecodable_operation_asks_for_a_fresh_snapshot;
 mod lacking_edits_a_read_takes_are_announced_at_the_next_pump;
+mod two_editors_of_one_instance_share_a_blocks_projection;
 mod updates_for_another_block_reach_only_its_projection;
 
 struct Fixture {

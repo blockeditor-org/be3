@@ -36,10 +36,16 @@ the instance and the replica.
   drops that many from the front of what it sent, counting from what it was
   told landed, and rebuilds its view on the snapshot with the rest on top;
   `Operations` (each marked `mine`, with `unsettled` and, for a peer's
-  operation that goes beneath them, the rebased `beneath`); `Lacking` (below,
+  operation that goes beneath them, the rebased `beneath`; for a local edit
+  made while a tentative layer is held, `above`, how many of the last
+  unsettled edits it goes beneath, which stay on top); `Lacking` (below,
   "Sending"); `Presence`;
   `PeerMessages`; `Range`; `GestureEnded { id, cancelled }`, the replica ending
   one of the instance's gestures, which `EditorMirror` answers with a cancel.
+  The replica tells it after what landed before, and drops what the instance
+  sent in the gesture after, unanswered, so `EditorMirror` stops showing those
+  edits when it hears and lets them go once an answer passes them (each still
+  counts in a snapshot's `applied`).
 - `write-content` writes content outright, since it may name a block nothing
   follows (guides/blocks/host.md, "Creating, seeding and replacing").
 
@@ -59,7 +65,11 @@ before then.
 
 `editor.content_of::<C>(block)` reads and edits another block the same way;
 the host opens that block's replica on the first frame, read-only unless the
-account may edit it, and closes it when nothing holds it.
+account may edit it, and closes it when nothing holds it. An instance holds one
+`LiveContent` per block, since it takes all of the block's updates: every editor
+of the instance (an exporter's `OwnedEditor::reading`, a preview) shares the one
+another holds (`EditorHost::projection`), and asking for a block as a second
+content type panics.
 `editor.related_content::<C>(memo)` follows whichever block a memo names (a
 database view follows its database and schema). Revision previews and blocks
 still uploading are answered with a host-made `Snapshot` with no session

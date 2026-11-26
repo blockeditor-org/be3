@@ -603,42 +603,21 @@ Depends on #686 (session catch-ups replaced by server ordering).
 What the tentative layer (guides/blocks/host.md, Undo;
 decisions/tentative_edits_wait_for_release.md) left as it was.
 
-- **A held layer's ordinary edits rebuild every view.** An ordinary edit made
-  while a tentative layer is held rebuilds `visible` and snapshots every editor,
-  per keystroke, and since `unsettled` counts the layer, a peer's entry while it
-  is held may rebuild `visible` and snapshot the editors rather than land beneath
-  it. `Journaled::Beneath` with the layer as `local` would tell them less. Done:
-  both go beneath the layer, with a be-sdk-type-guest test counting that typing
-  during a held drag sends editors no snapshot.
-- **A gesture's dropped edits answered by a snapshot each.** An edit the
-  replica drops in a gesture it ended (an undo mid-drag, a replacement), sent
-  before the editor heard, is answered with a snapshot, once per frame still in
-  flight; it did not show. Done, if drags send enough frames in flight for it
-  to matter: `EditorMirror` tags its pending edits with their gesture and drops
-  them itself on `GestureEnded`, with a be-sdk test that an undo mid-drag sends
-  one snapshot at most.
-- **Two `LiveContent`s for one block.** `EditorHost::content_of` makes a new
-  `LiveContent` per call, and two live at once for one block in one instance
-  share its queue of content updates (the first to adopt takes them all,
-  `GestureEnded` included). Done: `content_of` goes through the editor's
-  projection cache, or asserts one projection per block, with a test.
-- **Undo groups left open by an editor that detaches without a goodbye.** An
-  editor that detaches without the runtime's cancels for its open gestures
-  leaves its undo groups open in `History` until an undo or redo commits them
-  (`close_groups`); its tentative gestures are cancelled by the detach itself.
-  Done: the detach commits its undo groups too, with a be-sdk-type-guest test.
-- **Undo while a voided gesture is open.** After an undo voids the open
-  tentative gestures, a second undo is swallowed and redo refused until their
-  editors end them, alike on host and replica; and a gesture the replica voids
-  itself (a replacement, an edit that does not carry) that its editor commits
-  before hearing `GestureEnded` counts its operations though they were dropped.
-  Done: decided whether either needs more than the editor's prompt cancel, and
-  if so a be-sdk-type-guest test of it.
 - **Peers' derived views of a held edit.** Peers see a tentative edit only
-  through presence (the drag board's frames), so their derived views (bound
-  lines, z-order) do not follow it. Done: presence carries the held edits and a
-  peer's replica previews them as a layer of its own, shown by a canvas test
-  with a bound line.
+  through presence, so their derived views (bound lines, z-order) do not follow
+  it. The canvas covers its carried move already (`carry_for_peers`, with bound
+  lines following), so what is left is its other held gestures (resizing,
+  rotating, a line's end or bend, the sidebar's scrubbed values) and every other
+  app's. Presence carrying the held edits and a peer's replica previewing them
+  as a layer of its own is a protocol of its own, worth a plan before it is
+  built: a session message carrying a client's layer as it grows; where the
+  layer sits for the peer's editors (above its own tentative layer, counted as
+  unsettled so its frames land on top); dropping it when the commit's entry is
+  numbered (the relay and the order race, so the layer names the local edit it
+  commits as), at a cancel, and when its client leaves; and keeping it out of
+  seals, stashes and what the peer's own edits are recorded against. Done: presence
+  carries the held edits and a peer's replica previews them as a layer of its
+  own, shown by a canvas test with a bound line following a peer's resize.
 
 ## 26. Server protocol
 

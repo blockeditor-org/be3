@@ -27,6 +27,8 @@ fn a_begin_commits_an_undo_cancels_and_leaving_cancels_its_own() {
     assert_eq!(undo.this, This::Ended);
     assert_eq!(undo.voided, [named(2, 0)]);
     assert_eq!(undo.released.len(), 4);
+    // With only the voided gesture open, another undo holds nothing back: it is ordinary.
+    assert_eq!(holds.undo(), Took::default());
     // The voided gesture stays open: what its editor sends before it hears is held, and none
     // of it counts however it ends.
     let late = serial(&operate(&mut holds, 2));

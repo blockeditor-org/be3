@@ -327,16 +327,14 @@ impl EditorCore {
         C: be_block_content::LiveEdit + Clone + Default,
     {
         let contents = &self.0.contents;
-        let cached = contents
-            .contents
-            .borrow()
-            .get(&block)
-            .and_then(|held| held.downcast_ref::<LiveContent<C>>())
-            .cloned();
-        if let Some(live) = cached {
-            return live;
+        if let Some(held) = contents.contents.borrow().get(&block) {
+            match held.downcast_ref::<LiveContent<C>>() {
+                Some(live) => return live.clone(),
+                None => panic!("{block:?} is projected already as another content type"),
+            }
         }
-        let live = LiveContent::<C>::new(self.0.host.clone(), block);
+        // Another editor of the instance may hold it: they share it.
+        let live = self.0.host.projection::<C>(block);
         let due = Rc::downgrade(&contents.due);
         live.on_due(move || {
             if let Some(due) = due.upgrade() {

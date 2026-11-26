@@ -138,10 +138,11 @@ impl Holds {
     /// sending until they hear: what they send is held, and released uncounted when they end.
     /// The undo is spent on the layer, so it is `Ended`: neither counted nor kept, as a host
     /// giving a replica its edits again gives it none of the layer and must not give the undo,
-    /// which would then undo the edit before.
+    /// which would then undo the edit before. An undo while only voided gestures are open holds
+    /// nothing back: it is an ordinary one.
     pub fn undo(&mut self) -> Took {
         let mut took = Took::default();
-        if self.open.is_empty() {
+        if self.open.iter().all(|open| self.voided.contains(open)) {
             return took;
         }
         took.undone = true;

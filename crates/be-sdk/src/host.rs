@@ -655,6 +655,9 @@ pub struct EditorHost {
     next_copy: Rc<Cell<u64>>,
     next_frame: Rc<RefCell<HashMap<Option<ViewId>, Duration>>>,
     content_updates: Rc<RefCell<HashMap<Option<Uuid>, Vec<ToEditor>>>>,
+    /// The projection of each block other than the instance's own, while one is held: every
+    /// editor of the instance shares it, since all take the block's one queue of updates.
+    projections: Rc<RefCell<HashMap<Uuid, std::rc::Weak<dyn std::any::Any>>>>,
     followed: Rc<RefCell<HashMap<Option<Uuid>, usize>>>,
     asked: Rc<RefCell<HashSet<Option<Uuid>>>>,
     content_operations: Rc<RefCell<Vec<ContentOperation>>>,
@@ -1772,12 +1775,29 @@ impl EditorHost {
             .insert(block, content_type);
     }
 
-    pub fn content_of<C>(&self, block: Uuid) -> crate::LiveContent<C>
+    /// The projection of `block` (none for the instance's own): the one an editor of this
+    /// instance holds already, or a new one. A block is projected once, as one content type,
+    /// since its projection takes all of its updates.
+    pub(crate) fn projection<C>(&self, block: Option<Uuid>) -> crate::LiveContent<C>
     where
-        C: be_block_content::LiveEdit + Clone + Default,
+        C: be_block_content::LiveEdit + Clone + Default + 'static,
     {
-        self.watch_content(block, C::CONTENT_TYPE);
-        crate::LiveContent::new(self.clone(), Some(block))
+        let Some(id) = block else {
+            return crate::LiveContent::new(self.clone(), None);
+        };
+        let held = self
+            .projections
+            .borrow()
+            .get(&id)
+            .and_then(crate::LiveContent::<C>::upgrade);
+        match held {
+            Some(Ok(live)) => return live,
+            Some(Err(())) => panic!("block {id} is projected already as another content type"),
+            None => {}
+        }
+        let live = crate::LiveContent::new(self.clone(), block);
+        self.projections.borrow_mut().insert(id, live.hold());
+        live
     }
 
     pub fn seed_content<C: be_block_content::BlockContent>(&self, block: Uuid, content: &C) {

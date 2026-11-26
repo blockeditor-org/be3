@@ -1818,11 +1818,10 @@ where
         ) && took.undone
         {
             // Undo while the layer is held cancels all of it, as Escape would, and is spent.
-            // The open gestures stay open, voided, until their editors end them (`Holds::undo`).
+            // The open gestures stay open in `Holds`, voided, until their editors end them
+            // (`Holds::undo`), but hold nothing: the history no longer holds a layer, so a
+            // second undo or a redo meanwhile is an ordinary one.
             let _ = self.history.undo(&self.visible);
-            for gesture in self.holds.open() {
-                self.history.begin(*gesture, GestureKind::Tentative);
-            }
             self.undo_spent = true;
             for gesture in took.voided {
                 if self.voided.insert(gesture) {
@@ -2212,6 +2211,9 @@ where
             Input::Resent { editor } => self.resent(editor),
             Input::Detach { editor } => {
                 self.editors.remove(&editor);
+                // Its open undo groups were written as they were made: each is kept as one
+                // step. Its tentative gestures were cancelled as the detach was taken.
+                self.history.commit_groups_of(editor);
                 // What it asked is answered to no one, and carries to no next replica.
                 self.log_reads
                     .retain(|_, read| read.is_none_or(|(asker, _)| asker != editor));

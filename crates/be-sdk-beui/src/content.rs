@@ -4,7 +4,7 @@ use be_block_content::be_block_model::{Document, Field, FieldRef, List, Model};
 use be_block_content::{LiveEdit, ObjectId, Root, Touched};
 use be_sdk::LackingEdit;
 use be_sdk::{
-    BlockWatch, ContentGesture, EditorHost, LiveContent, Objects, Projected, Subscription, Unready,
+    BlockWatch, ContentGesture, LiveContent, Objects, Projected, Subscription, Unready,
 };
 use beui::reactive::*;
 
@@ -77,12 +77,6 @@ impl<C: LiveEdit> Eq for ContentProjection<C> {}
 pub struct OwnedContentProjection<C: LiveEdit + 'static> {
     handle: ContentProjection<C>,
     _state: OwnedStored<Projection<C>>,
-}
-
-impl<C: LiveEdit + Clone + Default + 'static> OwnedContentProjection<C> {
-    pub fn new(host: EditorHost, block: Option<uuid::Uuid>) -> Self {
-        Self::from(LiveContent::new(host, block))
-    }
 }
 
 impl<C: LiveEdit + Clone + Default + 'static> From<LiveContent<C>> for OwnedContentProjection<C> {
