@@ -748,7 +748,9 @@ index and search it locally.
   range. Two sides merge by parts (`MergeParts`, the union `Index::merge`
   makes); it is registered with the host's own types (`be-sdk-type-host`).
 - **Indexing.** A head this device's session moves (`Host::status` with
-  `owner`) queues the block (`Searching::sealed`). Each round of the worker's
+  `owner`) queues the block (`Searching::sealed`), as does a block made here
+  (`Command::Create`); one whose workspace has no index yet waits for it
+  (`will_want_index`), so no search is complete without it. Each round of the worker's
   loop takes the queued blocks whose root it may edit, reads each one's name
   from the mirror and its documents' text at its head with `search-text`
   (`Replicas::search_text`; a type that answers nothing is found by its name),
@@ -802,7 +804,9 @@ index and search it locally.
   One index at a time, a commit a pass, with merges up to `IDLE_MERGE_BYTES`
   (128 MiB, since a merge reads its segments whole into memory), sealed and sent
   like a batch (it counts as one being written, so the host is busy meanwhile and
-  that index's batches wait). Only the device that wrote an index's last batch
+  that index's batches wait). The mirror follows each index the pass may
+  compact (`Owner::Search`), as it reads the index's access there and no search
+  need be open. Only the device that wrote an index's last batch
   compacts it: `Searching::last_written` keeps the head each write here left,
   and the pass looks only at an index still at that head locally and on the
   server as far as this device knows, once per head, so two devices never make
@@ -841,7 +845,11 @@ index and search it locally.
   documents' text (`search-text` with the hit's key), kept per document and
   head, and drops hits the mirror shows
   detached, unviewable or outside `within`; it lists each hit block
-  (`Owner::Search`) and shows a hit only once the mirror holds it.
+  (`Owner::Search`) and shows a hit only once the mirror holds it. An answer is
+  complete only while it answers what the indexes hold now and every hit it
+  found is listed: one an index change runs again (`forget_answers`, or a run
+  that started before it) keeps showing its hits, not complete, until the new
+  run's snippets are cut, so a reader never sees the hits go meanwhile.
 - **Opening a hit.** Quick open (`OpenableBlock::at`) and the file tree's hit
   rows (`EditorHost::open_block_at`) open a hit's block with a
   `search-location`: its document key and the words its first match covers. A
