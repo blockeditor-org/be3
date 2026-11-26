@@ -286,7 +286,11 @@ impl Root {
     /// The host's own rows, after every editor's, as be-host's palette lists its own: switching
     /// account while a session shows, and its theme.
     fn host_rows(&self) -> Vec<Row> {
-        let shown = self.core.borrow().waits_for.is_none();
+        // A session shows once nothing is waited for and one is chosen (`settle_session`).
+        let shown = {
+            let core = self.core.borrow();
+            core.waits_for.is_none() && core.showing.is_some()
+        };
         let row = |id: &str, title: &str, glyph, enabled: bool, command: fn() -> CoreCommand| Row {
             item: PaletteItem {
                 key: format!("host/{id}"),
@@ -458,10 +462,11 @@ impl Root {
         let Some(palette) = palette.as_mut() else {
             return;
         };
-        let Some(names) = palette.names.borrow_mut().take() else {
+        // Until the palette's document ran, the names wait for it.
+        let Some(items) = palette.items.get() else {
             return;
         };
-        let Some(items) = palette.items.get() else {
+        let Some(names) = palette.names.borrow_mut().take() else {
             return;
         };
         let rows: Vec<Row> = palette
