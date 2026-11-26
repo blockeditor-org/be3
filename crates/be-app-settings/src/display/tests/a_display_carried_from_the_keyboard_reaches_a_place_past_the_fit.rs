@@ -18,12 +18,13 @@ fn a_display_carried_from_the_keyboard_reaches_a_place_past_the_fit() {
     );
 
     let tile = settings.editor.rect_of("display.arrangement.eDP-1").center();
+    let fill = tile_fill(&settings.editor, "display.arrangement.eDP-1");
     settings.editor.click(tile);
     settings.editor.key(Key::Space, Modifiers::NONE);
     settings.run();
     settings.editor.key(Key::ArrowDown, Modifiers::NONE);
     settings.run();
-    let carried = settings.editor.rect_of("display.arrangement.eDP-1");
+    let carried = drawn_tile(&settings.editor, fill);
     assert!(
         desk.contains_rect(carried),
         "the laptop is carried in sight: {carried:?} in {desk:?}"
