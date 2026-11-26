@@ -19,13 +19,21 @@ fn said(harness: &Harness) -> Option<String> {
 fn a_carry_lifted_with_a_dock_window_open_drops_in_the_window_it_is_let_go_in() {
     let _root = crate::reactive::RootScope::new();
     let dropped = create_signal(Vec::<(u32, &'static str)>::new());
-    let (dock, source, under, inside) =
-        (NodeRef::new(), NodeRef::new(), NodeRef::new(), NodeRef::new());
+    let (dock, source, under, inside) = (
+        NodeRef::new(),
+        NodeRef::new(),
+        NodeRef::new(),
+        NodeRef::new(),
+    );
     let document = build_node(move || {
         use_drop_site(
             Func::new(|_: u32| true),
             Func::new(move |_: u32| {
-                drag::closest([place_on(under, "main"), place_on(inside, "window")].into_iter().flatten())
+                drag::closest(
+                    [place_on(under, "main"), place_on(inside, "window")]
+                        .into_iter()
+                        .flatten(),
+                )
             }),
             Callback::new(move |(payload, place): (u32, &'static str)| {
                 dropped.update(|dropped| dropped.push((payload, place)));

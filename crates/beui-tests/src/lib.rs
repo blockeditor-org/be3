@@ -761,9 +761,10 @@ fn ThresholdFixture() -> NodeId {
     let drags = create_signal(0_u32);
     let first = create_signal(None::<beui::Pos2>);
     let report = create_memo(move || {
-        let first = first
-            .get()
-            .map_or_else(|| "nowhere".to_owned(), |at| format!("{:.0},{:.0}", at.x, at.y));
+        let first = first.get().map_or_else(
+            || "nowhere".to_owned(),
+            |at| format!("{:.0},{:.0}", at.x, at.y),
+        );
         format!(
             "Clicked {}, dragged {}, first at {first}",
             clicks.get(),

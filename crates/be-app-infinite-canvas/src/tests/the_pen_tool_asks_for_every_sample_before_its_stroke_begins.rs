@@ -23,10 +23,18 @@ fn the_pen_tool_asks_for_every_sample_before_its_stroke_begins() {
     editor.in_one_frame(|editor| {
         editor.pen(PenPhase::Down(PointerButton::Primary), from, 0.5);
         for step in 1..=3 {
-            editor.pen(PenPhase::Move, from + Vec2::new(1.2 * step as f32, 0.0), 0.5);
+            editor.pen(
+                PenPhase::Move,
+                from + Vec2::new(1.2 * step as f32, 0.0),
+                0.5,
+            );
         }
     });
-    editor.pen(PenPhase::Up(PointerButton::Primary), from + Vec2::new(3.6, 0.0), 0.0);
+    editor.pen(
+        PenPhase::Up(PointerButton::Primary),
+        from + Vec2::new(3.6, 0.0),
+        0.0,
+    );
 
     let entities = entities(&editor);
     assert_eq!(entities[0].shape, CanvasShape::Freehand);

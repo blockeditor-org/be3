@@ -225,10 +225,8 @@ impl Board {
         };
         let window = placing.last.map(|last| last.window);
         let placed = |node: NodeId| {
-            let elsewhere = window.is_some_and(|window| {
-                self.known_window(node)
-                    .is_some_and(|known| known != window)
-            });
+            let elsewhere = window
+                .is_some_and(|window| self.known_window(node).is_some_and(|known| known != window));
             match elsewhere {
                 true => None,
                 false => self.space.placed(node),
