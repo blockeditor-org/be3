@@ -58,6 +58,9 @@ impl Served {
             let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
             async move {
                 super::serve_command(&peer, &shared, &served_tasks, command).await;
+                // What it changed (a revoke's rotation, the keys it asked for) may let a
+                // change a drain beside it failed to send go now.
+                served_tasks.drain_missed(&peer, &shared);
             }
         });
     }

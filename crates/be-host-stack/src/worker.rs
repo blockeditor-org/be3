@@ -933,6 +933,10 @@ pub struct Shared {
     /// Set by a test (`hold_drains`): the outbox is not drained until it is cleared.
     #[cfg(test)]
     pub hold_drains: bool,
+    /// Set by a test (`fail_drains`): drains end as failed without reaching the server, as one
+    /// meeting a rotation under way would, until it is cleared.
+    #[cfg(test)]
+    pub fail_drains: bool,
     /// Set by a test: the next version command's write of a block waits on it
     /// (`version::HeldWrite`).
     #[cfg(test)]
@@ -1913,6 +1917,7 @@ impl Session<'_> {
                         heard(peer, shared, &self.tasks.0, event).await;
                         if keyed {
                             self.unlock(peer, shared).await;
+                            self.tasks.0.drain_missed(peer, shared);
                         }
                     }
                     false
@@ -1967,7 +1972,10 @@ impl Session<'_> {
             moved |= self.replicas.pump((peer, shared)).await;
             step(shared, Some("the outbox"));
             moved |= self.settle_outbox().await;
-            rekey_changed(peer, self.replicas, &mut keyed, &self.served);
+            if rekey_changed(peer, self.replicas, &mut keyed, &self.served) {
+                // An open block's key changed: a rotation finished.
+                self.tasks.0.drain_missed(peer, shared);
+            }
             let before = version_revisions(shared);
             step(shared, Some("version statuses"));
             self.refresh_versions().await;
@@ -2432,17 +2440,39 @@ async fn drain_outbox(
     Vec<(Uuid, CommitId, Option<CommitId>)>,
     Vec<(Uuid, Option<CommitId>, bool)>,
     std::collections::BTreeSet<Uuid>,
+    bool,
 ) {
     let mut diverged = Vec::new();
     let mut published = Vec::new();
     let mut not_appended = std::collections::BTreeSet::new();
+    let mut missed = false;
     if peer.pending().operations == 0 {
         // What waited for the server to be reached goes now.
         be_block_type_host::replicas::send_announcements::<Shared>(peer, shared).await;
-        return (diverged, published, not_appended);
+        return (diverged, published, not_appended, missed);
+    }
+    #[cfg(test)]
+    if shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .fail_drains
+    {
+        return (diverged, published, not_appended, true);
     }
     match peer.drain(|_| false).await {
         Ok(drained) => {
+            // A change that failed, or that the server refused for now, is kept: it goes again
+            // on what may let it through (`Tasks::drain_missed`), not only at `OUTBOX_RETRY`.
+            missed = drained.iter().any(|outcome| {
+                matches!(
+                    outcome,
+                    be_block_client::Drained::Failed { .. }
+                        | be_block_client::Drained::Refused {
+                            restored: false,
+                            ..
+                        }
+                )
+            });
             shared
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
@@ -2610,7 +2640,7 @@ async fn drain_outbox(
     // The drain published commits holding announced edits.
     be_block_type_host::replicas::send_announcements::<Shared>(peer, shared).await;
     report(peer, shared);
-    (diverged, published, not_appended)
+    (diverged, published, not_appended, missed)
 }
 
 /// After the server refused a move or a definition of `block`, the graph shows it as the server
@@ -2829,7 +2859,8 @@ fn rekey_changed(
     replicas: &mut Replicas,
     keyed: &mut HashMap<Uuid, Uuid>,
     served: &Served,
-) {
+) -> bool {
+    let mut changed = false;
     let open = replicas.open_blocks();
     keyed.retain(|block, _| open.contains(block));
     // A block a command in the lane works on (sharing it rotates its key) is resealed once that
@@ -2843,8 +2874,10 @@ fn rekey_changed(
             .is_some_and(|previous| previous != key)
         {
             replicas.seal_later(block, true);
+            changed = true;
         }
     }
+    changed
 }
 
 enum Woken {
@@ -5274,6 +5307,10 @@ struct Outbox {
     /// Each block a drain published, with the head it published (none for one only created),
     /// or that the server refused.
     published: Vec<(Uuid, Option<CommitId>, bool)>,
+    /// The last drain kept a change that failed or was refused for now (`Drained::Failed`): what
+    /// may let it through (keys arriving, a rotation finishing) drains again
+    /// (`Tasks::drain_missed`).
+    missed: bool,
 }
 
 impl Tasks {
@@ -5326,8 +5363,10 @@ impl Tasks {
         );
         self.spawn(async move {
             loop {
-                let (diverged, published, not_appended) = drain_outbox(&peer, &shared).await;
+                let (diverged, published, not_appended, missed) =
+                    drain_outbox(&peer, &shared).await;
                 let mut held = outbox.borrow_mut();
+                held.missed = missed;
                 held.diverged.extend(diverged);
                 held.published.extend(published);
                 held.not_appended.extend(not_appended);
@@ -5339,6 +5378,22 @@ impl Tasks {
             set_draining(&shared, false);
             drained.send_modify(|drains| *drains += 1);
         });
+    }
+
+    /// Drains again when the last drain kept a change that failed (`Outbox::missed`): called on
+    /// what may let it through, so it waits for no timer. After a revoke, a drain running beside
+    /// the lane's rotation can meet a key that is outdated with no new epoch yet, or keys not
+    /// yet asked for again, and fail; the rotation ending, or the keys arriving, lets it go.
+    pub(super) fn drain_missed(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
+        let missed = {
+            let mut outbox = self.outbox.borrow_mut();
+            // One under way may have failed before what was signalled: it goes once more
+            // (`sync`), and says again whether it missed.
+            outbox.draining || std::mem::take(&mut outbox.missed)
+        };
+        if missed {
+            self.sync(peer, shared);
+        }
     }
 
     /// Waits until the server has what this device made of `block` (a creation, move or
