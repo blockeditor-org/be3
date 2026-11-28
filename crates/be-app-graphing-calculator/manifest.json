@@ -1,0 +1,41 @@
+{
+  "id": "be3.graphing_calculator",
+  "name": "Graphing Calculator",
+  "version": "0.1.0",
+  "editors": {
+    "graphing_calculator": {
+      "id": "617f5736-4a25-48c6-91cc-2211911cb144",
+      "edits": "70956c4a-1353-4814-abb7-9f5963ab39de",
+      "display_name": "Graphing Calculator",
+      "icon": "\ue121",
+      "templates": {
+        "main": {}
+      },
+      "interaction": "Live",
+      "capabilities": {
+        "rotation": false,
+        "preserve_aspect_ratio": false,
+        "pan_and_zoom": true,
+        "pan": "OneFinger"
+      },
+      "resize": "Both",
+      "views": [
+        "Main"
+      ]
+    }
+  },
+  "block_types": {
+    "graphing_calculator": {
+      "id": "70956c4a-1353-4814-abb7-9f5963ab39de",
+      "display_name": "Graphing Calculator",
+      "icon": "\ue121",
+      "color": [
+        172,
+        145,
+        47
+      ],
+      "module": "graphing_calculator_types.wasm"
+    }
+  },
+  "entry_point": "graphing_calculator.wasm"
+}
