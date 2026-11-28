@@ -180,6 +180,9 @@ presentation children, playback and a preview; the pan-and-zoom example a
 camera with nothing stored; `crates/be-app-example-triangle` an app with no UI
 framework.
 
+The [graphing calculator guide](graphing_calculator.md) combines a host camera,
+a docked list and collaborative text fields in one app.
+
 ### Testing
 
 `be_sdk_test::BeuiTest` runs the editor through the same app session the

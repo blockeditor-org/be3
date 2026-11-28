@@ -1,0 +1,24 @@
+[package]
+name = "be-app-graphing-calculator"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+be-lib-graphing-calculator = { path = "../be-lib-graphing-calculator" }
+be-sdk-text = { path = "../be-sdk-text" }
+beui-text-editor-core = { path = "../beui-text-editor-core" }
+serde = { version = "1", features = ["derive"] }
+beui = { path = "../beui" }
+be-sdk-beui = { path = "../be-sdk-beui" }
+be-type-graphing-calculator = { path = "../be-type-graphing-calculator" }
+uuid = "1"
+
+[dev-dependencies]
+be-sdk-test = { path = "../be-sdk-test" }
+
+[lints]
+workspace = true

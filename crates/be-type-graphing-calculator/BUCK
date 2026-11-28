@@ -1,0 +1,6 @@
+load("@root//buck/cargo:defs.bzl", "cargo_package")
+load("@root//buck/wasm:defs.bzl", "type_module")
+
+cargo_package()
+
+type_module(module = "graphing_calculator_types")

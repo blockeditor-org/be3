@@ -1042,6 +1042,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-app-graphing-calculator"
+version = "0.1.0"
+dependencies = [
+ "be-lib-graphing-calculator",
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-sdk-text",
+ "be-type-graphing-calculator",
+ "beui",
+ "beui-text-editor-core",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "be-app-image"
 version = "0.1.0"
 dependencies = [
@@ -2049,6 +2064,10 @@ version = "0.1.0"
 dependencies = [
  "icu_properties",
 ]
+
+[[package]]
+name = "be-lib-graphing-calculator"
+version = "0.1.0"
 
 [[package]]
 name = "be-lib-input-router"
@@ -3150,6 +3169,17 @@ dependencies = [
 name = "be-type-gem-hunt"
 version = "0.1.0"
 dependencies = [
+ "be-block-content",
+ "be-block-model",
+ "be-sdk-type-guest",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-graphing-calculator"
+version = "0.1.0"
+dependencies = [
+ "be-block-commit",
  "be-block-content",
  "be-block-model",
  "be-sdk-type-guest",
